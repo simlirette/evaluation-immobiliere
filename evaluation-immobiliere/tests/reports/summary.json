@@ -1,0 +1,33 @@
+{
+  "total_cases": 5,
+  "status_counts": {
+    "BROUILLON": 1,
+    "A_REVOIR": 3,
+    "PRET_REVISION_FINALE": 1
+  },
+  "top_blocking_failures": [
+    [
+      "B002: comparable sans source_id",
+      1
+    ],
+    [
+      "B002: ajustement sans source_id",
+      1
+    ],
+    [
+      "B005: ajustement sensible sans validation_humaine",
+      1
+    ],
+    [
+      "B004: unité incohérente sujet/comparables",
+      1
+    ]
+  ],
+  "top_warnings": [
+    [
+      "W001: confiance faible",
+      1
+    ]
+  ],
+  "conformite_globale_pct": 20.0
+}

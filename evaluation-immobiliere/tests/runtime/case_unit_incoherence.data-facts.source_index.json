@@ -1,0 +1,6 @@
+{
+  "dossier_id": "D-004",
+  "step": "data-facts",
+  "artifact": "source_index.json",
+  "source_fixture": "case_unit_incoherence.json"
+}

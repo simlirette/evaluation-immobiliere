@@ -1,0 +1,13 @@
+{
+  "dossier_id": "D-004",
+  "step": "comps-market",
+  "artifact": "comparables_proposes.json",
+  "comparables": [
+    {
+      "comparable_id": "C1",
+      "prix_vente": 0.0,
+      "source_id": "SRC-1"
+    }
+  ],
+  "source_fixture": "case_unit_incoherence.json"
+}

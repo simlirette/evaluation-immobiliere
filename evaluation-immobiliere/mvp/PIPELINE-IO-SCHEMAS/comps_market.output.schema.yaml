@@ -1,0 +1,15 @@
+title: comps_market_output_v0
+type: object
+required: [dossier_id, comparables]
+properties:
+  dossier_id: {type: string}
+  comparables:
+    type: array
+    items:
+      type: object
+      required: [comparable_id, prix_vente, date_vente, source_id]
+      properties:
+        comparable_id: {type: string}
+        prix_vente: {type: number}
+        date_vente: {type: string}
+        source_id: {type: string}

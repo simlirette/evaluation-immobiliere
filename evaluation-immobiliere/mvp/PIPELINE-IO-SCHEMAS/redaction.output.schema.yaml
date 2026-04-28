@@ -1,0 +1,9 @@
+title: redaction_output_v0
+type: object
+required: [dossier_id, rapport_markdown, status]
+properties:
+  dossier_id: {type: string}
+  rapport_markdown: {type: string}
+  status:
+    type: string
+    enum: [BROUILLON, A_REVOIR, PRET_REVISION_FINALE]

@@ -1,0 +1,28 @@
+version: 0.1
+blocking_rules:
+  - id: B001
+    description: "Toutes les sections obligatoires du rapport doivent être présentes"
+  - id: B002
+    description: "Chaque conclusion doit référencer au moins une source"
+  - id: B003
+    description: "Dates incohérentes interdites (vente future vs date de référence)"
+  - id: B004
+    description: "Unités incohérentes interdites (m2/pi2 sans conversion explicite)"
+  - id: B005
+    description: "Ajustements sensibles sans validation humaine interdits"
+
+warning_rules:
+  - id: W001
+    description: "Confiance < 0.60 sur une donnée utilisée"
+  - id: W002
+    description: "Comparable éloigné (> seuil distance)"
+  - id: W003
+    description: "Hypothèse non corroborée par une deuxième source"
+
+output_status_logic:
+  - if: "any_blocking_rule_failed"
+    status: "A_REVOIR"
+  - if: "no_blocking_failures and warnings_present"
+    status: "BROUILLON"
+  - if: "no_blocking_failures and warnings_absent and human_validation_complete"
+    status: "PRET_REVISION_FINALE"

@@ -1,0 +1,21 @@
+title: valuation_draft_output_v0
+type: object
+required: [dossier_id, ajustements, conclusion_preliminaire]
+properties:
+  dossier_id: {type: string}
+  ajustements:
+    type: array
+    items:
+      type: object
+      required: [ajustement_id, facteur, montant, source_id, validation_humaine]
+      properties:
+        ajustement_id: {type: string}
+        facteur: {type: string}
+        montant: {type: number}
+        source_id: {type: string}
+        validation_humaine: {type: boolean}
+  conclusion_preliminaire:
+    type: object
+    required: [valeur_estimee]
+    properties:
+      valeur_estimee: {type: number}

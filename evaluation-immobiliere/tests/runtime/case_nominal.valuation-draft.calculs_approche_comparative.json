@@ -1,0 +1,9 @@
+{
+  "dossier_id": "D-001",
+  "step": "valuation-draft",
+  "artifact": "calculs_approche_comparative.json",
+  "method": "mean",
+  "value": 500000.0,
+  "input_count": 1,
+  "source_fixture": "case_nominal.json"
+}

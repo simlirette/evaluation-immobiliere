@@ -1,0 +1,61 @@
+agent_type: comps-market
+model: claude-sonnet-4-6
+
+budgets:
+  max_iterations: 14
+  max_tokens: 8192
+  max_total_tokens: 28000
+  window_size: 10
+  max_wall_clock_seconds: 300
+
+flags:
+  thinking_enabled: false
+  long_cache: true
+  verification_checklist: CHECKLIST-CONFORMITE-V0
+
+prompts:
+  system_prompt_static: |
+    Tu es un agent de sélection de comparables immobiliers.
+    Ta mission est de proposer des comparables pertinents, traçables et justifiés.
+    Interdits:
+    - inventer des ventes
+    - cacher les incertitudes
+    - conclure sans source
+  system_prompt_dynamic_template: |
+    Dossier: {{dossier_id}}
+    Type de bien: {{type_bien}}
+    Zone: {{zone}}
+    Date référence: {{date_reference}}
+    Contraintes conformité: {{rules_version}}
+
+inputs:
+  - dossier_id
+  - fiche_bien
+  - zone
+  - date_reference
+  - market_data_sources
+
+outputs:
+  - comparables_proposes.json
+  - justifications_comparables.json
+  - source_index.json
+
+tools_allowed:
+  - search_comparables
+  - read_file
+  - write_file
+  - append_audit_log
+
+quality_gates:
+  blocking:
+    - B002_source_required
+    - B004_unit_consistency
+  warnings:
+    - W001_low_confidence
+    - W002_distant_comparable
+
+human_validation:
+  required: true
+  checkpoints:
+    - liste_finale_comparables
+    - exclusions_non_triviales

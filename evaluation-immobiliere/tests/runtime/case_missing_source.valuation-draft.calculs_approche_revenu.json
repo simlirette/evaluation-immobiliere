@@ -1,0 +1,9 @@
+{
+  "dossier_id": "D-002",
+  "step": "valuation-draft",
+  "artifact": "calculs_approche_revenu.json",
+  "method": "median",
+  "value": 500000.0,
+  "input_count": 1,
+  "source_fixture": "case_missing_source.json"
+}

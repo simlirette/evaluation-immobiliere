@@ -1,0 +1,8 @@
+{
+  "fixture": "D-003",
+  "status": "A_REVOIR",
+  "blocking_failures": [
+    "B005: ajustement sensible sans validation_humaine"
+  ],
+  "warnings": []
+}

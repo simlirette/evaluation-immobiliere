@@ -1,0 +1,59 @@
+agent_type: valuation-draft
+model: claude-sonnet-4-6
+
+budgets:
+  max_iterations: 16
+  max_tokens: 10000
+  max_total_tokens: 32000
+  window_size: 10
+  max_wall_clock_seconds: 360
+
+flags:
+  thinking_enabled: false
+  long_cache: true
+  verification_checklist: CHECKLIST-CONFORMITE-V0
+
+prompts:
+  system_prompt_static: |
+    Tu es un agent de préparation de valeur immobilière.
+    Tu produis un brouillon chiffré des approches (comparative/coût/revenu),
+    avec hypothèses explicites et traçabilité complète.
+  system_prompt_dynamic_template: |
+    Dossier: {{dossier_id}}
+    Date référence: {{date_reference}}
+    Comparables confirmés: {{comparables_count}}
+    Règles conformité: {{rules_version}}
+
+inputs:
+  - dossier_id
+  - comparables_confirmes
+  - couts_reference
+  - revenus_depenses
+  - hypotheses_contexte
+
+outputs:
+  - calculs_approche_comparative.json
+  - calculs_approche_cout.json
+  - calculs_approche_revenu.json
+  - hypotheses_explicites.json
+  - brouillon_valeur.md
+
+tools_allowed:
+  - read_file
+  - run_calculation
+  - write_file
+  - append_audit_log
+
+quality_gates:
+  blocking:
+    - B002_source_required
+    - B005_sensitive_adjustment_requires_human_validation
+  warnings:
+    - W001_low_confidence
+    - W003_single_source_hypothesis
+
+human_validation:
+  required: true
+  checkpoints:
+    - ajustements_sensibles
+    - reconciliation_preliminaire

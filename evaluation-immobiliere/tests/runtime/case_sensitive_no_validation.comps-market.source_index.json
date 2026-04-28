@@ -1,0 +1,6 @@
+{
+  "dossier_id": "D-003",
+  "step": "comps-market",
+  "artifact": "source_index.json",
+  "source_fixture": "case_sensitive_no_validation.json"
+}

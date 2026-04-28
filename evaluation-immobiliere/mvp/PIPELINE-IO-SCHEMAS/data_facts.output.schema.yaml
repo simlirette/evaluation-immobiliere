@@ -1,0 +1,21 @@
+title: data_facts_output_v0
+type: object
+required: [dossier_id, fiche_bien, sources]
+properties:
+  dossier_id: {type: string}
+  fiche_bien:
+    type: object
+    required: [superficie_habitable, annee_construction, localisation]
+    properties:
+      superficie_habitable: {type: number}
+      annee_construction: {type: integer}
+      localisation: {type: string}
+  sources:
+    type: array
+    items:
+      type: object
+      required: [source_id, source_type, reference]
+      properties:
+        source_id: {type: string}
+        source_type: {type: string}
+        reference: {type: string}

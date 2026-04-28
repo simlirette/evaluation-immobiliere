@@ -1,0 +1,295 @@
+[
+  {
+    "dossier_id": "D-005",
+    "status": "BROUILLON",
+    "blocking_failures": [],
+    "warnings": [
+      "W001: confiance faible"
+    ],
+    "events": [
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_start",
+        "step": "redaction",
+        "dossier_id": "D-005"
+      },
+      {
+        "event": "step_done",
+        "step": "redaction",
+        "dossier_id": "D-005"
+      }
+    ],
+    "audit_log": "evaluation-immobiliere/tests/runtime/case_low_confidence.audit.jsonl"
+  },
+  {
+    "dossier_id": "D-002",
+    "status": "A_REVOIR",
+    "blocking_failures": [
+      "B002: comparable sans source_id",
+      "B002: ajustement sans source_id",
+      "STRICT: sortie refusée, comparable sans source"
+    ],
+    "warnings": [],
+    "events": [
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-002"
+      },
+      {
+        "event": "blocking_detected",
+        "step": "compliance-qa",
+        "dossier_id": "D-002",
+        "blocking_count": 3
+      }
+    ],
+    "audit_log": "evaluation-immobiliere/tests/runtime/case_missing_source.audit.jsonl"
+  },
+  {
+    "dossier_id": "D-001",
+    "status": "PRET_REVISION_FINALE",
+    "blocking_failures": [],
+    "warnings": [],
+    "events": [
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_start",
+        "step": "redaction",
+        "dossier_id": "D-001"
+      },
+      {
+        "event": "step_done",
+        "step": "redaction",
+        "dossier_id": "D-001"
+      }
+    ],
+    "audit_log": "evaluation-immobiliere/tests/runtime/case_nominal.audit.jsonl"
+  },
+  {
+    "dossier_id": "D-003",
+    "status": "A_REVOIR",
+    "blocking_failures": [
+      "B005: ajustement sensible sans validation_humaine"
+    ],
+    "warnings": [],
+    "events": [
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-003"
+      },
+      {
+        "event": "blocking_detected",
+        "step": "compliance-qa",
+        "dossier_id": "D-003",
+        "blocking_count": 1
+      }
+    ],
+    "audit_log": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation.audit.jsonl"
+  },
+  {
+    "dossier_id": "D-004",
+    "status": "A_REVOIR",
+    "blocking_failures": [
+      "B004: unité incohérente sujet/comparables"
+    ],
+    "warnings": [],
+    "events": [
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-004"
+      },
+      {
+        "event": "blocking_detected",
+        "step": "compliance-qa",
+        "dossier_id": "D-004",
+        "blocking_count": 1
+      }
+    ],
+    "audit_log": "evaluation-immobiliere/tests/runtime/case_unit_incoherence.audit.jsonl"
+  }
+]

@@ -1,0 +1,57 @@
+agent_type: compliance-qa
+model: claude-sonnet-4-6
+
+budgets:
+  max_iterations: 10
+  max_tokens: 7000
+  max_total_tokens: 18000
+  window_size: 8
+  max_wall_clock_seconds: 180
+
+flags:
+  thinking_enabled: false
+  long_cache: true
+  verification_checklist: CHECKLIST-CONFORMITE-V0
+
+prompts:
+  system_prompt_static: |
+    Tu es un agent de contrôle conformité.
+    Tu vérifies la complétude, la cohérence et la traçabilité du dossier.
+    Tu dois classer les anomalies en BLOQUANT ou WARNING.
+  system_prompt_dynamic_template: |
+    Dossier: {{dossier_id}}
+    Règles actives: {{rules_version}}
+    Artefacts à vérifier: {{artifacts_list}}
+
+inputs:
+  - dossier_id
+  - artifacts_list
+  - ruleset
+  - traceability_log
+
+outputs:
+  - rapport_non_conformites.json
+  - statut_sortie.json
+  - recommandations_corrections.md
+
+tools_allowed:
+  - read_file
+  - validate_schema
+  - write_file
+  - append_audit_log
+
+quality_gates:
+  blocking:
+    - B001_required_sections
+    - B002_source_required
+    - B004_unit_consistency
+    - B005_sensitive_adjustment_requires_human_validation
+  warnings:
+    - W001_low_confidence
+    - W003_single_source_hypothesis
+
+human_validation:
+  required: true
+  checkpoints:
+    - classification_anomalies_critiques
+    - statut_final

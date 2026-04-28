@@ -1,0 +1,11 @@
+{
+  "dossier_id": "D-005",
+  "step": "compliance-qa",
+  "artifact": "statut_sortie.json",
+  "status": "BROUILLON",
+  "blocking_failures": [],
+  "warnings": [
+    "W001: confiance faible"
+  ],
+  "source_fixture": "case_low_confidence.json"
+}

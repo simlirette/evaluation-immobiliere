@@ -1,0 +1,9 @@
+{
+  "dossier_id": "D-004",
+  "date_reference": "2026-04-28",
+  "surface": {"value": 1200, "unit": "pi2"},
+  "comparables": [{"comparable_id": "C1", "surface": {"value": 100, "unit": "m2"}, "source_id": "SRC-1"}],
+  "ajustements": [{"ajustement_id": "A1", "montant": 8000, "source_id": "SRC-1", "validation_humaine": true}],
+  "status": "BROUILLON",
+  "confidence": 0.80
+}

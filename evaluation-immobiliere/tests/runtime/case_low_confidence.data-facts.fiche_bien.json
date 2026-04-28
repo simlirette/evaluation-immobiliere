@@ -1,0 +1,6 @@
+{
+  "dossier_id": "D-005",
+  "step": "data-facts",
+  "artifact": "fiche_bien.json",
+  "source_fixture": "case_low_confidence.json"
+}

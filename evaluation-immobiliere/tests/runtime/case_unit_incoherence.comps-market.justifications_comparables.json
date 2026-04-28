@@ -1,0 +1,6 @@
+{
+  "dossier_id": "D-004",
+  "step": "comps-market",
+  "artifact": "justifications_comparables.json",
+  "source_fixture": "case_unit_incoherence.json"
+}
