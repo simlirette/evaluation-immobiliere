@@ -1,0 +1,6 @@
+{
+  "dossier_id": "D-001",
+  "step": "comps-market",
+  "artifact": "justifications_comparables.json",
+  "source_fixture": "case_nominal.json"
+}

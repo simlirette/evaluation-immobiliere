@@ -1,0 +1,8 @@
+{
+  "fixture": "D-005",
+  "status": "BROUILLON",
+  "blocking_failures": [],
+  "warnings": [
+    "W001: confiance faible"
+  ]
+}

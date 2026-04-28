@@ -1,0 +1,10 @@
+title: intake_output_v0
+type: object
+required: [dossier_id, adresse, type_mandat, documents_recus]
+properties:
+  dossier_id: {type: string}
+  adresse: {type: string}
+  type_mandat: {type: string}
+  documents_recus:
+    type: array
+    items: {type: string}

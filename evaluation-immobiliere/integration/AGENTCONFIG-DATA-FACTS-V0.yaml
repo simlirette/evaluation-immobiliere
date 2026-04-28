@@ -1,0 +1,59 @@
+agent_type: data-facts
+model: claude-sonnet-4-6
+
+budgets:
+  max_iterations: 12
+  max_tokens: 8192
+  max_total_tokens: 25000
+  window_size: 8
+  max_wall_clock_seconds: 240
+
+flags:
+  thinking_enabled: false
+  long_cache: true
+  verification_checklist: CHECKLIST-CONFORMITE-V0
+
+prompts:
+  system_prompt_static: |
+    Tu es un agent d'extraction immobilière.
+    Objectif: produire une fiche bien fiable, traçable et prête pour revue d'un évaluateur.
+    Contraintes:
+    - aucune conclusion sans source
+    - signaler tout doute explicitement
+    - ne jamais simuler une donnée absente
+  system_prompt_dynamic_template: |
+    Date de référence: {{date_reference}}
+    Dossier: {{dossier_id}}
+    Documents disponibles: {{documents_list}}
+    Règles conformité actives: {{rules_version}}
+
+inputs:
+  - dossier_id
+  - date_reference
+  - documents_list
+  - data_sources
+
+outputs:
+  - fiche_bien.json
+  - timeline_faits.json
+  - source_index.json
+
+tools_allowed:
+  - read_file
+  - list_files
+  - extract_text
+  - write_file
+  - append_audit_log
+
+quality_gates:
+  blocking:
+    - B002_source_required
+    - B004_unit_consistency
+  warnings:
+    - W001_low_confidence
+
+human_validation:
+  required: true
+  checkpoints:
+    - attributs_critiques_bien
+    - incoherences_detectees

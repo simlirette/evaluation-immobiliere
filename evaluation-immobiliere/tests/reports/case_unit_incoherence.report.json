@@ -1,0 +1,8 @@
+{
+  "fixture": "D-004",
+  "status": "A_REVOIR",
+  "blocking_failures": [
+    "B004: unité incohérente sujet/comparables"
+  ],
+  "warnings": []
+}

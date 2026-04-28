@@ -1,0 +1,85 @@
+version: 0.1
+project: evaluation-immobiliere
+objective: "Automatiser le travail de bureau de l'évaluateur avec validation humaine obligatoire"
+
+agents:
+  - id: intake
+    role: "Structurer la demande client et le mandat"
+    input:
+      - mandat_client
+      - documents_initiaux
+    output:
+      - dossier_normalise
+      - checklist_documents_requis
+    human_validation_required: true
+
+  - id: data_facts
+    role: "Extraire les faits, attributs immobiliers et contraintes"
+    input:
+      - dossier_normalise
+      - documents_sources
+    output:
+      - fiche_bien
+      - timeline_faits
+      - contraintes_reglementaires
+    human_validation_required: true
+
+  - id: comps_market
+    role: "Proposer des comparables et justifier la sélection"
+    input:
+      - fiche_bien
+      - donnees_marche
+    output:
+      - comparables_proposes
+      - score_qualite_comparables
+      - journal_justification
+    human_validation_required: true
+
+  - id: valuation_draft
+    role: "Préparer les calculs et hypothèses de valeur"
+    input:
+      - comparables_proposes
+      - couts_reference
+      - revenus_depenses
+    output:
+      - calculs_approche_comparative
+      - calculs_approche_cout
+      - calculs_approche_revenu
+      - hypotheses_explicites
+    human_validation_required: true
+
+  - id: compliance_qa
+    role: "Contrôler conformité, cohérence et complétude"
+    input:
+      - sortie_valuation_draft
+      - exigences_npp_oeaq
+    output:
+      - rapport_non_conformites
+      - statut_sortie
+      - actions_correctives
+    human_validation_required: true
+
+  - id: redaction
+    role: "Générer un brouillon de rapport prêt pour révision"
+    input:
+      - sortie_qa
+      - gabarit_rapport
+    output:
+      - brouillon_rapport
+      - index_sources_par_section
+    human_validation_required: true
+
+statuses:
+  - BROUILLON
+  - A_REVOIR
+  - PRET_REVISION_FINALE
+
+minimum_audit_fields:
+  - task_id
+  - source_id
+  - source_type
+  - extracted_value
+  - confidence
+  - human_decision
+  - rationale
+  - timestamp_utc

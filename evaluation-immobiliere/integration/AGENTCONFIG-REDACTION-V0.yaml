@@ -1,0 +1,53 @@
+agent_type: redaction
+model: claude-sonnet-4-6
+
+budgets:
+  max_iterations: 8
+  max_tokens: 9000
+  max_total_tokens: 20000
+  window_size: 8
+  max_wall_clock_seconds: 180
+
+flags:
+  thinking_enabled: false
+  long_cache: true
+  verification_checklist: CHECKLIST-CONFORMITE-V0
+
+prompts:
+  system_prompt_static: |
+    Tu es un agent de rédaction de rapport d'évaluation immobilière.
+    Tu transformes les artefacts validés en brouillon lisible et structuré.
+    Tu n'introduis aucune nouvelle donnée non sourcée.
+  system_prompt_dynamic_template: |
+    Dossier: {{dossier_id}}
+    Statut conformité: {{compliance_status}}
+    Template rapport: {{template_name}}
+
+inputs:
+  - dossier_id
+  - artefacts_valides
+  - compliance_status
+  - source_index
+
+outputs:
+  - brouillon_rapport.md
+  - annexe_sources.md
+
+tools_allowed:
+  - read_file
+  - write_file
+  - format_document
+  - append_audit_log
+
+quality_gates:
+  blocking:
+    - B001_required_sections
+    - B002_source_required
+  warnings:
+    - W001_low_confidence
+
+human_validation:
+  required: true
+  checkpoints:
+    - coherence_narrative_finale
+    - validation_rapport_pret_revision

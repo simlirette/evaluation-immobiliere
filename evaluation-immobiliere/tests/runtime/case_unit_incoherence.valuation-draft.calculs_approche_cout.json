@@ -1,0 +1,9 @@
+{
+  "dossier_id": "D-004",
+  "step": "valuation-draft",
+  "artifact": "calculs_approche_cout.json",
+  "method": "mean",
+  "value": 0.0,
+  "input_count": 0,
+  "source_fixture": "case_unit_incoherence.json"
+}

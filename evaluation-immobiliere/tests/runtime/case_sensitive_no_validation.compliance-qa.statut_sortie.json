@@ -1,0 +1,11 @@
+{
+  "dossier_id": "D-003",
+  "step": "compliance-qa",
+  "artifact": "statut_sortie.json",
+  "status": "A_REVOIR",
+  "blocking_failures": [
+    "B005: ajustement sensible sans validation_humaine"
+  ],
+  "warnings": [],
+  "source_fixture": "case_sensitive_no_validation.json"
+}

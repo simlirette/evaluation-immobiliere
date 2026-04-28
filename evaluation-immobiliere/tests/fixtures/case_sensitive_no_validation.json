@@ -1,0 +1,8 @@
+{
+  "dossier_id": "D-003",
+  "date_reference": "2026-04-28",
+  "comparables": [{"comparable_id": "C1", "prix_vente": 500000, "source_id": "SRC-1"}],
+  "ajustements": [{"ajustement_id": "A1", "montant": 30000, "source_id": "SRC-1", "validation_humaine": false}],
+  "status": "BROUILLON",
+  "confidence": 0.90
+}

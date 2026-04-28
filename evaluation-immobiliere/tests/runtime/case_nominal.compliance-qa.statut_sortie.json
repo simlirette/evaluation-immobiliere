@@ -1,0 +1,9 @@
+{
+  "dossier_id": "D-001",
+  "step": "compliance-qa",
+  "artifact": "statut_sortie.json",
+  "status": "PRET_REVISION_FINALE",
+  "blocking_failures": [],
+  "warnings": [],
+  "source_fixture": "case_nominal.json"
+}

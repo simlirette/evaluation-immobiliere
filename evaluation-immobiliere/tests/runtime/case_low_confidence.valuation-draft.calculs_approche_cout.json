@@ -1,0 +1,9 @@
+{
+  "dossier_id": "D-005",
+  "step": "valuation-draft",
+  "artifact": "calculs_approche_cout.json",
+  "method": "mean",
+  "value": 500000.0,
+  "input_count": 1,
+  "source_fixture": "case_low_confidence.json"
+}

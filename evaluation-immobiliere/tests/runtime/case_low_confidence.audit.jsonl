@@ -1,0 +1,26 @@
+{"event": "step_start", "step": "data-facts", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.787404+00:00"}
+{"event": "artifact_written", "step": "data-facts", "artifact": "fiche_bien.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.data-facts.fiche_bien.json", "timestamp_utc": "2026-04-28T18:42:29.788073+00:00"}
+{"event": "artifact_written", "step": "data-facts", "artifact": "timeline_faits.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.data-facts.timeline_faits.json", "timestamp_utc": "2026-04-28T18:42:29.788404+00:00"}
+{"event": "artifact_written", "step": "data-facts", "artifact": "source_index.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.data-facts.source_index.json", "timestamp_utc": "2026-04-28T18:42:29.788642+00:00"}
+{"event": "step_done", "step": "data-facts", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.788771+00:00"}
+{"event": "step_start", "step": "comps-market", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.788925+00:00"}
+{"event": "artifact_written", "step": "comps-market", "artifact": "comparables_proposes.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.comps-market.comparables_proposes.json", "timestamp_utc": "2026-04-28T18:42:29.789293+00:00"}
+{"event": "artifact_written", "step": "comps-market", "artifact": "justifications_comparables.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.comps-market.justifications_comparables.json", "timestamp_utc": "2026-04-28T18:42:29.789711+00:00"}
+{"event": "artifact_written", "step": "comps-market", "artifact": "source_index.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.comps-market.source_index.json", "timestamp_utc": "2026-04-28T18:42:29.789956+00:00"}
+{"event": "step_done", "step": "comps-market", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.790037+00:00"}
+{"event": "step_start", "step": "valuation-draft", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.790126+00:00"}
+{"event": "artifact_written", "step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.valuation-draft.calculs_approche_comparative.json", "timestamp_utc": "2026-04-28T18:42:29.790380+00:00"}
+{"event": "artifact_written", "step": "valuation-draft", "artifact": "calculs_approche_cout.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.valuation-draft.calculs_approche_cout.json", "timestamp_utc": "2026-04-28T18:42:29.790753+00:00"}
+{"event": "artifact_written", "step": "valuation-draft", "artifact": "calculs_approche_revenu.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.valuation-draft.calculs_approche_revenu.json", "timestamp_utc": "2026-04-28T18:42:29.791038+00:00"}
+{"event": "artifact_written", "step": "valuation-draft", "artifact": "hypotheses_explicites.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.valuation-draft.hypotheses_explicites.json", "timestamp_utc": "2026-04-28T18:42:29.791387+00:00"}
+{"event": "artifact_written", "step": "valuation-draft", "artifact": "brouillon_valeur.md", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.valuation-draft.brouillon_valeur.md", "timestamp_utc": "2026-04-28T18:42:29.791764+00:00"}
+{"event": "step_done", "step": "valuation-draft", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.791865+00:00"}
+{"event": "step_start", "step": "compliance-qa", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.791943+00:00"}
+{"event": "artifact_written", "step": "compliance-qa", "artifact": "rapport_non_conformites.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.compliance-qa.rapport_non_conformites.json", "timestamp_utc": "2026-04-28T18:42:29.792230+00:00"}
+{"event": "artifact_written", "step": "compliance-qa", "artifact": "statut_sortie.json", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.compliance-qa.statut_sortie.json", "timestamp_utc": "2026-04-28T18:42:29.792494+00:00"}
+{"event": "artifact_written", "step": "compliance-qa", "artifact": "recommandations_corrections.md", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.compliance-qa.recommandations_corrections.md", "timestamp_utc": "2026-04-28T18:42:29.792780+00:00"}
+{"event": "step_done", "step": "compliance-qa", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.793247+00:00"}
+{"event": "step_start", "step": "redaction", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.793383+00:00"}
+{"event": "artifact_written", "step": "redaction", "artifact": "brouillon_rapport.md", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.redaction.brouillon_rapport.md", "timestamp_utc": "2026-04-28T18:42:29.793725+00:00"}
+{"event": "artifact_written", "step": "redaction", "artifact": "annexe_sources.md", "path": "evaluation-immobiliere/tests/runtime/case_low_confidence.redaction.annexe_sources.md", "timestamp_utc": "2026-04-28T18:42:29.794079+00:00"}
+{"event": "step_done", "step": "redaction", "dossier_id": "D-005", "timestamp_utc": "2026-04-28T18:42:29.794168+00:00"}

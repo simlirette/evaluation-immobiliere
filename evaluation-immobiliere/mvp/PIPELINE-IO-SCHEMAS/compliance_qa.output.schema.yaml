@@ -1,0 +1,14 @@
+title: compliance_qa_output_v0
+type: object
+required: [dossier_id, status, blocking_failures, warnings]
+properties:
+  dossier_id: {type: string}
+  status:
+    type: string
+    enum: [BROUILLON, A_REVOIR, PRET_REVISION_FINALE]
+  blocking_failures:
+    type: array
+    items: {type: string}
+  warnings:
+    type: array
+    items: {type: string}

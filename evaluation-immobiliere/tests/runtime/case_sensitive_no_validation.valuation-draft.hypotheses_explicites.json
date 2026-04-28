@@ -1,0 +1,6 @@
+{
+  "dossier_id": "D-003",
+  "step": "valuation-draft",
+  "artifact": "hypotheses_explicites.json",
+  "source_fixture": "case_sensitive_no_validation.json"
+}

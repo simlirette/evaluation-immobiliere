@@ -1,0 +1,90 @@
+version: 0.1
+pipeline_name: evaluation-immobiliere-runtime-aston
+
+description: >
+  Orchestration cible des agents immobiliers dans la vraie boucle Aston.
+  Ce fichier décrit l'ordre d'exécution, les artefacts de handoff,
+  et les conditions d'arrêt/rollback minimales.
+
+sequence:
+  - step: 1
+    agent_config: AGENTCONFIG-DATA-FACTS-V0.yaml
+    reads:
+      - dossier_input
+      - documents_sources
+    writes:
+      - fiche_bien.json
+      - timeline_faits.json
+      - source_index.json
+
+  - step: 2
+    agent_config: AGENTCONFIG-COMPS-MARKET-V0.yaml
+    reads:
+      - fiche_bien.json
+      - source_index.json
+      - market_data_sources
+    writes:
+      - comparables_proposes.json
+      - justifications_comparables.json
+      - source_index.json
+
+  - step: 3
+    agent_config: AGENTCONFIG-VALUATION-DRAFT-V0.yaml
+    reads:
+      - comparables_proposes.json
+      - couts_reference
+      - revenus_depenses
+      - source_index.json
+    writes:
+      - calculs_approche_comparative.json
+      - calculs_approche_cout.json
+      - calculs_approche_revenu.json
+      - hypotheses_explicites.json
+      - brouillon_valeur.md
+
+  - step: 4
+    agent_config: AGENTCONFIG-COMPLIANCE-QA-V0.yaml
+    reads:
+      - calculs_approche_comparative.json
+      - calculs_approche_cout.json
+      - calculs_approche_revenu.json
+      - hypotheses_explicites.json
+      - source_index.json
+    writes:
+      - rapport_non_conformites.json
+      - statut_sortie.json
+      - recommandations_corrections.md
+
+  - step: 5
+    agent_config: AGENTCONFIG-REDACTION-V0.yaml
+    reads:
+      - statut_sortie.json
+      - recommandations_corrections.md
+      - source_index.json
+    writes:
+      - brouillon_rapport.md
+      - annexe_sources.md
+
+runtime_controls:
+  stop_on_blocking_status: true
+  blocking_status_values:
+    - A_REVOIR
+  allow_manual_resume_after_fix: true
+
+handoff_policy:
+  shared_artifact_store: case_directory
+  update_knowledge_base_after_each_step: true
+  append_audit_log_after_each_write: true
+
+observability:
+  emit_events:
+    - step_start
+    - step_done
+    - blocking_detected
+    - warning_detected
+    - artifact_written
+  required_metrics:
+    - wall_clock_seconds
+    - total_tokens
+    - blocking_count
+    - warning_count

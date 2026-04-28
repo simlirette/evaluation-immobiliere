@@ -1,0 +1,69 @@
+version: 0.1
+entities:
+  dossier:
+    required:
+      - dossier_id
+      - date_reference
+      - type_mandat
+      - adresse
+      - statut_sortie
+
+  bien:
+    required:
+      - type_bien
+      - superficie_habitable
+      - annee_construction
+      - etat_general
+      - localisation
+
+  comparable:
+    required:
+      - comparable_id
+      - adresse
+      - date_vente
+      - prix_vente
+      - distance_km
+      - similarite_score
+
+  ajustement:
+    required:
+      - ajustement_id
+      - comparable_id
+      - facteur
+      - montant
+      - justification
+      - validation_humaine
+
+  hypothese:
+    required:
+      - hypothese_id
+      - description
+      - impact
+      - source_id
+      - validation_humaine
+
+  source:
+    required:
+      - source_id
+      - source_type
+      - provenance
+      - date_source
+      - reference
+
+  decision_humaine:
+    required:
+      - decision_id
+      - evaluateur_id
+      - objet
+      - decision
+      - rationale
+      - timestamp_utc
+
+audit_fields_required:
+  - task_id
+  - source_id
+  - extracted_value
+  - confidence
+  - human_decision
+  - rationale
+  - timestamp_utc

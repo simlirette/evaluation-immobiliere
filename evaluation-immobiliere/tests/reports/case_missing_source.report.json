@@ -1,0 +1,9 @@
+{
+  "fixture": "D-002",
+  "status": "A_REVOIR",
+  "blocking_failures": [
+    "B002: comparable sans source_id",
+    "B002: ajustement sans source_id"
+  ],
+  "warnings": []
+}
