@@ -7,5 +7,10 @@
     "B004: unite incoherente sujet/comparables"
   ],
   "warnings": [],
+  "valuation_values": {
+    "approche_comparative": 0.0,
+    "approche_cout": 0.0,
+    "approche_revenu": 0.0
+  },
   "source_fixture": "case_unit_incoherence.json"
 }
