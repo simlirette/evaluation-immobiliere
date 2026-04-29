@@ -7,6 +7,7 @@ Objectif: transformer les reponses terrain en matrice priorisee sans refaire le 
 - `QUESTIONNAIRE-EVALUATEURS.md`: questions qualitatives pour preparer ou animer le workshop.
 - `REPONSES-EVALUATEURS-TEMPLATE.csv`: gabarit a dupliquer par evaluateur.
 - `REPONSES-EVALUATEURS.csv`: fichier consolide a remplir avec toutes les lignes de reponses.
+- `RAPPORT-VALIDATION-REPONSES.md`: rapport genere des erreurs/warnings avant compilation.
 - `MATRICE-PRIORISATION-MVP.csv`: matrice compilee et scoree.
 - `MATRICE-PRIORISATION-MVP.md`: rapport humain genere.
 
@@ -34,9 +35,17 @@ Colonnes importantes:
 ## Compiler
 
 ```bash
+python evaluation-immobiliere/outils/valider_reponses_evaluateurs.py
 python evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py
 python evaluation-immobiliere/outils/prioriser_mvp.py
 ```
+
+Le validateur:
+
+- confirme que les colonnes attendues sont presentes;
+- bloque les scores hors plage, les booleens invalides et les phases incoherentes;
+- detecte les doublons `respondant_id` + `tache`;
+- tolere un fichier vide ou des lignes gabarit non remplies.
 
 Le compilateur:
 
