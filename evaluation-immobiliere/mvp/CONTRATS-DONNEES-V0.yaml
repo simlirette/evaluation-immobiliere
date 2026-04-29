@@ -54,6 +54,13 @@ contracts:
       - warnings
     constraints:
       status: [BROUILLON, A_REVOIR, PRET_REVISION_FINALE]
+      status_decision:
+        blocking: A_REVOIR
+        warning: BROUILLON
+        clean: PRET_REVISION_FINALE
+      max_comparable_distance_km_warning: 30
+      ajustement_sensible_montant_min: 25000
+      confidence_min_warning: 0.60
       valuation_inter_approach_max_delta_ratio: 0.35
 
   journal_tracabilite:

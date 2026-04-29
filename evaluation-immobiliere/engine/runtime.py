@@ -172,13 +172,19 @@ class RuntimeEngine:
             sale_date = _parse_iso_date(c.get("date_vente"))
             if reference_date and sale_date and sale_date > reference_date:
                 blocking.append("B003: vente comparable future vs date_reference")
-            if c.get("distance_km", 0) and float(c.get("distance_km", 0)) > 30:
+            max_distance_warning = float(
+                _contract_value(("contracts", "rapport_conformite", "constraints", "max_comparable_distance_km_warning"), 30)
+            )
+            if c.get("distance_km", 0) and float(c.get("distance_km", 0)) > max_distance_warning:
                 warnings.append("W002: comparable eloigne")
 
         for a in case.get("ajustements", []):
             if "source_id" not in a:
                 blocking.append("B002: ajustement sans source_id")
-            if a.get("montant", 0) >= 25000 and not a.get("validation_humaine", False):
+            sensitive_amount_min = float(
+                _contract_value(("contracts", "rapport_conformite", "constraints", "ajustement_sensible_montant_min"), 25000)
+            )
+            if a.get("montant", 0) >= sensitive_amount_min and not a.get("validation_humaine", False):
                 blocking.append("B005: ajustement sensible sans validation_humaine")
 
         if self.strict_mode and case.get("comparables") and not all("source_id" in c for c in case.get("comparables", [])):
@@ -189,7 +195,10 @@ class RuntimeEngine:
         if subject_unit and comp_units and any(u and u != subject_unit for u in comp_units):
             blocking.append("B004: unite incoherente sujet/comparables")
 
-        if case.get("confidence", 1) < 0.60:
+        confidence_min_warning = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "confidence_min_warning"), 0.60)
+        )
+        if case.get("confidence", 1) < confidence_min_warning:
             warnings.append("W001: confiance faible")
 
         for h in case.get("hypotheses", []):
@@ -199,7 +208,7 @@ class RuntimeEngine:
 
         blocking = _unique(blocking)
         warnings = _unique(warnings)
-        status = "A_REVOIR" if blocking else ("BROUILLON" if warnings else "PRET_REVISION_FINALE")
+        status = _status_from_contracts(has_blocking=bool(blocking), has_warnings=bool(warnings))
         return status, blocking, warnings
 
     def _artifact_payload(
@@ -363,7 +372,7 @@ class RuntimeEngine:
                 if not ok:
                     schema_block = f"SCHEMA: champs manquants {missing}"
                     blocking = _unique([*blocking, schema_block])
-                    status = "A_REVOIR"
+                    status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
                     self._record_event(events, audit_log_path, {"event": "schema_invalid", "step": step.name, "artifact": artifact, "missing": missing})
                     if step.name == "compliance-qa":
                         payload.setdefault("blocking_failures", []).append(schema_block)
@@ -371,7 +380,7 @@ class RuntimeEngine:
                 contract_failures = validate_contract_rules(artifact, payload)
                 if contract_failures:
                     blocking = _unique([*blocking, *contract_failures])
-                    status = "A_REVOIR"
+                    status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
                     self._record_event(
                         events,
                         audit_log_path,
@@ -389,7 +398,8 @@ class RuntimeEngine:
 
             self._record_event(events, audit_log_path, {"event": "step_done", "step": step.name, "dossier_id": dossier_id})
 
-            if step.name == "compliance-qa" and status == "A_REVOIR":
+            review_status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
+            if step.name == "compliance-qa" and status == review_status:
                 blocking_event = {"event": "blocking_detected", "step": step.name, "dossier_id": dossier_id, "blocking_count": len(blocking)}
                 self._record_event(events, audit_log_path, blocking_event)
                 break
@@ -487,6 +497,17 @@ def _contract_value(path: tuple[str, ...], default: object) -> object:
             return default
         node = node[key]
     return node
+
+
+def _status_from_contracts(*, has_blocking: bool, has_warnings: bool) -> str:
+    mapping = _contract_value(("contracts", "rapport_conformite", "constraints", "status_decision"), {})
+    if not isinstance(mapping, dict):
+        mapping = {}
+    if has_blocking:
+        return str(mapping.get("blocking", "A_REVOIR"))
+    if has_warnings:
+        return str(mapping.get("warning", "BROUILLON"))
+    return str(mapping.get("clean", "PRET_REVISION_FINALE"))
 
 
 def safe_path_id(value: str) -> str:
