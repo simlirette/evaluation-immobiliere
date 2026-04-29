@@ -35,6 +35,12 @@ python evaluation-immobiliere/outils/demo_api_v0.py --fixture votre_fixture.json
 
 Pour une fixture pilote versionnee, nommer le fichier avec le prefixe `case_` afin que `simuler_runtime_engine_v0.py` l'inclue automatiquement.
 
+## Fixtures pilotes incluses
+
+- `case_pilote_residentiel_standard.json`: dossier residentiel riche, attendu `PRET_REVISION_FINALE`.
+- `case_pilote_confiance_limitee.json`: donnees sources presentes mais confiance faible, attendu `BROUILLON`.
+- `case_pilote_revision_conformite.json`: ventes/source/ajustements a corriger, attendu `A_REVOIR`.
+
 ## Revue evaluateur
 
 Apres execution, verifier en priorite:

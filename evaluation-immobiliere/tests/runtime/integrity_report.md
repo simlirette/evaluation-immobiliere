@@ -1,18 +1,18 @@
 # Integrity Report Runtime v0
 
-- Cases: **5**
-- Blocking failures total: **5**
-- Warnings total: **1**
-- Runtime events total: **122**
+- Cases: **8**
+- Blocking failures total: **10**
+- Warnings total: **5**
+- Runtime events total: **201**
 
 ## Status counts
-- BROUILLON: 1
-- A_REVOIR: 3
-- PRET_REVISION_FINALE: 1
+- BROUILLON: 2
+- A_REVOIR: 4
+- PRET_REVISION_FINALE: 2
 
 ## Audit event counts
-- warning_detected: 1
-- step_start: 22
-- artifact_written: 74
-- step_done: 22
-- blocking_detected: 3
+- warning_detected: 5
+- step_start: 36
+- artifact_written: 120
+- step_done: 36
+- blocking_detected: 4
