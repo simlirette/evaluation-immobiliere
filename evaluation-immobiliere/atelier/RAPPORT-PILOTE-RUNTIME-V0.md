@@ -6,9 +6,9 @@
 - Prets revision finale: **2**
 - Brouillons: **2**
 - A revoir: **4**
-- Blocages detectes: **10**
+- Blocages detectes: **12**
 - Warnings detectes: **5**
-- Evenements runtime: **201**
+- Evenements runtime: **203**
 
 ## Distribution des statuts
 
@@ -21,7 +21,7 @@
 | Cas | Dossier | Statut | Blocages | Warnings | Artefacts |
 |---|---|---|---:|---:|---|
 | case_low_confidence | D-005 | BROUILLON | 0 | 1 | `evaluation-immobiliere/tests/runtime/case_low_confidence` |
-| case_missing_source | D-002 | A_REVOIR | 3 | 0 | `evaluation-immobiliere/tests/runtime/case_missing_source` |
+| case_missing_source | D-002 | A_REVOIR | 5 | 0 | `evaluation-immobiliere/tests/runtime/case_missing_source` |
 | case_nominal | D-001 | PRET_REVISION_FINALE | 0 | 0 | `evaluation-immobiliere/tests/runtime/case_nominal` |
 | case_pilote_confiance_limitee | D-PILOTE-RES-002 | BROUILLON | 0 | 3 | `evaluation-immobiliere/tests/runtime/case_pilote_confiance_limitee` |
 | case_pilote_residentiel_standard | D-PILOTE-RES-001 | PRET_REVISION_FINALE | 0 | 0 | `evaluation-immobiliere/tests/runtime/case_pilote_residentiel_standard` |
@@ -35,7 +35,7 @@
 - Warnings: W001: confiance faible
 
 ### case_missing_source
-- Blocages: B002: comparable sans source_id; B002: ajustement sans source_id; STRICT: sortie refusee, comparable sans source
+- Blocages: B002: comparable sans source_id; B002: ajustement sans source_id; STRICT: sortie refusee, comparable sans source; CONF001: fiche_bien sans source_ids; CONF002: aucun comparable propose
 
 ### case_pilote_confiance_limitee
 - Warnings: W002: comparable eloigne; W001: confiance faible; W003: hypothese non corroboree par une deuxieme source

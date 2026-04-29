@@ -2,24 +2,28 @@
   "dossier_id": "D-PILOTE-RES-001",
   "step": "comps-market",
   "artifact": "comparables_proposes.json",
+  "date_reference": "2026-04-28",
   "comparables": [
     {
       "comparable_id": "CP-001",
       "prix_vente": 548000.0,
       "source_id": "SRC-VENTE-001",
-      "score": 0.9075
+      "score": 0.8834,
+      "date_vente": "2026-02-14"
     },
     {
       "comparable_id": "CP-002",
       "prix_vente": 562500.0,
       "source_id": "SRC-VENTE-002",
-      "score": 0.8716
+      "score": 0.8496,
+      "date_vente": "2026-03-08"
     },
     {
       "comparable_id": "CP-003",
       "prix_vente": 535000.0,
       "source_id": "SRC-VENTE-003",
-      "score": 0.8343
+      "score": 0.8127,
+      "date_vente": "2026-01-22"
     }
   ],
   "source_fixture": "case_pilote_residentiel_standard.json"
