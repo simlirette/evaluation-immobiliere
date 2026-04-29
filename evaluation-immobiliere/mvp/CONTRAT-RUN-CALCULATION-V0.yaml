@@ -1,0 +1,53 @@
+version: 0.1
+name: run_calculation
+purpose: "Exécuter des calculs de valuation de façon déterministe hors LLM"
+
+definition:
+  inputs:
+    dossier_id: string
+    date_reference: date
+    approach: [comparative, cost, income]
+    currency: [CAD]
+    assumptions:
+      type: object
+      required: true
+    data:
+      type: object
+      required: true
+
+  outputs:
+    dossier_id: string
+    approach: [comparative, cost, income]
+    computed_value: number
+    confidence_score: number
+    checks:
+      total_adjustment_pct: number
+      outlier_flags: array
+      formulas_applied: array
+    trace:
+      input_hash: string
+      formula_version: string
+      executed_at_utc: datetime
+      deterministic: true
+
+rules:
+  - id: RC001
+    description: "Même input_hash + formula_version => même computed_value"
+    severity: blocking
+  - id: RC002
+    description: "Tous les montants doivent être en CAD"
+    severity: blocking
+  - id: RC003
+    description: "confidence_score dans [0,1]"
+    severity: blocking
+  - id: RC004
+    description: "Si outlier_flags non vide, validation_humaine requise"
+    severity: major
+
+integration:
+  called_by_agent: valuation-draft
+  output_artifact: trace_calcul_valeur.json
+  required_for_status:
+    PRET_REVISION_FINALE:
+      - no_blocking_failures
+      - human_validation_complete_if_required

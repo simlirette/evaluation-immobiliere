@@ -12,11 +12,21 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml
+from outils.valider_contrats_runtime_v0 import validate_runtime_contracts
 
 FIXTURES_DIR = Path("evaluation-immobiliere/tests/fixtures")
 OUT_DIR = Path("evaluation-immobiliere/tests/runtime")
 SUMMARY_PATH = OUT_DIR / "runtime_summary.json"
 PIPELINE_PATH = Path("evaluation-immobiliere/integration/PIPELINE-RUNTIME-ASTON-V0.yaml")
+CONTRACTS_REPORT_PATH = OUT_DIR / "contracts_report.json"
+
+
+def run_contract_validation(runtime_dir: Path, report_path: Path) -> bool:
+    report = validate_runtime_contracts(runtime_dir)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Rapport contrats: {report_path} | ok={report.get('ok')}")
+    return bool(report.get("ok"))
 
 
 def main() -> None:
@@ -43,6 +53,10 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     SUMMARY_PATH.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Resume runtime: {SUMMARY_PATH}")
+
+    contracts_ok = run_contract_validation(OUT_DIR, CONTRACTS_REPORT_PATH)
+    if not contracts_ok:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

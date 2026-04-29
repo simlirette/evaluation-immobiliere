@@ -9,6 +9,7 @@ class Comparable:
     prix_vente: float
     source_id: str
     score: float = 0.0
+    date_vente: str = ""
 
 
 def search_comparables(pool: list[dict], max_items: int = 5) -> list[Comparable]:
@@ -21,6 +22,7 @@ def search_comparables(pool: list[dict], max_items: int = 5) -> list[Comparable]
             prix_vente=_to_float(c.get("prix_vente")),
             source_id=str(c.get("source_id", "")),
             score=round(_comparable_score(c), 4),
+            date_vente=str(c.get("date_vente", "")),
         )
         for c in valid[:max_items]
     ]
@@ -60,7 +62,10 @@ def _comparable_score(item: dict) -> float:
     distance = _to_float(item.get("distance_km"))
     confidence = _to_float(item.get("confidence", 1.0))
     distance_penalty = min(distance / 100, 0.5) if distance else 0.0
-    return max(confidence - distance_penalty, 0.0) + min(price / 1_000_000, 1.0) * 0.01
+    confidence_component = max(min(confidence, 1.0) * 0.95 - distance_penalty, 0.0)
+    price_component = min(price / 1_000_000, 1.0) * 0.05
+    raw_score = confidence_component + price_component
+    return min(raw_score, 1.0)
 
 
 def _has_field(payload: dict, field: str) -> bool:

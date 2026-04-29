@@ -5,6 +5,9 @@
 - Contrats d'agents v0: `AGENT-CONTRACTS-V0.yaml`
 - Checklist conformite v0: `CHECKLIST-CONFORMITE-V0.md`
 - Regles conformite: `RULES-CONFORMITE-V0.yaml`
+- Contrats de donnees v0: `CONTRATS-DONNEES-V0.yaml`
+- Contrat calcul deterministe v0: `CONTRAT-RUN-CALCULATION-V0.yaml`
+- Cadrage documentaire minimal v0: `CADRAGE-DOCUMENTAIRE-MINIMAL-V0.md`
 - Pipeline runtime: `../integration/PIPELINE-RUNTIME-ASTON-V0.yaml`
 - Moteur runtime: `../engine/runtime.py`
 - API locale minimale: `../api.py`
@@ -16,6 +19,7 @@ python evaluation-immobiliere/outils/prioriser_mvp.py
 python evaluation-immobiliere/outils/valider_fixtures_v0.py
 python evaluation-immobiliere/outils/valider_fixtures_v0.py --input evaluation-immobiliere/tests/fixtures/template_dossier_anonymise.json --strict --report-out evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md
 python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
+python evaluation-immobiliere/outils/valider_contrats_runtime_v0.py --runtime-dir evaluation-immobiliere/tests/runtime --report-out evaluation-immobiliere/tests/runtime/contracts_report.json
 python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
 python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
 python evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py
@@ -34,6 +38,7 @@ La demo est exploitable si:
 
 - le check de coherence passe;
 - la simulation produit `runtime_summary.json`;
+- la simulation produit aussi `contracts_report.json` (validation contrats runtime);
 - le rapport pilote `atelier/RAPPORT-PILOTE-RUNTIME-V0.md` resume les statuts et blocages;
 - les artefacts sont classes par dossier dans `tests/runtime/case_*`;
 - l'API cree une session et retourne un statut de dossier;
