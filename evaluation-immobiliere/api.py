@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 SESSIONS_DIR = ROOT / "runtime_sessions"
+UI_PATH = ROOT / "ui" / "pilote_api.html"
 
 
 def create_session(strict_mode: bool = True) -> dict:
@@ -54,6 +55,28 @@ def load_case_from_body(body: dict) -> tuple[dict, str]:
         raise FileNotFoundError(f"fixture introuvable: {fixture_name}")
 
     return json.loads(fixture_path.read_text(encoding="utf-8")), fixture_name
+
+
+def list_fixtures() -> list[dict[str, object]]:
+    fixtures = []
+    for path in sorted(FIXTURES_DIR.glob("*.json")):
+        if path.name.startswith("template_"):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+        fixtures.append(
+            {
+                "name": path.name,
+                "dossier_id": data.get("dossier_id", ""),
+                "date_reference": data.get("date_reference", ""),
+                "comparables_count": len(data.get("comparables", [])),
+                "ajustements_count": len(data.get("ajustements", [])),
+                "confidence": data.get("confidence", ""),
+            }
+        )
+    return fixtures
 
 
 def start_runtime(body: dict) -> dict:
@@ -109,13 +132,26 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path in {"/", "/ui"}:
+            self._send_file(UI_PATH, "text/html; charset=utf-8")
+            return
         if parsed.path == "/health":
             self._send_json(200, {"status": "ok"})
+            return
+        if parsed.path == "/fixtures":
+            self._send_json(200, {"fixtures": list_fixtures()})
             return
         if parsed.path == "/stream":
             self._stream_events(parse_qs(parsed.query).get("session_id", [None])[0])
             return
         self._send_json(404, {"error": "route introuvable"})
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self._send_cors_headers()
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_POST(self) -> None:
         try:
@@ -147,9 +183,24 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _send_file(self, path: Path, content_type: str) -> None:
+        if not path.exists():
+            self._send_json(404, {"error": f"fichier introuvable: {path.name}"})
+            return
+        encoded = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        self._send_cors_headers()
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
 
     def _stream_events(self, session_id: str | None) -> None:
         if not session_id:
@@ -164,7 +215,7 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors_headers()
         self.end_headers()
 
         for line in events_path.read_text(encoding="utf-8").splitlines():

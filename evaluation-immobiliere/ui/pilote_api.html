@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Runtime evaluation immobiliere</title>
+    <style>
+      :root {
+        --bg: #f7f8fa;
+        --panel: #ffffff;
+        --text: #1f2933;
+        --muted: #667085;
+        --line: #d9dee7;
+        --accent: #146c5c;
+        --accent-dark: #0e5145;
+        --warn: #9a3412;
+        --danger: #b42318;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.45;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .wrap {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 64px;
+        gap: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 650;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(280px, 360px) 1fr;
+        gap: 16px;
+        padding: 18px 0 28px;
+      }
+
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        min-width: 0;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      select,
+      textarea,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      select,
+      textarea {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      select {
+        height: 40px;
+        padding: 0 10px;
+      }
+
+      textarea {
+        min-height: 210px;
+        padding: 10px;
+        resize: vertical;
+        font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+      }
+
+      button {
+        min-height: 40px;
+        border: 0;
+        border-radius: 6px;
+        padding: 0 12px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font-weight: 650;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button.secondary {
+        background: #344054;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcfd;
+        min-height: 74px;
+      }
+
+      .metric span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 18px;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 0 10px;
+        background: #eef4ff;
+        color: #3538cd;
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .status.review {
+        background: #fff1f3;
+        color: var(--danger);
+      }
+
+      .status.draft {
+        background: #fff6ed;
+        color: var(--warn);
+      }
+
+      .events {
+        height: 420px;
+        overflow: auto;
+        border-top: 1px solid var(--line);
+        font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .event {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 10px;
+        border-bottom: 1px solid #edf0f5;
+        padding: 8px 12px;
+      }
+
+      .event-name {
+        color: var(--accent);
+        font-weight: 650;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .actions button {
+        width: auto;
+        flex: 1;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin: 0;
+      }
+
+      @media (max-width: 860px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .event {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap topbar">
+        <h1>Runtime evaluation immobiliere</h1>
+        <span class="muted" id="health">API: verification...</span>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="panel">
+        <h2>Execution</h2>
+        <label for="fixture">Fixture</label>
+        <select id="fixture"></select>
+
+        <label for="payload">Payload inline JSON</label>
+        <textarea id="payload" spellcheck="false"></textarea>
+
+        <div class="actions">
+          <button id="run-fixture">Lancer fixture</button>
+          <button id="run-inline" class="secondary">Lancer JSON</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="panel">
+          <h2>Resultat</h2>
+          <div class="grid">
+            <div class="metric">
+              <span>Session</span>
+              <strong id="session">-</strong>
+            </div>
+            <div class="metric">
+              <span>Dossier</span>
+              <strong id="dossier">-</strong>
+            </div>
+            <div class="metric">
+              <span>Statut</span>
+              <strong><span class="status" id="status">-</span></strong>
+            </div>
+          </div>
+          <p class="muted" id="artifact-dir">Artifacts: -</p>
+        </div>
+        <div class="events" id="events"></div>
+      </section>
+    </main>
+
+    <script>
+      const fixtureSelect = document.querySelector("#fixture");
+      const payload = document.querySelector("#payload");
+      const events = document.querySelector("#events");
+      const runFixture = document.querySelector("#run-fixture");
+      const runInline = document.querySelector("#run-inline");
+      let source = null;
+
+      const sampleCase = {
+        dossier_id: "D-PILOTE-UI",
+        date_reference: "2026-04-28",
+        comparables: [
+          { comparable_id: "C1", prix_vente: 500000, source_id: "SRC-1", confidence: 0.9 }
+        ],
+        ajustements: [
+          { ajustement_id: "A1", montant: 10000, source_id: "SRC-1", validation_humaine: true }
+        ],
+        confidence: 0.85
+      };
+
+      payload.value = JSON.stringify(sampleCase, null, 2);
+
+      function setBusy(value) {
+        runFixture.disabled = value;
+        runInline.disabled = value;
+      }
+
+      function setStatus(value) {
+        const node = document.querySelector("#status");
+        node.textContent = value || "-";
+        node.className = "status";
+        if (value === "A_REVOIR") node.classList.add("review");
+        if (value === "BROUILLON") node.classList.add("draft");
+      }
+
+      function addEvent(eventName, data) {
+        const row = document.createElement("div");
+        row.className = "event";
+        row.innerHTML = `<div class="event-name"></div><pre></pre>`;
+        row.querySelector(".event-name").textContent = eventName;
+        row.querySelector("pre").textContent = JSON.stringify(data, null, 2);
+        events.appendChild(row);
+        events.scrollTop = events.scrollHeight;
+      }
+
+      async function api(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+        });
+        const text = await response.text();
+        const body = text ? JSON.parse(text) : {};
+        if (!response.ok) throw new Error(body.error || response.statusText);
+        return body;
+      }
+
+      async function refreshFixtures() {
+        const data = await api("/fixtures");
+        fixtureSelect.innerHTML = "";
+        data.fixtures.forEach((fixture) => {
+          const option = document.createElement("option");
+          option.value = fixture.name;
+          option.textContent = `${fixture.name} (${fixture.dossier_id || "sans dossier"})`;
+          fixtureSelect.appendChild(option);
+        });
+      }
+
+      async function checkHealth() {
+        try {
+          await api("/health");
+          document.querySelector("#health").textContent = "API: active";
+        } catch (error) {
+          document.querySelector("#health").textContent = `API: ${error.message}`;
+        }
+      }
+
+      async function start(body) {
+        setBusy(true);
+        events.innerHTML = "";
+        if (source) source.close();
+        try {
+          const result = await api("/start", {
+            method: "POST",
+            body: JSON.stringify(body)
+          });
+          const session = result.session;
+          const runtime = result.result;
+          document.querySelector("#session").textContent = session.session_id;
+          document.querySelector("#dossier").textContent = runtime.dossier_id;
+          document.querySelector("#artifact-dir").textContent = `Artifacts: ${runtime.artifact_dir}`;
+          setStatus(runtime.status);
+          source = new EventSource(session.events_url);
+          ["step_start", "artifact_written", "step_done", "warning_detected", "blocking_detected", "schema_invalid"].forEach((name) => {
+            source.addEventListener(name, (event) => addEvent(name, JSON.parse(event.data)));
+          });
+        } catch (error) {
+          addEvent("error", { message: error.message });
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      runFixture.addEventListener("click", () => start({ fixture: fixtureSelect.value, strict_mode: true }));
+      runInline.addEventListener("click", () => start({ case: JSON.parse(payload.value), strict_mode: true }));
+
+      checkHealth();
+      refreshFixtures().catch((error) => addEvent("error", { message: error.message }));
+    </script>
+  </body>
+</html>

@@ -10,6 +10,21 @@ python evaluation-immobiliere/outils/lancer_api_v0.py --host 127.0.0.1 --port 87
 
 Le serveur utilise uniquement la bibliotheque standard Python.
 
+Interface locale:
+
+```text
+http://127.0.0.1:8787/ui
+```
+
+Endpoints:
+
+- `GET /ui`
+- `GET /fixtures`
+- `GET /health`
+- `POST /session`
+- `POST /start`
+- `GET /stream?session_id=<id>`
+
 ## Creer une session
 
 ```bash
