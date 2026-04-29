@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import json
 import os
@@ -30,6 +31,14 @@ def run_contract_validation(runtime_dir: Path, report_path: Path) -> bool:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Simuler le runtime v0 sur fixtures")
+    parser.add_argument(
+        "--fail-on-contract-errors",
+        action="store_true",
+        help="Retourne exit code 1 si le rapport de contrats contient des erreurs.",
+    )
+    args = parser.parse_args()
+
     os.environ.setdefault("RUNTIME_DETERMINISTIC", "1")
     os.environ.setdefault("RUNTIME_FIXED_TIMESTAMP_UTC", "2026-04-28T00:00:00+00:00")
 
@@ -55,7 +64,7 @@ def main() -> None:
     print(f"Resume runtime: {SUMMARY_PATH}")
 
     contracts_ok = run_contract_validation(OUT_DIR, CONTRACTS_REPORT_PATH)
-    if not contracts_ok:
+    if args.fail_on_contract_errors and not contracts_ok:
         raise SystemExit(1)
 
 

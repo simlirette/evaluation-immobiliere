@@ -21,6 +21,7 @@ python evaluation-immobiliere/outils/valider_fixtures_v0.py --input evaluation-i
 python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
 python evaluation-immobiliere/outils/valider_contrats_runtime_v0.py --runtime-dir evaluation-immobiliere/tests/runtime --report-out evaluation-immobiliere/tests/runtime/contracts_report.json
 python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
+python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py --fail-on-contract-errors
 python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
 python evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py
 ```
