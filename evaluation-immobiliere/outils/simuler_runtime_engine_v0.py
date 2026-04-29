@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import os
 import shutil
 import sys
 
@@ -19,6 +20,9 @@ PIPELINE_PATH = Path("evaluation-immobiliere/integration/PIPELINE-RUNTIME-ASTON-
 
 
 def main() -> None:
+    os.environ.setdefault("RUNTIME_DETERMINISTIC", "1")
+    os.environ.setdefault("RUNTIME_FIXED_TIMESTAMP_UTC", "2026-04-28T00:00:00+00:00")
+
     if OUT_DIR.exists():
         for p in OUT_DIR.iterdir():
             if p.is_file():
