@@ -31,12 +31,20 @@ jobs:
             evaluation-immobiliere/outils/demo_api_v0.py \
             evaluation-immobiliere/outils/simuler_runtime_engine_v0.py \
             evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py \
+            evaluation-immobiliere/outils/valider_fixtures_v0.py \
             evaluation-immobiliere/outils/valider_reponses_evaluateurs.py \
             evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py \
             evaluation-immobiliere/outils/prioriser_mvp.py
 
       - name: Validate evaluator responses
         run: python evaluation-immobiliere/outils/valider_reponses_evaluateurs.py
+
+      - name: Validate pilot dossier template
+        run: |
+          python evaluation-immobiliere/outils/valider_fixtures_v0.py \
+            --input evaluation-immobiliere/tests/fixtures/template_dossier_anonymise.json \
+            --strict \
+            --report-out evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md
 
       - name: Compile evaluator responses
         run: python evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py
@@ -56,6 +64,7 @@ jobs:
       - name: Verify generated artifacts are committed
         run: |
           git diff --exit-code -- \
+            evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md \
             evaluation-immobiliere/atelier/RAPPORT-VALIDATION-REPONSES.md \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.csv \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.md \
@@ -66,6 +75,7 @@ jobs:
           python -m unittest \
             evaluation-immobiliere/tests/test_audit_v0.py \
             evaluation-immobiliere/tests/test_api_v0.py \
+            evaluation-immobiliere/tests/test_fixtures_v0.py \
             evaluation-immobiliere/tests/test_tools_v0.py \
             evaluation-immobiliere/tests/test_runtime_v0.py \
             evaluation-immobiliere/tests/test_priorisation_v0.py \

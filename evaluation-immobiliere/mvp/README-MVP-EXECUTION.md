@@ -14,6 +14,7 @@
 ```bash
 python evaluation-immobiliere/outils/prioriser_mvp.py
 python evaluation-immobiliere/outils/valider_fixtures_v0.py
+python evaluation-immobiliere/outils/valider_fixtures_v0.py --input evaluation-immobiliere/tests/fixtures/template_dossier_anonymise.json --strict --report-out evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md
 python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
 python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
 python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
