@@ -7,6 +7,7 @@ import json
 import os
 import re
 import time
+import ast
 
 from engine.audit import append_audit_log
 from engine.tools import run_calculation, search_comparables, validate_schema
@@ -43,9 +44,12 @@ CONTRACT_CHECKS_BY_ARTIFACT = {
     },
     "statut_sortie.json": {
         "required_fields": ["status", "blocking_failures", "warnings"],
-        "rules": ["CONF004"],
+        "rules": ["CONF004", "CONF007"],
     },
 }
+
+CONTRACTS_DATA_PATH = Path(__file__).resolve().parent.parent / "mvp" / "CONTRATS-DONNEES-V0.yaml"
+_CONTRACT_TREE_CACHE: dict | None = None
 
 
 def _name_from_agent_config(value: str) -> str:
@@ -198,7 +202,16 @@ class RuntimeEngine:
         status = "A_REVOIR" if blocking else ("BROUILLON" if warnings else "PRET_REVISION_FINALE")
         return status, blocking, warnings
 
-    def _artifact_payload(self, step: str, artifact: str, case: dict, status: str, blocking: list[str], warnings: list[str]) -> dict:
+    def _artifact_payload(
+        self,
+        step: str,
+        artifact: str,
+        case: dict,
+        status: str,
+        blocking: list[str],
+        warnings: list[str],
+        valuation_values: dict[str, float] | None = None,
+    ) -> dict:
         payload = {
             "dossier_id": case.get("dossier_id"),
             "step": step,
@@ -266,7 +279,14 @@ class RuntimeEngine:
             payload.update({"blocking_failures": blocking, "warnings": warnings})
 
         if step == "compliance-qa" and artifact == "statut_sortie.json":
-            payload.update({"status": status, "blocking_failures": blocking, "warnings": warnings})
+            payload.update(
+                {
+                    "status": status,
+                    "blocking_failures": blocking,
+                    "warnings": warnings,
+                    "valuation_values": valuation_values or {},
+                }
+            )
 
         if step == "compliance-qa" and artifact == "recommandations_corrections.md":
             payload["recommendations"] = build_recommendations(blocking, warnings)
@@ -310,6 +330,7 @@ class RuntimeEngine:
 
         status, blocking, warnings = self._compute_qa(case)
         case_dir.mkdir(parents=True, exist_ok=True)
+        valuation_values: dict[str, float] = {}
 
         for warning in warnings:
             self._record_event(events, audit_log_path, {"event": "warning_detected", "dossier_id": dossier_id, "warning": warning})
@@ -321,8 +342,21 @@ class RuntimeEngine:
                 artifact_path = case_dir / f"{case_key}.{step.name}.{artifact}" if not case_subdir else case_dir / f"{step.name}.{artifact}"
                 artifact_path.parent.mkdir(parents=True, exist_ok=True)
 
-                payload = self._artifact_payload(step.name, artifact, case, status, blocking, warnings)
+                payload = self._artifact_payload(step.name, artifact, case, status, blocking, warnings, valuation_values)
                 payload["source_fixture"] = source_fixture
+                if step.name == "valuation-draft" and artifact in {
+                    "calculs_approche_comparative.json",
+                    "calculs_approche_cout.json",
+                    "calculs_approche_revenu.json",
+                }:
+                    approach_by_artifact = {
+                        "calculs_approche_comparative.json": "approche_comparative",
+                        "calculs_approche_cout.json": "approche_cout",
+                        "calculs_approche_revenu.json": "approche_revenu",
+                    }
+                    value = payload.get("value")
+                    if isinstance(value, (int, float)):
+                        valuation_values[approach_by_artifact[artifact]] = float(value)
 
                 required = REQUIRED_FIELDS_BY_ARTIFACT.get(artifact, REQUIRED_FIELDS_BY_ARTIFACT["default"])
                 ok, missing = validate_schema(payload, required)
@@ -401,6 +435,60 @@ def _unique(values: list[str]) -> list[str]:
     return out
 
 
+def _parse_scalar(value: str) -> object:
+    text = value.strip()
+    if not text:
+        return {}
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            return ast.literal_eval(text)
+        except (SyntaxError, ValueError):
+            return [v.strip() for v in text[1:-1].split(",") if v.strip()]
+    if text in {"true", "false"}:
+        return text == "true"
+    try:
+        return int(text) if "." not in text else float(text)
+    except ValueError:
+        return text
+
+
+def _load_contract_tree() -> dict:
+    global _CONTRACT_TREE_CACHE
+    if _CONTRACT_TREE_CACHE is not None:
+        return _CONTRACT_TREE_CACHE
+
+    root: dict = {}
+    stack: list[tuple[int, dict]] = [(-1, root)]
+    for raw in CONTRACTS_DATA_PATH.read_text(encoding="utf-8").splitlines():
+        line = raw.rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        key, value = line.strip().split(":", 1)
+        while stack and indent <= stack[-1][0]:
+            stack.pop()
+        parent = stack[-1][1]
+        parsed_value = _parse_scalar(value)
+        parent[key] = parsed_value
+        if parsed_value == {}:
+            node: dict = {}
+            parent[key] = node
+            stack.append((indent, node))
+    _CONTRACT_TREE_CACHE = root
+    return root
+
+
+def _contract_value(path: tuple[str, ...], default: object) -> object:
+    node: object = _load_contract_tree()
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return node
+
+
 def safe_path_id(value: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip())
     return safe.strip("-") or "unknown"
@@ -463,11 +551,14 @@ def validate_contract_rules(artifact: str, payload: dict) -> list[str]:
                     failures.append(f"CONF003: comparable[{idx}] sans source_id")
         elif rule == "CONF005":
             reference_date = _parse_iso_date(payload.get("date_reference"))
+            max_delta_days = int(_contract_value(("contracts", "comparables_proposes", "constraints", "date_vente_max_delta_days"), 1095))
             for idx, comp in enumerate(payload.get("comparables", [])):
                 sale_date = _parse_iso_date(comp.get("date_vente"))
-                if reference_date and sale_date and abs((reference_date - sale_date).days) > 1095:
+                if reference_date and sale_date and abs((reference_date - sale_date).days) > max_delta_days:
                     failures.append(f"CONF005: comparable[{idx}] hors fenetre temporelle")
         elif rule == "CONF006":
+            score_range = _contract_value(("contracts", "comparables_proposes", "constraints", "similarite_score_range"), [0, 1])
+            min_score, max_score = float(score_range[0]), float(score_range[1])
             for idx, comp in enumerate(payload.get("comparables", [])):
                 score = comp.get("score")
                 if score is None:
@@ -477,11 +568,35 @@ def validate_contract_rules(artifact: str, payload: dict) -> list[str]:
                 except (TypeError, ValueError):
                     failures.append(f"CONF006: comparable[{idx}] score invalide")
                     continue
-                if score_value < 0 or score_value > 1:
-                    failures.append(f"CONF006: comparable[{idx}] score hors bornes [0,1]")
+                if score_value < min_score or score_value > max_score:
+                    failures.append(f"CONF006: comparable[{idx}] score hors bornes [{min_score},{max_score}]")
         elif rule == "CONF004":
-            if payload.get("status") not in {"BROUILLON", "A_REVOIR", "PRET_REVISION_FINALE"}:
+            statuses = _contract_value(
+                ("contracts", "rapport_conformite", "constraints", "status"),
+                ["BROUILLON", "A_REVOIR", "PRET_REVISION_FINALE"],
+            )
+            if payload.get("status") not in set(statuses):
                 failures.append("CONF004: statut_sortie invalide")
+        elif rule == "CONF007":
+            values = payload.get("valuation_values", {})
+            if not isinstance(values, dict):
+                continue
+            comparative = values.get("approche_comparative")
+            cout = values.get("approche_cout")
+            revenu = values.get("approche_revenu")
+            if all(isinstance(v, (int, float)) for v in [comparative, cout, revenu]):
+                min_val = min(comparative, cout, revenu)
+                max_val = max(comparative, cout, revenu)
+                if min_val > 0:
+                    ratio = (max_val - min_val) / min_val
+                    max_ratio = float(
+                        _contract_value(
+                            ("contracts", "rapport_conformite", "constraints", "valuation_inter_approach_max_delta_ratio"),
+                            0.35,
+                        )
+                    )
+                    if ratio > max_ratio:
+                        failures.append("CONF007: incoherence inter-approches de valuation")
 
     return failures
 

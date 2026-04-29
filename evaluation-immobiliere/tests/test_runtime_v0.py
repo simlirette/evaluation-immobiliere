@@ -62,6 +62,37 @@ class TestRuntimeV0(unittest.TestCase):
         failures = validate_contract_rules("comparables_proposes.json", payload)
         self.assertTrue(any("CONF005" in failure for failure in failures))
 
+    def test_validate_contract_rules_detects_inter_approach_incoherence(self) -> None:
+        payload = {
+            "status": "PRET_REVISION_FINALE",
+            "blocking_failures": [],
+            "warnings": [],
+            "valuation_values": {
+                "approche_comparative": 100000,
+                "approche_cout": 180000,
+                "approche_revenu": 140000,
+            },
+        }
+        failures = validate_contract_rules("statut_sortie.json", payload)
+        self.assertTrue(any("CONF007" in failure for failure in failures))
+
+    def test_run_case_data_collects_valuation_values_from_valuation_artifacts(self) -> None:
+        case = {
+            "dossier_id": "D-VAL",
+            "date_reference": "2026-04-28",
+            "comparables": [
+                {"comparable_id": "C1", "prix_vente": 100000, "source_id": "SRC-1", "date_vente": "2025-12-01"},
+                {"comparable_id": "C2", "prix_vente": 200000, "source_id": "SRC-2", "date_vente": "2026-01-01"},
+                {"comparable_id": "C3", "prix_vente": 1000000, "source_id": "SRC-3", "date_vente": "2026-02-01"},
+            ],
+            "ajustements": [],
+            "confidence": 0.9,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            result = RuntimeEngine().run_case_data(case, Path(tmp), case_subdir=True)
+            self.assertEqual(result["status"], "A_REVOIR")
+            self.assertTrue(any("CONF007" in failure for failure in result["blocking_failures"]))
+
 
 if __name__ == "__main__":
     unittest.main()
