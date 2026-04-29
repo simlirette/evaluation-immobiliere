@@ -18,6 +18,7 @@ python evaluation-immobiliere/outils/valider_fixtures_v0.py --input evaluation-i
 python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
 python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
 python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
+python evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py
 ```
 
 ## Commandes API
@@ -33,6 +34,7 @@ La demo est exploitable si:
 
 - le check de coherence passe;
 - la simulation produit `runtime_summary.json`;
+- le rapport pilote `atelier/RAPPORT-PILOTE-RUNTIME-V0.md` resume les statuts et blocages;
 - les artefacts sont classes par dossier dans `tests/runtime/case_*`;
 - l'API cree une session et retourne un statut de dossier;
 - le flux `/stream` expose les evenements runtime.
