@@ -7,5 +7,10 @@
     "B005: ajustement sensible sans validation_humaine"
   ],
   "warnings": [],
+  "valuation_values": {
+    "approche_comparative": 500000.0,
+    "approche_cout": 500000.0,
+    "approche_revenu": 500000.0
+  },
   "source_fixture": "case_sensitive_no_validation.json"
 }
