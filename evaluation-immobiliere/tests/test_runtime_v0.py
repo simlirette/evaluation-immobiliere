@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine.runtime import RuntimeEngine, RuntimeStep, PipelineValidationError, validate_contract_rules, validate_pipeline_steps
+import engine.runtime as runtime_module
 
 
 class TestRuntimeV0(unittest.TestCase):
@@ -76,6 +77,26 @@ class TestRuntimeV0(unittest.TestCase):
         failures = validate_contract_rules("statut_sortie.json", payload)
         self.assertTrue(any("CONF007" in failure for failure in failures))
 
+    def test_validate_contract_rules_rejects_status_outside_contract(self) -> None:
+        payload = {
+            "status": "INCONNU",
+            "blocking_failures": [],
+            "warnings": [],
+            "valuation_values": {},
+        }
+        failures = validate_contract_rules("statut_sortie.json", payload)
+        self.assertTrue(any("CONF004" in failure for failure in failures))
+
+    def test_validate_contract_rules_rejects_score_outside_contract_range(self) -> None:
+        payload = {
+            "date_reference": "2026-04-28",
+            "comparables": [
+                {"comparable_id": "C-HIGH", "source_id": "SRC-1", "score": 1.25, "date_vente": "2026-01-01"},
+            ],
+        }
+        failures = validate_contract_rules("comparables_proposes.json", payload)
+        self.assertTrue(any("CONF006" in failure for failure in failures))
+
     def test_run_case_data_collects_valuation_values_from_valuation_artifacts(self) -> None:
         case = {
             "dossier_id": "D-VAL",
@@ -92,6 +113,32 @@ class TestRuntimeV0(unittest.TestCase):
             result = RuntimeEngine().run_case_data(case, Path(tmp), case_subdir=True)
             self.assertEqual(result["status"], "A_REVOIR")
             self.assertTrue(any("CONF007" in failure for failure in result["blocking_failures"]))
+
+    def test_compute_qa_uses_contract_thresholds_for_distance_and_confidence(self) -> None:
+        original = runtime_module._CONTRACT_TREE_CACHE
+        runtime_module._CONTRACT_TREE_CACHE = {
+            "contracts": {
+                "rapport_conformite": {
+                    "constraints": {
+                        "max_comparable_distance_km_warning": 5,
+                        "confidence_min_warning": 0.95,
+                    }
+                }
+            }
+        }
+        try:
+            case = {
+                "dossier_id": "D-T",
+                "date_reference": "2026-04-28",
+                "comparables": [{"comparable_id": "C1", "distance_km": 6, "source_id": "SRC-1", "date_vente": "2026-01-01"}],
+                "ajustements": [],
+                "confidence": 0.90,
+            }
+            _, _, warnings = RuntimeEngine()._compute_qa(case)
+            self.assertIn("W002: comparable eloigne", warnings)
+            self.assertIn("W001: confiance faible", warnings)
+        finally:
+            runtime_module._CONTRACT_TREE_CACHE = original
 
 
 if __name__ == "__main__":
