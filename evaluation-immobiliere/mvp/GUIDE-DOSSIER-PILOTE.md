@@ -29,9 +29,12 @@ Objectif: convertir 2-3 dossiers reels en entrees JSON compatibles runtime v0, s
 Copier `tests/fixtures/template_dossier_anonymise.json`, remplir les champs, puis lancer:
 
 ```bash
+python evaluation-immobiliere/outils/valider_fixtures_v0.py --input evaluation-immobiliere/tests/fixtures/votre_fixture.json --strict --report-out evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md
 python evaluation-immobiliere/outils/lancer_api_v0.py
 python evaluation-immobiliere/outils/demo_api_v0.py --fixture votre_fixture.json
 ```
+
+Le mode `--strict` bloque les dossiers pilotes qui contiennent une source manquante, une surface invalide, une unite incoherente, un ajustement sensible sans validation humaine ou une information possiblement nominative.
 
 Pour une fixture pilote versionnee, nommer le fichier avec le prefixe `case_` afin que `simuler_runtime_engine_v0.py` l'inclue automatiquement.
 
