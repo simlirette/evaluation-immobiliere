@@ -5,7 +5,9 @@
   "blocking_failures": [
     "B002: comparable sans source_id",
     "B002: ajustement sans source_id",
-    "STRICT: sortie refusee, comparable sans source"
+    "STRICT: sortie refusee, comparable sans source",
+    "CONF001: fiche_bien sans source_ids",
+    "CONF002: aucun comparable propose"
   ],
   "warnings": [],
   "source_fixture": "case_missing_source.json"

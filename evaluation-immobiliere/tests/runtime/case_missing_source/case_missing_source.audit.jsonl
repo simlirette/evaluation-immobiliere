@@ -1,9 +1,11 @@
 {"event": "step_start", "step": "data-facts", "dossier_id": "D-002", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
+{"event": "contract_invalid", "step": "data-facts", "artifact": "fiche_bien.json", "failures": ["CONF001: fiche_bien sans source_ids"], "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "data-facts", "artifact": "fiche_bien.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/data-facts.fiche_bien.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "data-facts", "artifact": "timeline_faits.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/data-facts.timeline_faits.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "data-facts", "artifact": "source_index.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/data-facts.source_index.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "step_done", "step": "data-facts", "dossier_id": "D-002", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "step_start", "step": "comps-market", "dossier_id": "D-002", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
+{"event": "contract_invalid", "step": "comps-market", "artifact": "comparables_proposes.json", "failures": ["CONF002: aucun comparable propose"], "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "comps-market", "artifact": "comparables_proposes.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/comps-market.comparables_proposes.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "comps-market", "artifact": "justifications_comparables.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/comps-market.justifications_comparables.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "comps-market", "artifact": "source_index.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/comps-market.source_index.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
@@ -20,4 +22,4 @@
 {"event": "artifact_written", "step": "compliance-qa", "artifact": "statut_sortie.json", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/compliance-qa.statut_sortie.json", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "artifact_written", "step": "compliance-qa", "artifact": "recommandations_corrections.md", "path": "evaluation-immobiliere/tests/runtime/case_missing_source/compliance-qa.recommandations_corrections.md", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
 {"event": "step_done", "step": "compliance-qa", "dossier_id": "D-002", "timestamp_utc": "2026-04-28T00:00:00+00:00"}
-{"event": "blocking_detected", "step": "compliance-qa", "dossier_id": "D-002", "blocking_count": 3, "timestamp_utc": "2026-04-28T00:00:00+00:00"}
+{"event": "blocking_detected", "step": "compliance-qa", "dossier_id": "D-002", "blocking_count": 5, "timestamp_utc": "2026-04-28T00:00:00+00:00"}

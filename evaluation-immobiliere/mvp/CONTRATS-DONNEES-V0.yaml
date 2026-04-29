@@ -1,0 +1,81 @@
+version: 0.1
+
+contracts:
+  fiche_bien_normalisee:
+    required:
+      - dossier_id
+      - date_reference
+      - adresse
+      - type_bien
+      - superficie_habitable
+      - unite_superficie
+      - annee_construction
+      - etat_general
+      - source_index
+    constraints:
+      unite_superficie: [m2, pi2]
+      superficie_habitable_min: 1
+      etat_general: [excellent, bon, moyen, mediocre]
+
+  comparables_proposes:
+    required:
+      - dossier_id
+      - comparables
+      - source_index
+    comparable_required:
+      - comparable_id
+      - adresse
+      - date_vente
+      - prix_vente
+      - distance_km
+      - source_id
+      - similarite_score
+    constraints:
+      date_vente_max_delta_days: 1095
+      similarite_score_range: [0, 1]
+      distance_km_min: 0
+
+  trace_calcul_valeur:
+    required:
+      - dossier_id
+      - approach
+      - computed_value
+      - confidence_score
+      - trace
+    constraints:
+      confidence_score_range: [0, 1]
+      computed_value_min: 1
+
+  rapport_conformite:
+    required:
+      - dossier_id
+      - status
+      - blocking_failures
+      - warnings
+    constraints:
+      status: [BROUILLON, A_REVOIR, PRET_REVISION_FINALE]
+
+  journal_tracabilite:
+    line_required:
+      - event
+      - step
+      - dossier_id
+      - timestamp_utc
+
+source_taxonomy:
+  authoritative:
+    - registre_foncier
+    - certificat_localisation
+  reference:
+    - role_evaluation_municipale
+    - inspection_preachat
+  commercial:
+    - mls_centris
+  low_confidence:
+    - photo_non_geolocalisee
+
+conflict_resolution:
+  - rule: "authoritative_overrides_reference"
+  - rule: "reference_overrides_commercial"
+  - rule: "commercial_overrides_low_confidence"
+  - rule: "if_same_priority_and_conflict_then_human_validation_required"

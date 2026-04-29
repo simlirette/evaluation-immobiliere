@@ -31,6 +31,17 @@ class TestToolsV0(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].comparable_id, "C")
 
+    def test_search_comparables_keeps_date_vente(self) -> None:
+        pool = [{"comparable_id": "A", "prix_vente": 300000, "source_id": "SRC-1", "date_vente": "2026-01-15"}]
+        result = search_comparables(pool, max_items=10)
+        self.assertEqual(result[0].date_vente, "2026-01-15")
+
+    def test_search_comparables_score_is_bounded(self) -> None:
+        pool = [{"comparable_id": "A", "prix_vente": 9_000_000, "source_id": "SRC-1", "confidence": 3}]
+        result = search_comparables(pool, max_items=10)
+        self.assertLessEqual(result[0].score, 1.0)
+        self.assertGreaterEqual(result[0].score, 0.0)
+
     def test_validate_schema_supports_nested_fields(self) -> None:
         ok, missing = validate_schema({"a": {"b": 1}}, ["a.b", "a.c"])
         self.assertFalse(ok)

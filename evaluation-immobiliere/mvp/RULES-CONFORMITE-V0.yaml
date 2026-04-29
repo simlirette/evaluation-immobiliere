@@ -26,3 +26,15 @@ output_status_logic:
     status: "BROUILLON"
   - if: "no_blocking_failures and warnings_absent and human_validation_complete"
     status: "PRET_REVISION_FINALE"
+
+
+info_rules:
+  - id: I001
+    description: "Champ optionnel absent sans impact bloquant"
+  - id: I002
+    description: "Style rédactionnel à harmoniser"
+
+severity_policy:
+  blocking: "Bloque la sortie finale"
+  warning: "Sortie autorisée en BROUILLON avec revue"
+  info: "Sortie autorisée sans blocage"

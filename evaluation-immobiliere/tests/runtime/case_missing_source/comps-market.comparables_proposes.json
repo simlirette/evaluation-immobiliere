@@ -2,6 +2,7 @@
   "dossier_id": "D-002",
   "step": "comps-market",
   "artifact": "comparables_proposes.json",
+  "date_reference": "2026-04-28",
   "comparables": [],
   "source_fixture": "case_missing_source.json"
 }

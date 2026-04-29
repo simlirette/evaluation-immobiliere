@@ -5,14 +5,15 @@
     "A_REVOIR": 4,
     "PRET_REVISION_FINALE": 2
   },
-  "total_blocking_failures": 10,
+  "total_blocking_failures": 12,
   "total_warnings": 5,
-  "total_runtime_events": 201,
+  "total_runtime_events": 203,
   "audit_event_counts": {
     "warning_detected": 5,
     "step_start": 36,
     "artifact_written": 120,
     "step_done": 36,
+    "contract_invalid": 2,
     "blocking_detected": 4
   }
 }

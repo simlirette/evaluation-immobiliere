@@ -174,7 +174,9 @@
     "blocking_failures": [
       "B002: comparable sans source_id",
       "B002: ajustement sans source_id",
-      "STRICT: sortie refusee, comparable sans source"
+      "STRICT: sortie refusee, comparable sans source",
+      "CONF001: fiche_bien sans source_ids",
+      "CONF002: aucun comparable propose"
     ],
     "warnings": [],
     "events": [
@@ -182,6 +184,14 @@
         "event": "step_start",
         "step": "data-facts",
         "dossier_id": "D-002"
+      },
+      {
+        "event": "contract_invalid",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "failures": [
+          "CONF001: fiche_bien sans source_ids"
+        ]
       },
       {
         "event": "artifact_written",
@@ -210,6 +220,14 @@
         "event": "step_start",
         "step": "comps-market",
         "dossier_id": "D-002"
+      },
+      {
+        "event": "contract_invalid",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "failures": [
+          "CONF002: aucun comparable propose"
+        ]
       },
       {
         "event": "artifact_written",
@@ -306,7 +324,7 @@
         "event": "blocking_detected",
         "step": "compliance-qa",
         "dossier_id": "D-002",
-        "blocking_count": 3
+        "blocking_count": 5
       }
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_missing_source/case_missing_source.audit.jsonl",
@@ -314,7 +332,7 @@
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
-      "blocking_count": 3,
+      "blocking_count": 5,
       "warning_count": 0
     }
   },

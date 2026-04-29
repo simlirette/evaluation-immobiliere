@@ -32,6 +32,21 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count"],
 }
 
+CONTRACT_CHECKS_BY_ARTIFACT = {
+    "fiche_bien.json": {
+        "required_fields": ["date_reference", "surface", "confidence", "source_ids"],
+        "rules": ["CONF001"],
+    },
+    "comparables_proposes.json": {
+        "required_fields": ["comparables"],
+        "rules": ["CONF002", "CONF003", "CONF005", "CONF006"],
+    },
+    "statut_sortie.json": {
+        "required_fields": ["status", "blocking_failures", "warnings"],
+        "rules": ["CONF004"],
+    },
+}
+
 
 def _name_from_agent_config(value: str) -> str:
     value = value.strip()
@@ -210,6 +225,7 @@ class RuntimeEngine:
             payload["sources"] = [{"source_id": source_id} for source_id in collect_source_ids(case)]
 
         if step == "comps-market" and artifact == "comparables_proposes.json":
+            payload["date_reference"] = case.get("date_reference")
             payload["comparables"] = [c.__dict__ for c in search_comparables(case.get("comparables", []), max_items=5)]
 
         if step == "comps-market" and artifact == "justifications_comparables.json":
@@ -318,6 +334,18 @@ class RuntimeEngine:
                     if step.name == "compliance-qa":
                         payload.setdefault("blocking_failures", []).append(schema_block)
 
+                contract_failures = validate_contract_rules(artifact, payload)
+                if contract_failures:
+                    blocking = _unique([*blocking, *contract_failures])
+                    status = "A_REVOIR"
+                    self._record_event(
+                        events,
+                        audit_log_path,
+                        {"event": "contract_invalid", "step": step.name, "artifact": artifact, "failures": contract_failures},
+                    )
+                    if step.name == "compliance-qa":
+                        payload.setdefault("blocking_failures", []).extend(contract_failures)
+
                 write_artifact_payload(artifact_path, payload)
                 self._record_event(
                     events,
@@ -408,6 +436,54 @@ def build_recommendations(blocking: list[str], warnings: list[str]) -> list[str]
     for warning in warnings:
         recommendations.append(f"Revoir warning: {warning}")
     return _unique(recommendations) or ["Aucune correction bloquante detectee."]
+
+
+def validate_contract_rules(artifact: str, payload: dict) -> list[str]:
+    failures: list[str] = []
+    contract = CONTRACT_CHECKS_BY_ARTIFACT.get(artifact)
+    if not contract:
+        return failures
+
+    required = contract.get("required_fields", [])
+    ok, missing = validate_schema(payload, required)
+    if not ok:
+        failures.append(f"SCHEMA_CONTRACT: champs manquants {missing}")
+
+    for rule in contract.get("rules", []):
+        if rule == "CONF001":
+            if not isinstance(payload.get("source_ids"), list) or len(payload.get("source_ids", [])) == 0:
+                failures.append("CONF001: fiche_bien sans source_ids")
+        elif rule == "CONF002":
+            comparables = payload.get("comparables", [])
+            if not isinstance(comparables, list) or len(comparables) == 0:
+                failures.append("CONF002: aucun comparable propose")
+        elif rule == "CONF003":
+            for idx, comp in enumerate(payload.get("comparables", [])):
+                if not comp.get("source_id"):
+                    failures.append(f"CONF003: comparable[{idx}] sans source_id")
+        elif rule == "CONF005":
+            reference_date = _parse_iso_date(payload.get("date_reference"))
+            for idx, comp in enumerate(payload.get("comparables", [])):
+                sale_date = _parse_iso_date(comp.get("date_vente"))
+                if reference_date and sale_date and abs((reference_date - sale_date).days) > 1095:
+                    failures.append(f"CONF005: comparable[{idx}] hors fenetre temporelle")
+        elif rule == "CONF006":
+            for idx, comp in enumerate(payload.get("comparables", [])):
+                score = comp.get("score")
+                if score is None:
+                    continue
+                try:
+                    score_value = float(score)
+                except (TypeError, ValueError):
+                    failures.append(f"CONF006: comparable[{idx}] score invalide")
+                    continue
+                if score_value < 0 or score_value > 1:
+                    failures.append(f"CONF006: comparable[{idx}] score hors bornes [0,1]")
+        elif rule == "CONF004":
+            if payload.get("status") not in {"BROUILLON", "A_REVOIR", "PRET_REVISION_FINALE"}:
+                failures.append("CONF004: statut_sortie invalide")
+
+    return failures
 
 
 def write_artifact_payload(path: Path, payload: dict) -> None:

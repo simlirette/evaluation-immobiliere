@@ -2,12 +2,14 @@
   "dossier_id": "D-004",
   "step": "comps-market",
   "artifact": "comparables_proposes.json",
+  "date_reference": "2026-04-28",
   "comparables": [
     {
       "comparable_id": "C1",
       "prix_vente": 0.0,
       "source_id": "SRC-1",
-      "score": 1.0
+      "score": 0.95,
+      "date_vente": ""
     }
   ],
   "source_fixture": "case_unit_incoherence.json"

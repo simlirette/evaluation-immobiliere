@@ -2,18 +2,21 @@
   "dossier_id": "D-PILOTE-RES-002",
   "step": "comps-market",
   "artifact": "comparables_proposes.json",
+  "date_reference": "2026-04-28",
   "comparables": [
     {
       "comparable_id": "CP-102",
       "prix_vente": 397500.0,
       "source_id": "SRC-VENTE-102",
-      "score": 0.394
+      "score": 0.3794,
+      "date_vente": "2025-12-12"
     },
     {
       "comparable_id": "CP-101",
       "prix_vente": 410000.0,
       "source_id": "SRC-VENTE-101",
-      "score": 0.2391
+      "score": 0.2265,
+      "date_vente": "2026-01-18"
     }
   ],
   "source_fixture": "case_pilote_confiance_limitee.json"

@@ -1,0 +1,22 @@
+{
+  "runtime_dir": "evaluation-immobiliere/tests/runtime",
+  "files_checked": 24,
+  "files_invalid": 2,
+  "failures": [
+    {
+      "path": "evaluation-immobiliere/tests/runtime/case_missing_source/comps-market.comparables_proposes.json",
+      "artifact": "comparables_proposes.json",
+      "failures": [
+        "CONF002: aucun comparable propose"
+      ]
+    },
+    {
+      "path": "evaluation-immobiliere/tests/runtime/case_missing_source/data-facts.fiche_bien.json",
+      "artifact": "fiche_bien.json",
+      "failures": [
+        "CONF001: fiche_bien sans source_ids"
+      ]
+    }
+  ],
+  "ok": false
+}
