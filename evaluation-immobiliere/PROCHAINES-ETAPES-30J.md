@@ -1,55 +1,60 @@
-# Prochaines étapes (30 jours) — adaptation Aston -> évaluation immobilière
+# Prochaines etapes 30 jours - adaptation Aston vers evaluation immobiliere
 
 ## Objectif du mois
-Passer de "simulateur validé" à "premier runtime interne exploitable sur dossiers anonymisés".
 
-## Semaine 1 — Stabiliser le runtime
-1. Brancher la lecture stricte de `PIPELINE-RUNTIME-ASTON-V0.yaml` (déjà fait) et ajouter validation des erreurs de parsing.
-2. Ajouter un check de cohérence runtime dans un script de vérification unique.
-3. Nettoyer le format des artefacts runtime (`.json.json` -> extension unique cohérente).
+Passer de simulateur valide a premier runtime interne exploitable sur dossiers anonymises.
 
-**Livrable:** runtime stable + conventions d'artefacts.
+## Semaine 1 - Stabiliser le runtime
 
-## Semaine 2 — Outillage métier minimal
-1. Implémenter stubs outillés pour:
-   - `search_comparables`
-   - `run_calculation`
-   - `validate_schema`
-   - `append_audit_log`
-2. Brancher ces stubs dans le runtime (au lieu d'écritures "dummy" seulement).
-3. Ajouter tests unitaires pour ces outils.
+Etat: largement complete.
 
-**Livrable:** outils métier MVP v0 testés.
+1. Lecture stricte de `PIPELINE-RUNTIME-ASTON-V0.yaml`: fait.
+2. Validation des erreurs de parsing runtime: fait.
+3. Check de coherence runtime/AgentConfig/observability: fait dans `outils/verifier_coherence_runtime_v0.py`.
+4. Conventions d'artefacts par dossier: fait pour le runtime et l'API.
 
-## Semaine 3 — API projet autonome
-1. Créer une API locale minimale:
-   - `POST /session`
-   - `POST /start`
-   - `GET /stream`
-2. Exposer les events runtime existants (`step_start`, `step_done`, `blocking_detected`).
-3. Persister les artefacts par dossier.
+Livrable: runtime stable, artefacts par dossier, audit enrichi.
 
-**Livrable:** exécution par API (sans UI complète).
+## Semaine 2 - Outillage metier minimal
 
-## Semaine 4 — Dossiers pilotes
-1. Préparer 2-3 dossiers anonymisés réels.
-2. Exécuter pipeline complet et comparer:
+Etat: complete pour v0, a durcir avec donnees reelles.
+
+1. `search_comparables`: filtre les comparables sources et calcule un score simple.
+2. `run_calculation`: mean, median et weighted_mean.
+3. `validate_schema`: champs simples et chemins imbriques.
+4. `append_audit_log`: journal JSONL horodate.
+5. Tests unitaires outils/runtime: ajoutes.
+
+Livrable: outils MVP v0 branches dans le runtime.
+
+## Semaine 3 - API projet autonome
+
+Etat: premiere version livree.
+
+1. `POST /session`: cree une session locale.
+2. `POST /start`: execute une fixture ou un dossier inline.
+3. `GET /stream`: expose les evenements au format SSE.
+4. Persistance locale: `runtime_sessions/<session_id>/`.
+
+Livrable: execution par API, sans UI complete.
+
+## Semaine 4 - Dossiers pilotes
+
+Etat: prochaine priorite.
+
+1. Preparer 2-3 dossiers anonymises reels.
+2. Mapper les champs vers le format fixture v0.
+3. Executer via API.
+4. Comparer:
    - temps de traitement
-   - qualité de sortie
+   - qualite des artefacts
    - taux de blocage
-3. Documenter écarts et corrections prioritaires.
+   - corrections demandees par evaluateur
 
-**Livrable:** rapport pilote + backlog priorisé v1.
+Livrable: rapport pilote et backlog v1.
 
----
+## Priorite immediate
 
-## Priorité immédiate (ordre recommandé)
-1. Normaliser le format d'artefacts runtime.
-2. Implémenter `append_audit_log` (traçabilité = critique conformité).
-3. Ajouter un mode "strict" qui refuse toute sortie sans source.
-
-## Définition de succès (fin 30 jours)
-- Pipeline exécutable via API projet sur dossiers anonymisés.
-- Sorties bloquantes correctement stoppées.
-- Traçabilité complète présente dans les artefacts.
-- Feedback évaluateur disponible sur au moins 1 cycle pilote.
+1. Ajouter un template de dossier anonymise reel dans `tests/fixtures/`.
+2. Ajouter une petite UI ou page HTML de pilotage si l'API v0 suffit techniquement.
+3. Remplacer les stubs metier par des connecteurs de donnees/comparables selon les sources disponibles.

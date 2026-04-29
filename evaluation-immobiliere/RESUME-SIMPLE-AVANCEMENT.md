@@ -1,25 +1,40 @@
-# Résumé simple — où on en est
+# Resume simple - ou on en est
 
-## Ce qui est fait (en mots simples)
-- On a préparé la base du projet (les règles, les étapes, les fichiers types).
-- On a créé des scénarios de test concrets (bons cas et cas avec erreurs).
-- On a créé un "mini moteur" qui lit les scénarios et dit:
-  - si le dossier est OK,
-  - s'il faut corriger,
-  - pourquoi.
-- On a ajouté un résumé automatique qui donne la photo globale des résultats.
+## Ce qui est fait
 
-## Ce que ça veut dire pour toi
-Tu peux déjà montrer une démo interne:
-1. Lancer les tests exemples.
-2. Voir les erreurs détectées automatiquement.
-3. Lire un résumé global clair (combien de dossiers passent, quelles erreurs reviennent le plus).
+- La base projet est en place: regles, pipeline, contrats d'agents, schemas et fixtures.
+- Le mini moteur runtime lit le pipeline, execute les etapes et ecrit des artefacts par dossier.
+- Les controles QA detectent les sources manquantes, ajustements sensibles, incoherences d'unites, ventes futures et warnings de confiance.
+- Le journal d'audit est alimente a chaque etape et a chaque ecriture d'artefact.
+- Une API locale minimale existe maintenant pour lancer un dossier sans UI complete.
+
+## Ce que ca permet
+
+Tu peux faire une demo interne en trois temps:
+
+1. Verifier la coherence du pipeline et des AgentConfig.
+2. Lancer la simulation sur les fixtures.
+3. Lancer l'API locale et demarrer une execution via `POST /start`.
 
 ## Commandes utiles
+
 ```bash
-python evaluation-immobiliere/outils/dry_run_pipeline_v0.py
-python evaluation-immobiliere/outils/resumer_dry_run_v0.py
+python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
+python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
+python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
+python evaluation-immobiliere/outils/lancer_api_v0.py
 ```
 
-## Prochaine étape logique
-Brancher de vraies données de dossiers (même 1 ou 2) au même pipeline pour valider la valeur réelle.
+## Etat des tests runtime
+
+Derniere simulation locale:
+
+- 5 cas
+- 1 `PRET_REVISION_FINALE`
+- 1 `BROUILLON`
+- 3 `A_REVOIR`
+- 122 evenements runtime/audit
+
+## Prochaine etape logique
+
+Preparer 2-3 dossiers anonymises reels et les envoyer dans l'API v0 pour comparer les sorties avec une revue evaluateur.

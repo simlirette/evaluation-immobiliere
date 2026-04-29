@@ -1,0 +1,47 @@
+{
+  "dossier_id": "D-PILOTE-001",
+  "date_reference": "2026-04-28",
+  "type_bien": "residentiel",
+  "zone": "ZONE-ANONYMISEE",
+  "surface": {
+    "value": 1200,
+    "unit": "pi2"
+  },
+  "comparables": [
+    {
+      "comparable_id": "C-PILOTE-001",
+      "prix_vente": 500000,
+      "date_vente": "2026-03-01",
+      "distance_km": 2.5,
+      "surface": {
+        "value": 1180,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-PILOTE-001",
+      "confidence": 0.9
+    }
+  ],
+  "ajustements": [
+    {
+      "ajustement_id": "A-PILOTE-001",
+      "montant": 10000,
+      "source_id": "SRC-PILOTE-001",
+      "validation_humaine": true
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothese_id": "H-PILOTE-001",
+      "description": "Hypothese anonymisee a valider par evaluateur.",
+      "source_ids": ["SRC-PILOTE-001", "SRC-PILOTE-002"]
+    }
+  ],
+  "timeline": [
+    {
+      "type": "inspection",
+      "date": "2026-02-15",
+      "source_id": "SRC-PILOTE-002"
+    }
+  ],
+  "confidence": 0.85
+}

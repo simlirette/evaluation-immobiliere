@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import shutil
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,19 +23,22 @@ def main() -> None:
         for p in OUT_DIR.iterdir():
             if p.is_file():
                 p.unlink()
+            elif p.is_dir():
+                shutil.rmtree(p)
 
     steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
     engine = RuntimeEngine(steps=steps, strict_mode=True)
     results = []
 
-    print(f"Pipeline chargé: {len(steps)} steps depuis {PIPELINE_PATH}")
+    print(f"Pipeline charge: {len(steps)} steps depuis {PIPELINE_PATH}")
     for case_path in sorted(FIXTURES_DIR.glob("case_*.json")):
-        result = engine.run_case(case_path, OUT_DIR)
+        result = engine.run_case(case_path, OUT_DIR, case_subdir=True)
         results.append(result)
-        print(f"Simulé: {case_path.name} -> {len(result['events'])} events | status={result['status']}")
+        print(f"Simule: {case_path.name} -> {len(result['events'])} events | status={result['status']}")
 
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     SUMMARY_PATH.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Résumé runtime: {SUMMARY_PATH}")
+    print(f"Resume runtime: {SUMMARY_PATH}")
 
 
 if __name__ == "__main__":

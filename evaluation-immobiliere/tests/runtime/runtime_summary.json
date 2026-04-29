@@ -8,9 +8,32 @@
     ],
     "events": [
       {
+        "event": "warning_detected",
+        "dossier_id": "D-005",
+        "warning": "W001: confiance faible"
+      },
+      {
         "event": "step_start",
         "step": "data-facts",
         "dossier_id": "D-005"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\data-facts.source_index.json"
       },
       {
         "event": "step_done",
@@ -21,6 +44,24 @@
         "event": "step_start",
         "step": "comps-market",
         "dossier_id": "D-005"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\comps-market.source_index.json"
       },
       {
         "event": "step_done",
@@ -31,6 +72,36 @@
         "event": "step_start",
         "step": "valuation-draft",
         "dossier_id": "D-005"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\valuation-draft.brouillon_valeur.md"
       },
       {
         "event": "step_done",
@@ -41,6 +112,24 @@
         "event": "step_start",
         "step": "compliance-qa",
         "dossier_id": "D-005"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\compliance-qa.recommandations_corrections.md"
       },
       {
         "event": "step_done",
@@ -51,6 +140,18 @@
         "event": "step_start",
         "step": "redaction",
         "dossier_id": "D-005"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "brouillon_rapport.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\redaction.brouillon_rapport.md"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "annexe_sources.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\redaction.annexe_sources.md"
       },
       {
         "event": "step_done",
@@ -58,7 +159,14 @@
         "dossier_id": "D-005"
       }
     ],
-    "audit_log": "evaluation-immobiliere/tests/runtime/case_low_confidence.audit.jsonl"
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence\\case_low_confidence.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_low_confidence",
+    "metrics": {
+      "wall_clock_seconds": 0.016,
+      "total_tokens": 0,
+      "blocking_count": 0,
+      "warning_count": 1
+    }
   },
   {
     "dossier_id": "D-002",
@@ -66,7 +174,7 @@
     "blocking_failures": [
       "B002: comparable sans source_id",
       "B002: ajustement sans source_id",
-      "STRICT: sortie refusée, comparable sans source"
+      "STRICT: sortie refusee, comparable sans source"
     ],
     "warnings": [],
     "events": [
@@ -76,6 +184,24 @@
         "dossier_id": "D-002"
       },
       {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\data-facts.source_index.json"
+      },
+      {
         "event": "step_done",
         "step": "data-facts",
         "dossier_id": "D-002"
@@ -86,6 +212,24 @@
         "dossier_id": "D-002"
       },
       {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\comps-market.source_index.json"
+      },
+      {
         "event": "step_done",
         "step": "comps-market",
         "dossier_id": "D-002"
@@ -96,6 +240,36 @@
         "dossier_id": "D-002"
       },
       {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\valuation-draft.brouillon_valeur.md"
+      },
+      {
         "event": "step_done",
         "step": "valuation-draft",
         "dossier_id": "D-002"
@@ -104,6 +278,24 @@
         "event": "step_start",
         "step": "compliance-qa",
         "dossier_id": "D-002"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\compliance-qa.recommandations_corrections.md"
       },
       {
         "event": "step_done",
@@ -117,7 +309,14 @@
         "blocking_count": 3
       }
     ],
-    "audit_log": "evaluation-immobiliere/tests/runtime/case_missing_source.audit.jsonl"
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\case_missing_source.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_missing_source",
+    "metrics": {
+      "wall_clock_seconds": 0.0127,
+      "total_tokens": 0,
+      "blocking_count": 3,
+      "warning_count": 0
+    }
   },
   {
     "dossier_id": "D-001",
@@ -131,6 +330,24 @@
         "dossier_id": "D-001"
       },
       {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\data-facts.source_index.json"
+      },
+      {
         "event": "step_done",
         "step": "data-facts",
         "dossier_id": "D-001"
@@ -141,6 +358,24 @@
         "dossier_id": "D-001"
       },
       {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\comps-market.source_index.json"
+      },
+      {
         "event": "step_done",
         "step": "comps-market",
         "dossier_id": "D-001"
@@ -151,6 +386,36 @@
         "dossier_id": "D-001"
       },
       {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\valuation-draft.brouillon_valeur.md"
+      },
+      {
         "event": "step_done",
         "step": "valuation-draft",
         "dossier_id": "D-001"
@@ -161,6 +426,24 @@
         "dossier_id": "D-001"
       },
       {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\compliance-qa.recommandations_corrections.md"
+      },
+      {
         "event": "step_done",
         "step": "compliance-qa",
         "dossier_id": "D-001"
@@ -171,12 +454,31 @@
         "dossier_id": "D-001"
       },
       {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "brouillon_rapport.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\redaction.brouillon_rapport.md"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "annexe_sources.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\redaction.annexe_sources.md"
+      },
+      {
         "event": "step_done",
         "step": "redaction",
         "dossier_id": "D-001"
       }
     ],
-    "audit_log": "evaluation-immobiliere/tests/runtime/case_nominal.audit.jsonl"
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\case_nominal.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_nominal",
+    "metrics": {
+      "wall_clock_seconds": 0.0149,
+      "total_tokens": 0,
+      "blocking_count": 0,
+      "warning_count": 0
+    }
   },
   {
     "dossier_id": "D-003",
@@ -192,6 +494,24 @@
         "dossier_id": "D-003"
       },
       {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\data-facts.source_index.json"
+      },
+      {
         "event": "step_done",
         "step": "data-facts",
         "dossier_id": "D-003"
@@ -202,6 +522,24 @@
         "dossier_id": "D-003"
       },
       {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\comps-market.source_index.json"
+      },
+      {
         "event": "step_done",
         "step": "comps-market",
         "dossier_id": "D-003"
@@ -212,6 +550,36 @@
         "dossier_id": "D-003"
       },
       {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\valuation-draft.brouillon_valeur.md"
+      },
+      {
         "event": "step_done",
         "step": "valuation-draft",
         "dossier_id": "D-003"
@@ -220,6 +588,24 @@
         "event": "step_start",
         "step": "compliance-qa",
         "dossier_id": "D-003"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\compliance-qa.recommandations_corrections.md"
       },
       {
         "event": "step_done",
@@ -233,13 +619,20 @@
         "blocking_count": 1
       }
     ],
-    "audit_log": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation.audit.jsonl"
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\case_sensitive_no_validation.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation",
+    "metrics": {
+      "wall_clock_seconds": 0.0135,
+      "total_tokens": 0,
+      "blocking_count": 1,
+      "warning_count": 0
+    }
   },
   {
     "dossier_id": "D-004",
     "status": "A_REVOIR",
     "blocking_failures": [
-      "B004: unité incohérente sujet/comparables"
+      "B004: unite incoherente sujet/comparables"
     ],
     "warnings": [],
     "events": [
@@ -247,6 +640,24 @@
         "event": "step_start",
         "step": "data-facts",
         "dossier_id": "D-004"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\data-facts.source_index.json"
       },
       {
         "event": "step_done",
@@ -257,6 +668,24 @@
         "event": "step_start",
         "step": "comps-market",
         "dossier_id": "D-004"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\comps-market.source_index.json"
       },
       {
         "event": "step_done",
@@ -267,6 +696,36 @@
         "event": "step_start",
         "step": "valuation-draft",
         "dossier_id": "D-004"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\valuation-draft.brouillon_valeur.md"
       },
       {
         "event": "step_done",
@@ -277,6 +736,24 @@
         "event": "step_start",
         "step": "compliance-qa",
         "dossier_id": "D-004"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\compliance-qa.recommandations_corrections.md"
       },
       {
         "event": "step_done",
@@ -290,6 +767,13 @@
         "blocking_count": 1
       }
     ],
-    "audit_log": "evaluation-immobiliere/tests/runtime/case_unit_incoherence.audit.jsonl"
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\case_unit_incoherence.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence",
+    "metrics": {
+      "wall_clock_seconds": 0.0124,
+      "total_tokens": 0,
+      "blocking_count": 1,
+      "warning_count": 0
+    }
   }
 ]

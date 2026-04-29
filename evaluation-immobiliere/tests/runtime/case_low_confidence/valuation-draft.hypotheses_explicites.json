@@ -1,0 +1,8 @@
+{
+  "dossier_id": "D-005",
+  "step": "valuation-draft",
+  "artifact": "hypotheses_explicites.json",
+  "hypotheses": [],
+  "confidence": 0.45,
+  "source_fixture": "case_low_confidence.json"
+}
