@@ -1,0 +1,10 @@
+{
+  "dossier_id": "D-004",
+  "step": "compliance-qa",
+  "artifact": "rapport_non_conformites.json",
+  "blocking_failures": [
+    "B004: unite incoherente sujet/comparables"
+  ],
+  "warnings": [],
+  "source_fixture": "case_unit_incoherence.json"
+}

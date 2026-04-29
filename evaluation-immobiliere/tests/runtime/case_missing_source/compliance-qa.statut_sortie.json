@@ -1,0 +1,13 @@
+{
+  "dossier_id": "D-002",
+  "step": "compliance-qa",
+  "artifact": "statut_sortie.json",
+  "status": "A_REVOIR",
+  "blocking_failures": [
+    "B002: comparable sans source_id",
+    "B002: ajustement sans source_id",
+    "STRICT: sortie refusee, comparable sans source"
+  ],
+  "warnings": [],
+  "source_fixture": "case_missing_source.json"
+}

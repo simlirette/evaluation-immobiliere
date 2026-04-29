@@ -1,0 +1,12 @@
+{
+  "dossier_id": "D-003",
+  "step": "data-facts",
+  "artifact": "fiche_bien.json",
+  "date_reference": "2026-04-28",
+  "surface": null,
+  "confidence": 0.9,
+  "source_ids": [
+    "SRC-1"
+  ],
+  "source_fixture": "case_sensitive_no_validation.json"
+}

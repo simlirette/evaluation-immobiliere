@@ -1,0 +1,11 @@
+{
+  "dossier_id": "D-003",
+  "step": "data-facts",
+  "artifact": "source_index.json",
+  "sources": [
+    {
+      "source_id": "SRC-1"
+    }
+  ],
+  "source_fixture": "case_sensitive_no_validation.json"
+}

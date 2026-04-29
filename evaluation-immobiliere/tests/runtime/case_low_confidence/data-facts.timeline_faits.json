@@ -1,0 +1,12 @@
+{
+  "dossier_id": "D-005",
+  "step": "data-facts",
+  "artifact": "timeline_faits.json",
+  "events": [
+    {
+      "type": "date_reference",
+      "date": "2026-04-28"
+    }
+  ],
+  "source_fixture": "case_low_confidence.json"
+}

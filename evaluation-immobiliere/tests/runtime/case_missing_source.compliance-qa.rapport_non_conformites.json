@@ -1,6 +1,0 @@
-{
-  "dossier_id": "D-002",
-  "step": "compliance-qa",
-  "artifact": "rapport_non_conformites.json",
-  "source_fixture": "case_missing_source.json"
-}

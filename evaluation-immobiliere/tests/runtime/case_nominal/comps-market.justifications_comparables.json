@@ -1,0 +1,14 @@
+{
+  "dossier_id": "D-001",
+  "step": "comps-market",
+  "artifact": "justifications_comparables.json",
+  "justifications": [
+    {
+      "comparable_id": "C1",
+      "source_id": "SRC-1",
+      "decision": "retenu",
+      "raison": "source presente"
+    }
+  ],
+  "source_fixture": "case_nominal.json"
+}

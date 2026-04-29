@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+import json
+import uuid
+
+from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml, safe_path_id
+
+
+ROOT = Path(__file__).resolve().parent
+FIXTURES_DIR = ROOT / "tests" / "fixtures"
+PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
+SESSIONS_DIR = ROOT / "runtime_sessions"
+
+
+def create_session(strict_mode: bool = True) -> dict:
+    session_id = uuid.uuid4().hex[:12]
+    session_dir = SESSIONS_DIR / session_id
+    session_dir.mkdir(parents=True, exist_ok=False)
+    session = {
+        "session_id": session_id,
+        "strict_mode": strict_mode,
+        "status": "CREATED",
+        "session_dir": str(session_dir),
+        "events_url": f"/stream?session_id={session_id}",
+    }
+    write_json(session_dir / "session.json", session)
+    return session
+
+
+def load_session(session_id: str) -> dict | None:
+    session_path = SESSIONS_DIR / safe_path_id(session_id) / "session.json"
+    if not session_path.exists():
+        return None
+    return json.loads(session_path.read_text(encoding="utf-8"))
+
+
+def save_session(session: dict) -> None:
+    write_json(Path(session["session_dir"]) / "session.json", session)
+
+
+def load_case_from_body(body: dict) -> tuple[dict, str]:
+    if "case" in body:
+        return body["case"], body.get("source_fixture", "inline")
+
+    fixture_name = body.get("fixture", "case_nominal.json")
+    if Path(fixture_name).name != fixture_name:
+        raise ValueError("fixture invalide")
+
+    fixture_path = FIXTURES_DIR / fixture_name
+    if not fixture_path.exists():
+        raise FileNotFoundError(f"fixture introuvable: {fixture_name}")
+
+    return json.loads(fixture_path.read_text(encoding="utf-8")), fixture_name
+
+
+def start_runtime(body: dict) -> dict:
+    session = None
+    if body.get("session_id"):
+        session = load_session(body["session_id"])
+        if session is None:
+            raise ValueError(f"session introuvable: {body['session_id']}")
+    else:
+        session = create_session(strict_mode=bool(body.get("strict_mode", True)))
+
+    case, source_fixture = load_case_from_body(body)
+    session_dir = Path(session["session_dir"])
+    case_key = safe_path_id(str(case.get("dossier_id") or source_fixture.replace(".json", "")))
+    case_input_path = session_dir / f"{case_key}.input.json"
+    write_json(case_input_path, case)
+
+    steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
+    engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
+    result = engine.run_case_data(
+        case,
+        session_dir / "artifacts",
+        source_fixture=source_fixture,
+        case_stem=case_key,
+        case_subdir=True,
+    )
+
+    result_path = session_dir / "result.json"
+    events_path = session_dir / "events.jsonl"
+    write_json(result_path, result)
+    events_path.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in result["events"]), encoding="utf-8")
+
+    session.update(
+        {
+            "status": result["status"],
+            "dossier_id": result["dossier_id"],
+            "result_path": str(result_path),
+            "events_path": str(events_path),
+            "artifact_dir": result["artifact_dir"],
+        }
+    )
+    save_session(session)
+    return {"session": session, "result": result}
+
+
+def write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+class RuntimeApiHandler(BaseHTTPRequestHandler):
+    server_version = "EvaluationImmobiliereRuntime/0.1"
+
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path == "/health":
+            self._send_json(200, {"status": "ok"})
+            return
+        if parsed.path == "/stream":
+            self._stream_events(parse_qs(parsed.query).get("session_id", [None])[0])
+            return
+        self._send_json(404, {"error": "route introuvable"})
+
+    def do_POST(self) -> None:
+        try:
+            body = self._read_json_body()
+            if self.path == "/session":
+                session = create_session(strict_mode=bool(body.get("strict_mode", True)))
+                self._send_json(201, session)
+                return
+            if self.path == "/start":
+                self._send_json(200, start_runtime(body))
+                return
+            self._send_json(404, {"error": "route introuvable"})
+        except FileNotFoundError as exc:
+            self._send_json(404, {"error": str(exc)})
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except Exception as exc:  # pragma: no cover - defensive API boundary
+            self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+    def _read_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length == 0:
+            return {}
+        raw = self.rfile.read(length).decode("utf-8")
+        return json.loads(raw)
+
+    def _send_json(self, status: int, payload: dict) -> None:
+        encoded = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _stream_events(self, session_id: str | None) -> None:
+        if not session_id:
+            self._send_json(400, {"error": "session_id requis"})
+            return
+        session = load_session(session_id)
+        if session is None or "events_path" not in session:
+            self._send_json(404, {"error": "session introuvable ou non demarree"})
+            return
+
+        events_path = Path(session["events_path"])
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            event = json.loads(line)
+            event_name = event.get("event", "message")
+            self.wfile.write(f"event: {event_name}\n".encode("utf-8"))
+            self.wfile.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8"))
+
+
+def run_server(host: str = "127.0.0.1", port: int = 8787) -> None:
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    server = ThreadingHTTPServer((host, port), RuntimeApiHandler)
+    print(f"Runtime API v0: http://{host}:{port}")
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    run_server()

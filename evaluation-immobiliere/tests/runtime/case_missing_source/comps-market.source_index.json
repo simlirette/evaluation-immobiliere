@@ -1,0 +1,7 @@
+{
+  "dossier_id": "D-002",
+  "step": "comps-market",
+  "artifact": "source_index.json",
+  "sources": [],
+  "source_fixture": "case_missing_source.json"
+}

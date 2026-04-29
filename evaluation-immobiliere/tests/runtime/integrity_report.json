@@ -7,8 +7,9 @@
   },
   "total_blocking_failures": 5,
   "total_warnings": 1,
-  "total_runtime_events": 47,
+  "total_runtime_events": 122,
   "audit_event_counts": {
+    "warning_detected": 1,
     "step_start": 22,
     "artifact_written": 74,
     "step_done": 22,

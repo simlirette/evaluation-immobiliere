@@ -1,6 +1,0 @@
-{
-  "dossier_id": "D-001",
-  "step": "data-facts",
-  "artifact": "fiche_bien.json",
-  "source_fixture": "case_nominal.json"
-}

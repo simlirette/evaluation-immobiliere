@@ -1,0 +1,10 @@
+{
+  "dossier_id": "D-003",
+  "step": "compliance-qa",
+  "artifact": "rapport_non_conformites.json",
+  "blocking_failures": [
+    "B005: ajustement sensible sans validation_humaine"
+  ],
+  "warnings": [],
+  "source_fixture": "case_sensitive_no_validation.json"
+}

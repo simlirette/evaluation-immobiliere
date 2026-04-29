@@ -1,0 +1,11 @@
+{
+  "dossier_id": "D-004",
+  "step": "compliance-qa",
+  "artifact": "statut_sortie.json",
+  "status": "A_REVOIR",
+  "blocking_failures": [
+    "B004: unite incoherente sujet/comparables"
+  ],
+  "warnings": [],
+  "source_fixture": "case_unit_incoherence.json"
+}

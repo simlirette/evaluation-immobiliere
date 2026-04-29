@@ -1,8 +1,8 @@
-tache,temps_moyen_min,frequence_par_mois,douleur_1_5,risque_conformite_1_5,automatisation_potentielle_1_5,validation_humaine_obligatoire,commentaires
-reception_mandat,,,,,,,,
-collecte_documents,,,,,,,,
-extraction_caracteristiques_bien,,,,,,,,
-selection_comparables,,,,,,,,
-proposition_ajustements,,,,,,,,
-redaction_brouillon_rapport,,,,,,,,
-controle_qualite_npp,,,,,,,,
+tache,phase,temps_moyen_min,frequence_par_mois,douleur_1_5,risque_conformite_1_5,automatisation_potentielle_1_5,complexite_technique_1_5,disponibilite_donnees_1_5,validation_humaine_obligatoire,decision_non_delegable,source_donnees_requise,irritant_principal,valeur_score,readiness_score,score_mvp,repondants,commentaires
+reception_mandat,intake,,,,,,,,,,,,0,0,0,0,
+collecte_documents,intake,,,,,,,,,,,,0,0,0,0,
+extraction_caracteristiques_bien,data_facts,,,,,,,,,,,,0,0,0,0,
+selection_comparables,comps_market,,,,,,,,,,,,0,0,0,0,
+proposition_ajustements,valuation_draft,,,,,,,,,,,,0,0,0,0,
+redaction_brouillon_rapport,redaction,,,,,,,,,,,,0,0,0,0,
+controle_qualite_npp,compliance_qa,,,,,,,,,,,,0,0,0,0,

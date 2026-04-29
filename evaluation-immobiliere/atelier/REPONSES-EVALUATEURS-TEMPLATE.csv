@@ -1,0 +1,8 @@
+respondant_id,role,segment,phase,tache,temps_moyen_min,frequence_par_mois,douleur_1_5,risque_conformite_1_5,automatisation_potentielle_1_5,complexite_technique_1_5,disponibilite_donnees_1_5,validation_humaine_obligatoire,decision_non_delegable,source_donnees_requise,irritant_principal,sortie_minimale,commentaires
+,senior,residentiel,intake,reception_mandat,,,,,,,,,,,,,
+,senior,residentiel,intake,collecte_documents,,,,,,,,,,,,,
+,senior,residentiel,data_facts,extraction_caracteristiques_bien,,,,,,,,,,,,,
+,senior,residentiel,comps_market,selection_comparables,,,,,,,,,,,,,
+,senior,residentiel,valuation_draft,proposition_ajustements,,,,,,,,,,,,,
+,senior,residentiel,redaction,redaction_brouillon_rapport,,,,,,,,,,,,,
+,senior,residentiel,compliance_qa,controle_qualite_npp,,,,,,,,,,,,,
