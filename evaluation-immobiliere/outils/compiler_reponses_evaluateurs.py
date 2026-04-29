@@ -83,7 +83,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
 def write_rows(path: Path, rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=MATRIX_FIELDS)
+        writer = csv.DictWriter(f, fieldnames=MATRIX_FIELDS, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 

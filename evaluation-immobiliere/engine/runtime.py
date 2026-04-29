@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 import json
+import os
 import re
 import time
 
@@ -321,7 +322,7 @@ class RuntimeEngine:
                 self._record_event(
                     events,
                     audit_log_path,
-                    {"event": "artifact_written", "step": step.name, "artifact": artifact, "path": str(artifact_path)},
+                    {"event": "artifact_written", "step": step.name, "artifact": artifact, "path": artifact_path.as_posix()},
                 )
 
             self._record_event(events, audit_log_path, {"event": "step_done", "step": step.name, "dossier_id": dossier_id})
@@ -331,15 +332,15 @@ class RuntimeEngine:
                 self._record_event(events, audit_log_path, blocking_event)
                 break
 
-        wall_clock_seconds = round(time.perf_counter() - started_at, 4)
+        wall_clock_seconds = 0.0 if os.environ.get("RUNTIME_DETERMINISTIC") else round(time.perf_counter() - started_at, 4)
         return {
             "dossier_id": dossier_id,
             "status": status,
             "blocking_failures": blocking,
             "warnings": warnings,
             "events": events,
-            "audit_log": str(audit_log_path),
-            "artifact_dir": str(case_dir),
+            "audit_log": audit_log_path.as_posix(),
+            "artifact_dir": case_dir.as_posix(),
             "metrics": {
                 "wall_clock_seconds": wall_clock_seconds,
                 "total_tokens": 0,
