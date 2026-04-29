@@ -1,0 +1,56 @@
+name: Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  runtime-and-matrix:
+    name: Runtime and matrix checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Compile Python files
+        run: |
+          python -m py_compile \
+            evaluation-immobiliere/api.py \
+            evaluation-immobiliere/engine/runtime.py \
+            evaluation-immobiliere/engine/tools.py \
+            evaluation-immobiliere/outils/lancer_api_v0.py \
+            evaluation-immobiliere/outils/demo_api_v0.py \
+            evaluation-immobiliere/outils/simuler_runtime_engine_v0.py \
+            evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py \
+            evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py \
+            evaluation-immobiliere/outils/prioriser_mvp.py
+
+      - name: Compile evaluator responses
+        run: python evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py
+
+      - name: Rank MVP matrix
+        run: python evaluation-immobiliere/outils/prioriser_mvp.py
+
+      - name: Verify runtime coherence
+        run: python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
+
+      - name: Simulate runtime
+        run: python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
+
+      - name: Analyze runtime integrity
+        run: python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
+
+      - name: Run unit tests
+        run: |
+          python -m unittest \
+            evaluation-immobiliere/tests/test_tools_v0.py \
+            evaluation-immobiliere/tests/test_runtime_v0.py \
+            evaluation-immobiliere/tests/test_priorisation_v0.py
