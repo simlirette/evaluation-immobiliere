@@ -51,6 +51,7 @@ jobs:
       - name: Run unit tests
         run: |
           python -m unittest \
+            evaluation-immobiliere/tests/test_api_v0.py \
             evaluation-immobiliere/tests/test_tools_v0.py \
             evaluation-immobiliere/tests/test_runtime_v0.py \
             evaluation-immobiliere/tests/test_priorisation_v0.py

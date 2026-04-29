@@ -32,8 +32,16 @@ L'API locale expose le runtime sans UI complete:
 python evaluation-immobiliere/outils/lancer_api_v0.py
 ```
 
+Interface locale:
+
+```text
+http://127.0.0.1:8787/ui
+```
+
 Endpoints:
 
+- `GET /ui`
+- `GET /fixtures`
 - `POST /session`
 - `POST /start`
 - `GET /stream?session_id=<id>`
