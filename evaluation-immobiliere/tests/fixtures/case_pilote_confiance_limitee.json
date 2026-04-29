@@ -1,0 +1,59 @@
+{
+  "dossier_id": "D-PILOTE-RES-002",
+  "date_reference": "2026-04-28",
+  "type_bien": "residentiel_unifamilial",
+  "zone": "SECTEUR-ANONYMISE-B",
+  "surface": {
+    "value": 980,
+    "unit": "pi2"
+  },
+  "comparables": [
+    {
+      "comparable_id": "CP-101",
+      "prix_vente": 410000,
+      "date_vente": "2026-01-18",
+      "distance_km": 34.5,
+      "surface": {
+        "value": 1010,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-VENTE-101",
+      "confidence": 0.58
+    },
+    {
+      "comparable_id": "CP-102",
+      "prix_vente": 397500,
+      "date_vente": "2025-12-12",
+      "distance_km": 22.0,
+      "surface": {
+        "value": 945,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-VENTE-102",
+      "confidence": 0.61
+    }
+  ],
+  "ajustements": [
+    {
+      "ajustement_id": "AJ-101",
+      "montant": 7000,
+      "source_id": "SRC-VENTE-101",
+      "validation_humaine": true
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothese_id": "H-101",
+      "description": "Ajustement qualitatif pour secteur moins comparable.",
+      "source_ids": ["SRC-VENTE-101"]
+    }
+  ],
+  "timeline": [
+    {
+      "type": "collecte_documents",
+      "date": "2026-04-05",
+      "source_id": "SRC-DOCS-101"
+    }
+  ],
+  "confidence": 0.52
+}

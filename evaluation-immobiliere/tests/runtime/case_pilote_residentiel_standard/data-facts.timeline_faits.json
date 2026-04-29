@@ -1,0 +1,22 @@
+{
+  "dossier_id": "D-PILOTE-RES-001",
+  "step": "data-facts",
+  "artifact": "timeline_faits.json",
+  "events": [
+    {
+      "type": "date_reference",
+      "date": "2026-04-28"
+    },
+    {
+      "type": "inspection",
+      "date": "2026-04-08",
+      "source_id": "SRC-INSPECTION-001"
+    },
+    {
+      "type": "collecte_documents",
+      "date": "2026-04-10",
+      "source_id": "SRC-DOCS-001"
+    }
+  ],
+  "source_fixture": "case_pilote_residentiel_standard.json"
+}

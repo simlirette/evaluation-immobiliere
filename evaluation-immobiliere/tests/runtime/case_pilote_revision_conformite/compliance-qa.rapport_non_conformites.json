@@ -1,0 +1,16 @@
+{
+  "dossier_id": "D-PILOTE-RES-003",
+  "step": "compliance-qa",
+  "artifact": "rapport_non_conformites.json",
+  "blocking_failures": [
+    "B003: vente comparable future vs date_reference",
+    "B002: comparable sans source_id",
+    "B005: ajustement sensible sans validation_humaine",
+    "B002: ajustement sans source_id",
+    "STRICT: sortie refusee, comparable sans source"
+  ],
+  "warnings": [
+    "W003: hypothese non corroboree par une deuxieme source"
+  ],
+  "source_fixture": "case_pilote_revision_conformite.json"
+}

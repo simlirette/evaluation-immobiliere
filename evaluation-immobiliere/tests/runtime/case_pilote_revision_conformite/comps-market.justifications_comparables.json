@@ -1,0 +1,20 @@
+{
+  "dossier_id": "D-PILOTE-RES-003",
+  "step": "comps-market",
+  "artifact": "justifications_comparables.json",
+  "justifications": [
+    {
+      "comparable_id": "CP-201",
+      "source_id": "SRC-VENTE-201",
+      "decision": "retenu",
+      "raison": "source presente"
+    },
+    {
+      "comparable_id": "CP-202",
+      "source_id": null,
+      "decision": "rejete",
+      "raison": "source manquante"
+    }
+  ],
+  "source_fixture": "case_pilote_revision_conformite.json"
+}

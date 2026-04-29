@@ -1,18 +1,18 @@
 {
-  "cases": 5,
+  "cases": 8,
   "status_counts": {
-    "BROUILLON": 1,
-    "A_REVOIR": 3,
-    "PRET_REVISION_FINALE": 1
+    "BROUILLON": 2,
+    "A_REVOIR": 4,
+    "PRET_REVISION_FINALE": 2
   },
-  "total_blocking_failures": 5,
-  "total_warnings": 1,
-  "total_runtime_events": 122,
+  "total_blocking_failures": 10,
+  "total_warnings": 5,
+  "total_runtime_events": 201,
   "audit_event_counts": {
-    "warning_detected": 1,
-    "step_start": 22,
-    "artifact_written": 74,
-    "step_done": 22,
-    "blocking_detected": 3
+    "warning_detected": 5,
+    "step_start": 36,
+    "artifact_written": 120,
+    "step_done": 36,
+    "blocking_detected": 4
   }
 }

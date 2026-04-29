@@ -312,7 +312,7 @@
     "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_missing_source\\case_missing_source.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_missing_source",
     "metrics": {
-      "wall_clock_seconds": 0.0127,
+      "wall_clock_seconds": 0.0141,
       "total_tokens": 0,
       "blocking_count": 3,
       "warning_count": 0
@@ -474,10 +474,512 @@
     "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_nominal\\case_nominal.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_nominal",
     "metrics": {
-      "wall_clock_seconds": 0.0149,
+      "wall_clock_seconds": 0.0156,
       "total_tokens": 0,
       "blocking_count": 0,
       "warning_count": 0
+    }
+  },
+  {
+    "dossier_id": "D-PILOTE-RES-002",
+    "status": "BROUILLON",
+    "blocking_failures": [],
+    "warnings": [
+      "W002: comparable eloigne",
+      "W001: confiance faible",
+      "W003: hypothese non corroboree par une deuxieme source"
+    ],
+    "events": [
+      {
+        "event": "warning_detected",
+        "dossier_id": "D-PILOTE-RES-002",
+        "warning": "W002: comparable eloigne"
+      },
+      {
+        "event": "warning_detected",
+        "dossier_id": "D-PILOTE-RES-002",
+        "warning": "W001: confiance faible"
+      },
+      {
+        "event": "warning_detected",
+        "dossier_id": "D-PILOTE-RES-002",
+        "warning": "W003: hypothese non corroboree par une deuxieme source"
+      },
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\data-facts.source_index.json"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\comps-market.source_index.json"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\valuation-draft.brouillon_valeur.md"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\compliance-qa.recommandations_corrections.md"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "step_start",
+        "step": "redaction",
+        "dossier_id": "D-PILOTE-RES-002"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "brouillon_rapport.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\redaction.brouillon_rapport.md"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "annexe_sources.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\redaction.annexe_sources.md"
+      },
+      {
+        "event": "step_done",
+        "step": "redaction",
+        "dossier_id": "D-PILOTE-RES-002"
+      }
+    ],
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee\\case_pilote_confiance_limitee.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_pilote_confiance_limitee",
+    "metrics": {
+      "wall_clock_seconds": 0.0157,
+      "total_tokens": 0,
+      "blocking_count": 0,
+      "warning_count": 3
+    }
+  },
+  {
+    "dossier_id": "D-PILOTE-RES-001",
+    "status": "PRET_REVISION_FINALE",
+    "blocking_failures": [],
+    "warnings": [],
+    "events": [
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\data-facts.source_index.json"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\comps-market.source_index.json"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\valuation-draft.brouillon_valeur.md"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\compliance-qa.recommandations_corrections.md"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "step_start",
+        "step": "redaction",
+        "dossier_id": "D-PILOTE-RES-001"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "brouillon_rapport.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\redaction.brouillon_rapport.md"
+      },
+      {
+        "event": "artifact_written",
+        "step": "redaction",
+        "artifact": "annexe_sources.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\redaction.annexe_sources.md"
+      },
+      {
+        "event": "step_done",
+        "step": "redaction",
+        "dossier_id": "D-PILOTE-RES-001"
+      }
+    ],
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard\\case_pilote_residentiel_standard.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_pilote_residentiel_standard",
+    "metrics": {
+      "wall_clock_seconds": 0.0148,
+      "total_tokens": 0,
+      "blocking_count": 0,
+      "warning_count": 0
+    }
+  },
+  {
+    "dossier_id": "D-PILOTE-RES-003",
+    "status": "A_REVOIR",
+    "blocking_failures": [
+      "B003: vente comparable future vs date_reference",
+      "B002: comparable sans source_id",
+      "B005: ajustement sensible sans validation_humaine",
+      "B002: ajustement sans source_id",
+      "STRICT: sortie refusee, comparable sans source"
+    ],
+    "warnings": [
+      "W003: hypothese non corroboree par une deuxieme source"
+    ],
+    "events": [
+      {
+        "event": "warning_detected",
+        "dossier_id": "D-PILOTE-RES-003",
+        "warning": "W003: hypothese non corroboree par une deuxieme source"
+      },
+      {
+        "event": "step_start",
+        "step": "data-facts",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "fiche_bien.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\data-facts.fiche_bien.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "timeline_faits.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\data-facts.timeline_faits.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "data-facts",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\data-facts.source_index.json"
+      },
+      {
+        "event": "step_done",
+        "step": "data-facts",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "step_start",
+        "step": "comps-market",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "comparables_proposes.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\comps-market.comparables_proposes.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "justifications_comparables.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\comps-market.justifications_comparables.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "comps-market",
+        "artifact": "source_index.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\comps-market.source_index.json"
+      },
+      {
+        "event": "step_done",
+        "step": "comps-market",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "step_start",
+        "step": "valuation-draft",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_comparative.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\valuation-draft.calculs_approche_comparative.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_cout.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\valuation-draft.calculs_approche_cout.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "calculs_approche_revenu.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\valuation-draft.calculs_approche_revenu.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "hypotheses_explicites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\valuation-draft.hypotheses_explicites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "valuation-draft",
+        "artifact": "brouillon_valeur.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\valuation-draft.brouillon_valeur.md"
+      },
+      {
+        "event": "step_done",
+        "step": "valuation-draft",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "step_start",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "rapport_non_conformites.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\compliance-qa.rapport_non_conformites.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "statut_sortie.json",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\compliance-qa.statut_sortie.json"
+      },
+      {
+        "event": "artifact_written",
+        "step": "compliance-qa",
+        "artifact": "recommandations_corrections.md",
+        "path": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\compliance-qa.recommandations_corrections.md"
+      },
+      {
+        "event": "step_done",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-003"
+      },
+      {
+        "event": "blocking_detected",
+        "step": "compliance-qa",
+        "dossier_id": "D-PILOTE-RES-003",
+        "blocking_count": 5
+      }
+    ],
+    "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite\\case_pilote_revision_conformite.audit.jsonl",
+    "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_pilote_revision_conformite",
+    "metrics": {
+      "wall_clock_seconds": 0.0147,
+      "total_tokens": 0,
+      "blocking_count": 5,
+      "warning_count": 1
     }
   },
   {
@@ -622,7 +1124,7 @@
     "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation\\case_sensitive_no_validation.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_sensitive_no_validation",
     "metrics": {
-      "wall_clock_seconds": 0.0135,
+      "wall_clock_seconds": 0.0139,
       "total_tokens": 0,
       "blocking_count": 1,
       "warning_count": 0
@@ -770,7 +1272,7 @@
     "audit_log": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence\\case_unit_incoherence.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere\\tests\\runtime\\case_unit_incoherence",
     "metrics": {
-      "wall_clock_seconds": 0.0124,
+      "wall_clock_seconds": 0.0134,
       "total_tokens": 0,
       "blocking_count": 1,
       "warning_count": 0
