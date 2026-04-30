@@ -1,45 +1,26 @@
 version: 1.0
 contract_name: contrats-integration-aston-v1
 scope: runtime
+as_of_utc: "2026-04-30"
 
 objectif: >
   Définir le contrat d'intégration Aston exécutable pour les sessions runtime,
   la traçabilité des artefacts, le scoring, l'homologation et l'hypercare.
 
 session:
-  required_fields:
-    - session_id
-    - run_id
-    - dossier_id
-    - pipeline_version
-    - started_at
-    - trigger_mode
+  required_fields: [session_id, run_id, dossier_id, pipeline_version, started_at, trigger_mode]
   constraints:
     session_id: "UUID v4"
-    run_id: "Préfixe run_ + timestamp UTC"
-    trigger_mode:
-      enum: [manual, scheduled, api]
+    run_id: "run_<timestamp_utc>"
+    trigger_mode: { enum: [manual, scheduled, api] }
 
 runtime_events:
-  required_event_types:
-    - session_started
-    - step_started
-    - artifact_written
-    - step_completed
-    - scoring_computed
-    - compliance_status_emitted
-    - session_completed
-  event_schema_min:
-    - event_id
-    - event_type
-    - session_id
-    - step
-    - timestamp_utc
-    - status
+  required_event_types: [session_started, step_started, artifact_written, step_completed, scoring_computed, compliance_status_emitted, session_completed]
+  event_schema_min: [event_id, event_type, session_id, step, timestamp_utc, status]
   stop_conditions:
     - event_type: compliance_status_emitted
       status_in: [A_REVOIR]
-      action: "stop_pipeline_and_require_human_review"
+      action: stop_pipeline_and_require_human_review
 
 pipeline_steps:
   - step: data-facts
@@ -50,19 +31,9 @@ pipeline_steps:
     writes: [comparables_proposes.json, justifications_comparables.json, source_index.json]
   - step: valuation-draft
     reads: [comparables_proposes.json, couts_reference, revenus_depenses, source_index.json]
-    writes:
-      - calculs_approche_comparative.json
-      - calculs_approche_cout.json
-      - calculs_approche_revenu.json
-      - hypotheses_explicites.json
-      - brouillon_valeur.md
+    writes: [calculs_approche_comparative.json, calculs_approche_cout.json, calculs_approche_revenu.json, hypotheses_explicites.json, brouillon_valeur.md]
   - step: compliance-qa
-    reads:
-      - calculs_approche_comparative.json
-      - calculs_approche_cout.json
-      - calculs_approche_revenu.json
-      - hypotheses_explicites.json
-      - source_index.json
+    reads: [calculs_approche_comparative.json, calculs_approche_cout.json, calculs_approche_revenu.json, hypotheses_explicites.json, source_index.json]
     writes: [rapport_non_conformites.json, statut_sortie.json, recommandations_corrections.md]
   - step: redaction
     reads: [statut_sortie.json, recommandations_corrections.md, source_index.json]
@@ -75,33 +46,24 @@ artifact_rules:
   source_traceability_required: true
 
 scoring:
-  required_outputs:
-    - score_confiance_global
-    - score_qualite_sources
-    - score_coherence_methodes
+  required_outputs: [score_confiance_global, score_qualite_sources, score_coherence_methodes]
   thresholds:
-    go: ">= 0.80"
-    conditional_go: ">= 0.70 et < 0.80"
-    no_go: "< 0.70"
-  conditional_go_action: "revue_humaine_obligatoire"
+    residentiel: { go: ">= 0.80", conditional_go: ">= 0.70 et < 0.80", no_go: "< 0.70" }
+    commercial: { go: ">= 0.82", conditional_go: ">= 0.72 et < 0.82", no_go: "< 0.72" }
+  conditional_go_action: revue_humaine_obligatoire
 
 homologation:
-  blocking_gates:
-    - contracts_validation_ok
-    - runtime_integrity_ok
-    - quality_report_ok
-    - security_baseline_ok
+  blocking_gates: [contracts_validation_ok, runtime_integrity_ok, quality_report_ok, security_baseline_ok]
   required_evidence:
+    - atelier/PV-HOMOLOGATION-V1.md
     - tests/runtime/contracts_report.json
     - tests/runtime/integrity_report.json
     - tests/reports/summary.json
 
 hypercare:
   period_days: 7
-  required_controls:
-    - daily_runtime_health_check
-    - incident_log
-    - rollback_readiness
+  sla_critique: { accuse_reception: "4h", plan_correction: "24h", resolution_ou_rollback: "72h" }
+  required_controls: [daily_runtime_health_check, incident_log, rollback_readiness]
 
 compatibility_test_suite:
   mandatory_tests:
@@ -111,27 +73,9 @@ compatibility_test_suite:
     - tests/test_qualite_runtime_v0.py
 
 decisions_prises:
-  - Le contrat V1 conserve la séquence runtime Aston de PIPELINE-RUNTIME-ASTON-V0 et la rend vérifiable par tests.
-  - Le scoring intègre des seuils Go/No-Go pour aligner homologation et décision métier.
-  - L'hypercare est fixé à J+7 avec contrôles journaliers obligatoires.
+  - Contrat V1 aligné sur la séquence Aston du pipeline runtime existant et testable.
+  - Seuils scoring segmentés résidentiel/commercial validés côté web.
+  - Package de preuves d'homologation standardisé avant passage client.
 
 questions_ouvertes:
-  - Aucune question bloquante ouverte: seuils scoring segmentés validés (résidentiel/commercial).
-  - Aucune question bloquante ouverte: format preuve homologation standardisé en "PV-HOMOLOGATION-V1.md + annexes JSON".
-
-decisions_finales_web_2026_04_30:
-  scoring_segments:
-    residentiel:
-      go: ">= 0.80"
-      conditional_go: ">= 0.70 et < 0.80"
-      no_go: "< 0.70"
-    commercial:
-      go: ">= 0.82"
-      conditional_go: ">= 0.72 et < 0.82"
-      no_go: "< 0.72"
-  homologation_evidence_package:
-    mandatory_files:
-      - atelier/PV-HOMOLOGATION-V1.md
-      - tests/runtime/contracts_report.json
-      - tests/runtime/integrity_report.json
-      - tests/reports/summary.json
+  - Aucune question bloquante ouverte côté web; exécution terminal requise pour preuves finales.
