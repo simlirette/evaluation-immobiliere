@@ -2,8 +2,85 @@
   "dossier_id": "D-PILOTE-RES-002",
   "step": "valuation-draft",
   "artifact": "calculs_approche_revenu.json",
-  "method": "median",
-  "value": 403750.0,
+  "approach": "approche_revenu",
+  "method": "proxy_median_income_v0",
+  "value": 410750.0,
   "input_count": 2,
+  "trace": {
+    "base_value": 403750.0,
+    "adjustment_total_validated": 7000.0,
+    "selected_comparables": [
+      {
+        "comparable_id": "CP-102",
+        "prix_vente": 397500.0,
+        "source_id": "SRC-VENTE-102",
+        "score": 0.6481,
+        "date_vente": "2025-12-12",
+        "score_details": {
+          "score": 0.6481,
+          "weighted_score": 0.6481,
+          "components": {
+            "distance": 0.2667,
+            "recency": 0.8749,
+            "surface_similarity": 0.9643,
+            "confidence": 0.61,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {},
+          "rationale": [
+            "Meilleure composante: surface_similarity=0.96",
+            "Composante la plus faible: distance=0.27"
+          ]
+        }
+      },
+      {
+        "comparable_id": "CP-101",
+        "prix_vente": 410000.0,
+        "source_id": "SRC-VENTE-101",
+        "score": 0.5732,
+        "date_vente": "2026-01-18",
+        "score_details": {
+          "score": 0.5732,
+          "weighted_score": 0.5732,
+          "components": {
+            "distance": 0.0,
+            "recency": 0.9087,
+            "surface_similarity": 0.9703,
+            "confidence": 0.58,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {},
+          "rationale": [
+            "Meilleure composante: surface_similarity=0.97",
+            "Composante la plus faible: distance=0.00"
+          ]
+        }
+      }
+    ],
+    "weights_used": [
+      0.6481,
+      0.5732
+    ],
+    "calculation_policy": [
+      "Les comparables sans source_id sont exclus avant calcul.",
+      "L'approche comparative utilise une moyenne ponderee par score explicable.",
+      "Les approches cout/revenu restent des proxys v0 tant que les tables metier ne sont pas calibrees.",
+      "Seuls les ajustements avec validation_humaine=true sont appliques."
+    ]
+  },
   "source_fixture": "case_pilote_confiance_limitee.json"
 }

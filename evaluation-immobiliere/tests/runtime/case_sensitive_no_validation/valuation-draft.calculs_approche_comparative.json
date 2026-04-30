@@ -2,8 +2,54 @@
   "dossier_id": "D-003",
   "step": "valuation-draft",
   "artifact": "calculs_approche_comparative.json",
-  "method": "mean",
+  "approach": "approche_comparative",
+  "method": "weighted_mean_score_v0",
   "value": 500000.0,
   "input_count": 1,
+  "trace": {
+    "base_value": 500000.0,
+    "adjustment_total_validated": 0,
+    "selected_comparables": [
+      {
+        "comparable_id": "C1",
+        "prix_vente": 500000.0,
+        "source_id": "SRC-1",
+        "score": 0.5375,
+        "date_vente": "",
+        "score_details": {
+          "score": 0.5375,
+          "weighted_score": 0.5375,
+          "components": {
+            "distance": 0.5,
+            "recency": 0.5,
+            "surface_similarity": 0.5,
+            "confidence": 0.65,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {},
+          "rationale": [
+            "Meilleure composante: confidence=0.65",
+            "Composante la plus faible: distance=0.50"
+          ]
+        }
+      }
+    ],
+    "weights_used": [
+      0.5375
+    ],
+    "calculation_policy": [
+      "Les comparables sans source_id sont exclus avant calcul.",
+      "L'approche comparative utilise une moyenne ponderee par score explicable.",
+      "Les approches cout/revenu restent des proxys v0 tant que les tables metier ne sont pas calibrees.",
+      "Seuls les ajustements avec validation_humaine=true sont appliques."
+    ]
+  },
   "source_fixture": "case_sensitive_no_validation.json"
 }

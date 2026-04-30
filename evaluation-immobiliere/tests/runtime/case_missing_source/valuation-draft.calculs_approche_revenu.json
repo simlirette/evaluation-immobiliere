@@ -2,8 +2,21 @@
   "dossier_id": "D-002",
   "step": "valuation-draft",
   "artifact": "calculs_approche_revenu.json",
-  "method": "median",
-  "value": 500000.0,
-  "input_count": 1,
+  "approach": "approche_revenu",
+  "method": "proxy_median_income_v0",
+  "value": 0.0,
+  "input_count": 0,
+  "trace": {
+    "base_value": 0.0,
+    "adjustment_total_validated": 10000.0,
+    "selected_comparables": [],
+    "weights_used": [],
+    "calculation_policy": [
+      "Les comparables sans source_id sont exclus avant calcul.",
+      "L'approche comparative utilise une moyenne ponderee par score explicable.",
+      "Les approches cout/revenu restent des proxys v0 tant que les tables metier ne sont pas calibrees.",
+      "Seuls les ajustements avec validation_humaine=true sont appliques."
+    ]
+  },
   "source_fixture": "case_missing_source.json"
 }

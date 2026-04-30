@@ -6,7 +6,7 @@
 ## summary
 ```json
 {
-  "approche_comparative": 500000.0,
+  "approche_comparative": 510000.0,
   "comparables_count": 1,
   "status": "PRET_REVISION_FINALE"
 }

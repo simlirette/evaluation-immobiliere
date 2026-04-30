@@ -2,8 +2,116 @@
   "dossier_id": "D-PILOTE-RES-001",
   "step": "valuation-draft",
   "artifact": "calculs_approche_cout.json",
-  "method": "mean",
-  "value": 548500.0,
+  "approach": "approche_cout",
+  "method": "proxy_mean_cost_v0",
+  "value": 569000.0,
   "input_count": 3,
+  "trace": {
+    "base_value": 548500.0,
+    "adjustment_total_validated": 20500.0,
+    "selected_comparables": [
+      {
+        "comparable_id": "CP-001",
+        "prix_vente": 548000.0,
+        "source_id": "SRC-VENTE-001",
+        "score": 0.9135,
+        "date_vente": "2026-02-14",
+        "score_details": {
+          "score": 0.9135,
+          "weighted_score": 0.9135,
+          "components": {
+            "distance": 0.94,
+            "recency": 0.9333,
+            "surface_similarity": 0.976,
+            "confidence": 0.92,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {},
+          "rationale": [
+            "Meilleure composante: surface_similarity=0.98",
+            "Composante la plus faible: source_quality=0.65"
+          ]
+        }
+      },
+      {
+        "comparable_id": "CP-002",
+        "prix_vente": 562500.0,
+        "source_id": "SRC-VENTE-002",
+        "score": 0.9062,
+        "date_vente": "2026-03-08",
+        "score_details": {
+          "score": 0.9062,
+          "weighted_score": 0.9062,
+          "components": {
+            "distance": 0.92,
+            "recency": 0.9534,
+            "surface_similarity": 0.9669,
+            "confidence": 0.89,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {},
+          "rationale": [
+            "Meilleure composante: surface_similarity=0.97",
+            "Composante la plus faible: source_quality=0.65"
+          ]
+        }
+      },
+      {
+        "comparable_id": "CP-003",
+        "prix_vente": 535000.0,
+        "source_id": "SRC-VENTE-003",
+        "score": 0.8815,
+        "date_vente": "2026-01-22",
+        "score_details": {
+          "score": 0.8815,
+          "weighted_score": 0.8815,
+          "components": {
+            "distance": 0.8967,
+            "recency": 0.9123,
+            "surface_similarity": 0.9521,
+            "confidence": 0.86,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {},
+          "rationale": [
+            "Meilleure composante: surface_similarity=0.95",
+            "Composante la plus faible: source_quality=0.65"
+          ]
+        }
+      }
+    ],
+    "weights_used": [
+      0.9135,
+      0.9062,
+      0.8815
+    ],
+    "calculation_policy": [
+      "Les comparables sans source_id sont exclus avant calcul.",
+      "L'approche comparative utilise une moyenne ponderee par score explicable.",
+      "Les approches cout/revenu restent des proxys v0 tant que les tables metier ne sont pas calibrees.",
+      "Seuls les ajustements avec validation_humaine=true sont appliques."
+    ]
+  },
   "source_fixture": "case_pilote_residentiel_standard.json"
 }

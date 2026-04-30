@@ -12,9 +12,9 @@
   ],
   "warnings": [],
   "valuation_values": {
-    "approche_comparative": 500000.0,
-    "approche_cout": 500000.0,
-    "approche_revenu": 500000.0
+    "approche_comparative": 0.0,
+    "approche_cout": 0.0,
+    "approche_revenu": 0.0
   },
   "source_fixture": "case_missing_source.json"
 }

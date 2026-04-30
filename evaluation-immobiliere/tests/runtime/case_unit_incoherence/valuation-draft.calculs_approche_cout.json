@@ -2,8 +2,55 @@
   "dossier_id": "D-004",
   "step": "valuation-draft",
   "artifact": "calculs_approche_cout.json",
-  "method": "mean",
+  "approach": "approche_cout",
+  "method": "proxy_mean_cost_v0",
   "value": 0.0,
   "input_count": 0,
+  "trace": {
+    "base_value": 0.0,
+    "adjustment_total_validated": 8000.0,
+    "selected_comparables": [
+      {
+        "comparable_id": "C1",
+        "prix_vente": 0.0,
+        "source_id": "SRC-1",
+        "score": 0.1875,
+        "date_vente": "",
+        "score_details": {
+          "score": 0.1875,
+          "weighted_score": 0.4375,
+          "components": {
+            "distance": 0.5,
+            "recency": 0.5,
+            "surface_similarity": 0.0,
+            "confidence": 0.65,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {
+            "unit_mismatch": 0.25
+          },
+          "rationale": [
+            "Meilleure composante: confidence=0.65",
+            "Composante la plus faible: surface_similarity=0.00",
+            "Penalite unit_mismatch: -0.25"
+          ]
+        }
+      }
+    ],
+    "weights_used": [],
+    "calculation_policy": [
+      "Les comparables sans source_id sont exclus avant calcul.",
+      "L'approche comparative utilise une moyenne ponderee par score explicable.",
+      "Les approches cout/revenu restent des proxys v0 tant que les tables metier ne sont pas calibrees.",
+      "Seuls les ajustements avec validation_humaine=true sont appliques."
+    ]
+  },
   "source_fixture": "case_unit_incoherence.json"
 }

@@ -2,8 +2,57 @@
   "dossier_id": "D-PILOTE-RES-003",
   "step": "valuation-draft",
   "artifact": "calculs_approche_cout.json",
-  "method": "mean",
-  "value": 613500.0,
-  "input_count": 2,
+  "approach": "approche_cout",
+  "method": "proxy_mean_cost_v0",
+  "value": 634000.0,
+  "input_count": 1,
+  "trace": {
+    "base_value": 625000.0,
+    "adjustment_total_validated": 9000.0,
+    "selected_comparables": [
+      {
+        "comparable_id": "CP-201",
+        "prix_vente": 625000.0,
+        "source_id": "SRC-VENTE-201",
+        "score": 0.5367,
+        "date_vente": "2026-06-15",
+        "score_details": {
+          "score": 0.5367,
+          "weighted_score": 0.8867,
+          "components": {
+            "distance": 0.86,
+            "recency": 0.9562,
+            "surface_similarity": 0.9706,
+            "confidence": 0.87,
+            "source_quality": 0.65
+          },
+          "weights": {
+            "distance": 0.3,
+            "recency": 0.25,
+            "surface_similarity": 0.2,
+            "confidence": 0.15,
+            "source_quality": 0.1
+          },
+          "penalties": {
+            "future_sale": 0.35
+          },
+          "rationale": [
+            "Meilleure composante: surface_similarity=0.97",
+            "Composante la plus faible: source_quality=0.65",
+            "Penalite future_sale: -0.35"
+          ]
+        }
+      }
+    ],
+    "weights_used": [
+      0.5367
+    ],
+    "calculation_policy": [
+      "Les comparables sans source_id sont exclus avant calcul.",
+      "L'approche comparative utilise une moyenne ponderee par score explicable.",
+      "Les approches cout/revenu restent des proxys v0 tant que les tables metier ne sont pas calibrees.",
+      "Seuls les ajustements avec validation_humaine=true sont appliques."
+    ]
+  },
   "source_fixture": "case_pilote_revision_conformite.json"
 }

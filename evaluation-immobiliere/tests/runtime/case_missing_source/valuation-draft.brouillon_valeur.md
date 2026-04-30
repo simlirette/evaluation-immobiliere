@@ -6,8 +6,8 @@
 ## summary
 ```json
 {
-  "approche_comparative": 500000.0,
-  "comparables_count": 1,
+  "approche_comparative": 0.0,
+  "comparables_count": 0,
   "status": "A_REVOIR"
 }
 ```

@@ -6,7 +6,7 @@
 ## summary
 ```json
 {
-  "approche_comparative": 403750.0,
+  "approche_comparative": 410366.7,
   "comparables_count": 2,
   "status": "BROUILLON"
 }

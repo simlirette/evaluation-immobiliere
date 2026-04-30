@@ -20,6 +20,14 @@ OUT_DIR = Path("evaluation-immobiliere/tests/runtime")
 SUMMARY_PATH = OUT_DIR / "runtime_summary.json"
 PIPELINE_PATH = Path("evaluation-immobiliere/integration/PIPELINE-RUNTIME-ASTON-V0.yaml")
 CONTRACTS_REPORT_PATH = OUT_DIR / "contracts_report.json"
+EXCLUDED_FIXTURE_PATTERNS = ("case_pilote_reel_*.json",)
+
+
+def discover_runtime_fixture_paths(fixtures_dir: Path = FIXTURES_DIR) -> list[Path]:
+    excluded: set[Path] = set()
+    for pattern in EXCLUDED_FIXTURE_PATTERNS:
+        excluded.update(fixtures_dir.glob(pattern))
+    return [path for path in sorted(fixtures_dir.glob("case_*.json")) if path not in excluded]
 
 
 def run_contract_validation(runtime_dir: Path, report_path: Path) -> bool:
@@ -54,7 +62,7 @@ def main() -> None:
     results = []
 
     print(f"Pipeline charge: {len(steps)} steps depuis {PIPELINE_PATH}")
-    for case_path in sorted(FIXTURES_DIR.glob("case_*.json")):
+    for case_path in discover_runtime_fixture_paths(FIXTURES_DIR):
         result = engine.run_case(case_path, OUT_DIR, case_subdir=True)
         results.append(result)
         print(f"Simule: {case_path.name} -> {len(result['events'])} events | status={result['status']}")
