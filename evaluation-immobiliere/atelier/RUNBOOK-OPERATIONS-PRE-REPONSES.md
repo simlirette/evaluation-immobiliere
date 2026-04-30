@@ -25,6 +25,8 @@ python evaluation-immobiliere/outils/executer_pre_reponses_v0.py
 - `RAPPORT-CALIBRATION-EVALUATEURS-V0.md`: `PRET_A_RECEVOIR_REPONSES`
 - `READINESS-PRE-REPONSES-V0.md`: `PRET_A_RECEVOIR_REPONSES`
 - `RAPPORT-ANONYMISATION-V0.md`: `OK`
+- `RAPPORT-DELTA-RUNTIME-V0.md`: `STABLE` ou `OBSERVATION_INITIALE`
+- `OPS-HANDOFF-MANIFEST-V0.md`: `PRET_A_TRANSMETTRE`
 - tests locaux: tous verts
 
 ## Cockpit ops
@@ -40,6 +42,13 @@ URL:
 ```text
 http://127.0.0.1:8787/ops/ui
 ```
+
+Endpoints utiles:
+
+- `/ops/delta`
+- `/ops/handoff`
+- `/ops/infra_contracts`
+- `/ops/review_queue`
 
 ## Go / no-go
 

@@ -26,6 +26,8 @@ OPS_JSON_REPORTS = {
     "calibration": "calibration_evaluateurs.json",
     "infra_contracts": "infra_contracts_report.json",
     "anonymization": "anonymisation_audit.json",
+    "delta": "runtime_delta_report.json",
+    "handoff": "ops_handoff_manifest.json",
 }
 OPS_CSV_REPORTS = {
     "review_queue": "FILE-REVUE-HUMAINE-V0.csv",
@@ -125,9 +127,13 @@ def ops_summary(runtime_dir: Path | None = None) -> dict:
     readiness = load_ops_json("readiness", runtime_dir)
     quality = load_ops_json("quality", runtime_dir)
     registry = load_ops_json("registry", runtime_dir)
+    delta = load_ops_json("delta", runtime_dir)
+    handoff = load_ops_json("handoff", runtime_dir)
     review_queue = load_ops_csv("review_queue", runtime_dir)
     return {
         "readiness_status": readiness.get("status", "ABSENT"),
+        "delta_status": delta.get("status", "ABSENT"),
+        "handoff_status": handoff.get("status", "ABSENT"),
         "quality_cases_count": quality.get("cases_count", 0),
         "runtime_fingerprint_sha256": readiness.get("runtime_fingerprint_sha256", ""),
         "registry_runs_count": registry.get("runs_count", 0),

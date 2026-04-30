@@ -33,6 +33,8 @@ PRESERVED_OUTPUT_NAMES = {
     "source_text",
     "DURCISSEMENT-CONTRATS-PILOTES-REELS-V0.md",
     "REVUE-INTERNE-PILOTES-REELS-V0.md",
+    "runtime_registry.json",
+    "RUNTIME-REGISTRY-V0.md",
 }
 
 

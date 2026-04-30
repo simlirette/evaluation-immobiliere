@@ -42,6 +42,7 @@ class TestExecuterPilotesReelsV0(unittest.TestCase):
             (out_dir / "source_text").mkdir()
             (out_dir / "source_text" / "D-001.txt").write_text("texte", encoding="utf-8")
             (out_dir / "REVUE-INTERNE-PILOTES-REELS-V0.md").write_text("revue", encoding="utf-8")
+            (out_dir / "runtime_registry.json").write_text('{"runs": []}', encoding="utf-8")
 
             reset_output_dir(out_dir)
 
@@ -49,6 +50,7 @@ class TestExecuterPilotesReelsV0(unittest.TestCase):
             self.assertTrue((out_dir / "ingestion_v0" / "trace.json").exists())
             self.assertTrue((out_dir / "source_text" / "D-001.txt").exists())
             self.assertTrue((out_dir / "REVUE-INTERNE-PILOTES-REELS-V0.md").exists())
+            self.assertTrue((out_dir / "runtime_registry.json").exists())
 
 
 if __name__ == "__main__":

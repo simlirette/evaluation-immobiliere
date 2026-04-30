@@ -209,3 +209,55 @@ Livrables:
 
 - `tests/fixtures/calibration_evaluateurs_simulee.csv`
 - tests de backlog P0/P2 et de confirmation de blocage
+
+## Phase 31 - Telemetrie execution pre-reponses
+
+Objectif:
+
+- Rendre chaque run pre-reponses auditable en temps d'execution.
+- Identifier rapidement l'etape fautive en cas d'arret.
+
+Livrables:
+
+- timestamps debut/fin du run
+- durees par etape
+- `steps_count`
+- `failed_step`
+
+## Phase 32 - Delta runtime pre-reponses
+
+Objectif:
+
+- Comparer la qualite courante au dernier run registre.
+- Detecter une regression avant envoi ou attente de reponses.
+
+Livrables:
+
+- `runtime_delta_report.json`
+- `RAPPORT-DELTA-RUNTIME-V0.md`
+- statut `STABLE`, `A_CONTROLER` ou `OBSERVATION_INITIALE`
+
+## Phase 33 - Manifeste handoff ops
+
+Objectif:
+
+- Inventorier les rapports et traces qui composent le paquet operationnel.
+- Distinguer les fichiers requis des rapports optionnels.
+
+Livrables:
+
+- `ops_handoff_manifest.json`
+- `OPS-HANDOFF-MANIFEST-V0.md`
+
+## Phase 34 - Exposition ops et contrats v1
+
+Objectif:
+
+- Exposer delta et handoff dans l'API/cockpit ops.
+- Valider leur presence dans les contrats infra.
+
+Livrables:
+
+- endpoints `/ops/delta` et `/ops/handoff`
+- cockpit ops enrichi
+- contrats infra et tests mis a jour

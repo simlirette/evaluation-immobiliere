@@ -78,6 +78,8 @@ class TestInfraPreReponsesV0(unittest.TestCase):
             (case_dir / "artifact.json").write_text('{"ok": true}', encoding="utf-8")
             (runtime_dir / "runtime_summary.json").write_text("[{}]", encoding="utf-8")
             (runtime_dir / "runtime_manifest.json").write_text("old", encoding="utf-8")
+            (runtime_dir / "runtime_delta_report.json").write_text("old", encoding="utf-8")
+            (runtime_dir / "ops_handoff_manifest.json").write_text("old", encoding="utf-8")
 
             manifest = build_runtime_manifest(runtime_dir)
             markdown = build_manifest_markdown(manifest)
@@ -208,6 +210,10 @@ class TestInfraPreReponsesV0(unittest.TestCase):
         self.assertEqual(report["steps"][0]["name"], "executer_dossiers_reels")
         self.assertEqual(report["steps"][-1]["name"], "valider_rapports_infra")
         self.assertIn("generer_knowledge_snapshot", [step["name"] for step in report["steps"]])
+        self.assertIn("analyser_delta_runtime", [step["name"] for step in report["steps"]])
+        self.assertIn("preparer_handoff_ops", [step["name"] for step in report["steps"]])
+        self.assertEqual(report["steps_count"], len(report["steps"]))
+        self.assertIn("duration_seconds", report["steps"][0])
 
     def test_pre_response_lock_blocks_concurrent_execution_and_releases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -276,11 +282,13 @@ class TestInfraPreReponsesV0(unittest.TestCase):
             write_json(runtime_dir / "readiness_pre_reponses.json", {"schema_version": "readiness_pre_reponses_v0", "status": "PRET_A_RECEVOIR_REPONSES", "checks": {}, "risks_to_calibrate": {}})
             write_json(runtime_dir / "knowledge_snapshot.json", {"schema_version": "knowledge_snapshot_v0", "runtime_fingerprint_sha256": "abc", "cases_count": 1, "cases": []})
             write_json(runtime_dir / "runtime_registry.json", {"schema_version": "runtime_registry_v0", "latest_run_id": "RUN", "runs_count": 1, "runs": []})
+            write_json(runtime_dir / "runtime_delta_report.json", {"schema_version": "runtime_delta_report_v0", "status": "STABLE", "current": {}, "previous": {}, "deltas": {}, "regressions": []})
+            write_json(runtime_dir / "ops_handoff_manifest.json", {"schema_version": "ops_handoff_manifest_v0", "status": "PRET_A_TRANSMETTRE", "files_count": 1, "required_missing": [], "files": []})
 
             report = build_infra_contract_report(runtime_dir)
 
         self.assertTrue(report["ok"])
-        self.assertEqual(report["files_checked"], 6)
+        self.assertEqual(report["files_checked"], 8)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,17 +42,33 @@ def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreRespo
         PreResponseStep("generer_knowledge_snapshot", outils / "generer_knowledge_snapshot_v0.py"),
         PreResponseStep("generer_manifest_runtime_final", outils / "generer_manifest_runtime_v0.py"),
         PreResponseStep("verifier_readiness_pre_reponses", outils / "verifier_readiness_pre_reponses_v0.py"),
+        PreResponseStep("analyser_delta_runtime", outils / "analyser_delta_runtime_v0.py"),
         PreResponseStep("generer_registry_runtime", outils / "generer_registry_runtime_v0.py"),
+        PreResponseStep("preparer_handoff_ops", outils / "preparer_handoff_ops_v0.py"),
         PreResponseStep("valider_rapports_infra", outils / "valider_rapports_infra_v0.py"),
     ]
 
 
 def run_steps(steps: list[PreResponseStep], *, cwd: Path, dry_run: bool = False) -> dict[str, object]:
     results: list[dict[str, object]] = []
+    started_at = utc_now_iso()
+    monotonic_start = time.perf_counter()
     for step in steps:
         command = [sys.executable, str(step.script)]
+        step_started_at = utc_now_iso()
+        step_monotonic_start = time.perf_counter()
         if dry_run:
-            results.append({"name": step.name, "command": command, "returncode": None, "status": "DRY_RUN"})
+            results.append(
+                {
+                    "name": step.name,
+                    "command": command,
+                    "returncode": None,
+                    "status": "DRY_RUN",
+                    "started_at_utc": step_started_at,
+                    "ended_at_utc": utc_now_iso(),
+                    "duration_seconds": round(time.perf_counter() - step_monotonic_start, 4),
+                }
+            )
             continue
         completed = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
         results.append(
@@ -60,21 +77,35 @@ def run_steps(steps: list[PreResponseStep], *, cwd: Path, dry_run: bool = False)
                 "command": command,
                 "returncode": completed.returncode,
                 "status": "OK" if completed.returncode == 0 else "FAILED",
+                "started_at_utc": step_started_at,
+                "ended_at_utc": utc_now_iso(),
+                "duration_seconds": round(time.perf_counter() - step_monotonic_start, 4),
                 "stdout": completed.stdout,
                 "stderr": completed.stderr,
             }
         )
         if completed.returncode != 0:
             break
+    ok = all(item["status"] in {"OK", "DRY_RUN"} for item in results)
+    failed = next((item for item in results if item.get("status") == "FAILED"), None)
     return {
         "schema_version": "pre_reponses_run_v0",
-        "ok": all(item["status"] in {"OK", "DRY_RUN"} for item in results),
+        "ok": ok,
+        "started_at_utc": started_at,
+        "ended_at_utc": utc_now_iso(),
+        "duration_seconds": round(time.perf_counter() - monotonic_start, 4),
+        "steps_count": len(results),
+        "failed_step": failed.get("name") if isinstance(failed, dict) else "",
         "steps": results,
     }
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def utc_now_iso() -> str:
+    return utc_now().isoformat()
 
 
 def parse_iso_datetime(value: object) -> datetime | None:
@@ -121,7 +152,7 @@ def acquire_lock(path: Path, *, ttl_seconds: int = LOCK_TTL_SECONDS_DEFAULT, for
         "schema_version": "pre_reponses_lock_v0",
         "status": "RUNNING",
         "pid": os.getpid(),
-        "acquired_at_utc": utc_now().isoformat(),
+        "acquired_at_utc": utc_now_iso(),
         "ttl_seconds": ttl_seconds,
     }
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
@@ -151,14 +182,20 @@ def execute_pre_response_chain(
     force_lock: bool = False,
 ) -> dict[str, object]:
     locked = False
+    previous_chain_active = os.environ.get("PRE_RESPONSE_CHAIN_ACTIVE")
     if not dry_run:
         acquire_lock(lock_file, ttl_seconds=lock_ttl_seconds, force=force_lock)
         locked = True
     try:
+        os.environ["PRE_RESPONSE_CHAIN_ACTIVE"] = "1"
         report = run_steps(build_pre_response_steps(), cwd=PROJECT_ROOT.parent, dry_run=dry_run)
         write_run_report(report_out, report)
         return report
     finally:
+        if previous_chain_active is None:
+            os.environ.pop("PRE_RESPONSE_CHAIN_ACTIVE", None)
+        else:
+            os.environ["PRE_RESPONSE_CHAIN_ACTIVE"] = previous_chain_active
         if locked:
             release_lock(lock_file)
 

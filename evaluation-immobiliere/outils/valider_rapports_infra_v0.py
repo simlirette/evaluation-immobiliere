@@ -73,6 +73,16 @@ def build_infra_contract_report(runtime_dir: Path) -> dict[str, object]:
             required_fields=["schema_version", "latest_run_id", "runs_count", "runs"],
             expected_schema="runtime_registry_v0",
         ),
+        validate_file(
+            runtime_dir / "runtime_delta_report.json",
+            required_fields=["schema_version", "status", "current", "previous", "deltas", "regressions"],
+            expected_schema="runtime_delta_report_v0",
+        ),
+        validate_file(
+            runtime_dir / "ops_handoff_manifest.json",
+            required_fields=["schema_version", "status", "files_count", "required_missing", "files"],
+            expected_schema="ops_handoff_manifest_v0",
+        ),
     ]
     failures = [failure for check in checks for failure in check["failures"]]
     return {

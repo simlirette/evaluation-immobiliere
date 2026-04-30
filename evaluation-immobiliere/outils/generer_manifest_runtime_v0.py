@@ -19,6 +19,10 @@ EXCLUDED_NAMES = {
     "KNOWLEDGE-SNAPSHOT-V0.md",
     "runtime_registry.json",
     "RUNTIME-REGISTRY-V0.md",
+    "runtime_delta_report.json",
+    "RAPPORT-DELTA-RUNTIME-V0.md",
+    "ops_handoff_manifest.json",
+    "OPS-HANDOFF-MANIFEST-V0.md",
     "infra_contracts_report.json",
     "RAPPORT-CONTRATS-INFRA-V0.md",
 }

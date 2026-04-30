@@ -59,6 +59,11 @@ def build_registry_entry(runtime_dir: Path, *, timestamp_utc: str | None = None,
     calibration = load_json(runtime_dir / "calibration_evaluateurs.json", {})
     readiness = load_json(runtime_dir / "readiness_pre_reponses.json", {})
     pre_run = load_json(runtime_dir / "pre_reponses_run.json", {})
+    pre_response_chain_ok = (
+        bool(pre_run.get("ok"))
+        if isinstance(pre_run, dict) and "ok" in pre_run
+        else os.environ.get("PRE_RESPONSE_CHAIN_ACTIVE") == "1"
+    )
 
     fingerprint = manifest.get("fingerprint_sha256", "") if isinstance(manifest, dict) else ""
     run_seed = f"{commit}:{fingerprint}:{timestamp}"
@@ -70,7 +75,7 @@ def build_registry_entry(runtime_dir: Path, *, timestamp_utc: str | None = None,
         "timestamp_utc": timestamp,
         "commit_sha": commit,
         "runtime_fingerprint_sha256": fingerprint,
-        "pre_response_chain_ok": bool(pre_run.get("ok")) if isinstance(pre_run, dict) else False,
+        "pre_response_chain_ok": pre_response_chain_ok,
         "readiness_status": readiness.get("status", "") if isinstance(readiness, dict) else "",
         "calibration_status": calibration.get("status", "") if isinstance(calibration, dict) else "",
         "cases_count": quality.get("cases_count", 0) if isinstance(quality, dict) else 0,
