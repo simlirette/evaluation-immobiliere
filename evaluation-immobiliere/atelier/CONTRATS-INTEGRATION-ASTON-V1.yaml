@@ -1,6 +1,7 @@
 version: 1.0
 contract_name: contrats-integration-aston-v1
 scope: runtime
+as_of_utc: "2026-04-30"
 
 objectif: >
   Définir le contrat d'intégration Aston exécutable pour les sessions runtime,
@@ -80,9 +81,14 @@ scoring:
     - score_qualite_sources
     - score_coherence_methodes
   thresholds:
-    go: ">= 0.80"
-    conditional_go: ">= 0.70 et < 0.80"
-    no_go: "< 0.70"
+    residentiel:
+      go: ">= 0.80"
+      conditional_go: ">= 0.70 et < 0.80"
+      no_go: "< 0.70"
+    commercial:
+      go: ">= 0.82"
+      conditional_go: ">= 0.72 et < 0.82"
+      no_go: "< 0.72"
   conditional_go_action: "revue_humaine_obligatoire"
 
 homologation:
@@ -92,12 +98,17 @@ homologation:
     - quality_report_ok
     - security_baseline_ok
   required_evidence:
+    - atelier/PV-HOMOLOGATION-V1.md
     - tests/runtime/contracts_report.json
     - tests/runtime/integrity_report.json
     - tests/reports/summary.json
 
 hypercare:
   period_days: 7
+  sla_critique:
+    accuse_reception: "4h"
+    plan_correction: "24h"
+    resolution_ou_rollback: "72h"
   required_controls:
     - daily_runtime_health_check
     - incident_log
@@ -112,9 +123,9 @@ compatibility_test_suite:
 
 decisions_prises:
   - Le contrat V1 conserve la séquence runtime Aston de PIPELINE-RUNTIME-ASTON-V0 et la rend vérifiable par tests.
-  - Le scoring intègre des seuils Go/No-Go pour aligner homologation et décision métier.
-  - L'hypercare est fixé à J+7 avec contrôles journaliers obligatoires.
+  - Les seuils scoring sont segmentés résidentiel/commercial pour aligner homologation et décision métier.
+  - Le package de preuves d'homologation est standardisé avant passage client.
+  - L'hypercare est fixée à J+7 avec contrôles journaliers obligatoires.
 
 questions_ouvertes:
-  - Les seuils de scoring doivent-ils être différenciés résidentiel vs commercial ?
-  - Quel format standardiser pour transmettre les preuves d'homologation aux clients Aston ?
+  - Aucune question bloquante ouverte côté web; exécution terminal requise pour preuves finales.

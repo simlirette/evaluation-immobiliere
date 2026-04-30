@@ -1,5 +1,7 @@
 # MATRICE COMPATIBILITÉ CONTRATS ↔ TESTS V1
 
+_As-of date: 2026-04-30 (UTC)_
+
 ## Couverture
 Mapping entre clauses du contrat Aston runtime V1 et preuves de tests/scripts existants.
 

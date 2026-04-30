@@ -1,5 +1,7 @@
 # READINESS EVIDENCE INDEX
 
+_As-of date: 2026-04-30 (UTC)_
+
 ## Objectif
 Indexer les preuves minimales de readiness client Aston et statuer "Déjà prêt" vs "À produire en terminal".
 
@@ -19,14 +21,14 @@ Indexer les preuves minimales de readiness client Aston et statuer "Déjà prêt
 | Conformité/sécurité | Secrets hors repo | `atelier/HANDOFF-TERMINAL-CHECKLIST.md` | Règle documentée | Déjà prêt |
 | Conformité/sécurité | Rétention + journal accès | `schemas/ops/infra_contracts_report_v0.schema.json` | Partiel | À produire en terminal |
 | Exploitation ops | Runbook incident + rollback | `atelier/RUNBOOK-OPERATIONS-PRE-REPONSES.md` | Déjà prêt | Déjà prêt |
-| Exploitation ops | Contact hypercare défini | Aucun fichier owner hypercare explicite | Manquant | À produire en terminal |
+| Exploitation ops | Contact hypercare défini | `atelier/HYPERCARE-OWNERS-V1.md` (à créer) | Partiel | À produire en terminal |
 | Exploitation ops | Plan montée en charge progressive | `atelier/PLAN-DIRECTEUR-COMPLET-V1.md` | Partiel | À produire en terminal |
 
 ## Décisions prises
 - Toute preuve non horodatée par exécution runtime récente est classée "À produire en terminal".
 - Les artefacts existants sont conservés comme baseline mais non suffisants pour homologation finale.
-- L’index readiness est aligné sur la checklist client et le vocabulaire Aston (runtime, scoring, homologation, hypercare).
+- L'index readiness est aligné sur la checklist client et le vocabulaire Aston (runtime, scoring, homologation, hypercare).
 
 ## Questions ouvertes
-- Quel format de signature accepter pour les critères métier (email signé, PV PDF, outil interne) ?
-- Qui valide officiellement l’item hypercare côté Aston client ?
+- Format de signature des critères métier et validation officielle hypercare à confirmer pendant l'homologation terminal/client.
+- Aucune question bloquante web; signatures finales et validation client se feront en terminal/homologation.
