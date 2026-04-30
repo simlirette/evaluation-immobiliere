@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml
 from outils.generer_rapport_pilote_runtime_v0 import build_markdown
+from outils.analyser_qualite_runtime_v0 import generate_quality_report
 from outils.valider_contrats_runtime_v0 import validate_runtime_contracts
 from outils.valider_fixtures_v0 import FixtureValidation, validate_fixture, write_report
 
@@ -25,6 +26,14 @@ SUMMARY_PATH = OUT_DIR / "runtime_summary.json"
 VALIDATION_REPORT_PATH = OUT_DIR / "validation_dossiers_reels.md"
 CONTRACTS_REPORT_PATH = OUT_DIR / "contracts_report.json"
 RUNTIME_REPORT_PATH = OUT_DIR / "RAPPORT-PILOTE-REEL-RUNTIME-V0.md"
+QUALITY_REPORT_JSON_PATH = OUT_DIR / "quality_report.json"
+QUALITY_REPORT_MD_PATH = OUT_DIR / "RAPPORT-QUALITE-RUNTIME-V0.md"
+PRESERVED_OUTPUT_NAMES = {
+    "ingestion_v0",
+    "source_text",
+    "DURCISSEMENT-CONTRATS-PILOTES-REELS-V0.md",
+    "REVUE-INTERNE-PILOTES-REELS-V0.md",
+}
 
 
 def discover_real_pilot_cases(fixtures_dir: Path = FIXTURES_DIR) -> list[Path]:
@@ -51,6 +60,8 @@ def build_waiting_report(fixtures_dir: Path = FIXTURES_DIR) -> str:
 def reset_output_dir(out_dir: Path) -> None:
     if out_dir.exists():
         for path in out_dir.iterdir():
+            if path.name in PRESERVED_OUTPUT_NAMES:
+                continue
             if path.is_dir():
                 shutil.rmtree(path)
             else:
@@ -71,6 +82,20 @@ def write_contract_report(runtime_dir: Path, report_path: Path) -> bool:
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Rapport contrats reels: {report_path} | ok={report.get('ok')}")
     return bool(report.get("ok"))
+
+
+def write_quality_reports(runtime_dir: Path) -> dict:
+    report = generate_quality_report(
+        runtime_dir=runtime_dir,
+        summary_path=runtime_dir / SUMMARY_PATH.name,
+        pipeline_path=PIPELINE_PATH,
+        ingestion_dir=runtime_dir / "ingestion_v0",
+        json_out=runtime_dir / QUALITY_REPORT_JSON_PATH.name,
+        markdown_out=runtime_dir / QUALITY_REPORT_MD_PATH.name,
+    )
+    print(f"Rapport qualite reel JSON: {runtime_dir / QUALITY_REPORT_JSON_PATH.name}")
+    print(f"Rapport qualite reel Markdown: {runtime_dir / QUALITY_REPORT_MD_PATH.name}")
+    return report
 
 
 def run_real_pilot_cases(case_paths: list[Path], out_dir: Path) -> list[dict]:
@@ -131,6 +156,7 @@ def main() -> None:
     print(f"Rapport runtime reel: {out_dir / RUNTIME_REPORT_PATH.name}")
 
     contracts_ok = write_contract_report(out_dir, out_dir / CONTRACTS_REPORT_PATH.name)
+    write_quality_reports(out_dir)
     if args.fail_on_contract_errors and not contracts_ok:
         raise SystemExit(1)
 

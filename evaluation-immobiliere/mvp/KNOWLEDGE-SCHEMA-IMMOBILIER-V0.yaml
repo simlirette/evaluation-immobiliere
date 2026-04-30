@@ -1,0 +1,159 @@
+schema_version: knowledge_immobilier_v0
+purpose: >
+  Schema cible pour le futur equivalent Aston knowledge.json applique a
+  l'evaluation immobiliere. Ce schema n'est pas encore branche au runtime; il
+  sert de contrat de convergence avant integration agent_loop.
+
+sections:
+  mandate:
+    fields:
+      - dossier_id
+      - type_rapport
+      - date_reference
+      - droits_evalues
+      - finalite
+      - portee
+      - limites
+    source_artifacts:
+      - data-facts.fiche_bien.json
+      - ingestion_v0/*/dossier_normalise.json
+  subject_property:
+    fields:
+      - type_bien
+      - zone
+      - adresse_anonymisee
+      - surface
+      - attributs_physiques
+      - contraintes_connues
+    source_artifacts:
+      - data-facts.fiche_bien.json
+      - data-facts.timeline_faits.json
+  sources:
+    fields:
+      - source_id
+      - source_type
+      - reliability_level
+      - document_id
+      - trace_fields
+    source_artifacts:
+      - data-facts.source_index.json
+      - comps-market.source_index.json
+      - ingestion_v0/*/trace_champs.json
+  market_evidence:
+    fields:
+      - comparables
+      - justifications
+      - exclusions
+      - score_details
+    source_artifacts:
+      - comps-market.comparables_proposes.json
+      - comps-market.justifications_comparables.json
+  valuation:
+    fields:
+      - approche_comparative
+      - approche_cout
+      - approche_revenu
+      - hypotheses
+      - calculation_traces
+    source_artifacts:
+      - valuation-draft.calculs_approche_comparative.json
+      - valuation-draft.calculs_approche_cout.json
+      - valuation-draft.calculs_approche_revenu.json
+      - valuation-draft.hypotheses_explicites.json
+  reconciliation:
+    fields:
+      - valeurs_par_approche
+      - ecarts_inter_approches
+      - poids_recommandes
+      - conclusion_proposee
+      - points_validation_humaine
+    source_artifacts:
+      - compliance-qa.statut_sortie.json
+      - valuation-draft.brouillon_valeur.md
+  compliance:
+    fields:
+      - status
+      - blocking_failures
+      - warnings
+      - contract_errors
+      - recommendations
+    source_artifacts:
+      - compliance-qa.rapport_non_conformites.json
+      - compliance-qa.statut_sortie.json
+      - compliance-qa.recommandations_corrections.md
+      - contracts_report.json
+  redaction:
+    fields:
+      - brouillon_rapport
+      - annexe_sources
+      - sections_manquantes
+    source_artifacts:
+      - redaction.brouillon_rapport.md
+      - redaction.annexe_sources.md
+  human_review:
+    fields:
+      - queue_items
+      - calibration_responses
+      - backlog_v1
+      - decisions_finales
+    source_artifacts:
+      - FILE-REVUE-HUMAINE-V0.csv
+      - calibration_evaluateurs.json
+      - BACKLOG-V1.md
+  audit:
+    fields:
+      - runtime_manifest_fingerprint
+      - audit_log_paths
+      - anonymisation_status
+      - generated_reports
+    source_artifacts:
+      - runtime_manifest.json
+      - "*.audit.jsonl"
+      - anonymisation_audit.json
+
+agent_profiles:
+  data_facts:
+    reads:
+      - mandate
+      - subject_property
+      - sources
+    writes:
+      - subject_property
+      - sources
+  comps_market:
+    reads:
+      - subject_property
+      - sources
+      - market_evidence
+    writes:
+      - market_evidence
+  valuation_draft:
+    reads:
+      - market_evidence
+      - valuation
+      - sources
+    writes:
+      - valuation
+      - reconciliation
+  compliance_qa:
+    reads:
+      - mandate
+      - subject_property
+      - market_evidence
+      - valuation
+      - reconciliation
+      - sources
+    writes:
+      - compliance
+      - human_review
+  redaction:
+    reads:
+      - mandate
+      - subject_property
+      - market_evidence
+      - valuation
+      - compliance
+      - sources
+    writes:
+      - redaction
+

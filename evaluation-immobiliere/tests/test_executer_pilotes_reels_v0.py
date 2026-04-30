@@ -9,7 +9,7 @@ OUTILS_DIR = Path(__file__).resolve().parents[1] / "outils"
 if str(OUTILS_DIR) not in sys.path:
     sys.path.insert(0, str(OUTILS_DIR))
 
-from executer_dossiers_pilotes_reels_v0 import build_waiting_report, discover_real_pilot_cases
+from executer_dossiers_pilotes_reels_v0 import build_waiting_report, discover_real_pilot_cases, reset_output_dir
 
 
 class TestExecuterPilotesReelsV0(unittest.TestCase):
@@ -31,6 +31,24 @@ class TestExecuterPilotesReelsV0(unittest.TestCase):
         self.assertIn("EN_ATTENTE_DOSSIERS", report)
         self.assertIn("case_pilote_reel_*.json", report)
         self.assertIn("fixtures-test", report)
+
+    def test_reset_output_dir_preserves_ingestion_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "runtime"
+            (out_dir / "case_old").mkdir(parents=True)
+            (out_dir / "case_old" / "artifact.json").write_text("{}", encoding="utf-8")
+            (out_dir / "ingestion_v0").mkdir()
+            (out_dir / "ingestion_v0" / "trace.json").write_text("[]", encoding="utf-8")
+            (out_dir / "source_text").mkdir()
+            (out_dir / "source_text" / "D-001.txt").write_text("texte", encoding="utf-8")
+            (out_dir / "REVUE-INTERNE-PILOTES-REELS-V0.md").write_text("revue", encoding="utf-8")
+
+            reset_output_dir(out_dir)
+
+            self.assertFalse((out_dir / "case_old").exists())
+            self.assertTrue((out_dir / "ingestion_v0" / "trace.json").exists())
+            self.assertTrue((out_dir / "source_text" / "D-001.txt").exists())
+            self.assertTrue((out_dir / "REVUE-INTERNE-PILOTES-REELS-V0.md").exists())
 
 
 if __name__ == "__main__":

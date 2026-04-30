@@ -84,6 +84,7 @@ class TestPaquetEvaluateursV0(unittest.TestCase):
             self.assertEqual(status, "EN_ATTENTE_DOSSIERS_REELS")
             self.assertTrue((out_dir / "PAQUET-EVALUATEURS-V0.md").exists())
             self.assertTrue((out_dir / "REPONSES-EVALUATEURS-A-REMPLIR.csv").exists())
+            self.assertTrue((out_dir / "CALIBRATION-EVALUATEURS-A-REMPLIR.csv").exists())
             self.assertTrue((out_dir / "MANIFESTE-CAS-PILOTES.csv").exists())
 
     def test_package_status_ready_when_artifacts_and_review_exist(self) -> None:

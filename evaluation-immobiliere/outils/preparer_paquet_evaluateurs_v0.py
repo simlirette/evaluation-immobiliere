@@ -15,6 +15,8 @@ PACKAGE_INDEX_NAME = "PAQUET-EVALUATEURS-V0.md"
 SEND_CHECKLIST_NAME = "CHECKLIST-ENVOI-EVALUATEURS.md"
 RESPONSE_TEMPLATE_SOURCE = ATELIER_DIR / "REPONSES-EVALUATEURS-TEMPLATE.csv"
 RESPONSE_TEMPLATE_COPY = "REPONSES-EVALUATEURS-A-REMPLIR.csv"
+CALIBRATION_TEMPLATE_SOURCE = ATELIER_DIR / "CALIBRATION-EVALUATEURS-TEMPLATE.csv"
+CALIBRATION_TEMPLATE_COPY = "CALIBRATION-EVALUATEURS-A-REMPLIR.csv"
 QUESTIONNAIRE_SOURCE = ATELIER_DIR / "QUESTIONNAIRE-EVALUATEURS.md"
 GUIDE_SOURCE = ATELIER_DIR / "GUIDE-COMPILATION-REPONSES.md"
 REVIEW_REPORT_NAME = "REVUE-INTERNE-PILOTES-REELS-V0.md"
@@ -73,6 +75,12 @@ def copy_response_template(out_dir: Path, source: Path = RESPONSE_TEMPLATE_SOURC
     return target
 
 
+def copy_calibration_template(out_dir: Path, source: Path = CALIBRATION_TEMPLATE_SOURCE) -> Path:
+    target = out_dir / CALIBRATION_TEMPLATE_COPY
+    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    return target
+
+
 def build_case_rows(summary: list[dict] | None) -> list[dict[str, str]]:
     if summary is None:
         return []
@@ -117,6 +125,7 @@ def build_waiting_index(runtime_dir: Path, status: str) -> str:
             f"- Questionnaire source: `{QUESTIONNAIRE_SOURCE.as_posix()}`",
             f"- Guide compilation: `{GUIDE_SOURCE.as_posix()}`",
             f"- Gabarit reponses: `{RESPONSE_TEMPLATE_SOURCE.as_posix()}`",
+            f"- Gabarit calibration runtime: `{CALIBRATION_TEMPLATE_SOURCE.as_posix()}`",
             "",
             "## Prochaine action",
             "",
@@ -139,6 +148,7 @@ def build_package_index(summary: list[dict], runtime_dir: Path, status: str) -> 
         f"- Questionnaire: `{QUESTIONNAIRE_SOURCE.as_posix()}`",
         f"- Guide compilation: `{GUIDE_SOURCE.as_posix()}`",
         f"- CSV a remplir: `{RESPONSE_TEMPLATE_COPY}`",
+        f"- CSV calibration runtime: `{CALIBRATION_TEMPLATE_COPY}`",
         f"- Manifeste des cas: `MANIFESTE-CAS-PILOTES.csv`",
         "",
         "## Rapports internes a consulter avant envoi",
@@ -208,6 +218,7 @@ def write_package(runtime_dir: Path, out_dir: Path) -> str:
     summary = load_summary(runtime_dir)
     status = package_status(summary, runtime_dir)
     copy_response_template(out_dir)
+    copy_calibration_template(out_dir)
     write_case_manifest(out_dir, summary)
 
     index = build_waiting_index(runtime_dir, status) if summary is None else build_package_index(summary, runtime_dir, status)
