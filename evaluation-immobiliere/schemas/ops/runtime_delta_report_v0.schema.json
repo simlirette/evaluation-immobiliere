@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_delta_report_v0",
+  "type": "object",
+  "required": ["schema_version", "status", "current", "previous", "deltas", "regressions"],
+  "properties": {
+    "schema_version": {"const": "runtime_delta_report_v0"},
+    "status": {"enum": ["OBSERVATION_INITIALE", "STABLE", "A_CONTROLER"]},
+    "current": {"type": "object"},
+    "previous": {"type": ["object", "null"]},
+    "deltas": {"type": "object"},
+    "regressions": {"type": "array", "items": {"type": "object"}}
+  }
+}

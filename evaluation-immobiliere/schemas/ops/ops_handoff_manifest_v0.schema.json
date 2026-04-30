@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops_handoff_manifest_v0",
+  "type": "object",
+  "required": ["schema_version", "status", "runtime_dir", "files_count", "required_count", "required_present", "required_missing", "files"],
+  "properties": {
+    "schema_version": {"const": "ops_handoff_manifest_v0"},
+    "status": {"enum": ["PRET_A_TRANSMETTRE", "A_COMPLETER"]},
+    "runtime_dir": {"type": "string"},
+    "files_count": {"type": "integer"},
+    "required_count": {"type": "integer"},
+    "required_present": {"type": "integer"},
+    "required_missing": {"type": "array", "items": {"type": "string"}},
+    "files": {"type": "array", "items": {"type": "object"}}
+  }
+}

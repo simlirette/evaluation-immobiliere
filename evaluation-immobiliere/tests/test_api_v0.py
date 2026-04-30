@@ -47,6 +47,9 @@ class TestApiV0(unittest.TestCase):
             (runtime_dir / "runtime_registry.json").write_text(json.dumps({"runs_count": 2}), encoding="utf-8")
             (runtime_dir / "runtime_delta_report.json").write_text(json.dumps({"status": "STABLE"}), encoding="utf-8")
             (runtime_dir / "ops_handoff_manifest.json").write_text(json.dumps({"status": "PRET_A_TRANSMETTRE"}), encoding="utf-8")
+            (runtime_dir / "schema_validation_report.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
+            (runtime_dir / "paquet_evaluateurs_gate.json").write_text(json.dumps({"status": "PRET_A_ENVOYER"}), encoding="utf-8")
+            (runtime_dir / "ops_doctor_report.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
             (runtime_dir / "FILE-REVUE-HUMAINE-V0.csv").write_text("id,priority\nREV-001,P1\n", encoding="utf-8")
 
             summary = ops_summary(runtime_dir)
@@ -54,6 +57,9 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["readiness_status"], "PRET_A_RECEVOIR_REPONSES")
         self.assertEqual(summary["delta_status"], "STABLE")
         self.assertEqual(summary["handoff_status"], "PRET_A_TRANSMETTRE")
+        self.assertEqual(summary["schema_validation_status"], "OK")
+        self.assertEqual(summary["package_gate_status"], "PRET_A_ENVOYER")
+        self.assertEqual(summary["doctor_status"], "OK")
         self.assertEqual(summary["quality_cases_count"], 3)
         self.assertEqual(summary["registry_runs_count"], 2)
         self.assertEqual(summary["review_queue_items"], 1)
@@ -83,6 +89,9 @@ class TestApiV0(unittest.TestCase):
                 json.dumps({"status": "PRET_A_TRANSMETTRE", "required_present": 2, "required_count": 2, "required_missing": []}),
                 encoding="utf-8",
             )
+            (runtime_dir / "schema_validation_report.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
+            (runtime_dir / "paquet_evaluateurs_gate.json").write_text(json.dumps({"status": "PRET_A_ENVOYER"}), encoding="utf-8")
+            (runtime_dir / "ops_doctor_report.json").write_text(json.dumps({"status": "OK", "issues": []}), encoding="utf-8")
             (runtime_dir / "FILE-REVUE-HUMAINE-V0.csv").write_text("id,priority\nREV-001,P1\n", encoding="utf-8")
 
             previous_runtime_dir = api.OPS_RUNTIME_DIR
@@ -98,6 +107,9 @@ class TestApiV0(unittest.TestCase):
                 infra_contracts = self.http_json("GET", host, port, "/ops/infra_contracts")
                 delta = self.http_json("GET", host, port, "/ops/delta")
                 handoff = self.http_json("GET", host, port, "/ops/handoff")
+                schemas = self.http_json("GET", host, port, "/ops/schema_validation")
+                package_gate = self.http_json("GET", host, port, "/ops/package_gate")
+                doctor = self.http_json("GET", host, port, "/ops/doctor")
                 ops_ui = self.http_text("GET", host, port, "/ops/ui")
             finally:
                 server.shutdown()
@@ -111,6 +123,9 @@ class TestApiV0(unittest.TestCase):
         self.assertTrue(infra_contracts["ok"])
         self.assertEqual(delta["status"], "STABLE")
         self.assertEqual(handoff["status"], "PRET_A_TRANSMETTRE")
+        self.assertEqual(schemas["status"], "OK")
+        self.assertEqual(package_gate["status"], "PRET_A_ENVOYER")
+        self.assertEqual(doctor["status"], "OK")
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
 
     def test_ops_http_pre_response_dry_run_writes_report(self) -> None:

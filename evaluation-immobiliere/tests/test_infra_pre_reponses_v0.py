@@ -80,6 +80,9 @@ class TestInfraPreReponsesV0(unittest.TestCase):
             (runtime_dir / "runtime_manifest.json").write_text("old", encoding="utf-8")
             (runtime_dir / "runtime_delta_report.json").write_text("old", encoding="utf-8")
             (runtime_dir / "ops_handoff_manifest.json").write_text("old", encoding="utf-8")
+            (runtime_dir / "schema_validation_report.json").write_text("old", encoding="utf-8")
+            (runtime_dir / "paquet_evaluateurs_gate.json").write_text("old", encoding="utf-8")
+            (runtime_dir / "ops_doctor_report.json").write_text("old", encoding="utf-8")
 
             manifest = build_runtime_manifest(runtime_dir)
             markdown = build_manifest_markdown(manifest)
@@ -208,10 +211,12 @@ class TestInfraPreReponsesV0(unittest.TestCase):
 
         self.assertTrue(report["ok"])
         self.assertEqual(report["steps"][0]["name"], "executer_dossiers_reels")
-        self.assertEqual(report["steps"][-1]["name"], "valider_rapports_infra")
+        self.assertEqual(report["steps"][-1]["name"], "ops_doctor")
         self.assertIn("generer_knowledge_snapshot", [step["name"] for step in report["steps"]])
         self.assertIn("analyser_delta_runtime", [step["name"] for step in report["steps"]])
         self.assertIn("preparer_handoff_ops", [step["name"] for step in report["steps"]])
+        self.assertIn("valider_schemas_ops", [step["name"] for step in report["steps"]])
+        self.assertIn("valider_paquet_evaluateurs", [step["name"] for step in report["steps"]])
         self.assertEqual(report["steps_count"], len(report["steps"]))
         self.assertIn("duration_seconds", report["steps"][0])
 

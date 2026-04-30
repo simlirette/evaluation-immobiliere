@@ -28,6 +28,9 @@ OPS_JSON_REPORTS = {
     "anonymization": "anonymisation_audit.json",
     "delta": "runtime_delta_report.json",
     "handoff": "ops_handoff_manifest.json",
+    "schema_validation": "schema_validation_report.json",
+    "package_gate": "paquet_evaluateurs_gate.json",
+    "doctor": "ops_doctor_report.json",
 }
 OPS_CSV_REPORTS = {
     "review_queue": "FILE-REVUE-HUMAINE-V0.csv",
@@ -129,11 +132,17 @@ def ops_summary(runtime_dir: Path | None = None) -> dict:
     registry = load_ops_json("registry", runtime_dir)
     delta = load_ops_json("delta", runtime_dir)
     handoff = load_ops_json("handoff", runtime_dir)
+    schemas = load_ops_json("schema_validation", runtime_dir)
+    package_gate = load_ops_json("package_gate", runtime_dir)
+    doctor = load_ops_json("doctor", runtime_dir)
     review_queue = load_ops_csv("review_queue", runtime_dir)
     return {
         "readiness_status": readiness.get("status", "ABSENT"),
         "delta_status": delta.get("status", "ABSENT"),
         "handoff_status": handoff.get("status", "ABSENT"),
+        "schema_validation_status": schemas.get("status", "ABSENT"),
+        "package_gate_status": package_gate.get("status", "ABSENT"),
+        "doctor_status": doctor.get("status", "ABSENT"),
         "quality_cases_count": quality.get("cases_count", 0),
         "runtime_fingerprint_sha256": readiness.get("runtime_fingerprint_sha256", ""),
         "registry_runs_count": registry.get("runs_count", 0),

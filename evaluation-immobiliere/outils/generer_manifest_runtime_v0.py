@@ -25,6 +25,12 @@ EXCLUDED_NAMES = {
     "OPS-HANDOFF-MANIFEST-V0.md",
     "infra_contracts_report.json",
     "RAPPORT-CONTRATS-INFRA-V0.md",
+    "schema_validation_report.json",
+    "RAPPORT-SCHEMAS-OPS-V0.md",
+    "paquet_evaluateurs_gate.json",
+    "PAQUET-EVALUATEURS-GATE-V0.md",
+    "ops_doctor_report.json",
+    "OPS-DOCTOR-V0.md",
 }
 TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".csv", ".txt", ".yaml", ".yml", ".log"}
 

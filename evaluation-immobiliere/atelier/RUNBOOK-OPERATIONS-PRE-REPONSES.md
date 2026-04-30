@@ -27,6 +27,9 @@ python evaluation-immobiliere/outils/executer_pre_reponses_v0.py
 - `RAPPORT-ANONYMISATION-V0.md`: `OK`
 - `RAPPORT-DELTA-RUNTIME-V0.md`: `STABLE` ou `OBSERVATION_INITIALE`
 - `OPS-HANDOFF-MANIFEST-V0.md`: `PRET_A_TRANSMETTRE`
+- `RAPPORT-SCHEMAS-OPS-V0.md`: `OK`
+- `PAQUET-EVALUATEURS-GATE-V0.md`: `PRET_A_ENVOYER`
+- `OPS-DOCTOR-V0.md`: `OK`
 - tests locaux: tous verts
 
 ## Cockpit ops
@@ -47,6 +50,9 @@ Endpoints utiles:
 
 - `/ops/delta`
 - `/ops/handoff`
+- `/ops/schema_validation`
+- `/ops/package_gate`
+- `/ops/doctor`
 - `/ops/infra_contracts`
 - `/ops/review_queue`
 

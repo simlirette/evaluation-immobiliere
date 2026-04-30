@@ -156,6 +156,14 @@
         <div class="metric" id="handoff">-</div>
       </div>
       <div class="panel">
+        <h2>Doctor</h2>
+        <div class="metric" id="doctor">-</div>
+      </div>
+      <div class="panel">
+        <h2>Schemas</h2>
+        <div class="metric" id="schemas">-</div>
+      </div>
+      <div class="panel">
         <h2>Dossiers</h2>
         <div class="metric" id="cases">-</div>
       </div>
@@ -178,6 +186,10 @@
       <div class="panel wide">
         <h2>Handoff ops</h2>
         <table id="handoffTable"></table>
+      </div>
+      <div class="panel wide">
+        <h2>Gates</h2>
+        <table id="gates"></table>
       </div>
       <div class="panel full">
         <h2>Revue humaine</h2>
@@ -220,12 +232,15 @@
     }
 
     async function refresh() {
-      const [summary, readiness, contracts, queue, handoff] = await Promise.all([
+      const [summary, readiness, contracts, queue, handoff, schemas, packageGate, doctor] = await Promise.all([
         getJson('/ops'),
         getJson('/ops/readiness'),
         getJson('/ops/infra_contracts'),
         getJson('/ops/review_queue'),
-        getJson('/ops/handoff')
+        getJson('/ops/handoff'),
+        getJson('/ops/schema_validation'),
+        getJson('/ops/package_gate'),
+        getJson('/ops/doctor')
       ]);
       $('readiness').textContent = summary.readiness_status || '-';
       $('readiness').className = `metric ${classForStatus(summary.readiness_status)}`;
@@ -233,6 +248,10 @@
       $('delta').className = `metric ${classForStatus(summary.delta_status)}`;
       $('handoff').textContent = summary.handoff_status || '-';
       $('handoff').className = `metric ${classForStatus(summary.handoff_status)}`;
+      $('doctor').textContent = summary.doctor_status || '-';
+      $('doctor').className = `metric ${classForStatus(summary.doctor_status)}`;
+      $('schemas').textContent = summary.schema_validation_status || '-';
+      $('schemas').className = `metric ${classForStatus(summary.schema_validation_status)}`;
       $('cases').textContent = summary.quality_cases_count ?? '-';
       $('queue').textContent = summary.review_queue_items ?? '-';
       $('runs').textContent = summary.registry_runs_count ?? '-';
@@ -248,8 +267,14 @@
         required_count: handoff.required_count,
         required_missing: handoff.required_missing
       });
+      renderObjectTable($('gates'), {
+        schemas: schemas.status,
+        package_gate: packageGate.status,
+        doctor: doctor.status,
+        doctor_issues: (doctor.issues || []).length
+      });
       renderReviewQueue(queue);
-      $('raw').textContent = JSON.stringify({ summary, readiness, handoff }, null, 2);
+      $('raw').textContent = JSON.stringify({ summary, readiness, handoff, schemas, packageGate, doctor }, null, 2);
       $('updated').textContent = `Derniere actualisation: ${new Date().toLocaleString()}`;
     }
 

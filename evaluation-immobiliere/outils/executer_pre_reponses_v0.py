@@ -46,6 +46,9 @@ def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreRespo
         PreResponseStep("generer_registry_runtime", outils / "generer_registry_runtime_v0.py"),
         PreResponseStep("preparer_handoff_ops", outils / "preparer_handoff_ops_v0.py"),
         PreResponseStep("valider_rapports_infra", outils / "valider_rapports_infra_v0.py"),
+        PreResponseStep("valider_schemas_ops", outils / "valider_schemas_ops_v0.py"),
+        PreResponseStep("valider_paquet_evaluateurs", outils / "valider_paquet_evaluateurs_v0.py"),
+        PreResponseStep("ops_doctor", outils / "ops_doctor_v0.py"),
     ]
 
 

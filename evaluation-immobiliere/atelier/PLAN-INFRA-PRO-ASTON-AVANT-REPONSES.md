@@ -261,3 +261,41 @@ Livrables:
 - endpoints `/ops/delta` et `/ops/handoff`
 - cockpit ops enrichi
 - contrats infra et tests mis a jour
+
+## Phase 35 - Schemas contrats v1
+
+Objectif:
+
+- Declarer les contrats ops critiques en JSON Schema.
+- Valider les rapports runtime sans dependance externe.
+
+Livrables:
+
+- `schemas/ops/*.schema.json`
+- `schema_validation_report.json`
+- `RAPPORT-SCHEMAS-OPS-V0.md`
+
+## Phase 36 - Ops doctor
+
+Objectif:
+
+- Donner un diagnostic exploitation unique.
+- Fournir des exit codes stables pour scripts et CI.
+
+Livrables:
+
+- `ops_doctor_report.json`
+- `OPS-DOCTOR-V0.md`
+- exit codes `0=OK`, `1=A_CONTROLER`, `2=A_CORRIGER`
+
+## Phase 37 - Gate paquet evaluateurs
+
+Objectif:
+
+- Controler le paquet evaluateurs avant envoi.
+- Verifier fichiers requis, en-tetes CSV, anonymisation et absence de fuites evidentes.
+
+Livrables:
+
+- `paquet_evaluateurs_gate.json`
+- `PAQUET-EVALUATEURS-GATE-V0.md`

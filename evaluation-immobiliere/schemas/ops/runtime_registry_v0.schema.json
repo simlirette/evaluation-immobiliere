@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_registry_v0",
+  "type": "object",
+  "required": ["schema_version", "latest_run_id", "runs_count", "runs"],
+  "properties": {
+    "schema_version": {"const": "runtime_registry_v0"},
+    "latest_run_id": {"type": "string"},
+    "runs_count": {"type": "integer"},
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["run_id", "timestamp_utc", "commit_sha", "runtime_fingerprint_sha256", "pre_response_chain_ok"],
+        "properties": {
+          "run_id": {"type": "string"},
+          "timestamp_utc": {"type": "string"},
+          "commit_sha": {"type": "string"},
+          "runtime_fingerprint_sha256": {"type": "string"},
+          "pre_response_chain_ok": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

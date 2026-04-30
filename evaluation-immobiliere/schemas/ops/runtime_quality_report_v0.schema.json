@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_quality_report_v0",
+  "type": "object",
+  "required": ["schema_version", "cases_count", "status_counts", "totals", "averages", "cases"],
+  "properties": {
+    "schema_version": {"const": "runtime_quality_report_v0"},
+    "runtime_dir": {"type": "string"},
+    "cases_count": {"type": "integer"},
+    "status_counts": {"type": "object"},
+    "totals": {"type": "object"},
+    "averages": {"type": "object"},
+    "contract_report": {"type": "object"},
+    "cases": {"type": "array", "items": {"type": "object"}}
+  }
+}

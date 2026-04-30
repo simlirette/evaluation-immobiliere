@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "infra_contracts_report_v0",
+  "type": "object",
+  "required": ["schema_version", "runtime_dir", "ok", "files_checked", "files_invalid", "checks"],
+  "properties": {
+    "schema_version": {"const": "infra_contracts_report_v0"},
+    "runtime_dir": {"type": "string"},
+    "ok": {"type": "boolean"},
+    "files_checked": {"type": "integer"},
+    "files_invalid": {"type": "integer"},
+    "checks": {"type": "array", "items": {"type": "object"}}
+  }
+}
