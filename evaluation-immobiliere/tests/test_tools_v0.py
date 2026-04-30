@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from engine.tools import run_calculation, search_comparables, validate_schema
+from engine.tools import run_calculation, score_comparable, search_comparables, validate_schema
 
 
 class TestToolsV0(unittest.TestCase):
@@ -41,6 +41,46 @@ class TestToolsV0(unittest.TestCase):
         result = search_comparables(pool, max_items=10)
         self.assertLessEqual(result[0].score, 1.0)
         self.assertGreaterEqual(result[0].score, 0.0)
+        self.assertIn("components", result[0].score_details)
+
+    def test_score_comparable_explains_future_sale_penalty(self) -> None:
+        details = score_comparable(
+            {
+                "comparable_id": "A",
+                "prix_vente": 300000,
+                "source_id": "SRC-1",
+                "date_vente": "2026-05-01",
+                "distance_km": 1,
+                "surface": {"value": 1000, "unit": "pi2"},
+            },
+            subject={"surface": {"value": 1000, "unit": "pi2"}},
+            date_reference="2026-04-28",
+        )
+        self.assertIn("future_sale", details["penalties"])
+        self.assertLess(details["score"], details["weighted_score"])
+
+    def test_search_comparables_prefers_closer_more_similar_item(self) -> None:
+        subject = {"surface": {"value": 1000, "unit": "pi2"}}
+        pool = [
+            {
+                "comparable_id": "FAR",
+                "prix_vente": 400000,
+                "source_id": "SRC-FAR",
+                "date_vente": "2026-01-01",
+                "distance_km": 30,
+                "surface": {"value": 1800, "unit": "pi2"},
+            },
+            {
+                "comparable_id": "NEAR",
+                "prix_vente": 300000,
+                "source_id": "SRC-NEAR",
+                "date_vente": "2026-03-01",
+                "distance_km": 2,
+                "surface": {"value": 980, "unit": "pi2"},
+            },
+        ]
+        result = search_comparables(pool, max_items=2, subject=subject, date_reference="2026-04-28")
+        self.assertEqual(result[0].comparable_id, "NEAR")
 
     def test_validate_schema_supports_nested_fields(self) -> None:
         ok, missing = validate_schema({"a": {"b": 1}}, ["a.b", "a.c"])

@@ -1,0 +1,43 @@
+version: 0.1
+
+purpose: >
+  Scoring explicable des comparables pour la phase v0. Les poids sont
+  provisoires et devront etre calibres avec les evaluateurs.
+
+score_range: [0, 1]
+
+components:
+  distance:
+    weight: 0.30
+    rule: "1 - min(distance_km / max_distance_km, 1)"
+    default_if_missing: 0.50
+  recency:
+    weight: 0.25
+    rule: "1 - min(abs(date_reference - date_vente) / max_recency_days, 1)"
+    default_if_missing: 0.50
+  surface_similarity:
+    weight: 0.20
+    rule: "min(surface_sujet, surface_comparable) / max(surface_sujet, surface_comparable)"
+    default_if_missing: 0.50
+  confidence:
+    weight: 0.15
+    rule: "confidence bornee entre 0 et 1"
+    default_if_missing: 0.65
+  source_quality:
+    weight: 0.10
+    rule: "qualite de source selon taxonomie v0"
+    default_if_missing: 0.65
+
+limits:
+  max_distance_km: 30
+  max_recency_days: 1095
+
+penalties:
+  missing_source: 0.40
+  future_sale: 0.35
+  unit_mismatch: 0.25
+
+notes:
+  - "Les comparables sans source_id sont exclus par le runtime avant calcul."
+  - "Une vente future reste bloquante dans Compliance-QA; le scoring expose aussi la penalite."
+  - "Le prix de vente ne donne pas de bonus direct au score; il sert seulement au calcul de valeur."

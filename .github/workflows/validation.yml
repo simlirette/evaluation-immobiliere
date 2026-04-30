@@ -27,10 +27,17 @@ jobs:
             evaluation-immobiliere/engine/audit.py \
             evaluation-immobiliere/engine/runtime.py \
             evaluation-immobiliere/engine/tools.py \
+            evaluation-immobiliere/engine/valuation.py \
             evaluation-immobiliere/outils/lancer_api_v0.py \
             evaluation-immobiliere/outils/demo_api_v0.py \
+            evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py \
             evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py \
+            evaluation-immobiliere/outils/preparer_ingestion_pdf_v0.py \
+            evaluation-immobiliere/outils/preparer_durcissement_contrats_v0.py \
+            evaluation-immobiliere/outils/preparer_paquet_evaluateurs_v0.py \
+            evaluation-immobiliere/outils/preparer_revue_interne_pilotes_v0.py \
             evaluation-immobiliere/outils/simuler_runtime_engine_v0.py \
+            evaluation-immobiliere/outils/verifier_point_arret_reponses_v0.py \
             evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py \
             evaluation-immobiliere/outils/valider_fixtures_v0.py \
             evaluation-immobiliere/outils/valider_reponses_evaluateurs.py \
@@ -76,13 +83,4 @@ jobs:
             evaluation-immobiliere/tests/runtime
 
       - name: Run unit tests
-        run: |
-          python -m unittest \
-            evaluation-immobiliere/tests/test_audit_v0.py \
-            evaluation-immobiliere/tests/test_api_v0.py \
-            evaluation-immobiliere/tests/test_fixtures_v0.py \
-            evaluation-immobiliere/tests/test_rapport_pilote_v0.py \
-            evaluation-immobiliere/tests/test_tools_v0.py \
-            evaluation-immobiliere/tests/test_runtime_v0.py \
-            evaluation-immobiliere/tests/test_priorisation_v0.py \
-            evaluation-immobiliere/tests/test_reponses_evaluateurs_v0.py
+        run: python -m unittest discover -s evaluation-immobiliere/tests -p "test_*.py"

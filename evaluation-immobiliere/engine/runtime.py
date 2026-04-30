@@ -10,7 +10,8 @@ import time
 import ast
 
 from engine.audit import append_audit_log
-from engine.tools import run_calculation, search_comparables, validate_schema
+from engine.tools import search_comparables, validate_schema
+from engine.valuation import calculate_valuation_trace
 
 
 @dataclass
@@ -28,9 +29,9 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "default": ["dossier_id", "step", "artifact", "source_fixture"],
     "statut_sortie.json": ["dossier_id", "step", "artifact", "source_fixture", "status", "blocking_failures", "warnings"],
     "comparables_proposes.json": ["dossier_id", "step", "artifact", "source_fixture", "comparables"],
-    "calculs_approche_comparative.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count"],
-    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count"],
-    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count"],
+    "calculs_approche_comparative.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
+    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
+    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
 }
 
 CONTRACT_CHECKS_BY_ARTIFACT = {
@@ -248,7 +249,15 @@ class RuntimeEngine:
 
         if step == "comps-market" and artifact == "comparables_proposes.json":
             payload["date_reference"] = case.get("date_reference")
-            payload["comparables"] = [c.__dict__ for c in search_comparables(case.get("comparables", []), max_items=5)]
+            payload["comparables"] = [
+                c.__dict__
+                for c in search_comparables(
+                    case.get("comparables", []),
+                    max_items=5,
+                    subject=case,
+                    date_reference=case.get("date_reference"),
+                )
+            ]
 
         if step == "comps-market" and artifact == "justifications_comparables.json":
             payload["justifications"] = [
@@ -266,21 +275,22 @@ class RuntimeEngine:
             "calculs_approche_cout.json",
             "calculs_approche_revenu.json",
         }:
-            prices = [float(c.get("prix_vente", 0)) for c in case.get("comparables", []) if c.get("prix_vente")]
-            method = "mean" if artifact != "calculs_approche_revenu.json" else "median"
-            payload["method"] = method
-            payload["value"] = run_calculation(prices, method=method)
-            payload["input_count"] = len(prices)
+            approach_by_artifact = {
+                "calculs_approche_comparative.json": "approche_comparative",
+                "calculs_approche_cout.json": "approche_cout",
+                "calculs_approche_revenu.json": "approche_revenu",
+            }
+            payload.update(calculate_valuation_trace(case, approach_by_artifact[artifact]))
 
         if step == "valuation-draft" and artifact == "hypotheses_explicites.json":
             payload["hypotheses"] = case.get("hypotheses", [])
             payload["confidence"] = case.get("confidence")
 
         if step == "valuation-draft" and artifact == "brouillon_valeur.md":
-            prices = [float(c.get("prix_vente", 0)) for c in case.get("comparables", []) if c.get("prix_vente")]
+            comparative = calculate_valuation_trace(case, "approche_comparative")
             payload["summary"] = {
-                "approche_comparative": run_calculation(prices, method="mean"),
-                "comparables_count": len(prices),
+                "approche_comparative": comparative["value"],
+                "comparables_count": comparative["input_count"],
                 "status": status,
             }
 

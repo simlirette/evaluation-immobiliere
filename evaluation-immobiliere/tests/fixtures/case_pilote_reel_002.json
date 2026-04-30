@@ -1,0 +1,98 @@
+{
+  "dossier_id": "D-REEL-002",
+  "source_pdf": "D-REEL-002.pdf",
+  "extraction_notes": [
+    "Rapport anonymise: la date d'evaluation et plusieurs montants sont masques.",
+    "Le rapport presente deux scenarios de valeur, dont un deuxieme scenario conditionnel a verification par arpenteur.",
+    "Les prix comparables sont des valeurs de travail derivees des superficies et taux unitaires visibles."
+  ],
+  "date_reference": "2013-12-31",
+  "type_bien": "terrain_vacant_residentiel_lotissement",
+  "zone": "ZONE-RESIDENTIELLE-ANONYMISEE",
+  "surface": {
+    "value": 229279,
+    "unit": "pi2"
+  },
+  "comparables": [
+    {
+      "comparable_id": "C-REEL-002-01",
+      "prix_vente": 29648,
+      "date_vente": "2013-09-16",
+      "distance_km": 2.0,
+      "surface": {
+        "value": 14824,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-002-RAPPORT-PDF",
+      "confidence": 0.62
+    },
+    {
+      "comparable_id": "C-REEL-002-02",
+      "prix_vente": 36024,
+      "date_vente": "2013-08-01",
+      "distance_km": 3.0,
+      "surface": {
+        "value": 18960,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-002-RAPPORT-PDF",
+      "confidence": 0.6
+    },
+    {
+      "comparable_id": "C-REEL-002-03",
+      "prix_vente": 37803,
+      "date_vente": "2012-11-01",
+      "distance_km": 5.0,
+      "surface": {
+        "value": 20434,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-002-RAPPORT-PDF",
+      "confidence": 0.58
+    },
+    {
+      "comparable_id": "C-REEL-002-04",
+      "prix_vente": 31079,
+      "date_vente": "2012-07-20",
+      "distance_km": 8.0,
+      "surface": {
+        "value": 17266,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-002-RAPPORT-PDF",
+      "confidence": 0.58
+    }
+  ],
+  "ajustements": [
+    {
+      "ajustement_id": "A-REEL-002-01",
+      "montant": 22000,
+      "source_id": "SRC-REEL-002-ANALYSE-SCENARIO",
+      "validation_humaine": true
+    },
+    {
+      "ajustement_id": "A-REEL-002-02",
+      "montant": 18000,
+      "source_id": "SRC-REEL-002-ANALYSE-SCENARIO",
+      "validation_humaine": true
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothese_id": "H-REEL-002-01",
+      "description": "Deuxieme scenario conditionnel au respect des normes municipales et a la verification des mesures par arpenteur.",
+      "source_ids": [
+        "SRC-REEL-002-RAPPORT-PDF",
+        "SRC-REEL-002-ANALYSE-SCENARIO"
+      ]
+    }
+  ],
+  "timeline": [
+    {
+      "type": "analyse_marche",
+      "date": "2013-12-31",
+      "source_id": "SRC-REEL-002-RAPPORT-PDF"
+    }
+  ],
+  "confidence": 0.55
+}

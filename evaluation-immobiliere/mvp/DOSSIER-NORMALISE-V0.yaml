@@ -1,0 +1,105 @@
+version: 0.1
+
+purpose: >
+  Contrat pivot entre les rapports PDF anonymises, les fixtures pilote et le
+  runtime. Le dossier normalise doit rester anonymise et expliciter la source
+  de chaque champ utilise par les agents.
+
+dossier_normalise:
+  required:
+    - schema_version
+    - dossier_id
+    - anonymization_status
+    - source_documents
+    - mandate
+    - subject_property
+    - market_evidence
+    - adjustments
+    - hypotheses
+    - quality
+    - traceability
+
+  fields:
+    schema_version:
+      type: string
+      expected: dossier_normalise_v0
+    dossier_id:
+      type: string
+      anonymized: true
+    anonymization_status:
+      type: enum
+      allowed:
+        - SOURCE_ANONYMISEE_REQUISE
+        - SOURCE_ANONYMISEE_VERIFIEE
+        - A_REANONYMISER
+    source_documents:
+      type: list
+      item_required:
+        - document_id
+        - file_name
+        - sha256
+        - text_stats
+    mandate:
+      required:
+        - date_reference
+        - type_rapport
+        - droits_evalues
+        - review_required
+    subject_property:
+      required:
+        - type_bien
+        - zone
+        - surface
+        - adresse
+    market_evidence:
+      required:
+        - comparables
+    adjustments:
+      type: list
+    hypotheses:
+      type: list
+    quality:
+      required:
+        - confidence
+        - extraction_notes
+        - missing_fields
+        - review_flags
+    traceability:
+      required:
+        - trace_file
+        - source_index
+
+trace_champs:
+  required_per_item:
+    - field_path
+    - value_status
+    - source_ids
+    - extraction_method
+    - confidence
+    - review_status
+
+  value_status_allowed:
+    - PRESENT
+    - ABSENT
+    - INFERRED
+    - MASKED_IN_SOURCE
+    - APPROXIMATED
+
+  review_status_allowed:
+    - MACHINE_READY
+    - NEEDS_HUMAN_REVIEW
+    - BLOCKED
+
+quality_rules:
+  - id: DN001
+    severity: blocking
+    description: "Aucun champ nominatif ou adresse precise ne doit etre introduit dans le dossier normalise."
+  - id: DN002
+    severity: warning
+    description: "Tout champ calcule, approxime ou infere doit etre marque dans trace_champs."
+  - id: DN003
+    severity: warning
+    description: "Un rapport contenant des valeurs masquees comme [DATE] ou [MONTANT] doit rester en revue humaine."
+  - id: DN004
+    severity: blocking
+    description: "Chaque comparable et ajustement conserve doit avoir un source_id."

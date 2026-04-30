@@ -1,0 +1,97 @@
+{
+  "dossier_id": "D-REEL-001",
+  "source_pdf": "D-REEL-001.pdf",
+  "extraction_notes": [
+    "Rapport anonymise: plusieurs dates et montants sont masques dans le PDF source.",
+    "Date de reference retenue depuis l'indice de signature visible dans le rapport.",
+    "Prix comparables approximes depuis les superficies et taux unitaires visibles lorsque le prix exact est masque."
+  ],
+  "date_reference": "2024-04-29",
+  "type_bien": "terrain_vacant_forestier_agricole",
+  "zone": "ZONE-FORESTIERE-AGRICOLE-ANONYMISEE",
+  "surface": {
+    "value": 8445352,
+    "unit": "pi2"
+  },
+  "comparables": [
+    {
+      "comparable_id": "C-REEL-001-01",
+      "prix_vente": 300000,
+      "date_vente": "2023-12-13",
+      "distance_km": 8.0,
+      "surface": {
+        "value": 8974670,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-001-RAPPORT-PDF",
+      "confidence": 0.72
+    },
+    {
+      "comparable_id": "C-REEL-001-02",
+      "prix_vente": 129000,
+      "date_vente": "2023-10-26",
+      "distance_km": 16.0,
+      "surface": {
+        "value": 4147783,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-001-RAPPORT-PDF",
+      "confidence": 0.7
+    },
+    {
+      "comparable_id": "C-REEL-001-03",
+      "prix_vente": 420000,
+      "date_vente": "2023-09-27",
+      "distance_km": 22.0,
+      "surface": {
+        "value": 12832776,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-001-RAPPORT-PDF",
+      "confidence": 0.68
+    },
+    {
+      "comparable_id": "C-REEL-001-04",
+      "prix_vente": 162900,
+      "date_vente": "2023-04-19",
+      "distance_km": 4.0,
+      "surface": {
+        "value": 2394058,
+        "unit": "pi2"
+      },
+      "source_id": "SRC-REEL-001-RAPPORT-PDF",
+      "confidence": 0.78
+    }
+  ],
+  "ajustements": [
+    {
+      "ajustement_id": "A-REEL-001-01",
+      "montant": 15000,
+      "source_id": "SRC-REEL-001-ANALYSE-AJUSTEMENTS",
+      "validation_humaine": true
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothese_id": "H-REEL-001-01",
+      "description": "Usage meilleur et plus profitable retenu comme usage forestier selon le rapport anonymise.",
+      "source_ids": [
+        "SRC-REEL-001-RAPPORT-PDF",
+        "SRC-REEL-001-ZONAGE"
+      ]
+    }
+  ],
+  "timeline": [
+    {
+      "type": "inspection",
+      "date": "2024-04-29",
+      "source_id": "SRC-REEL-001-RAPPORT-PDF"
+    },
+    {
+      "type": "analyse_marche",
+      "date": "2024-04-29",
+      "source_id": "SRC-REEL-001-ANALYSE-AJUSTEMENTS"
+    }
+  ],
+  "confidence": 0.72
+}

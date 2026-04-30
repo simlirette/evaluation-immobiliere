@@ -1,0 +1,41 @@
+version: 0.1
+
+purpose: >
+  Politique de calcul deterministe v0. Les agents preparent les hypotheses et
+  les donnees; le module Python calcule et produit une trace auditable.
+
+approaches:
+  approche_comparative:
+    method: weighted_mean_score_v0
+    inputs:
+      - comparables sources
+      - scores explicables
+      - ajustements valides humainement
+    formula: "weighted_mean(prix_vente, score) + sum(ajustements_valides)"
+    status: active_v0
+  approche_cout:
+    method: proxy_mean_cost_v0
+    inputs:
+      - comparables sources
+      - ajustements valides humainement
+    formula: "mean(prix_vente) + sum(ajustements_valides)"
+    status: proxy_until_reference_tables
+  approche_revenu:
+    method: proxy_median_income_v0
+    inputs:
+      - comparables sources
+      - ajustements valides humainement
+    formula: "median(prix_vente) + sum(ajustements_valides)"
+    status: proxy_until_income_tables
+
+trace_required:
+  - base_value
+  - adjustment_total_validated
+  - selected_comparables
+  - weights_used
+  - calculation_policy
+
+guardrails:
+  - "Aucun ajustement non valide humainement n'est applique."
+  - "Aucun comparable sans source_id n'est utilise."
+  - "Les divergences inter-approches restent controlees par CONF007."

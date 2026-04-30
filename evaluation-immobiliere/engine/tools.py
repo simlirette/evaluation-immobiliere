@@ -1,6 +1,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field
+from datetime import date
+
+
+SCORING_WEIGHTS = {
+    "distance": 0.30,
+    "recency": 0.25,
+    "surface_similarity": 0.20,
+    "confidence": 0.15,
+    "source_quality": 0.10,
+}
+
+SCORING_LIMITS = {
+    "max_distance_km": 30.0,
+    "max_recency_days": 1095.0,
+}
+
+SOURCE_QUALITY = {
+    "registre_foncier": 1.0,
+    "certificat_localisation": 0.95,
+    "role_evaluation_municipale": 0.85,
+    "inspection_preachat": 0.80,
+    "mls_centris": 0.75,
+    "rapport_pdf_anonymise": 0.70,
+    "photo_non_geolocalisee": 0.45,
+}
 
 
 @dataclass
@@ -10,21 +36,29 @@ class Comparable:
     source_id: str
     score: float = 0.0
     date_vente: str = ""
+    score_details: dict[str, object] = field(default_factory=dict)
 
 
-def search_comparables(pool: list[dict], max_items: int = 5) -> list[Comparable]:
-    """Stub v0: filtre les comparables sources et les classe par score metier simple."""
-    valid = [c for c in pool if c.get("source_id")]
-    valid.sort(key=_comparable_score, reverse=True)
+def search_comparables(
+    pool: list[dict],
+    max_items: int = 5,
+    *,
+    subject: dict | None = None,
+    date_reference: str | None = None,
+) -> list[Comparable]:
+    """Filtre les comparables sources et les classe par score metier explicable."""
+    scored = [(c, score_comparable(c, subject=subject, date_reference=date_reference)) for c in pool if c.get("source_id")]
+    scored.sort(key=lambda item: (float(item[1]["score"]), _to_float(item[0].get("prix_vente"))), reverse=True)
     return [
         Comparable(
             comparable_id=str(c.get("comparable_id", "")),
             prix_vente=_to_float(c.get("prix_vente")),
             source_id=str(c.get("source_id", "")),
-            score=round(_comparable_score(c), 4),
+            score=round(float(details["score"]), 4),
             date_vente=str(c.get("date_vente", "")),
+            score_details=details,
         )
-        for c in valid[:max_items]
+        for c, details in scored[:max_items]
     ]
 
 
@@ -57,15 +91,122 @@ def validate_schema(payload: dict, required_fields: list[str]) -> tuple[bool, li
     return (len(missing) == 0, missing)
 
 
+def score_comparable(
+    item: dict,
+    *,
+    subject: dict | None = None,
+    date_reference: str | None = None,
+    weights: dict[str, float] | None = None,
+    limits: dict[str, float] | None = None,
+) -> dict[str, object]:
+    """Retourne un score 0..1 avec composantes, poids et penalites explicites."""
+    active_weights = weights or SCORING_WEIGHTS
+    active_limits = limits or SCORING_LIMITS
+
+    components = {
+        "distance": _distance_score(item, active_limits),
+        "recency": _recency_score(item, date_reference, active_limits),
+        "surface_similarity": _surface_similarity_score(item, subject),
+        "confidence": _bounded(_to_float(item.get("confidence", 0.65))),
+        "source_quality": _source_quality_score(item),
+    }
+    weighted_score = sum(components[key] * active_weights.get(key, 0.0) for key in components)
+    penalties = _score_penalties(item, subject=subject, date_reference=date_reference)
+    penalty_total = sum(penalties.values())
+    final_score = _bounded(weighted_score - penalty_total)
+    return {
+        "score": round(final_score, 4),
+        "weighted_score": round(weighted_score, 4),
+        "components": {key: round(value, 4) for key, value in components.items()},
+        "weights": active_weights,
+        "penalties": {key: round(value, 4) for key, value in penalties.items()},
+        "rationale": _score_rationale(components, penalties),
+    }
+
+
 def _comparable_score(item: dict) -> float:
-    price = _to_float(item.get("prix_vente"))
+    return float(score_comparable(item)["score"])
+
+
+def _distance_score(item: dict, limits: dict[str, float]) -> float:
     distance = _to_float(item.get("distance_km"))
-    confidence = _to_float(item.get("confidence", 1.0))
-    distance_penalty = min(distance / 100, 0.5) if distance else 0.0
-    confidence_component = max(min(confidence, 1.0) * 0.95 - distance_penalty, 0.0)
-    price_component = min(price / 1_000_000, 1.0) * 0.05
-    raw_score = confidence_component + price_component
-    return min(raw_score, 1.0)
+    if distance <= 0:
+        return 0.5
+    max_distance = max(_to_float(limits.get("max_distance_km")), 1.0)
+    return _bounded(1 - min(distance / max_distance, 1.0))
+
+
+def _recency_score(item: dict, date_reference: str | None, limits: dict[str, float]) -> float:
+    sale_date = _parse_iso_date(item.get("date_vente"))
+    reference = _parse_iso_date(date_reference)
+    if sale_date is None or reference is None:
+        return 0.5
+    max_days = max(_to_float(limits.get("max_recency_days")), 1.0)
+    return _bounded(1 - min(abs((reference - sale_date).days) / max_days, 1.0))
+
+
+def _surface_similarity_score(item: dict, subject: dict | None) -> float:
+    if not subject:
+        return 0.5
+    subject_surface = subject.get("surface", {}) if isinstance(subject.get("surface"), dict) else {}
+    comp_surface = item.get("surface", {}) if isinstance(item.get("surface"), dict) else {}
+    subject_value = _to_float(subject_surface.get("value"))
+    comp_value = _to_float(comp_surface.get("value"))
+    if subject_value <= 0 or comp_value <= 0:
+        return 0.5
+    if subject_surface.get("unit") and comp_surface.get("unit") and subject_surface.get("unit") != comp_surface.get("unit"):
+        return 0.0
+    return _bounded(min(subject_value, comp_value) / max(subject_value, comp_value))
+
+
+def _source_quality_score(item: dict) -> float:
+    source_type = str(item.get("source_type") or item.get("source_quality") or "").strip().lower()
+    if source_type in SOURCE_QUALITY:
+        return SOURCE_QUALITY[source_type]
+    source_id = str(item.get("source_id") or "").upper()
+    if "REGISTRE" in source_id:
+        return SOURCE_QUALITY["registre_foncier"]
+    if "CENTRIS" in source_id or "MLS" in source_id:
+        return SOURCE_QUALITY["mls_centris"]
+    if "RAPPORT" in source_id or "PDF" in source_id:
+        return SOURCE_QUALITY["rapport_pdf_anonymise"]
+    return 0.65
+
+
+def _score_penalties(item: dict, *, subject: dict | None, date_reference: str | None) -> dict[str, float]:
+    penalties: dict[str, float] = {}
+    if not item.get("source_id"):
+        penalties["missing_source"] = 0.40
+    sale_date = _parse_iso_date(item.get("date_vente"))
+    reference = _parse_iso_date(date_reference)
+    if sale_date is not None and reference is not None and sale_date > reference:
+        penalties["future_sale"] = 0.35
+    if subject:
+        subject_surface = subject.get("surface", {}) if isinstance(subject.get("surface"), dict) else {}
+        comp_surface = item.get("surface", {}) if isinstance(item.get("surface"), dict) else {}
+        if subject_surface.get("unit") and comp_surface.get("unit") and subject_surface.get("unit") != comp_surface.get("unit"):
+            penalties["unit_mismatch"] = 0.25
+    return penalties
+
+
+def _score_rationale(components: dict[str, float], penalties: dict[str, float]) -> list[str]:
+    rationale: list[str] = []
+    strongest = max(components, key=components.get)
+    weakest = min(components, key=components.get)
+    rationale.append(f"Meilleure composante: {strongest}={components[strongest]:.2f}")
+    rationale.append(f"Composante la plus faible: {weakest}={components[weakest]:.2f}")
+    for name, value in penalties.items():
+        rationale.append(f"Penalite {name}: -{value:.2f}")
+    return rationale
+
+
+def _parse_iso_date(value: object) -> date | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _has_field(payload: dict, field: str) -> bool:
@@ -82,3 +223,7 @@ def _to_float(value: object) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _bounded(value: float) -> float:
+    return max(0.0, min(float(value), 1.0))

@@ -10,5 +10,14 @@ venv/
 evaluation-immobiliere/runtime_sessions/
 evaluation-immobiliere/runtime_api_*.log
 
+# Local draft real-estate pilot dossiers before strict anonymization validation
+evaluation-immobiliere/tests/fixtures/draft_dossier_reel_*.json
+
+# Local real pilot runtime outputs
+evaluation-immobiliere/runtime_pilotes_reels/
+
+# Local evaluator handoff packages
+evaluation-immobiliere/paquets_evaluateurs/
+
 # macOS
 .DS_Store
