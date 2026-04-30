@@ -573,8 +573,8 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self._send_cors_headers()
         self.end_headers()
-        self.wfile.write(encoded)
         self._write_access_audit(status)
+        self.wfile.write(encoded)
 
     def _send_file(self, path: Path, content_type: str) -> None:
         if not path.exists():
@@ -586,8 +586,8 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self._send_cors_headers()
         self.end_headers()
-        self.wfile.write(encoded)
         self._write_access_audit(200)
+        self.wfile.write(encoded)
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
