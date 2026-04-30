@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 OUTILS_DIR = Path(__file__).resolve().parents[1] / "outils"
@@ -11,7 +12,15 @@ if str(OUTILS_DIR) not in sys.path:
     sys.path.insert(0, str(OUTILS_DIR))
 
 from auditer_anonymisation_v0 import build_anonymization_audit
-from executer_pre_reponses_v0 import build_pre_response_steps, run_steps
+from executer_pre_reponses_v0 import (
+    PreResponseLockError,
+    acquire_lock,
+    execute_pre_response_chain,
+    read_lock,
+    release_lock,
+    run_steps,
+    build_pre_response_steps,
+)
 from generer_file_revue_humaine_v0 import build_review_queue
 from generer_knowledge_snapshot_v0 import build_knowledge_snapshot
 from generer_manifest_runtime_v0 import build_markdown as build_manifest_markdown
@@ -199,6 +208,45 @@ class TestInfraPreReponsesV0(unittest.TestCase):
         self.assertEqual(report["steps"][0]["name"], "executer_dossiers_reels")
         self.assertEqual(report["steps"][-1]["name"], "valider_rapports_infra")
         self.assertIn("generer_knowledge_snapshot", [step["name"] for step in report["steps"]])
+
+    def test_pre_response_lock_blocks_concurrent_execution_and_releases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lock_path = Path(tmp) / "runtime" / "pre_reponses.lock"
+
+            lock = acquire_lock(lock_path, ttl_seconds=3600)
+            with self.assertRaises(PreResponseLockError):
+                acquire_lock(lock_path, ttl_seconds=3600)
+            release_lock(lock_path)
+
+        self.assertEqual(lock["status"], "RUNNING")
+        self.assertFalse(lock_path.exists())
+
+    def test_pre_response_lock_can_replace_stale_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lock_path = Path(tmp) / "pre_reponses.lock"
+            old_timestamp = (datetime.now(timezone.utc) - timedelta(hours=2)).replace(microsecond=0).isoformat()
+            lock_path.write_text(
+                json.dumps({"schema_version": "pre_reponses_lock_v0", "acquired_at_utc": old_timestamp}),
+                encoding="utf-8",
+            )
+
+            lock = acquire_lock(lock_path, ttl_seconds=60)
+            payload = read_lock(lock_path)
+
+        self.assertEqual(lock["status"], "RUNNING")
+        self.assertEqual(payload["status"], "RUNNING")
+
+    def test_pre_response_chain_dry_run_writes_report_without_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report_path = root / "pre_reponses_run.json"
+            lock_path = root / "pre_reponses.lock"
+
+            report = execute_pre_response_chain(report_out=report_path, dry_run=True, lock_file=lock_path)
+
+            self.assertTrue(report["ok"])
+            self.assertTrue(report_path.exists())
+            self.assertFalse(lock_path.exists())
 
     def test_runtime_registry_entry_captures_readiness_and_fingerprint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

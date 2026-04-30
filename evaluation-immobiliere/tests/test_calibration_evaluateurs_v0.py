@@ -16,9 +16,12 @@ from calibrer_reponses_evaluateurs_v0 import (
     build_backlog_markdown,
     build_calibration_report,
     build_markdown_report,
+    read_csv_rows,
     run_calibration,
     write_csv_template,
 )
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 def quality_report() -> dict:
@@ -104,6 +107,40 @@ class TestCalibrationEvaluateursV0(unittest.TestCase):
         self.assertEqual(report["summary"]["backlog_items"], 2)
         self.assertEqual(report["backlog"][0]["priority"], "P0")
         self.assertEqual(report["backlog"][1]["area"], "scoring_comparables")
+
+    def test_simulated_evaluator_fixture_compiles_status_blocking_and_scoring_backlog(self) -> None:
+        fixture_path = FIXTURES_DIR / "calibration_evaluateurs_simulee.csv"
+        report = build_calibration_report(
+            read_csv_rows(fixture_path),
+            {
+                "status_counts": {"BROUILLON": 1, "A_REVOIR": 1},
+                "cases": [
+                    {
+                        "dossier_id": "D-REEL-002",
+                        "status": "BROUILLON",
+                        "blocking_failures": [],
+                        "warnings": ["W001: confiance faible"],
+                        "artifacts": {"missing": []},
+                    },
+                    {
+                        "dossier_id": "D-REEL-003",
+                        "status": "A_REVOIR",
+                        "blocking_failures": ["CONF005: comparable hors fenetre temporelle"],
+                        "warnings": [],
+                        "artifacts": {"missing": []},
+                    },
+                ],
+            },
+            fixture_path,
+        )
+
+        self.assertEqual(report["status"], "CALIBRATION_COMPILEE")
+        self.assertEqual(report["responses_count"], 3)
+        self.assertEqual(report["summary"]["status_disagreements"], 1)
+        self.assertEqual(report["summary"]["backlog_items"], 2)
+        self.assertIn("P0", {item["priority"] for item in report["backlog"]})
+        self.assertIn("P2", {item["priority"] for item in report["backlog"]})
+        self.assertIn("scoring_comparables", {item["area"] for item in report["backlog"]})
 
     def test_invalid_response_is_marked_a_corriger(self) -> None:
         rows = [

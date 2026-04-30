@@ -15,6 +15,7 @@ FIXTURES_DIR = ROOT / "tests" / "fixtures"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 SESSIONS_DIR = ROOT / "runtime_sessions"
 UI_PATH = ROOT / "ui" / "pilote_api.html"
+OPS_UI_PATH = ROOT / "ui" / "ops_cockpit.html"
 OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
 OPS_JSON_REPORTS = {
     "readiness": "readiness_pre_reponses.json",
@@ -94,10 +95,11 @@ def list_fixtures() -> list[dict[str, object]]:
     return fixtures
 
 
-def load_ops_json(name: str, runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
+def load_ops_json(name: str, runtime_dir: Path | None = None) -> dict:
     filename = OPS_JSON_REPORTS.get(name)
     if not filename:
         raise KeyError(name)
+    runtime_dir = runtime_dir or OPS_RUNTIME_DIR
     path = runtime_dir / filename
     if not path.exists():
         return {"status": "ABSENT", "path": str(path)}
@@ -105,10 +107,11 @@ def load_ops_json(name: str, runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
     return payload if isinstance(payload, dict) else {"payload": payload}
 
 
-def load_ops_csv(name: str, runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
+def load_ops_csv(name: str, runtime_dir: Path | None = None) -> dict:
     filename = OPS_CSV_REPORTS.get(name)
     if not filename:
         raise KeyError(name)
+    runtime_dir = runtime_dir or OPS_RUNTIME_DIR
     path = runtime_dir / filename
     if not path.exists():
         return {"status": "ABSENT", "path": str(path), "rows": []}
@@ -117,7 +120,8 @@ def load_ops_csv(name: str, runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
     return {"status": "OK", "path": str(path), "rows_count": len(rows), "rows": rows}
 
 
-def ops_summary(runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
+def ops_summary(runtime_dir: Path | None = None) -> dict:
+    runtime_dir = runtime_dir or OPS_RUNTIME_DIR
     readiness = load_ops_json("readiness", runtime_dir)
     quality = load_ops_json("quality", runtime_dir)
     registry = load_ops_json("registry", runtime_dir)
@@ -136,11 +140,13 @@ def ops_summary(runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
 
 
 def run_pre_response_ops(dry_run: bool = False) -> dict:
-    from outils.executer_pre_reponses_v0 import build_pre_response_steps, run_steps, write_run_report
+    from outils.executer_pre_reponses_v0 import execute_pre_response_chain
 
-    report = run_steps(build_pre_response_steps(), cwd=ROOT.parent, dry_run=dry_run)
-    write_run_report(OPS_RUNTIME_DIR / "pre_reponses_run.json", report)
-    return report
+    return execute_pre_response_chain(
+        report_out=OPS_RUNTIME_DIR / "pre_reponses_run.json",
+        lock_file=OPS_RUNTIME_DIR / "pre_reponses.lock",
+        dry_run=dry_run,
+    )
 
 
 def start_runtime(body: dict) -> dict:
@@ -199,6 +205,9 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path in {"/", "/ui"}:
             self._send_file(UI_PATH, "text/html; charset=utf-8")
             return
+        if parsed.path in {"/ops/ui", "/ops/cockpit"}:
+            self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
+            return
         if parsed.path == "/health":
             self._send_json(200, {"status": "ok"})
             return
@@ -241,6 +250,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": str(exc)})
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
+        except RuntimeError as exc:
+            if exc.__class__.__name__ == "PreResponseLockError":
+                self._send_json(409, {"error": str(exc), "code": "PRE_RESPONSE_RUN_LOCKED"})
+                return
+            self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
         except Exception as exc:  # pragma: no cover - defensive API boundary
             self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
 

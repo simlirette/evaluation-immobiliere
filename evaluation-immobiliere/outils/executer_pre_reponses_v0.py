@@ -3,20 +3,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels")
 REPORT_DEFAULT = OUT_DIR_DEFAULT / "pre_reponses_run.json"
+LOCK_DEFAULT = OUT_DIR_DEFAULT / "pre_reponses.lock"
+LOCK_TTL_SECONDS_DEFAULT = 60 * 60
 
 
 @dataclass(frozen=True)
 class PreResponseStep:
     name: str
     script: Path
+
+
+class PreResponseLockError(RuntimeError):
+    pass
 
 
 def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreResponseStep]:
@@ -65,6 +73,96 @@ def run_steps(steps: list[PreResponseStep], *, cwd: Path, dry_run: bool = False)
     }
 
 
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def parse_iso_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def read_lock(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"invalid": True}
+    return payload if isinstance(payload, dict) else {"invalid": True}
+
+
+def lock_is_stale(payload: dict[str, object], ttl_seconds: int, *, now: datetime | None = None) -> bool:
+    if payload.get("invalid"):
+        return True
+    acquired = parse_iso_datetime(payload.get("acquired_at_utc"))
+    if acquired is None:
+        return True
+    active_now = now or utc_now()
+    return (active_now - acquired).total_seconds() > ttl_seconds
+
+
+def acquire_lock(path: Path, *, ttl_seconds: int = LOCK_TTL_SECONDS_DEFAULT, force: bool = False) -> dict[str, object]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        payload = read_lock(path)
+        if not force and not lock_is_stale(payload, ttl_seconds):
+            raise PreResponseLockError(f"Execution pre-reponses deja en cours: {path}")
+        path.unlink()
+
+    payload = {
+        "schema_version": "pre_reponses_lock_v0",
+        "status": "RUNNING",
+        "pid": os.getpid(),
+        "acquired_at_utc": utc_now().isoformat(),
+        "ttl_seconds": ttl_seconds,
+    }
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(str(path), flags)
+    except FileExistsError as exc:
+        raise PreResponseLockError(f"Execution pre-reponses deja en cours: {path}") from exc
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    return payload
+
+
+def release_lock(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def execute_pre_response_chain(
+    *,
+    report_out: Path = REPORT_DEFAULT,
+    dry_run: bool = False,
+    lock_file: Path = LOCK_DEFAULT,
+    lock_ttl_seconds: int = LOCK_TTL_SECONDS_DEFAULT,
+    force_lock: bool = False,
+) -> dict[str, object]:
+    locked = False
+    if not dry_run:
+        acquire_lock(lock_file, ttl_seconds=lock_ttl_seconds, force=force_lock)
+        locked = True
+    try:
+        report = run_steps(build_pre_response_steps(), cwd=PROJECT_ROOT.parent, dry_run=dry_run)
+        write_run_report(report_out, report)
+        return report
+    finally:
+        if locked:
+            release_lock(lock_file)
+
+
 def write_run_report(path: Path, report: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -74,10 +172,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Execute toute la chaine operationnelle pre-reponses.")
     parser.add_argument("--report-out", type=Path, default=REPORT_DEFAULT)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--lock-file", type=Path, default=LOCK_DEFAULT)
+    parser.add_argument("--lock-ttl-seconds", type=int, default=LOCK_TTL_SECONDS_DEFAULT)
+    parser.add_argument("--force-lock", action="store_true")
     args = parser.parse_args()
 
-    report = run_steps(build_pre_response_steps(), cwd=PROJECT_ROOT.parent, dry_run=args.dry_run)
-    write_run_report(args.report_out, report)
+    report = execute_pre_response_chain(
+        report_out=args.report_out,
+        dry_run=args.dry_run,
+        lock_file=args.lock_file,
+        lock_ttl_seconds=args.lock_ttl_seconds,
+        force_lock=args.force_lock,
+    )
     print(f"Rapport execution pre-reponses: {args.report_out}")
     print(f"OK: {report['ok']}")
     return 0 if report["ok"] else 1

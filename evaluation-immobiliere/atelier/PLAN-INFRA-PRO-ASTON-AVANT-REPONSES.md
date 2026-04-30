@@ -163,3 +163,49 @@ Livrables:
 
 - `outils/executer_pre_reponses_v0.py`
 - `pre_reponses_run.json`
+
+## Phase 27 - Cockpit UI ops
+
+Objectif:
+
+- Lire les endpoints ops depuis une page interne.
+- Visualiser readiness, risques, contrats infra et file humaine.
+
+Livrables:
+
+- `ui/ops_cockpit.html`
+- routes `/ops/ui` et `/ops/cockpit`
+
+## Phase 28 - Durcissement API ops
+
+Objectif:
+
+- Tester les endpoints HTTP reels et les erreurs de rapport absent/inconnu.
+
+Livrables:
+
+- tests HTTP sur `/ops`, `/ops/readiness`, `/ops/review_queue`,
+  `/ops/pre-response-run`.
+
+## Phase 29 - Verrou anti-concurrence
+
+Objectif:
+
+- Eviter deux executions pre-reponses simultanees.
+
+Livrables:
+
+- lock file `pre_reponses.lock`
+- expiration configurable
+- reponse API `409` si execution deja active
+
+## Phase 30 - Simulation calibration controlee
+
+Objectif:
+
+- Prouver le flux post-reponses avec des donnees fictives de test seulement.
+
+Livrables:
+
+- `tests/fixtures/calibration_evaluateurs_simulee.csv`
+- tests de backlog P0/P2 et de confirmation de blocage

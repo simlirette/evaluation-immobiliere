@@ -27,6 +27,20 @@ python evaluation-immobiliere/outils/executer_pre_reponses_v0.py
 - `RAPPORT-ANONYMISATION-V0.md`: `OK`
 - tests locaux: tous verts
 
+## Cockpit ops
+
+Demarrer l'API locale puis ouvrir:
+
+```bash
+python evaluation-immobiliere/outils/lancer_api_v0.py
+```
+
+URL:
+
+```text
+http://127.0.0.1:8787/ops/ui
+```
+
 ## Go / no-go
 
 Go:
