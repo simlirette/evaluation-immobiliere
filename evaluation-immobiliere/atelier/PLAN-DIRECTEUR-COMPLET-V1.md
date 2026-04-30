@@ -185,3 +185,17 @@ Format cible du sous-plan (à répliquer pour chaque phase):
 6. Risques + mitigation
 7. Critères de done
 8. Estimation charge/délai
+
+
+## 7) Condition de présentation immédiate à des bureaux d'évaluateurs
+
+**Réponse courte**: la fin des phases A -> L rend le produit potentiellement présentable à un niveau professionnel, **mais seulement si** les critères de validation métier et conformité sont réellement atteints.
+
+Checklist minimale avant présentation commerciale:
+- campagne terrain Phase H terminée avec critères d'acceptation signés;
+- homologation pré-production Phase J validée;
+- déploiement canary Phase K stable sur une période d'observation;
+- hypercare Phase L opérationnel (support, incidents, correction rapide);
+- dossier de conformité/sécurité disponible pour les clients.
+
+Sans ces preuves, le plan est complet sur papier mais la crédibilité "expert agentic" reste incomplète.
