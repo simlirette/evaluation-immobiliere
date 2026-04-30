@@ -17,6 +17,10 @@ EXCLUDED_NAMES = {
     "pre_reponses_run.json",
     "knowledge_snapshot.json",
     "KNOWLEDGE-SNAPSHOT-V0.md",
+    "runtime_registry.json",
+    "RUNTIME-REGISTRY-V0.md",
+    "infra_contracts_report.json",
+    "RAPPORT-CONTRATS-INFRA-V0.md",
 }
 TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".csv", ".txt", ".yaml", ".yml", ".log"}
 

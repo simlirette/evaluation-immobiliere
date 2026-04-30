@@ -39,6 +39,8 @@ jobs:
             evaluation-immobiliere/outils/auditer_anonymisation_v0.py \
             evaluation-immobiliere/outils/generer_knowledge_snapshot_v0.py \
             evaluation-immobiliere/outils/executer_pre_reponses_v0.py \
+            evaluation-immobiliere/outils/generer_registry_runtime_v0.py \
+            evaluation-immobiliere/outils/valider_rapports_infra_v0.py \
             evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py \
             evaluation-immobiliere/outils/preparer_ingestion_pdf_v0.py \
             evaluation-immobiliere/outils/preparer_durcissement_contrats_v0.py \
@@ -79,6 +81,12 @@ jobs:
 
       - name: Generate pilot runtime report
         run: python evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py
+
+      - name: Run pre-response infrastructure chain
+        run: python evaluation-immobiliere/outils/executer_pre_reponses_v0.py
+
+      - name: Validate infrastructure reports
+        run: python evaluation-immobiliere/outils/valider_rapports_infra_v0.py
 
       - name: Verify generated artifacts are committed
         run: |

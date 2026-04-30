@@ -3,6 +3,7 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+import csv
 import json
 import uuid
 
@@ -14,6 +15,20 @@ FIXTURES_DIR = ROOT / "tests" / "fixtures"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 SESSIONS_DIR = ROOT / "runtime_sessions"
 UI_PATH = ROOT / "ui" / "pilote_api.html"
+OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
+OPS_JSON_REPORTS = {
+    "readiness": "readiness_pre_reponses.json",
+    "quality": "quality_report.json",
+    "manifest": "runtime_manifest.json",
+    "knowledge": "knowledge_snapshot.json",
+    "registry": "runtime_registry.json",
+    "calibration": "calibration_evaluateurs.json",
+    "infra_contracts": "infra_contracts_report.json",
+    "anonymization": "anonymisation_audit.json",
+}
+OPS_CSV_REPORTS = {
+    "review_queue": "FILE-REVUE-HUMAINE-V0.csv",
+}
 
 
 def create_session(strict_mode: bool = True) -> dict:
@@ -79,6 +94,55 @@ def list_fixtures() -> list[dict[str, object]]:
     return fixtures
 
 
+def load_ops_json(name: str, runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
+    filename = OPS_JSON_REPORTS.get(name)
+    if not filename:
+        raise KeyError(name)
+    path = runtime_dir / filename
+    if not path.exists():
+        return {"status": "ABSENT", "path": str(path)}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {"payload": payload}
+
+
+def load_ops_csv(name: str, runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
+    filename = OPS_CSV_REPORTS.get(name)
+    if not filename:
+        raise KeyError(name)
+    path = runtime_dir / filename
+    if not path.exists():
+        return {"status": "ABSENT", "path": str(path), "rows": []}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        rows = [dict(row) for row in csv.DictReader(handle)]
+    return {"status": "OK", "path": str(path), "rows_count": len(rows), "rows": rows}
+
+
+def ops_summary(runtime_dir: Path = OPS_RUNTIME_DIR) -> dict:
+    readiness = load_ops_json("readiness", runtime_dir)
+    quality = load_ops_json("quality", runtime_dir)
+    registry = load_ops_json("registry", runtime_dir)
+    review_queue = load_ops_csv("review_queue", runtime_dir)
+    return {
+        "readiness_status": readiness.get("status", "ABSENT"),
+        "quality_cases_count": quality.get("cases_count", 0),
+        "runtime_fingerprint_sha256": readiness.get("runtime_fingerprint_sha256", ""),
+        "registry_runs_count": registry.get("runs_count", 0),
+        "review_queue_items": review_queue.get("rows_count", 0),
+        "reports": {
+            key: str(runtime_dir / filename)
+            for key, filename in {**OPS_JSON_REPORTS, **OPS_CSV_REPORTS}.items()
+        },
+    }
+
+
+def run_pre_response_ops(dry_run: bool = False) -> dict:
+    from outils.executer_pre_reponses_v0 import build_pre_response_steps, run_steps, write_run_report
+
+    report = run_steps(build_pre_response_steps(), cwd=ROOT.parent, dry_run=dry_run)
+    write_run_report(OPS_RUNTIME_DIR / "pre_reponses_run.json", report)
+    return report
+
+
 def start_runtime(body: dict) -> dict:
     session = None
     if body.get("session_id"):
@@ -141,6 +205,12 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/fixtures":
             self._send_json(200, {"fixtures": list_fixtures()})
             return
+        if parsed.path == "/ops":
+            self._send_json(200, ops_summary())
+            return
+        if parsed.path.startswith("/ops/"):
+            self._send_ops_report(parsed.path.removeprefix("/ops/"))
+            return
         if parsed.path == "/stream":
             self._stream_events(parse_qs(parsed.query).get("session_id", [None])[0])
             return
@@ -162,6 +232,9 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             if self.path == "/start":
                 self._send_json(200, start_runtime(body))
+                return
+            if self.path == "/ops/pre-response-run":
+                self._send_json(200, run_pre_response_ops(dry_run=bool(body.get("dry_run", False))))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:
@@ -201,6 +274,18 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
+
+    def _send_ops_report(self, name: str) -> None:
+        try:
+            if name in OPS_JSON_REPORTS:
+                self._send_json(200, load_ops_json(name))
+                return
+            if name in OPS_CSV_REPORTS:
+                self._send_json(200, load_ops_csv(name))
+                return
+        except KeyError:
+            pass
+        self._send_json(404, {"error": f"rapport ops inconnu: {name}"})
 
     def _stream_events(self, session_id: str | None) -> None:
         if not session_id:

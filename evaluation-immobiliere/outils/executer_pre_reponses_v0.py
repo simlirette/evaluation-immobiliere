@@ -33,6 +33,8 @@ def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreRespo
         PreResponseStep("generer_knowledge_snapshot", outils / "generer_knowledge_snapshot_v0.py"),
         PreResponseStep("generer_manifest_runtime_final", outils / "generer_manifest_runtime_v0.py"),
         PreResponseStep("verifier_readiness_pre_reponses", outils / "verifier_readiness_pre_reponses_v0.py"),
+        PreResponseStep("generer_registry_runtime", outils / "generer_registry_runtime_v0.py"),
+        PreResponseStep("valider_rapports_infra", outils / "valider_rapports_infra_v0.py"),
     ]
 
 

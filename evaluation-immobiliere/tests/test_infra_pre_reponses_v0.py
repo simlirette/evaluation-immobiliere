@@ -16,6 +16,8 @@ from generer_file_revue_humaine_v0 import build_review_queue
 from generer_knowledge_snapshot_v0 import build_knowledge_snapshot
 from generer_manifest_runtime_v0 import build_markdown as build_manifest_markdown
 from generer_manifest_runtime_v0 import build_runtime_manifest
+from generer_registry_runtime_v0 import append_registry_entry, build_registry_entry
+from valider_rapports_infra_v0 import build_infra_contract_report
 from verifier_readiness_pre_reponses_v0 import build_markdown as build_readiness_markdown
 from verifier_readiness_pre_reponses_v0 import build_readiness_report, package_status, run_readiness
 
@@ -195,8 +197,42 @@ class TestInfraPreReponsesV0(unittest.TestCase):
 
         self.assertTrue(report["ok"])
         self.assertEqual(report["steps"][0]["name"], "executer_dossiers_reels")
-        self.assertEqual(report["steps"][-1]["name"], "verifier_readiness_pre_reponses")
+        self.assertEqual(report["steps"][-1]["name"], "valider_rapports_infra")
         self.assertIn("generer_knowledge_snapshot", [step["name"] for step in report["steps"]])
+
+    def test_runtime_registry_entry_captures_readiness_and_fingerprint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_dir = Path(tmp) / "runtime"
+            runtime_dir.mkdir()
+            write_json(runtime_dir / "runtime_manifest.json", {"fingerprint_sha256": "abc"})
+            write_json(runtime_dir / "quality_report.json", {"cases_count": 2, "status_counts": {"BROUILLON": 2}, "totals": {"warnings": 1}})
+            write_json(runtime_dir / "calibration_evaluateurs.json", {"status": "PRET_A_RECEVOIR_REPONSES"})
+            write_json(runtime_dir / "readiness_pre_reponses.json", {"status": "PRET_A_RECEVOIR_REPONSES"})
+            write_json(runtime_dir / "pre_reponses_run.json", {"ok": True})
+
+            entry = build_registry_entry(runtime_dir, timestamp_utc="2026-04-28T00:00:00+00:00", commit_sha="commit")
+            registry = append_registry_entry(runtime_dir / "runtime_registry.json", entry)
+
+        self.assertEqual(entry["runtime_fingerprint_sha256"], "abc")
+        self.assertTrue(entry["pre_response_chain_ok"])
+        self.assertEqual(registry["runs_count"], 1)
+        self.assertEqual(registry["latest_run_id"], entry["run_id"])
+
+    def test_infra_contract_report_validates_required_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_dir = Path(tmp) / "runtime"
+            runtime_dir.mkdir()
+            write_json(runtime_dir / "quality_report.json", {"schema_version": "runtime_quality_report_v0", "cases_count": 1, "status_counts": {}, "totals": {}, "cases": []})
+            write_json(runtime_dir / "calibration_evaluateurs.json", {"schema_version": "calibration_evaluateurs_v0", "status": "PRET_A_RECEVOIR_REPONSES", "responses_count": 0, "cases": [], "backlog": []})
+            write_json(runtime_dir / "runtime_manifest.json", {"schema_version": "runtime_manifest_v0", "fingerprint_sha256": "abc", "files_count": 1, "artifacts": []})
+            write_json(runtime_dir / "readiness_pre_reponses.json", {"schema_version": "readiness_pre_reponses_v0", "status": "PRET_A_RECEVOIR_REPONSES", "checks": {}, "risks_to_calibrate": {}})
+            write_json(runtime_dir / "knowledge_snapshot.json", {"schema_version": "knowledge_snapshot_v0", "runtime_fingerprint_sha256": "abc", "cases_count": 1, "cases": []})
+            write_json(runtime_dir / "runtime_registry.json", {"schema_version": "runtime_registry_v0", "latest_run_id": "RUN", "runs_count": 1, "runs": []})
+
+            report = build_infra_contract_report(runtime_dir)
+
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["files_checked"], 6)
 
 
 if __name__ == "__main__":
