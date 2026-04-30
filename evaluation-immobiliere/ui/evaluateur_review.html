@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Revue evaluateur</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --text: #17212f;
+      --muted: #667084;
+      --line: #d8dee8;
+      --accent: #0f766e;
+      --accent-dark: #0b5f59;
+      --warn: #a15c00;
+      --bad: #b42318;
+      --ok: #087443;
+      --soft: #eef2f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      letter-spacing: 0;
+      line-height: 1.4;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 16px 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 420px minmax(0, 1fr);
+      gap: 12px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+    .panel { padding: 14px; }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    button, select, textarea, input {
+      font: inherit;
+      border-radius: 6px;
+    }
+    button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      padding: 0 12px;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+    button.primary:hover { background: var(--accent-dark); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    select, textarea, input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+    }
+    select, input {
+      min-height: 38px;
+      padding: 0 10px;
+    }
+    textarea {
+      min-height: 112px;
+      padding: 10px;
+      resize: vertical;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 700;
+    }
+    tr.selected { background: #e8f4f1; }
+    .queue {
+      max-height: calc(100vh - 180px);
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .full { grid-column: 1 / -1; }
+    .span2 { grid-column: span 2; }
+    .metric {
+      background: #fbfcfd;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 78px;
+    }
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .metric strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 18px;
+      overflow-wrap: anywhere;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .toolbar button { flex: 1 1 auto; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 0 9px;
+      background: var(--soft);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .muted { color: var(--muted); font-size: 13px; }
+    pre {
+      margin: 0;
+      max-height: 320px;
+      overflow: auto;
+      background: #111827;
+      color: #f9fafb;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin: 10px 0 5px;
+    }
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      .workspace { grid-template-columns: 1fr; }
+      .span2 { grid-column: 1 / -1; }
+      .queue { max-height: 380px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Revue evaluateur</h1>
+    <div class="muted" id="updated">Chargement...</div>
+  </header>
+  <main>
+    <section>
+      <div class="panel">
+        <div class="toolbar">
+          <button class="primary" id="refresh">Actualiser</button>
+          <button id="start">Ouvrir dossier</button>
+        </div>
+        <h2>File</h2>
+        <div class="muted" id="queueCount">-</div>
+      </div>
+      <div class="queue">
+        <table id="queueTable"></table>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="workspace">
+        <div class="metric">
+          <span>Session</span>
+          <strong id="session">-</strong>
+        </div>
+        <div class="metric">
+          <span>Dossier</span>
+          <strong id="dossier">-</strong>
+        </div>
+        <div class="metric">
+          <span>Statut</span>
+          <strong><span class="status" id="status">-</span></strong>
+        </div>
+        <div class="span2">
+          <h2>Artefacts</h2>
+          <table id="artifacts"></table>
+        </div>
+        <div>
+          <h2>Decision</h2>
+          <label for="decision">Statut</label>
+          <select id="decision">
+            <option value="PRET_REVUE">PRET_REVUE</option>
+            <option value="A_CORRIGER">A_CORRIGER</option>
+            <option value="VALIDE">VALIDE</option>
+            <option value="REJETE">REJETE</option>
+          </select>
+          <label for="reviewer">Relecteur</label>
+          <input id="reviewer" value="Evaluateur">
+          <label for="notes">Notes</label>
+          <textarea id="notes"></textarea>
+          <div class="toolbar">
+            <button class="primary" id="saveReview">Enregistrer</button>
+            <button id="resume">Reprise</button>
+          </div>
+        </div>
+        <div class="full">
+          <h2>Evenements</h2>
+          <pre id="events">{}</pre>
+        </div>
+        <div class="full">
+          <h2>Reponse</h2>
+          <pre id="raw">{}</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let queueRows = [];
+    let fixtures = [];
+    let selected = null;
+    let activeSession = null;
+    let stream = null;
+
+    async function json(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : {};
+      if (!response.ok) throw new Error(body.error || response.statusText);
+      return body;
+    }
+
+    function priorityClass(value) {
+      if (value === 'P1') return 'bad';
+      if (value === 'P2') return 'warn';
+      return '';
+    }
+
+    function renderQueue() {
+      $('queueCount').textContent = `${queueRows.length} items`;
+      $('queueTable').innerHTML = '<thead><tr><th>ID</th><th>P</th><th>Dossier</th><th>Type</th><th>Cible</th></tr></thead><tbody>' +
+        queueRows.map((row, index) => `<tr data-index="${index}" class="${selected === row ? 'selected' : ''}"><td>${row.id || '-'}</td><td class="${priorityClass(row.priority)}">${row.priority || '-'}</td><td>${row.dossier_id || '-'}</td><td>${row.item_type || '-'}</td><td>${row.target || '-'}</td></tr>`).join('') +
+        '</tbody>';
+      document.querySelectorAll('#queueTable tbody tr').forEach((tr) => {
+        tr.addEventListener('click', () => {
+          selected = queueRows[Number(tr.dataset.index)];
+          $('notes').value = `${selected.id} ${selected.question || ''}`.trim();
+          renderQueue();
+        });
+      });
+    }
+
+    function fixtureForSelected() {
+      if (!selected) return null;
+      return fixtures.find((fixture) => fixture.dossier_id === selected.dossier_id);
+    }
+
+    async function refresh() {
+      const [queue, fixtureData] = await Promise.all([json('/ops/review_queue'), json('/fixtures')]);
+      queueRows = queue.rows || [];
+      fixtures = fixtureData.fixtures || [];
+      if (!selected && queueRows.length) selected = queueRows[0];
+      renderQueue();
+      $('updated').textContent = `Derniere actualisation: ${new Date().toLocaleString()}`;
+    }
+
+    async function openSelected() {
+      const fixture = fixtureForSelected();
+      if (!fixture) throw new Error('Fixture introuvable pour le dossier selectionne');
+      const payload = await json('/start', {
+        method: 'POST',
+        body: JSON.stringify({ fixture: fixture.name, strict_mode: true })
+      });
+      activeSession = payload.session;
+      $('session').textContent = activeSession.session_id;
+      $('dossier').textContent = payload.result.dossier_id;
+      $('status').textContent = payload.result.status;
+      $('raw').textContent = JSON.stringify(payload, null, 2);
+      await loadArtifacts();
+      openStream();
+    }
+
+    async function loadArtifacts() {
+      if (!activeSession) return;
+      const payload = await json(`/artifacts?session_id=${activeSession.session_id}`);
+      const rows = (payload.artifacts || []).slice(0, 32);
+      $('artifacts').innerHTML = '<thead><tr><th>Step</th><th>Artefact</th><th>Bytes</th><th>SHA-256</th></tr></thead><tbody>' +
+        rows.map((row) => `<tr><td>${row.step || '-'}</td><td>${row.artifact || '-'}</td><td>${row.bytes || 0}</td><td>${String(row.sha256 || '').slice(0, 12)}</td></tr>`).join('') +
+        '</tbody>';
+    }
+
+    function openStream() {
+      if (!activeSession) return;
+      if (stream) stream.close();
+      const events = [];
+      stream = new EventSource(activeSession.events_url);
+      ['step_start', 'artifact_written', 'step_done', 'warning_detected', 'blocking_detected', 'contract_invalid'].forEach((name) => {
+        stream.addEventListener(name, (event) => {
+          events.push({ event: name, data: JSON.parse(event.data) });
+          $('events').textContent = JSON.stringify(events.slice(-80), null, 2);
+        });
+      });
+    }
+
+    async function saveReview() {
+      if (!activeSession) throw new Error('Aucune session active');
+      const payload = await json('/review', {
+        method: 'POST',
+        body: JSON.stringify({
+          session_id: activeSession.session_id,
+          decision: $('decision').value,
+          reviewer: $('reviewer').value,
+          notes: $('notes').value
+        })
+      });
+      $('raw').textContent = JSON.stringify(payload, null, 2);
+    }
+
+    async function resume() {
+      if (!activeSession) throw new Error('Aucune session active');
+      const payload = await json('/resume', {
+        method: 'POST',
+        body: JSON.stringify({ session_id: activeSession.session_id })
+      });
+      $('raw').textContent = JSON.stringify(payload, null, 2);
+    }
+
+    $('refresh').addEventListener('click', () => refresh().catch((error) => $('raw').textContent = error.message));
+    $('start').addEventListener('click', () => openSelected().catch((error) => $('raw').textContent = error.message));
+    $('saveReview').addEventListener('click', () => saveReview().catch((error) => $('raw').textContent = error.message));
+    $('resume').addEventListener('click', () => resume().catch((error) => $('raw').textContent = error.message));
+
+    refresh().catch((error) => $('raw').textContent = error.message);
+  </script>
+</body>
+</html>

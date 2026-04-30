@@ -4,7 +4,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 import csv
+from datetime import datetime, timezone
+import hashlib
 import json
+import os
 import uuid
 
 from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml, safe_path_id
@@ -16,6 +19,7 @@ PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 SESSIONS_DIR = ROOT / "runtime_sessions"
 UI_PATH = ROOT / "ui" / "pilote_api.html"
 OPS_UI_PATH = ROOT / "ui" / "ops_cockpit.html"
+EVALUATOR_UI_PATH = ROOT / "ui" / "evaluateur_review.html"
 OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
 OPS_JSON_REPORTS = {
     "readiness": "readiness_pre_reponses.json",
@@ -35,18 +39,31 @@ OPS_JSON_REPORTS = {
 OPS_CSV_REPORTS = {
     "review_queue": "FILE-REVUE-HUMAINE-V0.csv",
 }
+ACCESS_AUDIT_FILENAME = "access_audit.jsonl"
+ROLE_PERMISSIONS = {
+    "evaluator": {"runtime_read", "runtime_write", "review_write"},
+    "ops": {"runtime_read", "ops_read", "ops_write"},
+    "supervisor": {"runtime_read", "runtime_write", "review_write", "ops_read", "ops_write"},
+}
 
 
 def create_session(strict_mode: bool = True) -> dict:
     session_id = uuid.uuid4().hex[:12]
+    run_id = f"run_{utc_now_compact()}_{session_id}"
     session_dir = SESSIONS_DIR / session_id
     session_dir.mkdir(parents=True, exist_ok=False)
     session = {
+        "schema_version": "runtime_session_v1",
         "session_id": session_id,
+        "run_id": run_id,
         "strict_mode": strict_mode,
         "status": "CREATED",
+        "created_at_utc": utc_now_iso(),
+        "updated_at_utc": utc_now_iso(),
         "session_dir": str(session_dir),
         "events_url": f"/stream?session_id={session_id}",
+        "status_url": f"/status?session_id={session_id}",
+        "artifacts_url": f"/artifacts?session_id={session_id}",
     }
     write_json(session_dir / "session.json", session)
     return session
@@ -60,7 +77,16 @@ def load_session(session_id: str) -> dict | None:
 
 
 def save_session(session: dict) -> None:
+    session["updated_at_utc"] = utc_now_iso()
     write_json(Path(session["session_dir"]) / "session.json", session)
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def utc_now_compact() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def load_case_from_body(body: dict) -> tuple[dict, str]:
@@ -191,8 +217,18 @@ def start_runtime(body: dict) -> dict:
 
     result_path = session_dir / "result.json"
     events_path = session_dir / "events.jsonl"
+    artifact_index_path = session_dir / "artifact_index.json"
+    knowledge_snapshot_path = session_dir / "knowledge_snapshot.json"
+
+    enriched_events = enrich_events(result["events"], session)
+    result["events"] = enriched_events
+    artifact_index = build_artifact_index(enriched_events)
+    knowledge_snapshot = build_knowledge_snapshot(session, result, artifact_index)
+
     write_json(result_path, result)
-    events_path.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in result["events"]), encoding="utf-8")
+    events_path.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in enriched_events), encoding="utf-8")
+    write_json(artifact_index_path, artifact_index)
+    write_json(knowledge_snapshot_path, knowledge_snapshot)
 
     session.update(
         {
@@ -201,10 +237,207 @@ def start_runtime(body: dict) -> dict:
             "result_path": str(result_path),
             "events_path": str(events_path),
             "artifact_dir": result["artifact_dir"],
+            "artifact_index_path": str(artifact_index_path),
+            "knowledge_snapshot_path": str(knowledge_snapshot_path),
         }
     )
     save_session(session)
     return {"session": session, "result": result}
+
+
+def enrich_events(events: list[dict], session: dict) -> list[dict]:
+    enriched: list[dict] = []
+    session_id = str(session["session_id"])
+    run_id = str(session["run_id"])
+    for sequence, event in enumerate(events, start=1):
+        item = dict(event)
+        item["event_id"] = item.get("event_id") or f"{run_id}_{sequence:04d}"
+        item["sequence"] = sequence
+        item["session_id"] = session_id
+        item["run_id"] = run_id
+        item.setdefault("step", "session")
+        item.setdefault("artifact", "")
+        if item.get("path"):
+            item.setdefault("artifact_path", item["path"])
+        enriched.append(item)
+    return enriched
+
+
+def build_artifact_index(events: list[dict]) -> dict:
+    artifacts: list[dict] = []
+    for event in events:
+        if event.get("event") != "artifact_written":
+            continue
+        artifact_path = Path(str(event.get("artifact_path") or event.get("path") or ""))
+        record = {
+            "event_id": event.get("event_id", ""),
+            "step": event.get("step", ""),
+            "artifact": event.get("artifact", ""),
+            "path": artifact_path.as_posix(),
+            "exists": artifact_path.exists(),
+            "bytes": artifact_path.stat().st_size if artifact_path.exists() else 0,
+            "sha256": sha256_file(artifact_path) if artifact_path.exists() else "",
+        }
+        artifacts.append(record)
+    return {
+        "schema_version": "artifact_index_v1",
+        "artifacts_count": len(artifacts),
+        "artifacts": artifacts,
+    }
+
+
+def build_knowledge_snapshot(session: dict, result: dict, artifact_index: dict) -> dict:
+    return {
+        "schema_version": "session_knowledge_snapshot_v1",
+        "session_id": session["session_id"],
+        "run_id": session["run_id"],
+        "dossier_id": result.get("dossier_id", ""),
+        "status": result.get("status", "UNKNOWN"),
+        "blocking_failures": result.get("blocking_failures", []),
+        "warnings": result.get("warnings", []),
+        "events_count": len(result.get("events", [])),
+        "artifacts_count": artifact_index.get("artifacts_count", 0),
+        "latest_event_id": result.get("events", [{}])[-1].get("event_id", "") if result.get("events") else "",
+    }
+
+
+def session_status(session_id: str) -> dict:
+    session = require_session(session_id)
+    validation = validate_session_integrity(session)
+    return {"session": session, "integrity": validation}
+
+
+def session_artifacts(session_id: str) -> dict:
+    session = require_session(session_id)
+    artifact_index_path = session.get("artifact_index_path")
+    if not artifact_index_path:
+        return {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
+    path = Path(str(artifact_index_path))
+    if not path.exists():
+        return {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_review(body: dict) -> dict:
+    session = require_session(str(body.get("session_id", "")))
+    review = {
+        "schema_version": "session_review_v1",
+        "session_id": session["session_id"],
+        "run_id": session["run_id"],
+        "decision": body.get("decision", "PENDING"),
+        "reviewer": body.get("reviewer", ""),
+        "notes": body.get("notes", ""),
+        "created_at_utc": utc_now_iso(),
+    }
+    review_path = Path(session["session_dir"]) / "review.json"
+    write_json(review_path, review)
+    session["review_path"] = str(review_path)
+    session["review_decision"] = review["decision"]
+    save_session(session)
+    return {"session": session, "review": review}
+
+
+def resume_session(session_id: str) -> dict:
+    session = require_session(session_id)
+    validation = validate_session_integrity(session)
+    resume = {
+        "schema_version": "session_resume_v1",
+        "session_id": session["session_id"],
+        "run_id": session["run_id"],
+        "status": "RESUME_READY" if validation["ok"] else "RESUME_BLOCKED",
+        "integrity": validation,
+        "resumed_at_utc": utc_now_iso(),
+    }
+    resume_path = Path(session["session_dir"]) / "resume.json"
+    write_json(resume_path, resume)
+    session["resume_path"] = str(resume_path)
+    session["resume_status"] = resume["status"]
+    save_session(session)
+    return {"session": session, "resume": resume}
+
+
+def validate_session_integrity(session: dict) -> dict:
+    errors: list[str] = []
+    events = load_jsonl(Path(session.get("events_path", "")))
+    event_ids: set[str] = set()
+    artifact_events = 0
+
+    if not events:
+        errors.append("events_missing")
+
+    for event in events:
+        for field in ("event_id", "session_id", "run_id", "sequence", "event"):
+            if not event.get(field):
+                errors.append(f"event_missing_{field}")
+        if event.get("session_id") != session.get("session_id"):
+            errors.append(f"event_session_mismatch:{event.get('event_id', '')}")
+        if event.get("run_id") != session.get("run_id"):
+            errors.append(f"event_run_mismatch:{event.get('event_id', '')}")
+        event_id = str(event.get("event_id", ""))
+        if event_id in event_ids:
+            errors.append(f"event_duplicate:{event_id}")
+        event_ids.add(event_id)
+        if event.get("event") == "artifact_written":
+            artifact_events += 1
+            artifact_path = Path(str(event.get("artifact_path") or event.get("path") or ""))
+            if not artifact_path.exists():
+                errors.append(f"artifact_missing:{artifact_path.as_posix()}")
+
+    artifact_index = session_artifacts(str(session["session_id"])) if session.get("artifact_index_path") else {}
+    indexed_artifacts = artifact_index.get("artifacts", []) if isinstance(artifact_index, dict) else []
+    for artifact in indexed_artifacts:
+        if artifact.get("event_id") not in event_ids:
+            errors.append(f"artifact_event_missing:{artifact.get('path', '')}")
+        if not artifact.get("exists"):
+            errors.append(f"artifact_index_missing:{artifact.get('path', '')}")
+
+    return {
+        "ok": not errors,
+        "errors": sorted(set(errors)),
+        "events_count": len(events),
+        "artifact_events_count": artifact_events,
+        "indexed_artifacts_count": len(indexed_artifacts),
+    }
+
+
+def require_session(session_id: str) -> dict:
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(session_id)
+    if session is None:
+        raise ValueError(f"session introuvable: {session_id}")
+    return session
+
+
+def load_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    items: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            items.append(json.loads(line))
+    return items
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def access_audit_path() -> Path:
+    return SESSIONS_DIR / ACCESS_AUDIT_FILENAME
+
+
+def append_access_audit(entry: dict) -> None:
+    path = access_audit_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = dict(entry)
+    record["timestamp_utc"] = utc_now_iso()
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -216,6 +449,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
     server_version = "EvaluationImmobiliereRuntime/0.1"
 
     def do_GET(self) -> None:
+        try:
+            self._handle_get()
+        except FileNotFoundError as exc:
+            self._send_json(404, {"error": str(exc)})
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except Exception as exc:  # pragma: no cover - defensive API boundary
+            self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+    def _handle_get(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path in {"/", "/ui"}:
             self._send_file(UI_PATH, "text/html; charset=utf-8")
@@ -223,19 +466,45 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path in {"/ops/ui", "/ops/cockpit"}:
             self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
             return
+        if parsed.path in {"/review/ui", "/evaluateur", "/evaluateur/revue"}:
+            self._send_file(EVALUATOR_UI_PATH, "text/html; charset=utf-8")
+            return
         if parsed.path == "/health":
             self._send_json(200, {"status": "ok"})
             return
         if parsed.path == "/fixtures":
+            if not self._require_permission("runtime_read"):
+                return
             self._send_json(200, {"fixtures": list_fixtures()})
             return
+        if parsed.path == "/session":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, require_session(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/status":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, session_status(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/artifacts":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, session_artifacts(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
         if parsed.path == "/ops":
+            if not self._require_permission("ops_read"):
+                return
             self._send_json(200, ops_summary())
             return
         if parsed.path.startswith("/ops/"):
+            if not self._require_permission("ops_read"):
+                return
             self._send_ops_report(parsed.path.removeprefix("/ops/"))
             return
         if parsed.path == "/stream":
+            if not self._require_permission("runtime_read"):
+                return
             self._stream_events(parse_qs(parsed.query).get("session_id", [None])[0])
             return
         self._send_json(404, {"error": "route introuvable"})
@@ -244,20 +513,37 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self._send_cors_headers()
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Runtime-Role")
         self.end_headers()
+        self._write_access_audit(204)
 
     def do_POST(self) -> None:
         try:
             body = self._read_json_body()
             if self.path == "/session":
+                if not self._require_permission("runtime_write"):
+                    return
                 session = create_session(strict_mode=bool(body.get("strict_mode", True)))
                 self._send_json(201, session)
                 return
             if self.path == "/start":
+                if not self._require_permission("runtime_write"):
+                    return
                 self._send_json(200, start_runtime(body))
                 return
+            if self.path == "/resume":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, resume_session(str(body.get("session_id", ""))))
+                return
+            if self.path == "/review":
+                if not self._require_permission("review_write"):
+                    return
+                self._send_json(200, save_review(body))
+                return
             if self.path == "/ops/pre-response-run":
+                if not self._require_permission("ops_write"):
+                    return
                 self._send_json(200, run_pre_response_ops(dry_run=bool(body.get("dry_run", False))))
                 return
             self._send_json(404, {"error": "route introuvable"})
@@ -288,6 +574,7 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
         self.wfile.write(encoded)
+        self._write_access_audit(status)
 
     def _send_file(self, path: Path, content_type: str) -> None:
         if not path.exists():
@@ -300,9 +587,57 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
         self.wfile.write(encoded)
+        self._write_access_audit(200)
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
+
+    def _auth_context(self) -> dict[str, object]:
+        expected = os.environ.get("EVAL_RUNTIME_API_TOKEN", "")
+        role = self.headers.get("X-Runtime-Role", "local_dev").strip() or "local_dev"
+        if not expected:
+            return {"enabled": False, "authorized": True, "role": "local_dev", "reason": "auth_disabled"}
+
+        auth_header = self.headers.get("Authorization", "")
+        token = self.headers.get("X-API-Key", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header.removeprefix("Bearer ").strip()
+
+        if not token:
+            return {"enabled": True, "authorized": False, "role": role, "reason": "token_missing"}
+        if token != expected:
+            return {"enabled": True, "authorized": False, "role": role, "reason": "token_invalid"}
+        if role not in ROLE_PERMISSIONS:
+            return {"enabled": True, "authorized": False, "role": role, "reason": "role_invalid"}
+        return {"enabled": True, "authorized": True, "role": role, "reason": "ok"}
+
+    def _require_permission(self, permission: str) -> bool:
+        context = self._auth_context()
+        if not context["authorized"]:
+            self._send_json(401, {"error": "authentification requise", "code": context["reason"]})
+            return False
+        if not context["enabled"]:
+            return True
+
+        role = str(context["role"])
+        if permission not in ROLE_PERMISSIONS.get(role, set()):
+            self._send_json(403, {"error": "permission refusee", "code": "RBAC_FORBIDDEN", "role": role, "permission": permission})
+            return False
+        return True
+
+    def _write_access_audit(self, status: int) -> None:
+        context = self._auth_context()
+        append_access_audit(
+            {
+                "method": self.command,
+                "path": self.path.split("?", 1)[0],
+                "status": status,
+                "auth_enabled": bool(context["enabled"]),
+                "role": context["role"],
+                "reason": context["reason"],
+                "client": self.client_address[0] if self.client_address else "",
+            }
+        )
 
     def _send_ops_report(self, name: str) -> None:
         try:
