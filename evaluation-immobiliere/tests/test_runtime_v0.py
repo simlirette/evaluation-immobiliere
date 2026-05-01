@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import sys
-import tempfile
+import shutil
 import unittest
+import uuid
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +12,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from engine.runtime import RuntimeEngine, RuntimeStep, PipelineValidationError, validate_contract_rules, validate_pipeline_steps
 import engine.runtime as runtime_module
+
+
+def writable_tmp_dir(prefix: str) -> Path:
+    root = Path.cwd() / ".test-tmp" / f"{prefix}_{uuid.uuid4().hex}"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 class TestRuntimeV0(unittest.TestCase):
@@ -26,12 +33,15 @@ class TestRuntimeV0(unittest.TestCase):
             "ajustements": [{"ajustement_id": "A1", "montant": 10000, "source_id": "SRC-1", "validation_humaine": True}],
             "confidence": 0.85,
         }
-        with tempfile.TemporaryDirectory() as tmp:
-            result = RuntimeEngine().run_case_data(case, Path(tmp), case_subdir=True)
+        root = writable_tmp_dir("runtime_case")
+        try:
+            result = RuntimeEngine().run_case_data(case, root, case_subdir=True)
             self.assertEqual(result["status"], "PRET_REVISION_FINALE")
             self.assertTrue(Path(result["artifact_dir"]).exists())
             self.assertGreaterEqual(result["metrics"]["wall_clock_seconds"], 0)
             self.assertIn("artifact_written", {event["event"] for event in result["events"]})
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
     def test_run_case_data_blocks_on_contract_failure(self) -> None:
         case = {
@@ -41,12 +51,15 @@ class TestRuntimeV0(unittest.TestCase):
             "ajustements": [],
             "confidence": 0.9,
         }
-        with tempfile.TemporaryDirectory() as tmp:
-            result = RuntimeEngine().run_case_data(case, Path(tmp), case_subdir=True)
+        root = writable_tmp_dir("runtime_contract")
+        try:
+            result = RuntimeEngine().run_case_data(case, root, case_subdir=True)
             self.assertEqual(result["status"], "A_REVOIR")
             self.assertTrue(any("CONF002" in failure for failure in result["blocking_failures"]))
             events = [event["event"] for event in result["events"]]
             self.assertIn("contract_invalid", events)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
     def test_validate_contract_rules_detects_temporal_window_violation(self) -> None:
         payload = {
@@ -109,10 +122,13 @@ class TestRuntimeV0(unittest.TestCase):
             "ajustements": [],
             "confidence": 0.9,
         }
-        with tempfile.TemporaryDirectory() as tmp:
-            result = RuntimeEngine().run_case_data(case, Path(tmp), case_subdir=True)
+        root = writable_tmp_dir("runtime_valuation")
+        try:
+            result = RuntimeEngine().run_case_data(case, root, case_subdir=True)
             self.assertEqual(result["status"], "A_REVOIR")
             self.assertTrue(any("CONF007" in failure for failure in result["blocking_failures"]))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
     def test_compute_qa_uses_contract_thresholds_for_distance_and_confidence(self) -> None:
         original = runtime_module._CONTRACT_TREE_CACHE

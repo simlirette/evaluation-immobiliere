@@ -32,6 +32,11 @@ jobs:
             evaluation-immobiliere/outils/demo_api_v0.py \
             evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py \
             evaluation-immobiliere/outils/analyser_qualite_runtime_v0.py \
+            evaluation-immobiliere/outils/generer_bench_perf_cout_v0.py \
+            evaluation-immobiliere/outils/generer_livrables_cicd_v0.py \
+            evaluation-immobiliere/outils/generer_livrables_preprod_v0.py \
+            evaluation-immobiliere/outils/generer_livrables_deploiement_v0.py \
+            evaluation-immobiliere/outils/generer_livrables_hypercare_v0.py \
             evaluation-immobiliere/outils/calibrer_reponses_evaluateurs_v0.py \
             evaluation-immobiliere/outils/generer_manifest_runtime_v0.py \
             evaluation-immobiliere/outils/verifier_readiness_pre_reponses_v0.py \

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 import sys
-import tempfile
 import unittest
+import uuid
 from pathlib import Path
 
 OUTILS_DIR = Path(__file__).resolve().parents[1] / "outils"
@@ -29,6 +30,12 @@ def write_csv(path: Path, header: list[str], rows: list[list[str]] | None = None
         writer.writerows(rows or [])
 
 
+def writable_tmp_dir(prefix: str) -> Path:
+    root = Path.cwd() / ".test-tmp" / f"{prefix}_{uuid.uuid4().hex}"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 class TestOpsProfessionalGatesV0(unittest.TestCase):
     def test_schema_validator_reports_required_and_const_failures(self) -> None:
         failures = validate_schema(
@@ -40,8 +47,8 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
         self.assertIn("$.schema_version:CONST:expected", failures)
 
     def test_schema_validation_report_checks_target_file(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+        root = writable_tmp_dir("schema_gate")
+        try:
             runtime_dir = root / "runtime"
             schemas_dir = root / "schemas"
             write_json(runtime_dir / "report.json", {"schema_version": "sample_v0", "status": "OK"})
@@ -55,13 +62,15 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
                 schemas_dir,
                 [SchemaTarget("sample", "report.json", "sample.schema.json")],
             )
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
         self.assertEqual(report["status"], "OK")
         self.assertEqual(report["files_checked"], 1)
 
     def test_package_gate_accepts_ready_package(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+        root = writable_tmp_dir("package_ready")
+        try:
             runtime_dir = root / "runtime"
             package_dir = root / "package"
             atelier_dir = root / "atelier"
@@ -79,13 +88,15 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
             write_csv(atelier_dir / "CALIBRATION-EVALUATEURS-TEMPLATE.csv", calibration_header)
 
             report = build_paquet_gate_report(package_dir, runtime_dir, atelier_dir)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
         self.assertEqual(report["status"], "PRET_A_ENVOYER")
         self.assertEqual(report["issues"], [])
 
     def test_package_gate_rejects_sensitive_package_content(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+        root = writable_tmp_dir("package_sensitive")
+        try:
             runtime_dir = root / "runtime"
             package_dir = root / "package"
             atelier_dir = root / "atelier"
@@ -96,13 +107,15 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
                 (package_dir / filename).write_text("- Statut: **PRET_A_ENVOYER**\nC:\\Users\\simon\\secret\n", encoding="utf-8")
 
             report = build_paquet_gate_report(package_dir, runtime_dir, atelier_dir)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
         self.assertEqual(report["status"], "A_CORRIGER")
         self.assertIn("SENSITIVE_PATTERN", {item["code"] for item in report["issues"]})
 
     def test_ops_doctor_returns_ok_when_all_gates_are_ready(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            runtime_dir = Path(tmp)
+        runtime_dir = writable_tmp_dir("ops_doctor_ok")
+        try:
             write_json(runtime_dir / "readiness_pre_reponses.json", {"status": "PRET_A_RECEVOIR_REPONSES"})
             write_json(runtime_dir / "runtime_delta_report.json", {"status": "STABLE"})
             write_json(runtime_dir / "ops_handoff_manifest.json", {"status": "PRET_A_TRANSMETTRE"})
@@ -113,13 +126,15 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
             write_csv(runtime_dir / "FILE-REVUE-HUMAINE-V0.csv", ["id", "priority"])
 
             report = build_ops_doctor_report(runtime_dir)
+        finally:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
 
         self.assertEqual(report["status"], "OK")
         self.assertEqual(exit_code(report["status"]), 0)
 
     def test_ops_doctor_escalates_correction_failures(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            runtime_dir = Path(tmp)
+        runtime_dir = writable_tmp_dir("ops_doctor_fail")
+        try:
             write_json(runtime_dir / "readiness_pre_reponses.json", {"status": "PRET_A_RECEVOIR_REPONSES"})
             write_json(runtime_dir / "runtime_delta_report.json", {"status": "STABLE"})
             write_json(runtime_dir / "ops_handoff_manifest.json", {"status": "PRET_A_TRANSMETTRE"})
@@ -129,6 +144,8 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
             write_json(runtime_dir / "anonymisation_audit.json", {"status": "OK"})
 
             report = build_ops_doctor_report(runtime_dir)
+        finally:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
 
         self.assertEqual(report["status"], "A_CORRIGER")
         self.assertEqual(exit_code(report["status"]), 2)
