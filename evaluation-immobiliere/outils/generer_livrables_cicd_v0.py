@@ -9,7 +9,7 @@ ATELIER_DIR_DEFAULT = Path("evaluation-immobiliere/atelier")
 CI_OUT_DEFAULT = ATELIER_DIR_DEFAULT / "PIPELINE-CI-V1.md"
 CD_OUT_DEFAULT = ATELIER_DIR_DEFAULT / "PIPELINE-CD-V1.md"
 ROLLBACK_OUT_DEFAULT = ATELIER_DIR_DEFAULT / "RUNBOOK-ROLLBACK-V1.md"
-PHASE_H_STATUS_DEFAULT = "GO_PROD_PREPARATION"
+PHASE_H_STATUS_DEFAULT = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
 
 
 def read_text(path: Path) -> str:
@@ -31,6 +31,8 @@ def build_ci_markdown(workflow_path: Path, workflow_text: str, phase_h_status: s
         ("Integrite runtime", "analyser_integrite_runtime_v0.py", workflow_signal(workflow_text, "analyser_integrite_runtime_v0.py")),
         ("Chaine pre-reponses", "executer_pre_reponses_v0.py", workflow_signal(workflow_text, "executer_pre_reponses_v0.py")),
         ("Contrats infra", "valider_rapports_infra_v0.py", workflow_signal(workflow_text, "valider_rapports_infra_v0.py")),
+        ("Gate campagne terrain reelle", "verifier_campagne_terrain_reelle_v1.py", workflow_signal(workflow_text, "verifier_campagne_terrain_reelle_v1.py")),
+        ("Statut phases projet", "verifier_statut_phases_projet_v1.py", workflow_signal(workflow_text, "verifier_statut_phases_projet_v1.py")),
         ("Revues evaluateurs externes strictes", "verifier_revues_evaluateurs_externes_v1.py --strict", workflow_signal(workflow_text, "verifier_revues_evaluateurs_externes_v1.py")),
         ("Fermeture ecarts evaluateurs stricte", "verifier_fermeture_ecarts_evaluateurs_v1.py --strict", workflow_signal(workflow_text, "verifier_fermeture_ecarts_evaluateurs_v1.py")),
         ("Release candidate strict", "verifier_release_candidate_v1.py --strict", workflow_signal(workflow_text, "verifier_release_candidate_v1.py")),
@@ -49,7 +51,7 @@ def build_ci_markdown(workflow_path: Path, workflow_text: str, phase_h_status: s
         "",
         f"- Workflow source: `{workflow_path.as_posix()}`",
         f"- Statut Phase H: **{phase_h_status}**",
-        "- Decision Phase I: **GO_PREPARATION_PROD**; le go live reste soumis au dress rehearsal et au tag release-candidate.",
+        "- Decision Phase I: **GO_PREPARATION_STAGING**; le go live reel reste soumis au dress rehearsal, au tag release-candidate et au gate terrain Phase H.",
         "",
         "## Gates CI",
         "",

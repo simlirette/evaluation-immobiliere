@@ -7,6 +7,7 @@ Objectif: preparer le materiel a remettre aux evaluateurs sans saisir de reponse
 - Statut: **EN_ATTENTE_DOSSIERS_REELS**
 - Les phases 3, 4 et 5 sont outillees mais en attente des dossiers reels anonymises.
 - Le paquet peut deja etre genere en mode attente.
+- Aucune reponse evaluateur ne doit etre saisie pour rendre le paquet "pret".
 
 ## Outil ajoute
 
@@ -33,6 +34,8 @@ Ce repertoire est ignore par Git.
 
 ```bash
 python evaluation-immobiliere/outils/preparer_paquet_evaluateurs_v0.py
+python evaluation-immobiliere/outils/verifier_point_arret_reponses_v0.py
+python evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py --fixtures-dir <PHASE_H_REAL_CASES_DIR>
 ```
 
 ## Critere de sortie phase 6
@@ -43,3 +46,4 @@ python evaluation-immobiliere/outils/preparer_paquet_evaluateurs_v0.py
 - Les decisions de contrat phase 5 sont documentees.
 - Le CSV de reponses est pret a etre duplique par evaluateur.
 - Aucune reponse evaluateur n'est inventee ou pre-remplie.
+- Le gate Phase H retourne `PRET_A_RECEVOIR_REPONSES_TERRAIN`, pas seulement une readiness synthetique.

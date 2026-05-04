@@ -23,9 +23,13 @@ Tant que `CALIBRATION-EVALUATEURS.csv` ne contient aucune ligne active,
 le statut reste `PRET_A_RECEVOIR_REPONSES`. Aucune calibration ne doit etre
 inventee.
 
+Avant d'accepter des lignes actives, la Phase H reelle doit avoir franchi le
+point d'arret `PRET_A_RECEVOIR_REPONSES_TERRAIN` via
+`verifier_campagne_terrain_reelle_v1.py`. Les reponses ajoutees ensuite doivent
+provenir des evaluateurs et conserver un `respondant_id` anonymise.
+
 ## Commande
 
 ```bash
 python evaluation-immobiliere/outils/calibrer_reponses_evaluateurs_v0.py
 ```
-

@@ -6,7 +6,11 @@ import json
 import re
 from pathlib import Path
 
-ROOTS_DEFAULT = [Path("evaluation-immobiliere/tests/fixtures"), Path("evaluation-immobiliere/runtime_pilotes_reels")]
+ROOTS_DEFAULT = [
+    Path("evaluation-immobiliere/tests/fixtures"),
+    Path("evaluation-immobiliere/tests/fixtures_external"),
+    Path("evaluation-immobiliere/runtime_pilotes_reels"),
+]
 OUT_JSON_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/anonymisation_audit.json")
 OUT_MD_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/RAPPORT-ANONYMISATION-V0.md")
 TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".csv", ".txt", ".yaml", ".yml", ".log"}

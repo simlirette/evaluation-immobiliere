@@ -13,6 +13,7 @@ Objectif: arreter le travail juste avant la saisie des reponses evaluateurs, san
 
 ```bash
 python evaluation-immobiliere/outils/verifier_point_arret_reponses_v0.py --allow-waiting
+python evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py
 ```
 
 Le rapport local est ecrit dans:
@@ -46,3 +47,4 @@ python evaluation-immobiliere/outils/prioriser_mvp.py
 - Le rapport de validation est `PRET_A_RECEVOIR`.
 - Le paquet evaluateurs est documente.
 - Le projet attend explicitement les reponses externes.
+- La Phase H reelle est soit `EN_ATTENTE_ENTREES_TERRAIN_REELLES`, soit `PRET_A_RECEVOIR_REPONSES_TERRAIN`; aucun autre statut ne permet de saisir des reponses.

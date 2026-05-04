@@ -33,7 +33,11 @@ def read_text(path: Path) -> str:
 
 
 def contains_blocking_phase_h(acceptance_text: str) -> bool:
-    return "EN_ATTENTE_REPONSES_TERRAIN" in acceptance_text or "Signature metier | A_SIGNER" in acceptance_text
+    return (
+        "EN_ATTENTE_ENTREES_TERRAIN_REELLES" in acceptance_text
+        or "EN_ATTENTE_REPONSES_TERRAIN" in acceptance_text
+        or "Signature metier | A_SIGNER" in acceptance_text
+    )
 
 
 def contains_open_slo(slo_text: str) -> bool:

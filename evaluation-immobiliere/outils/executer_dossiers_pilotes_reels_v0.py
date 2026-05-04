@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml
+from outils.auditer_anonymisation_v0 import build_anonymization_audit, write_report as write_anonymization_audit
 from outils.generer_rapport_pilote_runtime_v0 import build_markdown
 from outils.analyser_qualite_runtime_v0 import generate_quality_report
 from outils.valider_contrats_runtime_v0 import validate_runtime_contracts
@@ -28,6 +29,8 @@ CONTRACTS_REPORT_PATH = OUT_DIR / "contracts_report.json"
 RUNTIME_REPORT_PATH = OUT_DIR / "RAPPORT-PILOTE-REEL-RUNTIME-V0.md"
 QUALITY_REPORT_JSON_PATH = OUT_DIR / "quality_report.json"
 QUALITY_REPORT_MD_PATH = OUT_DIR / "RAPPORT-QUALITE-RUNTIME-V0.md"
+ANONYMIZATION_AUDIT_JSON_PATH = OUT_DIR / "anonymisation_audit.json"
+ANONYMIZATION_AUDIT_MD_PATH = OUT_DIR / "RAPPORT-ANONYMISATION-V0.md"
 PRESERVED_OUTPUT_NAMES = {
     "ingestion_v0",
     "source_text",
@@ -78,6 +81,17 @@ def validate_cases(case_paths: list[Path]) -> list[FixtureValidation]:
 
 def has_errors(validations: list[FixtureValidation]) -> bool:
     return any(item.errors for item in validations)
+
+
+def write_anonymization_reports(fixtures_dir: Path, out_dir: Path) -> bool:
+    report = build_anonymization_audit([fixtures_dir])
+    write_anonymization_audit(
+        report,
+        out_dir / ANONYMIZATION_AUDIT_JSON_PATH.name,
+        out_dir / ANONYMIZATION_AUDIT_MD_PATH.name,
+    )
+    print(f"Audit anonymisation reels: {out_dir / ANONYMIZATION_AUDIT_JSON_PATH.name} | status={report.get('status')}")
+    return report.get("status") == "OK"
 
 
 def write_contract_report(runtime_dir: Path, report_path: Path) -> bool:
@@ -150,6 +164,10 @@ def main() -> None:
     print(f"Rapport validation reels: {out_dir / VALIDATION_REPORT_PATH.name}")
     if has_errors(validations):
         print("Validation stricte echouee: corriger les dossiers reels avant execution runtime.")
+        raise SystemExit(1)
+
+    if not write_anonymization_reports(args.fixtures_dir, out_dir):
+        print("Audit anonymisation echoue: corriger les dossiers reels avant execution runtime.")
         raise SystemExit(1)
 
     results = run_real_pilot_cases(case_paths, out_dir)

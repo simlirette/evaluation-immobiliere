@@ -5,8 +5,10 @@ _As-of date: 2026-05-04 (UTC)_
 ## Decision
 
 - Decision: **GO_PROD_PREPARATION**
+- Portee: **fixture homologation / preparation staging**
 - Ecarts fermes ou acceptes: **3/3**
 - Roles signes: **Lead Metier, Product, QA/Securite**
+- Go production reelle: **NON_AVANT_PHASE_H_REELLE**
 - Go live: **A_PLANIFIER_APRES_DRESS_REHEARSAL**
 
 ## Fermeture des ecarts
@@ -30,3 +32,4 @@ _As-of date: 2026-05-04 (UTC)_
 - Dress rehearsal staging rejoue sur le commit a promouvoir.
 - CI verte sur le commit exact.
 - Runbook rollback relu et lie au tag release-candidate.
+- Gate Phase H reelle alimente par dossiers anonymises et reponses evaluateurs non synthetiques.

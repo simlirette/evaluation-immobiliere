@@ -22,6 +22,7 @@ READY_STATUS = "PRET_REVISION_FINALE"
 DRAFT_STATUS = "BROUILLON"
 REVIEW_STATUS = "A_REVOIR"
 WAITING_FIELD_STATUS = "EN_ATTENTE_REPONSES_TERRAIN"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
 RUNTIME_OK_STATUS = "PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN"
 RUNTIME_FAIL_STATUS = "NO_GO_HOMOLOGATION_METIER"
 SIGNED_STATUS = "SIGNE"
@@ -455,6 +456,26 @@ def evaluate_release_candidate_snapshot(path: Path) -> dict[str, Any]:
     }
 
 
+def evaluate_phase_h_real_snapshot() -> dict[str, Any]:
+    try:
+        from verifier_campagne_terrain_reelle_v1 import build_phase_h_gate_report
+
+        report = build_phase_h_gate_report()
+    except Exception as exc:  # pragma: no cover - defensive for CLI diagnostics
+        return {
+            "status": "A_CONTROLER",
+            "decision": "A_CONTROLER",
+            "active_cases_count": 0,
+            "error": str(exc),
+        }
+    return {
+        "status": report.get("decision", "UNKNOWN"),
+        "decision": report.get("decision", "UNKNOWN"),
+        "active_cases_count": report.get("active_cases_count", 0),
+        "mode": report.get("mode", "UNKNOWN"),
+    }
+
+
 def validate_homologation_metier(
     runtime_dir: Path = RUNTIME_DIR_DEFAULT,
     *,
@@ -510,6 +531,7 @@ def validate_homologation_metier(
     errors.extend(closure_errors)
     warnings.extend(closure_warnings)
     release_candidate = evaluate_release_candidate_snapshot(release_candidate_report_path or runtime_dir / RELEASE_CANDIDATE_REPORT_NAME)
+    phase_h_real = evaluate_phase_h_real_snapshot()
 
     ok = not errors
     runtime_decision = RUNTIME_OK_STATUS if ok else RUNTIME_FAIL_STATUS
@@ -534,6 +556,8 @@ def validate_homologation_metier(
         "external_reviews": external,
         "gap_closure": gap_closure,
         "release_candidate": release_candidate,
+        "phase_h_real": phase_h_real,
+        "production_real_decision": "NO_GO_PROD_TERRAIN_REEL" if phase_h_real.get("decision") != "GO_METIER_SIGNE" else production_decision,
         "errors": errors,
         "warnings": warnings,
         "cases": cases,
@@ -545,6 +569,7 @@ def build_markdown(report: dict[str, Any]) -> str:
     gap_counts = as_dict(external.get("gap_counts_by_priority"))
     gap_closure = as_dict(report.get("gap_closure"))
     release_candidate = as_dict(report.get("release_candidate"))
+    phase_h_real = as_dict(report.get("phase_h_real"))
     lines = [
         "# Homologation Metier Evidence V1",
         "",
@@ -556,6 +581,7 @@ def build_markdown(report: dict[str, Any]) -> str:
         f"- Dossiers analyses: **{report.get('cases_count', 0)}**",
         f"- Dossiers pilotes: **{report.get('pilot_cases_count', 0)}**",
         f"- Revues terrain: **{external.get('status', 'UNKNOWN')}**",
+        f"- Gate Phase H reelle: **{phase_h_real.get('decision', 'UNKNOWN')}**",
         f"- Fermeture ecarts: **{gap_closure.get('status', 'UNKNOWN')}**",
         f"- Release candidate: **{release_candidate.get('status', 'UNKNOWN')}**",
         f"- Ecarts evaluateurs P1/P2: **{int(gap_counts.get('P1', 0) or 0) + int(gap_counts.get('P2', 0) or 0)}**",
@@ -613,6 +639,7 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
     gap_counts = as_dict(external.get("gap_counts_by_priority"))
     gap_closure = as_dict(report.get("gap_closure"))
     release_candidate = as_dict(report.get("release_candidate"))
+    phase_h_real = as_dict(report.get("phase_h_real"))
     status_counts = as_dict(report.get("status_counts"))
     p0_open = int(gap_counts.get("P0", 0) or 0)
     if not report.get("ok"):
@@ -624,7 +651,8 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         p1_open = external_p1_p2
     if p1_open == 0 and external_p1_p2 == 0:
         p1_open = len(as_list(report.get("warnings")))
-    go_production = "PREPARATION_AUTORISEE" if report.get("production_decision") == "GO_PROD_PREPARATION" else "NON"
+    preparation_synthetique = "PREPARATION_AUTORISEE" if report.get("production_decision") == "GO_PROD_PREPARATION" else "NON"
+    go_production = "NON" if phase_h_real.get("decision") != "GO_METIER_SIGNE" else preparation_synthetique
     go_live = release_candidate.get("go_live_status", "A_PREPARER")
     signed_roles = set(str(role) for role in as_list(gap_closure.get("signed_roles")))
     lines = [
@@ -638,13 +666,15 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         "## Decision",
         "",
         f"- Decision runtime metier: **{report.get('runtime_decision', 'UNKNOWN')}**",
-        f"- Decision Phase J: **{report.get('production_decision', 'UNKNOWN')}**",
-        f"- Revues terrain: **{external_status}**",
+        f"- Decision homologation synthetique: **{report.get('production_decision', 'UNKNOWN')}**",
+        f"- Gate Phase H reelle: **{phase_h_real.get('decision', WAITING_REAL_INPUTS_STATUS)}**",
+        f"- Revues evaluateurs fixture: **{external_status}**",
         f"- Fermeture ecarts: **{gap_closure.get('status', 'UNKNOWN')}**",
         f"- Release candidate: **{release_candidate.get('status', 'UNKNOWN')}**",
         f"- P0 ouverts: **{p0_open}**",
         f"- P1/P2 ouverts: **{p1_open}**",
-        f"- Go production: **{go_production}**",
+        f"- Preparation staging/synthetique: **{preparation_synthetique}**",
+        f"- Go production reelle: **{go_production}**",
         f"- Go live: **{go_live}**",
         "",
         "## Synthese Runtime",
@@ -657,8 +687,9 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         "",
         "## Conditions avant Go production",
         "",
-        "- Revues terrain signees par au moins deux evaluateurs agrees.",
-        "- Couverture de trois dossiers pilotes revue et acceptee.",
+        "- Dossiers reels anonymises valides par le gate Phase H reelle.",
+        "- Revues terrain reelles signees par au moins deux evaluateurs agrees.",
+        "- Couverture de trois dossiers reels/pilotes revue et acceptee.",
         "- Tous les ecarts P0 fermes, P1/P2 acceptes formellement ou fermes.",
         "- Dress rehearsal staging rejoue avec CI/CD et rollback.",
         "- Signature metier et Product obtenue.",
@@ -667,8 +698,8 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         "",
         "| Role | Owner | Statut | Commentaire |",
         "|---|---|---|---|",
-        f"| Lead Metier | A nommer | {'SIGNE' if 'Lead Metier' in signed_roles else 'A_SIGNER'} | {'Preparation prod approuvee' if 'Lead Metier' in signed_roles else 'Bloque par signature finale'} |",
-        f"| Product | A nommer | {'SIGNE' if 'Product' in signed_roles else 'A_SIGNER'} | {'Preparation prod approuvee' if 'Product' in signed_roles else 'Bloque par signature finale'} |",
+        f"| Lead Metier | A nommer | {'SIGNE' if 'Lead Metier' in signed_roles else 'A_SIGNER'} | {'Preparation staging approuvee; prod reelle bloquee par Phase H' if 'Lead Metier' in signed_roles else 'Bloque par signature finale'} |",
+        f"| Product | A nommer | {'SIGNE' if 'Product' in signed_roles else 'A_SIGNER'} | {'Preparation staging approuvee; prod reelle bloquee par Phase H' if 'Product' in signed_roles else 'Bloque par signature finale'} |",
         "| Platform | A nommer | A_SIGNER | Preprod preparable |",
         f"| QA/Securite | A nommer | {'SIGNE' if 'QA/Securite' in signed_roles else 'A_SIGNER'} | {'Controles finaux approuves' if 'QA/Securite' in signed_roles else 'Revue finale requise'} |",
     ]

@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 INPUT_DEFAULT = Path("evaluation-immobiliere/atelier/CALIBRATION-EVALUATEURS.csv")
+REAL_CASES_DIR_DEFAULT = Path("evaluation-immobiliere/tests/fixtures_external")
 QUALITY_REPORT_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/quality_report.json")
 OUT_JSON_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/calibration_evaluateurs.json")
 OUT_REPORT_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/RAPPORT-CALIBRATION-EVALUATEURS-V0.md")
@@ -16,6 +17,8 @@ ATELIER_DIR_DEFAULT = Path("evaluation-immobiliere/atelier")
 OUT_CAMPAIGN_REPORT_DEFAULT = ATELIER_DIR_DEFAULT / "RAPPORT-CAMPAGNE-TERRAIN-V1.md"
 OUT_GAP_MATRIX_DEFAULT = ATELIER_DIR_DEFAULT / "MATRICE-ECARTS-EVALUATEURS-V1.csv"
 OUT_ACCEPTANCE_DEFAULT = ATELIER_DIR_DEFAULT / "CRITERES-ACCEPTATION-METIER-V1.md"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
+WAITING_RESPONSES_STATUS = "EN_ATTENTE_REPONSES_TERRAIN"
 
 CALIBRATION_FIELDS = [
     "respondant_id",
@@ -116,6 +119,10 @@ def normalize_lower(value: object) -> str:
 
 def active_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return [row for row in rows if is_active_response(row)]
+
+
+def active_real_cases_count(real_cases_dir: Path = REAL_CASES_DIR_DEFAULT) -> int:
+    return len(list(real_cases_dir.glob("case_pilote_reel_*.json"))) if real_cases_dir.exists() else 0
 
 
 def is_active_response(row: dict[str, str]) -> bool:
@@ -529,11 +536,11 @@ def write_outputs(report: dict[str, object], json_out: Path, report_out: Path, b
     backlog_out.write_text(build_backlog_markdown(report), encoding="utf-8")
 
 
-def phase_h_status(report: dict[str, object]) -> str:
+def phase_h_status(report: dict[str, object], real_cases_dir: Path = REAL_CASES_DIR_DEFAULT) -> str:
     if report.get("status") == "A_CORRIGER":
         return "A_CORRIGER"
     if int(report.get("responses_count", 0)) == 0:
-        return "EN_ATTENTE_REPONSES_TERRAIN"
+        return WAITING_RESPONSES_STATUS if active_real_cases_count(real_cases_dir) else WAITING_REAL_INPUTS_STATUS
     backlog = report.get("backlog", []) if isinstance(report.get("backlog"), list) else []
     if any(isinstance(item, dict) and item.get("priority") == "P0" for item in backlog):
         return "NO_GO_METIER"
@@ -615,30 +622,34 @@ def build_campaign_markdown(report: dict[str, object]) -> str:
     lines = [
         "# RAPPORT CAMPAGNE TERRAIN V1",
         "",
-        "_As-of date: 2026-04-30 (UTC)_",
+        "_As-of date: 2026-05-04 (UTC)_",
         "",
         "## Objectif",
-        "Documenter la validation metier terrain des sorties IA et transformer les ecarts evaluateurs en decisions de calibration.",
+        "Documenter la campagne terrain reelle Phase H a partir de dossiers reels anonymises et de reponses evaluateurs recues, sans utiliser de reponses synthetiques.",
         "",
         "## Synthese",
         "",
         "| Indicateur | Valeur |",
         "|---|---:|",
         f"| Source calibration | `{report.get('input_path', '-')}` |",
-        f"| Statut Phase H | {status} |",
+        f"| Statut Phase H reelle | {status} |",
+        f"| Dossiers terrain actifs | {active_real_cases_count()} |",
         f"| Reponses actives | {report.get('responses_count', 0)} |",
         f"| Repondants uniques | {report.get('respondent_count', 0)} |",
         f"| Desaccords statut | {summary.get('status_disagreements', 0)} |",
         f"| Items backlog | {summary.get('backlog_items', 0)} |",
+        "| Gate de preuve | `verifier_campagne_terrain_reelle_v1.py` |",
         "",
     ]
-    if status == "EN_ATTENTE_REPONSES_TERRAIN":
+    if status in {WAITING_REAL_INPUTS_STATUS, WAITING_RESPONSES_STATUS}:
         lines.extend(
             [
                 "## Point d'arret",
                 "",
-                "- Aucune ligne active n'est presente dans le fichier de calibration evaluateur.",
+                "- Aucun dossier `case_pilote_reel_*.json` actif n'est versionne dans le repo.",
+                "- Aucun resultat evaluateur reel exploitable n'est present.",
                 "- La campagne terrain n'est pas closee et aucune conclusion metier ne doit etre inventee.",
+                "- Les revues synthetiques et fixtures externes existantes restent des preuves de preparation, pas des reponses terrain.",
                 "- Utiliser les questions runtime ci-dessous pour guider la collecte des reponses.",
                 "",
             ]
@@ -703,7 +714,7 @@ def build_campaign_markdown(report: dict[str, object]) -> str:
             f"Decision: **{status}**.",
             "",
             "Dependances Phase I:",
-            "- campagne terrain signee ou point d'arret explicite;",
+            "- campagne terrain reelle signee ou point d'arret explicite;",
             "- matrice d'ecarts exploitable;",
             "- criteres d'acceptation metier revus par Lead Metier + Product.",
         ]
@@ -718,10 +729,12 @@ def build_acceptance_markdown(report: dict[str, object]) -> str:
     cases = report.get("cases", []) if isinstance(report.get("cases"), list) else []
     cases_count = len([case for case in cases if isinstance(case, dict)])
     covered_cases = sum(1 for case in cases if isinstance(case, dict) and int(case.get("responses_count", 0)) > 0)
+    target_cases = max(cases_count, 3)
     p0_count = sum(1 for item in backlog if isinstance(item, dict) and item.get("priority") == "P0")
     criteria = [
+        ("Gate Phase H reelle", status, "PRET_A_RECEVOIR_REPONSES_TERRAIN", status == "PRET_A_RECEVOIR_REPONSES_TERRAIN"),
         ("Panel evaluateurs", int(report.get("respondent_count", 0)), ">= 2", int(report.get("respondent_count", 0)) >= 2),
-        ("Couverture dossiers", covered_cases, f">= {cases_count}", cases_count > 0 and covered_cases >= cases_count),
+        ("Couverture dossiers", covered_cases, f">= {target_cases}", covered_cases >= target_cases),
         ("Desaccords statut", int(summary.get("status_disagreements", 0)), "0", int(summary.get("status_disagreements", 0)) == 0),
         ("Backlog P0 metier", p0_count, "0", p0_count == 0),
         ("Saisie valide", report.get("status", "UNKNOWN"), "!= A_CORRIGER", report.get("status") != "A_CORRIGER"),
@@ -730,7 +743,7 @@ def build_acceptance_markdown(report: dict[str, object]) -> str:
     lines = [
         "# CRITERES ACCEPTATION METIER V1",
         "",
-        "_As-of date: 2026-04-30 (UTC)_",
+        "_As-of date: 2026-05-04 (UTC)_",
         "",
         "## Objectif",
         "Fixer les seuils de passage Phase H vers industrialisation CI/CD sans confondre preparation et validation terrain signee.",
@@ -752,6 +765,7 @@ def build_acceptance_markdown(report: dict[str, object]) -> str:
             "- **GO**: tous les criteres sont OK et la signature metier est obtenue.",
             "- **GO_CONDITIONNEL**: aucun P0 metier ouvert, mais des P1/P2 restent planifies.",
             "- **NO_GO_METIER**: desaccord statut non resolu, P0 metier ouvert ou rejet evaluateur majeur.",
+            "- **EN_ATTENTE_ENTREES_TERRAIN_REELLES**: aucun dossier reel anonymise actif; ne pas simuler de terrain.",
             "- **EN_ATTENTE_REPONSES_TERRAIN**: aucune reponse evaluateur exploitable; ne pas conclure.",
             "",
             "## Owners de signature",

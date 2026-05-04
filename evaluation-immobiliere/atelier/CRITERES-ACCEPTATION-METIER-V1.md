@@ -1,22 +1,22 @@
 # CRITERES ACCEPTATION METIER V1
 
-_As-of date: 2026-04-30 (UTC)_
+_As-of date: 2026-05-04 (UTC)_
 
 ## Objectif
 Fixer les seuils de passage Phase H vers industrialisation CI/CD sans confondre preparation et validation terrain signee.
 
-Statut courant: **EN_ATTENTE_REPONSES_TERRAIN**.
+Statut courant: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**.
 
 ## Criteres
 
 | Critere | Courant | Cible | Statut |
 |---|---:|---:|---|
+| Gate Phase H reelle | EN_ATTENTE_ENTREES_TERRAIN_REELLES | PRET_A_RECEVOIR_REPONSES_TERRAIN | A_TRAITER |
 | Panel evaluateurs | 0 | >= 2 | A_TRAITER |
 | Couverture dossiers | 0 | >= 3 | A_TRAITER |
 | Desaccords statut | 0 | 0 | OK |
 | Backlog P0 metier | 0 | 0 | OK |
 | Saisie valide | PRET_A_RECEVOIR_REPONSES | != A_CORRIGER | OK |
-| Homologation runtime synthetique | PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN | != NO_GO_HOMOLOGATION_METIER | OK |
 | Signature metier | A_SIGNER | SIGNE | A_TRAITER |
 
 ## Regles Go/No-Go
@@ -24,6 +24,7 @@ Statut courant: **EN_ATTENTE_REPONSES_TERRAIN**.
 - **GO**: tous les criteres sont OK et la signature metier est obtenue.
 - **GO_CONDITIONNEL**: aucun P0 metier ouvert, mais des P1/P2 restent planifies.
 - **NO_GO_METIER**: desaccord statut non resolu, P0 metier ouvert ou rejet evaluateur majeur.
+- **EN_ATTENTE_ENTREES_TERRAIN_REELLES**: aucun dossier reel anonymise actif; ne pas simuler de terrain.
 - **EN_ATTENTE_REPONSES_TERRAIN**: aucune reponse evaluateur exploitable; ne pas conclure.
 
 ## Owners de signature

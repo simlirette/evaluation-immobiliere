@@ -31,13 +31,14 @@ class PreResponseLockError(RuntimeError):
 def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreResponseStep]:
     outils = project_root / "outils"
     return [
+        PreResponseStep("auditer_anonymisation", outils / "auditer_anonymisation_v0.py"),
+        PreResponseStep("preparer_ingestion_pdf", outils / "preparer_ingestion_pdf_v0.py"),
         PreResponseStep("executer_dossiers_reels", outils / "executer_dossiers_pilotes_reels_v0.py"),
         PreResponseStep("preparer_revue_interne", outils / "preparer_revue_interne_pilotes_v0.py"),
         PreResponseStep("preparer_durcissement_contrats", outils / "preparer_durcissement_contrats_v0.py"),
         PreResponseStep("preparer_paquet_evaluateurs", outils / "preparer_paquet_evaluateurs_v0.py"),
         PreResponseStep("calibrer_reponses_evaluateurs", outils / "calibrer_reponses_evaluateurs_v0.py"),
         PreResponseStep("generer_file_revue_humaine", outils / "generer_file_revue_humaine_v0.py"),
-        PreResponseStep("auditer_anonymisation", outils / "auditer_anonymisation_v0.py"),
         PreResponseStep("generer_manifest_runtime_initial", outils / "generer_manifest_runtime_v0.py"),
         PreResponseStep("generer_knowledge_snapshot", outils / "generer_knowledge_snapshot_v0.py"),
         PreResponseStep("generer_manifest_runtime_final", outils / "generer_manifest_runtime_v0.py"),
@@ -48,6 +49,7 @@ def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreRespo
         PreResponseStep("valider_rapports_infra", outils / "valider_rapports_infra_v0.py"),
         PreResponseStep("valider_schemas_ops", outils / "valider_schemas_ops_v0.py"),
         PreResponseStep("valider_paquet_evaluateurs", outils / "valider_paquet_evaluateurs_v0.py"),
+        PreResponseStep("verifier_campagne_terrain_reelle", outils / "verifier_campagne_terrain_reelle_v1.py"),
         PreResponseStep("ops_doctor", outils / "ops_doctor_v0.py"),
     ]
 

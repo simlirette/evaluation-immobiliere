@@ -8,6 +8,7 @@
 - Dossiers analyses: **8**
 - Dossiers pilotes: **3**
 - Revues terrain: **REVUES_TERRAIN_EXPLOITABLES**
+- Gate Phase H reelle: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**
 - Fermeture ecarts: **ECARTS_FERMES_SIGNATURES_SIGNEES**
 - Release candidate: **PRET_GO_LIVE_CONTROLE**
 - Ecarts evaluateurs P1/P2: **3**

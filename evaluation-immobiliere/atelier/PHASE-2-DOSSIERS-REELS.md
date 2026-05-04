@@ -1,15 +1,14 @@
 # Phase 2 - preparation des dossiers reels anonymises
 
-Objectif: preparer 2-3 dossiers reels anonymises avant de les faire relire par des evaluateurs.
+Objectif: preparer 2-3 dossiers reels anonymises avant de les faire relire par des evaluateurs, sans les versionner dans le repo actif.
 
-## Brouillons crees
+## Emplacement autorise
 
-- `evaluation-immobiliere/tests/fixtures/draft_dossier_reel_001.json`: cas simple attendu propre.
-- `evaluation-immobiliere/tests/fixtures/draft_dossier_reel_002.json`: cas exploitable avec confiance ou donnees limitees.
-- `evaluation-immobiliere/tests/fixtures/draft_dossier_reel_003.json`: cas avec anomalie ou revision conformite.
+- Source de verite: dossier hors repo actif, par exemple `<PHASE_H_REAL_CASES_DIR>`.
+- Repertoire local tolere pour execution controlee: `evaluation-immobiliere/tests/fixtures_external/`, ignore par Git sauf fixtures synthetiques whitelistees.
+- Repertoire interdit: `evaluation-immobiliere/tests/fixtures/` pour tout `draft_dossier_reel_*.json` ou `case_pilote_reel_*.json`.
 
-Ces fichiers restent volontairement en `draft_` pour ne pas etre inclus par `simuler_runtime_engine_v0.py`, qui charge seulement les fichiers `case_*.json`.
-Ils sont aussi ignores par Git tant qu'ils restent en `draft_`, afin d'eviter de versionner un dossier reel en cours de nettoyage.
+Les fichiers restent en `draft_` tant que l'anonymisation n'est pas signee. Seuls les fichiers `case_pilote_reel_*.json` valides peuvent alimenter le runtime reel, et ils doivent rester hors versionnement.
 
 ## Regles de remplissage
 
@@ -25,23 +24,25 @@ Ils sont aussi ignores par Git tant qu'ils restent en `draft_`, afin d'eviter de
 ## Validation d'un brouillon
 
 ```bash
-python evaluation-immobiliere/outils/valider_fixtures_v0.py --input evaluation-immobiliere/tests/fixtures/draft_dossier_reel_001.json --strict --report-out evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md
+python evaluation-immobiliere/outils/valider_fixtures_v0.py --input <PHASE_H_REAL_CASES_DIR>/draft_dossier_reel_001.json --strict --report-out evaluation-immobiliere/runtime_pilotes_reels/validation_dossiers_reels.md
+python evaluation-immobiliere/outils/auditer_anonymisation_v0.py --root <PHASE_H_REAL_CASES_DIR>
 ```
 
-Repeter pour `draft_dossier_reel_002.json` et `draft_dossier_reel_003.json`.
+Repeter pour `draft_dossier_reel_002.json` et `draft_dossier_reel_003.json`. Un dossier qui echoue l'audit anonymisation ne doit pas etre renomme en `case_pilote_reel_*.json`.
 
 ## Activation pour le runtime
 
 Quand un brouillon passe en strict avec 0 erreur:
 
-1. Renommer `draft_dossier_reel_001.json` en `case_pilote_reel_001.json`.
-2. Lancer la simulation runtime.
-3. Regenerer le rapport pilote runtime.
+1. Renommer `draft_dossier_reel_001.json` en `case_pilote_reel_001.json` seulement apres validation stricte et audit anonymisation OK.
+2. Executer l'ingestion/normalisation.
+3. Lancer le runtime pilotes reels.
+4. Regenerer les gates Phase H.
 
 ```bash
-python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
-python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
-python evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py
+python evaluation-immobiliere/outils/preparer_ingestion_pdf_v0.py --fixtures-dir <PHASE_H_REAL_CASES_DIR>
+python evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py --fixtures-dir <PHASE_H_REAL_CASES_DIR> --fail-on-contract-errors
+python evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py --fixtures-dir <PHASE_H_REAL_CASES_DIR>
 ```
 
 ## Critere de sortie phase 2

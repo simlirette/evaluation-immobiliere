@@ -54,6 +54,13 @@
     "go_live_status": "A_CONTROLER_APRES_STAGING",
     "commit_ref": "HEAD"
   },
+  "phase_h_real": {
+    "status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
+    "decision": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
+    "active_cases_count": 0,
+    "mode": "waiting"
+  },
+  "production_real_decision": "NO_GO_PROD_TERRAIN_REEL",
   "errors": [],
   "warnings": [
     "review[1] EXT-GAP-001: ecart conditionnel P2",
