@@ -3,7 +3,7 @@
   "status": "PRET_SEANCE_REVUE_EVALUATEUR_AGREE",
   "target": "V1_PRE_EVALUATEUR",
   "package_status": "PRET_REVUE_EVALUATEUR_AGREE",
-  "project_status": "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE",
+  "project_status": "PROJET_V1_PRODUIT_PRET_REVUE_FINALE_PROD_BLOQUEE",
   "dossier_id": "D-001",
   "runtime_status": "PRET_REVISION_FINALE",
   "field_validation": "NON_REVENDIQUEE",

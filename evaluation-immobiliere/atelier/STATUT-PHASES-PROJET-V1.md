@@ -4,7 +4,7 @@ _As-of date: 2026-05-04 (UTC)_
 
 ## Synthese
 
-- Decision: **PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE**
+- Decision: **PROJET_V1_PRODUIT_PRET_REVUE_FINALE_PROD_BLOQUEE**
 - Cible produit: **V1_PRE_EVALUATEUR**
 - Decision pre-evaluateur: **PRET_SEANCE_REVUE_EVALUATEUR_AGREE**
 - Paquet V1 pre-evaluateur: **PRET_REVUE_EVALUATEUR_AGREE**
@@ -53,5 +53,6 @@ _As-of date: 2026-05-04 (UTC)_
 - Aucun dossier reel anonymise actif n'est versionne dans le repo.
 - Aucune reponse evaluateur active n'est presente dans les CSV de collecte.
 - Les revues evaluateurs externes versionnees restent des fixtures d'homologation/preparation, pas des retours de campagne terrain reelle.
-- La prochaine action produit est la tenue de la seance avec l'evaluateur a partir du handoff versionne.
-- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.
+- La prochaine action produit est de poursuivre la finalisation backend/frontend, la securite minimale, l'observabilite et le durcissement UI.
+- La revue avec un evaluateur immobilier agree reste une etape finale de validation apres V1 produit complete.
+- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif et de retours humains reels.
