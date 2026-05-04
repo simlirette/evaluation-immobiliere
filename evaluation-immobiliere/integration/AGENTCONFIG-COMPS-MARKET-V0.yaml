@@ -46,6 +46,14 @@ tools_allowed:
   - write_file
   - append_audit_log
 
+skills_registry: skills/SKILLS-REGISTRY.json
+skills_allowed:
+  - analyse-selection-comparables
+  - recherche-marche-donnees
+  - recherche-mefq-methodologie
+  - recherche-normes-professionnelles
+  - recherche-registre-cadastre
+
 quality_gates:
   blocking:
     - B002_source_required

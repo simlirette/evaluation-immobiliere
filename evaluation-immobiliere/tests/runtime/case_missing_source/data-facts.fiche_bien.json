@@ -6,5 +6,18 @@
   "surface": null,
   "confidence": 0.85,
   "source_ids": [],
-  "source_fixture": "case_missing_source.json"
+  "source_fixture": "case_missing_source.json",
+  "agent_skills_allowed": [
+    "analyse-extraction-faits",
+    "recherche-baux-revenus",
+    "recherche-cadre-legal",
+    "recherche-domaines-specialises",
+    "recherche-marche-donnees",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "recherche-registre-cadastre",
+    "recherche-urbanisme-construction",
+    "redaction-fiches-techniques"
+  ],
+  "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
 }

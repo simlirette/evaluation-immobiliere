@@ -13,5 +13,16 @@
     }
   ],
   "confidence": 0.88,
-  "source_fixture": "case_pilote_residentiel_standard.json"
+  "source_fixture": "case_pilote_residentiel_standard.json",
+  "agent_skills_allowed": [
+    "analyse-approche-comparaison",
+    "analyse-approche-cout",
+    "analyse-approche-revenu",
+    "analyse-reconciliation-valeur",
+    "recherche-baux-revenus",
+    "recherche-domaines-specialises",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles"
+  ],
+  "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
 }

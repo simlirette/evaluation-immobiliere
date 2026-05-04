@@ -13,3 +13,15 @@
   "SRC-PHOTO-001"
 ]
 ```
+
+## agent_skills_allowed
+```json
+[
+  "recherche-normes-professionnelles",
+  "redaction-analyse-marche",
+  "redaction-rapport-evaluation"
+]
+```
+
+## agent_config
+AGENTCONFIG-REDACTION-V0.yaml

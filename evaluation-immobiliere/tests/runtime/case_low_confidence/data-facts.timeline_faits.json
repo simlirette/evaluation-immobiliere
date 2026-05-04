@@ -8,5 +8,18 @@
       "date": "2026-04-28"
     }
   ],
-  "source_fixture": "case_low_confidence.json"
+  "source_fixture": "case_low_confidence.json",
+  "agent_skills_allowed": [
+    "analyse-extraction-faits",
+    "recherche-baux-revenus",
+    "recherche-cadre-legal",
+    "recherche-domaines-specialises",
+    "recherche-marche-donnees",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "recherche-registre-cadastre",
+    "recherche-urbanisme-construction",
+    "redaction-fiches-techniques"
+  ],
+  "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
 }

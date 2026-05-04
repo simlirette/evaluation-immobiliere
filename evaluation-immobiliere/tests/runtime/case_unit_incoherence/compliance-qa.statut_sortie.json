@@ -12,5 +12,15 @@
     "approche_cout": 0.0,
     "approche_revenu": 0.0
   },
-  "source_fixture": "case_unit_incoherence.json"
+  "source_fixture": "case_unit_incoherence.json",
+  "agent_skills_allowed": [
+    "analyse-conformite",
+    "recherche-cadre-legal",
+    "recherche-domaines-specialises",
+    "recherche-jurisprudence-discipline",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "redaction-rapport-conformite"
+  ],
+  "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
 }

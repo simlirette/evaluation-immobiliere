@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
-import tempfile
 import unittest
+import uuid
 from pathlib import Path
 
 OUTILS_DIR = Path(__file__).resolve().parents[1] / "outils"
@@ -17,6 +18,12 @@ from preparer_handoff_ops_v0 import HandoffFile, build_handoff_manifest, build_m
 def write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def writable_tmp_dir(prefix: str) -> Path:
+    root = Path.cwd() / ".test-tmp" / f"{prefix}_{uuid.uuid4().hex}"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 class TestOpsObservabilityV0(unittest.TestCase):
@@ -55,8 +62,8 @@ class TestOpsObservabilityV0(unittest.TestCase):
         self.assertIn("status_counts.A_REVOIR", {item["metric"] for item in report["regressions"]})
 
     def test_generate_delta_report_writes_json_and_markdown(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+        root = writable_tmp_dir("ops_delta")
+        try:
             quality_path = root / "quality.json"
             registry_path = root / "registry.json"
             json_out = root / "delta.json"
@@ -68,12 +75,14 @@ class TestOpsObservabilityV0(unittest.TestCase):
 
             self.assertTrue(json_out.exists())
             self.assertTrue(md_out.exists())
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
         self.assertEqual(report["status"], "STABLE")
 
     def test_handoff_manifest_hashes_present_files_and_lists_missing_required(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            runtime_dir = Path(tmp)
+        runtime_dir = writable_tmp_dir("ops_handoff")
+        try:
             (runtime_dir / "quality_report.json").write_text('{"ok": true}', encoding="utf-8")
             files = [
                 HandoffFile("quality", "quality_report.json", "quality"),
@@ -83,6 +92,8 @@ class TestOpsObservabilityV0(unittest.TestCase):
 
             manifest = build_handoff_manifest(runtime_dir, files)
             markdown = build_handoff_markdown(manifest)
+        finally:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
 
         self.assertEqual(manifest["status"], "A_COMPLETER")
         self.assertEqual(manifest["required_present"], 1)

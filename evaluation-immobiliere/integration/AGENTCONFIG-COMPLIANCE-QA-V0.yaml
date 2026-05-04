@@ -40,6 +40,16 @@ tools_allowed:
   - write_file
   - append_audit_log
 
+skills_registry: skills/SKILLS-REGISTRY.json
+skills_allowed:
+  - analyse-conformite
+  - recherche-cadre-legal
+  - recherche-domaines-specialises
+  - recherche-jurisprudence-discipline
+  - recherche-mefq-methodologie
+  - recherche-normes-professionnelles
+  - redaction-rapport-conformite
+
 quality_gates:
   blocking:
     - B001_required_sections

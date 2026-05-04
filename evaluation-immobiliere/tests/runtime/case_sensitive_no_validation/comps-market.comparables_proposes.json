@@ -35,5 +35,13 @@
       }
     }
   ],
-  "source_fixture": "case_sensitive_no_validation.json"
+  "source_fixture": "case_sensitive_no_validation.json",
+  "agent_skills_allowed": [
+    "analyse-selection-comparables",
+    "recherche-marche-donnees",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "recherche-registre-cadastre"
+  ],
+  "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
 }

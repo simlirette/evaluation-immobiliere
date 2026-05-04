@@ -7,6 +7,7 @@ Ce dossier regroupe les artefacts de demarrage et le runtime v0 du projet **eval
 - Cadrage metier et atelier evaluateurs dans `atelier/`
 - Contrats MVP, schemas, regles et checklist dans `mvp/`
 - Configs d'agents et pipeline dans `integration/`
+- Skills agents projet dans `skills/`
 - Moteur local dans `engine/`
 - Outils CLI dans `outils/`
 - Fixtures et rapports de verification dans `tests/`
@@ -21,8 +22,19 @@ python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
 python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
 python evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py
 python evaluation-immobiliere/outils/prioriser_mvp.py
+python evaluation-immobiliere/outils/generer_registre_skills.py
 python -m unittest evaluation-immobiliere/tests/test_tools_v0.py evaluation-immobiliere/tests/test_runtime_v0.py
 ```
+
+## Skills agents
+
+Les skills actifs du projet sont dans `skills/`. Le registre Aston-like est
+genere dans `skills/SKILLS-REGISTRY.json` et la matrice agent/skills dans
+`integration/AGENT-SKILLS-MATRIX.md`.
+
+Chaque `AGENTCONFIG-*` declare ses `skills_allowed`; le runtime les propage dans
+les evenements et artefacts pour garder la trace du contexte specialise charge
+par agent.
 
 ## API runtime v0
 
