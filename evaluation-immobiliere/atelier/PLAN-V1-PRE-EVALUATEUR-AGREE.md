@@ -11,7 +11,7 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 ## Positionnement
 
 - Cible produit: **V1_PRE_EVALUATEUR**
-- Decision courante: **PRET_REVUE_EVALUATEUR_AGREE**
+- Decision courante: **PRET_SEANCE_REVUE_EVALUATEUR_AGREE**
 - Production reelle: **bloquee**
 - Validation terrain Phase H: **post-V1**
 - Reponses evaluateurs: **non requises pour finir la V1**, requises seulement pour calibration/homologation metier reelle.
@@ -27,7 +27,7 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 | E - UI evaluateur | Presenter le workflow concret | PRET_DEMO | Presenter revue, artefacts, corrections et decisions | non | oui |
 | F - Securite/gouvernance | Montrer que les donnees sensibles sont traitees serieusement | PRET_DEMO | Garder anonymisation, retention, audit, RBAC documentes | non | oui |
 | G - Perf/fiabilite/cout | Montrer les limites et budgets | GO_CONDITIONNEL | Fermer ou documenter SLO manquants | non | oui |
-| H - Revue evaluateur/terrain | Calibration apres V1 | PAQUET_PRET | Utiliser le paquet de revue sans reponse inventee | non | oui |
+| H - Revue evaluateur/terrain | Calibration apres V1 | HANDOFF_PRET | Tenir la seance avec le handoff versionne, sans reponse inventee | non | oui |
 | I - CI/CD | Prouver que la V1 est regenerable | PRET_STAGING | Garder gates verts et statut phases en CI | non | non |
 | J - Preprod | Simuler homologation sans prod | PROD_BLOQUEE | Garder dress rehearsal et ecarts ouverts visibles | non | oui |
 | K - Canary | Planifier sans ouvrir prod | PROD_BLOQUEE | Conserver plan canary bloque | non | oui |
@@ -43,6 +43,8 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 6. Gate `STATUT-PHASES-PROJET-V1` vert avec production reelle bloquee.
 
 Le paquet versionne est produit dans `atelier/PAQUET-V1-PRE-EVALUATEUR/` par `generer_paquet_v1_pre_evaluateur.py`. Il est regenere en CI et bloque le statut global si les fichiers ou signaux machine-readable divergent.
+
+Le handoff de seance est produit par `generer_handoff_revue_evaluateur_v1.py`. Il transforme le paquet en brief, ordre du jour, checklist et manifest de point d'arret avant integration de vraies reponses evaluateur.
 
 ## Criteres done V1 pre-evaluateur
 
