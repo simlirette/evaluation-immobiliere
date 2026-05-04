@@ -19,12 +19,14 @@ import api
 from api import (
     EVALUATOR_UI_PATH,
     OPS_UI_PATH,
+    PRODUCT_UI_PATH,
     UI_PATH,
     RuntimeApiHandler,
     list_fixtures,
     load_ops_csv,
     load_ops_json,
     ops_summary,
+    product_summary,
     resume_session,
     session_artifacts,
     session_status,
@@ -50,8 +52,23 @@ class TestApiV0(unittest.TestCase):
     def test_ops_ui_file_exists(self) -> None:
         self.assertTrue(OPS_UI_PATH.exists())
 
+    def test_product_ui_file_exists(self) -> None:
+        self.assertTrue(PRODUCT_UI_PATH.exists())
+
     def test_evaluator_ui_file_exists(self) -> None:
         self.assertTrue(EVALUATOR_UI_PATH.exists())
+
+    def test_product_summary_consolidates_runtime_project_and_routes(self) -> None:
+        summary = product_summary()
+
+        self.assertEqual(summary["schema_version"], "product_cockpit_summary_v1")
+        self.assertTrue(summary["ok"])
+        self.assertIn("PROD_BLOQUEE", summary["status"])
+        self.assertTrue(summary["production_blocked"])
+        self.assertGreaterEqual(summary["runtime"]["cases_count"], 1)
+        self.assertGreaterEqual(summary["fixtures"]["count"], 1)
+        self.assertEqual(summary["routes"]["product"], "/product")
+        self.assertIn("release_candidate_decision", summary)
 
     def test_ops_summary_reads_generated_reports_from_runtime_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -236,6 +253,8 @@ class TestApiV0(unittest.TestCase):
                 doctor = self.http_json("GET", host, port, "/ops/doctor")
                 ops_ui = self.http_text("GET", host, port, "/ops/ui")
                 evaluator_ui = self.http_text("GET", host, port, "/review/ui")
+                product_ui = self.http_text("GET", host, port, "/product")
+                product_summary_payload = self.http_json("GET", host, port, "/product/summary")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -253,6 +272,29 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(doctor["status"], "OK")
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
         self.assertIn("<title>Revue evaluateur</title>", evaluator_ui)
+        self.assertIn("<title>Produit evaluation immobiliere</title>", product_ui)
+        self.assertEqual(product_summary_payload["schema_version"], "product_cockpit_summary_v1")
+
+    def test_product_demo_endpoint_runs_default_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), QuietRuntimeApiHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            host, port = server.server_address
+            try:
+                payload = self.http_json("POST", host, port, "/product/demo", {})
+                session_id = payload["session"]["session_id"]
+                status = self.http_json("GET", host, port, f"/status?session_id={session_id}")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(payload["result"]["status"], "PRET_REVISION_FINALE")
+        self.assertTrue(status["integrity"]["ok"])
 
     def test_ops_http_pre_response_dry_run_writes_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
