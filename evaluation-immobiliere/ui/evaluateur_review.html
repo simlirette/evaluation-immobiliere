@@ -241,6 +241,22 @@
           <span>Integrite</span>
           <strong id="integrity">-</strong>
         </div>
+        <div class="full">
+          <h2>Synthese dossier</h2>
+          <table id="dossierSummary"></table>
+        </div>
+        <div class="span2">
+          <h2>Comparables</h2>
+          <table id="comparables"></table>
+        </div>
+        <div>
+          <h2>Valeurs</h2>
+          <table id="valuation"></table>
+        </div>
+        <div class="full">
+          <h2>Apercu rapport</h2>
+          <pre id="reportPreview">{}</pre>
+        </div>
         <div class="span2">
           <h2>Artefacts</h2>
           <table id="artifacts"></table>
@@ -365,6 +381,7 @@
       $('integrity').textContent = payload.integrity.ok ? 'OK' : 'A verifier';
       $('raw').textContent = JSON.stringify(payload, null, 2);
       renderArtifacts(payload.artifacts || {});
+      await loadDossierReview(activeSession.session_id);
     }
 
     function renderArtifacts(payload) {
@@ -384,6 +401,36 @@
       const payload = await json(`/artifact?${params.toString()}`);
       const rendered = payload.json ? JSON.stringify(payload.json, null, 2) : payload.text;
       $('artifactDetail').textContent = `${payload.artifact.step}.${payload.artifact.artifact}\n${payload.bytes} bytes${payload.truncated ? ' - tronque' : ''}\n\n${rendered}`;
+    }
+
+    async function loadDossierReview(sessionId) {
+      const payload = await json(`/review/dossier?session_id=${encodeURIComponent(sessionId)}`);
+      renderDossierReview(payload);
+    }
+
+    function renderDossierReview(payload) {
+      $('dossierSummary').innerHTML = `<tbody>
+        <tr><th>Dossier</th><td>${escapeHtml(payload.dossier_id || '-')}</td></tr>
+        <tr><th>Date reference</th><td>${escapeHtml(payload.facts.date_reference || '-')}</td></tr>
+        <tr><th>Confiance</th><td>${escapeHtml(payload.facts.confidence ?? '-')}</td></tr>
+        <tr><th>Sources</th><td>${escapeHtml(payload.facts.source_ids_count ?? 0)}</td></tr>
+        <tr><th>Conformite</th><td><span class="status">${escapeHtml(payload.compliance.status || '-')}</span></td></tr>
+        <tr><th>Couverture</th><td>${escapeHtml(payload.coverage.required_count - payload.coverage.missing_count)} / ${escapeHtml(payload.coverage.required_count)}</td></tr>
+      </tbody>`;
+      const compRows = (payload.comparables.items || []).map((item) => `<tr>
+        <td>${escapeHtml(item.comparable_id || '-')}</td>
+        <td>${escapeHtml(item.prix_vente ?? '-')}</td>
+        <td>${escapeHtml(item.score ?? '-')}</td>
+        <td>${escapeHtml(item.source_id || '-')}</td>
+      </tr>`).join('');
+      $('comparables').innerHTML = `<thead><tr><th>ID</th><th>Prix</th><th>Score</th><th>Source</th></tr></thead><tbody>${compRows}</tbody>`;
+      const valueRows = (payload.valuation.approaches || []).map((item) => `<tr>
+        <td>${escapeHtml(item.approach || '-')}</td>
+        <td>${escapeHtml(item.value ?? '-')}</td>
+        <td>${escapeHtml(item.input_count ?? 0)}</td>
+      </tr>`).join('');
+      $('valuation').innerHTML = `<thead><tr><th>Approche</th><th>Valeur</th><th>Inputs</th></tr></thead><tbody>${valueRows}</tbody>`;
+      $('reportPreview').textContent = payload.report.preview || 'Rapport non disponible pour cette session.';
     }
 
     function openStream() {

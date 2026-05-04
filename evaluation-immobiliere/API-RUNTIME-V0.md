@@ -28,6 +28,7 @@ Endpoints:
 - `POST /session`
 - `POST /start`
 - `GET /session/summary?session_id=<id>`
+- `GET /review/dossier?session_id=<id>`
 - `GET /status?session_id=<id>`
 - `GET /artifacts?session_id=<id>`
 - `GET /artifact?session_id=<id>&event_id=<event_id>`
@@ -110,12 +111,16 @@ Evenements exposes:
 
 ```bash
 curl http://127.0.0.1:8787/session/summary?session_id=<id>
+curl http://127.0.0.1:8787/review/dossier?session_id=<id>
 curl http://127.0.0.1:8787/artifact?session_id=<id>^&event_id=<event_id>
 ```
 
 `/artifact` refuse les chemins hors repertoire de session et renvoie seulement
 un apercu texte/JSON plafonne a 64 KiB pour garder l'UI exploitable sans exposer
 de lecture arbitraire du disque.
+
+`/review/dossier` transforme les artefacts runtime en synthese produit:
+faits, comparables, approches de valeur, conformite et apercu du rapport.
 
 ## Persistance locale
 
