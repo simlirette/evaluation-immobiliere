@@ -1,9 +1,9 @@
 {
   "schema_version": "statut_phases_projet_v1",
   "ok": true,
-  "decision": "PROJET_PRET_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE",
+  "decision": "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE",
   "target": "V1_PRE_EVALUATEUR",
-  "pre_evaluator_decision": "PRET_REVUE_EVALUATEUR_AGREE",
+  "pre_evaluator_decision": "PRET_SEANCE_REVUE_EVALUATEUR_AGREE",
   "pre_evaluator_package_status": "PRET_REVUE_EVALUATEUR_AGREE",
   "pre_evaluator_package_ready": true,
   "pre_evaluator_package_manifest": {
@@ -45,6 +45,67 @@
       "grille": "GRILLE-REVUE-EVALUATEUR.csv",
       "limites": "LIMITES-V1-PRE-EVALUATEUR.md"
     }
+  },
+  "pre_evaluator_handoff_status": "PRET_SEANCE_REVUE_EVALUATEUR_AGREE",
+  "pre_evaluator_handoff_ready": true,
+  "pre_evaluator_handoff_manifest": {
+    "schema_version": "handoff_revue_evaluateur_v1",
+    "status": "PRET_SEANCE_REVUE_EVALUATEUR_AGREE",
+    "target": "V1_PRE_EVALUATEUR",
+    "package_status": "PRET_REVUE_EVALUATEUR_AGREE",
+    "project_status": "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE",
+    "dossier_id": "D-001",
+    "runtime_status": "PRET_REVISION_FINALE",
+    "field_validation": "NON_REVENDIQUEE",
+    "no_evaluator_responses_invented": true,
+    "real_field_validation_claimed": false,
+    "stop_point": "ARRET_AVANT_INTEGRATION_REPONSES_EVALUATEUR",
+    "questions_count": 5,
+    "questions": [
+      {
+        "question_id": "Q-STATUT-001",
+        "section": "statut",
+        "obligatoire": "oui"
+      },
+      {
+        "question_id": "Q-COMP-001",
+        "section": "comparables",
+        "obligatoire": "oui"
+      },
+      {
+        "question_id": "Q-VAL-001",
+        "section": "valeur",
+        "obligatoire": "oui"
+      },
+      {
+        "question_id": "Q-RAP-001",
+        "section": "rapport",
+        "obligatoire": "oui"
+      },
+      {
+        "question_id": "Q-RISK-001",
+        "section": "risques",
+        "obligatoire": "oui"
+      }
+    ],
+    "documents": {
+      "manifest": "evaluation-immobiliere/atelier/HANDOFF-REVUE-EVALUATEUR-V1.json",
+      "brief": "evaluation-immobiliere/atelier/HANDOFF-REVUE-EVALUATEUR-V1.md",
+      "agenda": "evaluation-immobiliere/atelier/ORDRE-DU-JOUR-REVUE-EVALUATEUR-V1.md",
+      "checklist": "evaluation-immobiliere/atelier/CHECKLIST-SEANCE-EVALUATEUR-V1.md"
+    },
+    "package_documents": {
+      "index": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR/INDEX.md",
+      "rapport": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR/RAPPORT-EXEMPLE-V1.md",
+      "questions": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR/QUESTIONS-REVUE-EVALUATEUR.md",
+      "grille": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR/GRILLE-REVUE-EVALUATEUR.csv",
+      "limites": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR/LIMITES-V1-PRE-EVALUATEUR.md"
+    },
+    "expected_outputs_after_meeting": [
+      "grille completee par l'evaluateur",
+      "liste de reserves bloquantes",
+      "backlog V2 issu des retours reels"
+    ]
   },
   "phase_h_decision": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
   "active_real_cases": 0,
@@ -106,6 +167,12 @@
       "ok": true,
       "status": "PRET_REVUE_EVALUATEUR_AGREE",
       "evidence": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR"
+    },
+    {
+      "name": "handoff_revue_evaluateur",
+      "ok": true,
+      "status": "PRET_SEANCE_REVUE_EVALUATEUR_AGREE",
+      "evidence": "evaluation-immobiliere/atelier/HANDOFF-REVUE-EVALUATEUR-V1.json"
     }
   ],
   "phases": [

@@ -38,6 +38,8 @@ REPORT_JSON_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json"
 REPORT_MD_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.md"
 PRE_EVALUATOR_TARGET = "V1_PRE_EVALUATEUR"
 PRE_EVALUATOR_PACKAGE_DECISION = "PRET_REVUE_EVALUATEUR_AGREE"
+PRE_EVALUATOR_HANDOFF_DECISION = "PRET_SEANCE_REVUE_EVALUATEUR_AGREE"
+PRE_EVALUATOR_HANDOFF_STOP_POINT = "ARRET_AVANT_INTEGRATION_REPONSES_EVALUATEUR"
 PRE_EVALUATOR_PACKAGE_DIR = ATELIER_DIR / "PAQUET-V1-PRE-EVALUATEUR"
 PRE_EVALUATOR_PACKAGE_FILES = [
     "INDEX.md",
@@ -46,6 +48,12 @@ PRE_EVALUATOR_PACKAGE_FILES = [
     "QUESTIONS-REVUE-EVALUATEUR.md",
     "GRILLE-REVUE-EVALUATEUR.csv",
     "LIMITES-V1-PRE-EVALUATEUR.md",
+]
+PRE_EVALUATOR_HANDOFF_FILES = [
+    "HANDOFF-REVUE-EVALUATEUR-V1.json",
+    "HANDOFF-REVUE-EVALUATEUR-V1.md",
+    "ORDRE-DU-JOUR-REVUE-EVALUATEUR-V1.md",
+    "CHECKLIST-SEANCE-EVALUATEUR-V1.md",
 ]
 
 
@@ -114,6 +122,7 @@ def phase(code: str, name: str, status: str, decision: str, evidence: str, *, bl
 def workflow_has_required_phase_gates(workflow_text: str) -> bool:
     required = [
         "generer_paquet_v1_pre_evaluateur.py",
+        "generer_handoff_revue_evaluateur_v1.py",
         "verifier_campagne_terrain_reelle_v1.py",
         "verifier_statut_phases_projet_v1.py",
         "verifier_release_candidate_v1.py",
@@ -155,6 +164,47 @@ def build_pre_evaluator_package_gate() -> dict[str, Any]:
         "missing_files": missing_files,
         "invalid_signals": invalid_signals,
         "evidence": normalize_path(PRE_EVALUATOR_PACKAGE_DIR) + (f" ({'; '.join(details)})" if details else ""),
+    }
+
+
+def build_pre_evaluator_handoff_gate() -> dict[str, Any]:
+    manifest_path = ATELIER_DIR / "HANDOFF-REVUE-EVALUATEUR-V1.json"
+    manifest = read_json_dict(manifest_path)
+    missing_files = [filename for filename in PRE_EVALUATOR_HANDOFF_FILES if not (ATELIER_DIR / filename).exists()]
+    invalid_signals: list[str] = []
+    if manifest.get("schema_version") != "handoff_revue_evaluateur_v1":
+        invalid_signals.append("schema_version")
+    if manifest.get("status") != PRE_EVALUATOR_HANDOFF_DECISION:
+        invalid_signals.append("status")
+    if manifest.get("target") != PRE_EVALUATOR_TARGET:
+        invalid_signals.append("target")
+    if manifest.get("package_status") != PRE_EVALUATOR_PACKAGE_DECISION:
+        invalid_signals.append("package_status")
+    if manifest.get("field_validation") != "NON_REVENDIQUEE":
+        invalid_signals.append("field_validation")
+    if manifest.get("no_evaluator_responses_invented") is not True:
+        invalid_signals.append("no_evaluator_responses_invented")
+    if manifest.get("real_field_validation_claimed") is not False:
+        invalid_signals.append("real_field_validation_claimed")
+    if manifest.get("stop_point") != PRE_EVALUATOR_HANDOFF_STOP_POINT:
+        invalid_signals.append("stop_point")
+    if int(manifest.get("questions_count", 0) or 0) <= 0:
+        invalid_signals.append("questions_count")
+
+    ready = not missing_files and not invalid_signals
+    details = []
+    if missing_files:
+        details.append("manquants=" + ",".join(missing_files))
+    if invalid_signals:
+        details.append("invalides=" + ",".join(invalid_signals))
+    return {
+        "ready": ready,
+        "status": PRE_EVALUATOR_HANDOFF_DECISION if ready else "HANDOFF_A_REGENERER",
+        "manifest": manifest,
+        "missing_files": missing_files,
+        "invalid_signals": invalid_signals,
+        "evidence": normalize_path(ATELIER_DIR / "HANDOFF-REVUE-EVALUATEUR-V1.json")
+        + (f" ({'; '.join(details)})" if details else ""),
     }
 
 
@@ -204,6 +254,8 @@ def build_project_status_report(
     pre_evaluator_plan_exists = (ATELIER_DIR / "PLAN-V1-PRE-EVALUATEUR-AGREE.md").exists()
     pre_evaluator_package = build_pre_evaluator_package_gate()
     pre_evaluator_package_ready = bool(pre_evaluator_package["ready"])
+    pre_evaluator_handoff = build_pre_evaluator_handoff_gate()
+    pre_evaluator_handoff_ready = bool(pre_evaluator_handoff["ready"])
 
     checks = [
         check(
@@ -254,6 +306,12 @@ def build_project_status_report(
             str(pre_evaluator_package["status"]),
             str(pre_evaluator_package["evidence"]),
         ),
+        check(
+            "handoff_revue_evaluateur",
+            pre_evaluator_handoff_ready,
+            str(pre_evaluator_handoff["status"]),
+            str(pre_evaluator_handoff["evidence"]),
+        ),
     ]
 
     phases = [
@@ -272,16 +330,19 @@ def build_project_status_report(
     ]
 
     ok = all(item["ok"] for item in checks)
-    pre_evaluator_decision = PRE_EVALUATOR_PACKAGE_DECISION if ok else "A_CORRIGER"
+    pre_evaluator_decision = PRE_EVALUATOR_HANDOFF_DECISION if ok else "A_CORRIGER"
     return {
         "schema_version": "statut_phases_projet_v1",
         "ok": ok,
-        "decision": "PROJET_PRET_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
+        "decision": "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
         "target": PRE_EVALUATOR_TARGET,
         "pre_evaluator_decision": pre_evaluator_decision,
         "pre_evaluator_package_status": pre_evaluator_package["status"],
         "pre_evaluator_package_ready": pre_evaluator_package_ready,
         "pre_evaluator_package_manifest": pre_evaluator_package["manifest"],
+        "pre_evaluator_handoff_status": pre_evaluator_handoff["status"],
+        "pre_evaluator_handoff_ready": pre_evaluator_handoff_ready,
+        "pre_evaluator_handoff_manifest": pre_evaluator_handoff["manifest"],
         "phase_h_decision": phase_h_decision,
         "active_real_cases": active_real_cases,
         "response_active_rows": response_active_rows,
@@ -312,6 +373,7 @@ def build_markdown(report: dict[str, Any]) -> str:
         f"- Cible produit: **{report.get('target', 'UNKNOWN')}**",
         f"- Decision pre-evaluateur: **{report.get('pre_evaluator_decision', 'UNKNOWN')}**",
         f"- Paquet V1 pre-evaluateur: **{report.get('pre_evaluator_package_status', 'UNKNOWN')}**",
+        f"- Handoff revue evaluateur: **{report.get('pre_evaluator_handoff_status', 'UNKNOWN')}**",
         f"- OK coherence: **{str(report.get('ok')).lower()}**",
         f"- Phase H reelle: **{report.get('phase_h_decision', 'UNKNOWN')}**",
         f"- Dossiers terrain actifs: **{report.get('active_real_cases', 0)}**",
@@ -360,7 +422,7 @@ def build_markdown(report: dict[str, Any]) -> str:
             "- Aucun dossier reel anonymise actif n'est versionne dans le repo.",
             "- Aucune reponse evaluateur active n'est presente dans les CSV de collecte.",
             "- Les revues evaluateurs externes versionnees restent des fixtures d'homologation/preparation, pas des retours de campagne terrain reelle.",
-            "- La prochaine action produit est la revue de la V1 avec l'evaluateur a partir du paquet versionne.",
+            "- La prochaine action produit est la tenue de la seance avec l'evaluateur a partir du handoff versionne.",
             "- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.",
         ]
     )

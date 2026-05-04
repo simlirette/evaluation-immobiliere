@@ -49,6 +49,7 @@ jobs:
             evaluation-immobiliere/outils/valider_rapports_infra_v0.py \
             evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py \
             evaluation-immobiliere/outils/generer_paquet_v1_pre_evaluateur.py \
+            evaluation-immobiliere/outils/generer_handoff_revue_evaluateur_v1.py \
             evaluation-immobiliere/outils/preparer_ingestion_pdf_v0.py \
             evaluation-immobiliere/outils/preparer_durcissement_contrats_v0.py \
             evaluation-immobiliere/outils/preparer_paquet_evaluateurs_v0.py \
@@ -134,6 +135,9 @@ jobs:
       - name: Generate V1 pre-evaluator package
         run: python evaluation-immobiliere/outils/generer_paquet_v1_pre_evaluateur.py
 
+      - name: Generate evaluator review handoff
+        run: python evaluation-immobiliere/outils/generer_handoff_revue_evaluateur_v1.py
+
       - name: Verify external pilot waiting mode
         run: |
           python evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py \
@@ -168,6 +172,10 @@ jobs:
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.csv \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.md \
             evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR \
+            evaluation-immobiliere/atelier/HANDOFF-REVUE-EVALUATEUR-V1.json \
+            evaluation-immobiliere/atelier/HANDOFF-REVUE-EVALUATEUR-V1.md \
+            evaluation-immobiliere/atelier/ORDRE-DU-JOUR-REVUE-EVALUATEUR-V1.md \
+            evaluation-immobiliere/atelier/CHECKLIST-SEANCE-EVALUATEUR-V1.md \
             evaluation-immobiliere/tests/runtime
 
       - name: Run unit tests

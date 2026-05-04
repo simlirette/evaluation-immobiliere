@@ -36,20 +36,22 @@ def write_response_csv(path: Path, *, active: bool) -> None:
 
 
 class TestStatutPhasesProjetV1(unittest.TestCase):
-    def test_project_status_is_ready_for_evaluator_review_but_blocks_prod(self) -> None:
+    def test_project_status_is_ready_for_evaluator_session_but_blocks_prod(self) -> None:
         report = build_project_status_report()
         markdown = build_markdown(report)
 
         self.assertTrue(report["ok"], report["errors"])
-        self.assertEqual(report["decision"], "PROJET_PRET_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE")
+        self.assertEqual(report["decision"], "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE")
         self.assertEqual(report["target"], "V1_PRE_EVALUATEUR")
-        self.assertEqual(report["pre_evaluator_decision"], "PRET_REVUE_EVALUATEUR_AGREE")
+        self.assertEqual(report["pre_evaluator_decision"], "PRET_SEANCE_REVUE_EVALUATEUR_AGREE")
         self.assertEqual(report["pre_evaluator_package_status"], "PRET_REVUE_EVALUATEUR_AGREE")
+        self.assertEqual(report["pre_evaluator_handoff_status"], "PRET_SEANCE_REVUE_EVALUATEUR_AGREE")
         self.assertEqual(report["phase_h_decision"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
         self.assertEqual(report["response_active_rows"], 0)
         self.assertIn("DEPLOIEMENT_PROD_BLOQUE", {phase["decision"] for phase in report["phases"]})
         self.assertIn("Aucune reponse evaluateur active", markdown)
         self.assertIn("Paquet V1 pre-evaluateur", markdown)
+        self.assertIn("Handoff revue evaluateur", markdown)
 
     def test_active_responses_before_phase_h_real_inputs_block_status(self) -> None:
         root = writable_tmp_dir("statut_phases")
