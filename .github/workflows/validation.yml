@@ -59,6 +59,7 @@ jobs:
             evaluation-immobiliere/outils/verifier_contrat_redaction_skills_v0.py \
             evaluation-immobiliere/outils/verifier_contrats_skills_agents_v0.py \
             evaluation-immobiliere/outils/verifier_contrats_artefacts_agents_v0.py \
+            evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py \
             evaluation-immobiliere/outils/verifier_homologation_metier_v0.py \
             evaluation-immobiliere/outils/verifier_revues_evaluateurs_externes_v1.py \
             evaluation-immobiliere/outils/verifier_fermeture_ecarts_evaluateurs_v1.py \
@@ -133,6 +134,13 @@ jobs:
           python evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py \
             --allow-empty \
             --out-dir .test-tmp/runtime_pilotes_reels_waiting
+
+      - name: Verify Phase H real field campaign gate
+        run: |
+          python evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py \
+            --runtime-dir .test-tmp/runtime_pilotes_reels_waiting \
+            --report-out .test-tmp/runtime_pilotes_reels_waiting/phase_h_campagne_terrain_gate.json \
+            --markdown-out .test-tmp/runtime_pilotes_reels_waiting/PHASE-H-CAMPAGNE-TERRAIN-GATE-V1.md
 
       - name: Verify generated artifacts are committed
         run: |

@@ -1,55 +1,37 @@
 # RAPPORT CAMPAGNE TERRAIN V1
 
-_As-of date: 2026-04-30 (UTC)_
+_As-of date: 2026-05-04 (UTC)_
 
 ## Objectif
-Documenter la validation metier terrain des sorties IA et transformer les ecarts evaluateurs en decisions de calibration.
+
+Documenter la campagne terrain reelle Phase H a partir de dossiers reels anonymises et de reponses evaluateurs recues, sans utiliser de reponses synthetiques.
 
 ## Synthese
 
 | Indicateur | Valeur |
 |---|---:|
-| Source calibration | `evaluation-immobiliere/atelier/CALIBRATION-EVALUATEURS.csv` |
-| Statut Phase H | EN_ATTENTE_REPONSES_TERRAIN |
-| Reponses actives | 0 |
-| Repondants uniques | 0 |
-| Desaccords statut | 0 |
-| Items backlog | 0 |
+| Statut Phase H reelle | EN_ATTENTE_ENTREES_TERRAIN_REELLES |
+| Dossiers terrain actifs | 0 |
+| Reponses evaluateurs actives | 0 |
+| Gate de preuve | `verifier_campagne_terrain_reelle_v1.py` |
 
 ## Point d'arret
 
-- Aucune ligne active n'est presente dans le fichier de calibration evaluateur.
-- La campagne terrain n'est pas closee et aucune conclusion metier ne doit etre inventee.
-- Utiliser les questions runtime ci-dessous pour guider la collecte des reponses.
+- Aucun dossier `case_pilote_reel_*.json` actif n'est versionne dans le repo.
+- Les revues synthetiques et fixtures externes existantes restent des preuves de preparation, pas des reponses terrain.
+- Aucune conclusion metier Phase H ne doit etre inventee avant reception de dossiers anonymises et de reponses evaluateurs.
 
-## Couverture dossiers
+## Flux requis
 
-| Dossier | Statut runtime | Reponses | Statuts attendus | Desaccord |
-|---|---|---:|---|---|
-| D-REEL-001 | PRET_REVISION_FINALE | 0 | - | non |
-| D-REEL-002 | BROUILLON | 0 | - | non |
-| D-REEL-003 | A_REVOIR | 0 | - | non |
-
-## Ecarts et backlog
-
-- Aucun ecart evaluateur confirme pour l'instant.
-
-## Questions terrain ouvertes
-
-| Dossier | Type | Cible | Question |
-|---|---|---|---|
-| D-REEL-002 | warning | W001: confiance faible | Decider si ce warning reste informatif ou devient bloquant. |
-| D-REEL-003 | blocage | B003: vente comparable future vs date_reference | Confirmer si ce blocage doit rester bloquant ou etre assoupli. |
-| D-REEL-003 | blocage | CONF005: comparable[2] hors fenetre temporelle | Confirmer si ce blocage doit rester bloquant ou etre assoupli. |
-| D-REEL-003 | warning | W002: comparable eloigne | Decider si ce warning reste informatif ou devient bloquant. |
-| D-REEL-003 | artefact | redaction.brouillon_rapport.md | Valider si l'artefact manquant bloque la revue evaluateur. |
-| D-REEL-003 | artefact | redaction.annexe_sources.md | Valider si l'artefact manquant bloque la revue evaluateur. |
+1. Valider anonymisation et structure des dossiers hors repo actif.
+2. Normaliser les sources anonymisees dans `runtime_pilotes_reels/ingestion_v0/`.
+3. Executer le runtime pilotes reels.
+4. Produire la revue interne.
+5. Generer le paquet evaluateurs.
+6. Verifier le point d'arret avant reponses.
 
 ## Decision Phase H
 
-Decision: **EN_ATTENTE_REPONSES_TERRAIN**.
+Decision: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**.
 
-Dependances Phase I:
-- campagne terrain signee ou point d'arret explicite;
-- matrice d'ecarts exploitable;
-- criteres d'acceptation metier revus par Lead Metier + Product.
+La production reste bloquee pour validation terrain tant que le gate Phase H ne retourne pas `PRET_A_RECEVOIR_REPONSES_TERRAIN` puis que les vraies reponses evaluateurs ne sont pas validees.
