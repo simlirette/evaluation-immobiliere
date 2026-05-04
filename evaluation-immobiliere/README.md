@@ -11,7 +11,7 @@ Ce dossier regroupe les artefacts de demarrage et le runtime v0 du projet **eval
 - Moteur local dans `engine/`
 - Outils CLI dans `outils/`
 - Fixtures synthetiques et rapports de verification dans `tests/`
-- API locale minimale dans `api.py`
+- API locale et cockpit produit dans `api.py`
 - Collecte et compilation des reponses evaluateurs dans `atelier/`
 
 ## Commandes utiles
@@ -76,22 +76,27 @@ Chaque `AGENTCONFIG-*` declare ses `skills_allowed`; le runtime les propage dans
 les evenements et artefacts pour garder la trace du contexte specialise charge
 par agent.
 
-## API runtime v0
+## Cockpit produit et API runtime v0
 
-L'API locale expose le runtime sans UI complete:
+L'API locale expose un cockpit produit, le runtime, les operations et les artefacts:
 
 ```bash
 python evaluation-immobiliere/outils/lancer_api_v0.py
 ```
 
-Interface locale:
+Interfaces locales:
 
 ```text
+http://127.0.0.1:8787/product
 http://127.0.0.1:8787/ui
+http://127.0.0.1:8787/ops/ui
+http://127.0.0.1:8787/review/ui
 ```
 
 Endpoints:
 
+- `GET /product/summary`
+- `POST /product/demo`
 - `GET /ui`
 - `GET /fixtures`
 - `POST /session`

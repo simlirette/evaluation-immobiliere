@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Produit evaluation immobiliere</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --text: #17202b;
+      --muted: #667085;
+      --line: #d7dde6;
+      --accent: #0f6f64;
+      --accent-dark: #0b554d;
+      --ok: #087443;
+      --warn: #a15c00;
+      --bad: #b42318;
+      --soft: #eef2f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.42;
+      letter-spacing: 0;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 14px 18px;
+    }
+    .topbar {
+      max-width: 1480px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    a, button, select {
+      font: inherit;
+      border-radius: 6px;
+    }
+    a, button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      padding: 7px 12px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button.primary:hover { background: var(--accent-dark); }
+    select {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      min-width: 220px;
+    }
+    main {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 14px 12px 28px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 12px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-width: 0;
+    }
+    .span3 { grid-column: span 3; }
+    .span4 { grid-column: span 4; }
+    .span5 { grid-column: span 5; }
+    .span6 { grid-column: span 6; }
+    .span7 { grid-column: span 7; }
+    .span8 { grid-column: span 8; }
+    .full { grid-column: 1 / -1; }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .metric {
+      font-size: 25px;
+      font-weight: 700;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+      overflow-wrap: anywhere;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 0 9px;
+      background: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 700;
+    }
+    pre {
+      margin: 0;
+      max-height: 300px;
+      overflow: auto;
+      background: #111827;
+      color: #f9fafb;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 1120px) {
+      .span3, .span4, .span5, .span6, .span7, .span8 { grid-column: span 6; }
+    }
+    @media (max-width: 760px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      nav, .toolbar { width: 100%; }
+      nav a, .toolbar button, select { width: 100%; }
+      .span3, .span4, .span5, .span6, .span7, .span8 { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>Produit evaluation immobiliere</h1>
+      <nav>
+        <a href="/product">Produit</a>
+        <a href="/ui">Runtime</a>
+        <a href="/ops/ui">Ops</a>
+        <a href="/review/ui">Revue</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="primary" id="refresh">Actualiser</button>
+      <select id="fixture"></select>
+      <button id="demo">Lancer demo</button>
+      <button id="resume">Reprise session</button>
+    </div>
+    <div class="grid">
+      <section class="span6">
+        <h2>Decision produit</h2>
+        <div class="metric" id="status">-</div>
+        <div class="sub" id="target">-</div>
+      </section>
+      <section class="span3">
+        <h2>Production</h2>
+        <div class="metric" id="production">-</div>
+        <div class="sub" id="phaseH">-</div>
+      </section>
+      <section class="span3">
+        <h2>Release</h2>
+        <div class="metric" id="release">-</div>
+        <div class="sub" id="homologation">-</div>
+      </section>
+      <section class="span3">
+        <h2>Cas runtime</h2>
+        <div class="metric" id="cases">-</div>
+        <div class="sub" id="caseBreakdown">-</div>
+      </section>
+      <section class="span3">
+        <h2>Fixtures</h2>
+        <div class="metric" id="fixturesCount">-</div>
+        <div class="sub">synthetiques</div>
+      </section>
+      <section class="span3">
+        <h2>Ops</h2>
+        <div class="metric" id="ops">-</div>
+        <div class="sub" id="opsSub">-</div>
+      </section>
+      <section class="span3">
+        <h2>Paquet V1</h2>
+        <div class="metric" id="package">-</div>
+        <div class="sub" id="packageSub">-</div>
+      </section>
+      <section class="span7">
+        <h2>Sessions</h2>
+        <table id="sessions"></table>
+      </section>
+      <section class="span5">
+        <h2>Demo active</h2>
+        <table id="demoTable"></table>
+      </section>
+      <section class="span6">
+        <h2>Statuts runtime</h2>
+        <table id="runtimeStatus"></table>
+      </section>
+      <section class="span6">
+        <h2>Routes backend</h2>
+        <table id="routes"></table>
+      </section>
+      <section class="full">
+        <h2>Reponse brute</h2>
+        <pre id="raw">{}</pre>
+      </section>
+    </div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let summary = {};
+    let activeSessionId = "";
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : {};
+      if (!response.ok) throw new Error(body.error || response.statusText);
+      return body;
+    }
+
+    function cssFor(value) {
+      const text = String(value || "");
+      if (text.includes("PRET") || text === "OK" || text === "true") return "ok";
+      if (text.includes("BLOQUE") || text.includes("NO_GO") || text.includes("A_REVOIR")) return "bad";
+      return "warn";
+    }
+
+    function metric(id, value) {
+      const node = $(id);
+      node.textContent = value || "-";
+      node.className = `metric ${cssFor(value)}`;
+    }
+
+    function renderObjectTable(id, data) {
+      const rows = Object.entries(data || {});
+      $(id).innerHTML = `<tbody>${rows.map(([key, value]) =>
+        `<tr><th>${key}</th><td>${JSON.stringify(value)}</td></tr>`).join("")}</tbody>`;
+    }
+
+    function renderSessions(items) {
+      const rows = (items || []).map((item) =>
+        `<tr data-session="${item.session_id || ""}"><td>${item.session_id || "-"}</td><td>${item.dossier_id || "-"}</td><td><span class="pill ${cssFor(item.status)}">${item.status || "-"}</span></td><td>${item.review_decision || "-"}</td></tr>`
+      ).join("");
+      $("sessions").innerHTML = `<thead><tr><th>Session</th><th>Dossier</th><th>Statut</th><th>Revue</th></tr></thead><tbody>${rows}</tbody>`;
+      document.querySelectorAll("#sessions tbody tr").forEach((row) => {
+        row.addEventListener("click", () => {
+          activeSessionId = row.dataset.session || "";
+          loadSession(activeSessionId).catch((error) => $("raw").textContent = error.message);
+        });
+      });
+    }
+
+    function renderFixtures(items) {
+      $("fixture").innerHTML = (items || []).map((item) =>
+        `<option value="${item.name}">${item.name} (${item.dossier_id || "-"})</option>`
+      ).join("");
+    }
+
+    function renderSummary(payload) {
+      summary = payload;
+      metric("status", payload.status);
+      $("target").textContent = payload.target || "-";
+      metric("production", payload.production_blocked ? "BLOQUEE" : "OUVERTE");
+      $("phaseH").textContent = payload.phase_h_decision || "-";
+      metric("release", payload.release_candidate_decision);
+      $("homologation").textContent = payload.homologation_decision || "-";
+      metric("cases", payload.runtime?.cases_count);
+      $("caseBreakdown").textContent = `prets ${payload.runtime?.ready_cases || 0} | a revoir ${payload.runtime?.review_cases || 0} | brouillons ${payload.runtime?.draft_cases || 0}`;
+      metric("fixturesCount", payload.fixtures?.count);
+      metric("ops", payload.ops?.readiness_status);
+      $("opsSub").textContent = `doctor ${payload.ops?.doctor_status || "-"} | file ${payload.ops?.review_queue_items ?? "-"}`;
+      metric("package", payload.package?.status);
+      $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts`;
+      renderSessions(payload.sessions?.recent || []);
+      renderFixtures(payload.fixtures?.items || []);
+      renderObjectTable("runtimeStatus", payload.runtime?.status_counts || {});
+      renderObjectTable("routes", payload.routes || {});
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+    }
+
+    async function refresh() {
+      renderSummary(await api("/product/summary"));
+    }
+
+    async function launchDemo() {
+      const fixture = $("fixture").value || "case_nominal.json";
+      const payload = await api("/product/demo", {
+        method: "POST",
+        body: JSON.stringify({ fixture })
+      });
+      activeSessionId = payload.session.session_id;
+      $("demoTable").innerHTML = `<tbody>
+        <tr><th>Session</th><td>${payload.session.session_id}</td></tr>
+        <tr><th>Dossier</th><td>${payload.result.dossier_id}</td></tr>
+        <tr><th>Statut</th><td><span class="pill ${cssFor(payload.result.status)}">${payload.result.status}</span></td></tr>
+        <tr><th>Artefacts</th><td>${payload.result.artifact_dir}</td></tr>
+      </tbody>`;
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      await refresh();
+    }
+
+    async function loadSession(sessionId) {
+      if (!sessionId) return;
+      const [status, artifacts] = await Promise.all([
+        api(`/status?session_id=${sessionId}`),
+        api(`/artifacts?session_id=${sessionId}`)
+      ]);
+      $("demoTable").innerHTML = `<tbody>
+        <tr><th>Session</th><td>${status.session.session_id}</td></tr>
+        <tr><th>Dossier</th><td>${status.session.dossier_id || "-"}</td></tr>
+        <tr><th>Statut</th><td><span class="pill ${cssFor(status.session.status)}">${status.session.status || "-"}</span></td></tr>
+        <tr><th>Artefacts</th><td>${artifacts.artifacts_count || 0}</td></tr>
+      </tbody>`;
+      $("raw").textContent = JSON.stringify({ status, artifacts }, null, 2);
+    }
+
+    async function resumeSession() {
+      if (!activeSessionId) throw new Error("session absente");
+      $("raw").textContent = JSON.stringify(await api("/resume", {
+        method: "POST",
+        body: JSON.stringify({ session_id: activeSessionId })
+      }), null, 2);
+      await refresh();
+    }
+
+    $("refresh").addEventListener("click", () => refresh().catch((error) => $("raw").textContent = error.message));
+    $("demo").addEventListener("click", () => launchDemo().catch((error) => $("raw").textContent = error.message));
+    $("resume").addEventListener("click", () => resumeSession().catch((error) => $("raw").textContent = error.message));
+    refresh().catch((error) => $("raw").textContent = error.message);
+  </script>
+</body>
+</html>

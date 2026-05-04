@@ -17,7 +17,10 @@ ROOT = Path(__file__).resolve().parent
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 SESSIONS_DIR = ROOT / "runtime_sessions"
+ATELIER_DIR = ROOT / "atelier"
+RUNTIME_DIR = ROOT / "tests" / "runtime"
 UI_PATH = ROOT / "ui" / "pilote_api.html"
+PRODUCT_UI_PATH = ROOT / "ui" / "product_cockpit.html"
 OPS_UI_PATH = ROOT / "ui" / "ops_cockpit.html"
 EVALUATOR_UI_PATH = ROOT / "ui" / "evaluateur_review.html"
 OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
@@ -124,6 +127,108 @@ def list_fixtures() -> list[dict[str, object]]:
             }
         )
     return fixtures
+
+
+def read_json_dict(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def read_json_list(path: Path) -> list:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, list) else []
+
+
+def recent_sessions(limit: int = 8) -> list[dict]:
+    if not SESSIONS_DIR.exists():
+        return []
+    sessions: list[dict] = []
+    for path in sorted(SESSIONS_DIR.glob("*/session.json")):
+        try:
+            session = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(session, dict):
+            continue
+        sessions.append(
+            {
+                "session_id": session.get("session_id", ""),
+                "run_id": session.get("run_id", ""),
+                "dossier_id": session.get("dossier_id", ""),
+                "status": session.get("status", "CREATED"),
+                "updated_at_utc": session.get("updated_at_utc", ""),
+                "review_decision": session.get("review_decision", ""),
+                "artifact_index_path": session.get("artifact_index_path", ""),
+            }
+        )
+    sessions.sort(key=lambda item: str(item.get("updated_at_utc") or ""), reverse=True)
+    return sessions[:limit]
+
+
+def product_summary() -> dict:
+    status_report = read_json_dict(ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json")
+    release_report = read_json_dict(RUNTIME_DIR / "release_candidate_report.json")
+    homologation_report = read_json_dict(RUNTIME_DIR / "homologation_metier_report.json")
+    runtime_summary = read_json_list(RUNTIME_DIR / "runtime_summary.json")
+    fixtures = list_fixtures()
+    status_counts: dict[str, int] = {}
+    for item in runtime_summary:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status") or "UNKNOWN")
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    package_manifest = read_json_dict(ATELIER_DIR / "PAQUET-V1-PRE-EVALUATEUR" / "DEMO-MANIFEST-V1.json")
+    handoff_manifest = read_json_dict(ATELIER_DIR / "HANDOFF-REVUE-EVALUATEUR-V1.json")
+    ops = ops_summary()
+    decision = str(status_report.get("decision") or "UNKNOWN")
+    return {
+        "schema_version": "product_cockpit_summary_v1",
+        "status": decision,
+        "ok": bool(status_report.get("ok")),
+        "target": status_report.get("target", "UNKNOWN"),
+        "production_blocked": "PROD_BLOQUEE" in decision or homologation_report.get("production_real_decision") == "NO_GO_PROD_TERRAIN_REEL",
+        "phase_h_decision": status_report.get("phase_h_decision", "UNKNOWN"),
+        "release_candidate_decision": release_report.get("decision", "UNKNOWN"),
+        "homologation_decision": homologation_report.get("production_decision", "UNKNOWN"),
+        "runtime": {
+            "cases_count": len(runtime_summary),
+            "status_counts": status_counts,
+            "ready_cases": status_counts.get("PRET_REVISION_FINALE", 0),
+            "review_cases": status_counts.get("A_REVOIR", 0),
+            "draft_cases": status_counts.get("BROUILLON", 0),
+        },
+        "fixtures": {
+            "count": len(fixtures),
+            "items": fixtures,
+        },
+        "sessions": {
+            "recent": recent_sessions(),
+        },
+        "ops": ops,
+        "package": {
+            "status": package_manifest.get("status", "UNKNOWN"),
+            "dossier_id": package_manifest.get("dossier_id", ""),
+            "runtime_status": package_manifest.get("runtime_status", "UNKNOWN"),
+            "artifacts_count": package_manifest.get("artifacts_count", 0),
+        },
+        "handoff": {
+            "status": handoff_manifest.get("status", "UNKNOWN"),
+            "stop_point": handoff_manifest.get("stop_point", ""),
+        },
+        "routes": {
+            "product": "/product",
+            "runtime": "/ui",
+            "ops": "/ops/ui",
+            "review": "/review/ui",
+            "summary": "/product/summary",
+            "demo": "/product/demo",
+        },
+    }
 
 
 def load_ops_json(name: str, runtime_dir: Path | None = None) -> dict:
@@ -460,8 +565,19 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
     def _handle_get(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path in {"/", "/ui"}:
+        if parsed.path == "/":
+            self._send_file(PRODUCT_UI_PATH, "text/html; charset=utf-8")
+            return
+        if parsed.path in {"/product", "/product/ui", "/app"}:
+            self._send_file(PRODUCT_UI_PATH, "text/html; charset=utf-8")
+            return
+        if parsed.path == "/ui":
             self._send_file(UI_PATH, "text/html; charset=utf-8")
+            return
+        if parsed.path == "/product/summary":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, product_summary())
             return
         if parsed.path in {"/ops/ui", "/ops/cockpit"}:
             self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
@@ -530,6 +646,12 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, start_runtime(body))
+                return
+            if self.path == "/product/demo":
+                if not self._require_permission("runtime_write"):
+                    return
+                fixture = str(body.get("fixture") or "case_nominal.json")
+                self._send_json(200, start_runtime({"fixture": fixture, "strict_mode": True}))
                 return
             if self.path == "/resume":
                 if not self._require_permission("runtime_write"):
