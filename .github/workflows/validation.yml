@@ -116,6 +116,9 @@ jobs:
       - name: Verify release candidate strict gate
         run: python evaluation-immobiliere/outils/verifier_release_candidate_v1.py --strict
 
+      - name: Refresh business homologation with release candidate
+        run: python evaluation-immobiliere/outils/verifier_homologation_metier_v0.py --require-gap-closure
+
       - name: Verify runtime skills evidence
         run: python evaluation-immobiliere/outils/verifier_preuve_runtime_skills_v0.py
 
