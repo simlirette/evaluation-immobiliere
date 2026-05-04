@@ -45,6 +45,8 @@
     "default_status_when_absent": "EN_ATTENTE_REPONSES_TERRAIN",
     "minimum_reviewers": 2,
     "minimum_reviewed_pilot_cases": 3,
-    "allowed_decisions": ["ACCEPTE", "A_REVOIR", "REJETE"]
+    "allowed_decisions": ["ACCEPTE", "A_REVOIR", "REJETE"],
+    "blocking_decisions": ["REJETE"],
+    "blocking_gap_priorities": ["P0"]
   }
 }

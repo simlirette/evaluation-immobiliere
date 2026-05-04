@@ -5,7 +5,7 @@ _As-of date: 2026-05-01 (UTC)_
 ## Objectif
 Fournir une procedure de retour arriere applicative, contrats et donnees sessionnelles.
 
-Contexte Phase H: **EN_ATTENTE_REPONSES_TERRAIN**. Aucun rollback prod reel n'est execute tant que la prod n'est pas ouverte.
+Contexte Phase H: **GO_PROD_PREPARATION**. Le rollback staging doit etre repete avant tout go live controle.
 
 ## Declencheurs
 

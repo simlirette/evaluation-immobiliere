@@ -1,0 +1,75 @@
+{
+  "schema_version": "release_candidate_manifest_v1",
+  "release_candidate_id": "rc-2026-05-04-001",
+  "commit_ref": "HEAD",
+  "target_environment": "staging",
+  "target_decision": "PRET_GO_LIVE_CONTROLE",
+  "go_live_status": "A_CONTROLER_APRES_STAGING",
+  "required_reports": [
+    "evaluation-immobiliere/tests/runtime/homologation_metier_report.json",
+    "evaluation-immobiliere/tests/runtime/revues_evaluateurs_externes_report.json",
+    "evaluation-immobiliere/tests/runtime/fermeture_ecarts_evaluateurs_report.json"
+  ],
+  "required_artifacts": [
+    "evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md",
+    "evaluation-immobiliere/atelier/PV-SIGNATURE-METIER-V1.md",
+    "evaluation-immobiliere/atelier/REGISTRE-FERMETURE-ECARTS-EVALUATEURS-V1.json",
+    "evaluation-immobiliere/atelier/MATRICE-ECARTS-EVALUATEURS-EXTERNES-V1.csv",
+    "evaluation-immobiliere/atelier/RAPPORT-ECARTS-EVALUATEURS-EXTERNES-V1.md",
+    "evaluation-immobiliere/atelier/RUNBOOK-ROLLBACK-V1.md",
+    "evaluation-immobiliere/atelier/PIPELINE-CD-V1.md"
+  ],
+  "required_ci_gates": [
+    "verifier_homologation_metier_v0.py",
+    "verifier_revues_evaluateurs_externes_v1.py --strict",
+    "verifier_fermeture_ecarts_evaluateurs_v1.py --strict",
+    "verifier_release_candidate_v1.py --strict",
+    "python -m unittest discover"
+  ],
+  "staging_rehearsal": {
+    "status": "SIMULE_OK",
+    "scenarios": [
+      {
+        "scenario_id": "STAGING-RC-001",
+        "name": "ci_exact_commit",
+        "status": "SIMULE_OK",
+        "evidence": "Workflow Validation inclut les gates metier, revues externes, fermeture ecarts et tests unitaires."
+      },
+      {
+        "scenario_id": "STAGING-RC-002",
+        "name": "generated_artifacts_clean",
+        "status": "SIMULE_OK",
+        "evidence": "La CI verifie git diff --exit-code sur les artefacts generes versionnes."
+      },
+      {
+        "scenario_id": "STAGING-RC-003",
+        "name": "no_open_evaluator_gaps",
+        "status": "SIMULE_OK",
+        "evidence": "Le registre de fermeture couvre les 3 ecarts externes P1/P2."
+      }
+    ]
+  },
+  "rollback_rehearsal": {
+    "status": "SIMULE_OK",
+    "scenarios": [
+      {
+        "scenario_id": "ROLLBACK-RC-001",
+        "name": "freeze_promotion",
+        "status": "SIMULE_OK",
+        "evidence": "Runbook rollback impose gel de promotion avant retour arriere."
+      },
+      {
+        "scenario_id": "ROLLBACK-RC-002",
+        "name": "restore_previous_tag",
+        "status": "SIMULE_OK",
+        "evidence": "Runbook rollback prevoit retour au tag sain precedent."
+      },
+      {
+        "scenario_id": "ROLLBACK-RC-003",
+        "name": "ci_rerun",
+        "status": "SIMULE_OK",
+        "evidence": "Runbook rollback exige reexecution CI complet et gates ops."
+      }
+    ]
+  }
+}

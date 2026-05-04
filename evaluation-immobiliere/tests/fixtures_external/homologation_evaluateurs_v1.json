@@ -1,0 +1,84 @@
+{
+  "schema_version": "homologation_evaluateurs_v1",
+  "campaign_id": "homologation-terrain-v1",
+  "source_runtime": "evaluation-immobiliere/tests/runtime/runtime_summary.json",
+  "reviewers": [
+    {
+      "reviewer_id": "EV-EXT-01",
+      "role": "evaluateur_agree",
+      "signature_status": "SIGNE"
+    },
+    {
+      "reviewer_id": "EV-EXT-02",
+      "role": "evaluateur_agree",
+      "signature_status": "SIGNE"
+    }
+  ],
+  "reviews": [
+    {
+      "review_id": "REV-HOM-001",
+      "reviewer_id": "EV-EXT-01",
+      "dossier_id": "D-PILOTE-RES-001",
+      "runtime_status": "PRET_REVISION_FINALE",
+      "expected_status": "PRET_REVISION_FINALE",
+      "decision": "ACCEPTE",
+      "signature_status": "SIGNE",
+      "reviewed_at": "2026-05-04",
+      "gaps": []
+    },
+    {
+      "review_id": "REV-HOM-002",
+      "reviewer_id": "EV-EXT-01",
+      "dossier_id": "D-PILOTE-RES-002",
+      "runtime_status": "BROUILLON",
+      "expected_status": "BROUILLON",
+      "decision": "A_REVOIR",
+      "signature_status": "SIGNE",
+      "reviewed_at": "2026-05-04",
+      "gaps": [
+        {
+          "gap_id": "EXT-GAP-001",
+          "priority": "P2",
+          "category": "explication_confiance",
+          "target": "compliance-qa.recommandations_corrections.md",
+          "status": "A_PLANIFIER",
+          "summary": "Expliciter la confiance limitee dans la synthese evaluateur.",
+          "recommendation": "Ajouter une phrase de reserve metier avant signature finale.",
+          "evidence": "Le dossier reste en BROUILLON et non en PRET_REVISION_FINALE."
+        }
+      ]
+    },
+    {
+      "review_id": "REV-HOM-003",
+      "reviewer_id": "EV-EXT-02",
+      "dossier_id": "D-PILOTE-RES-003",
+      "runtime_status": "A_REVOIR",
+      "expected_status": "A_REVOIR",
+      "decision": "A_REVOIR",
+      "signature_status": "SIGNE",
+      "reviewed_at": "2026-05-04",
+      "gaps": [
+        {
+          "gap_id": "EXT-GAP-002",
+          "priority": "P1",
+          "category": "conformite_comparable",
+          "target": "comps-market.justifications_comparables.json",
+          "status": "A_TRAITER_AVANT_GO",
+          "summary": "Conserver le statut A_REVOIR tant que le comparable hors fenetre n'est pas justifie.",
+          "recommendation": "Fermer le blocage de conformite ou documenter son acceptation metier.",
+          "evidence": "Le dossier pilote revision conformite contient un blocage temporel."
+        },
+        {
+          "gap_id": "EXT-GAP-003",
+          "priority": "P2",
+          "category": "redaction",
+          "target": "redaction.brouillon_rapport.md",
+          "status": "A_PLANIFIER",
+          "summary": "Le brouillon de rapport doit rester absent lorsque le statut est A_REVOIR.",
+          "recommendation": "Maintenir l'arret de redaction et exposer la raison dans les recommandations.",
+          "evidence": "La redaction finale n'est pas requise pour un retour correction obligatoire."
+        }
+      ]
+    }
+  ]
+}

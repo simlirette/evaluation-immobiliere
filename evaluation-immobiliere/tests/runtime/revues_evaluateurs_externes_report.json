@@ -1,0 +1,122 @@
+{
+  "schema_version": "revues_evaluateurs_externes_gate_v1",
+  "ok": true,
+  "strict": true,
+  "decision": "GO_CONDITIONNEL_ECARTS_EVALUATEURS",
+  "source_path": "evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json",
+  "runtime_dir": "evaluation-immobiliere/tests/runtime",
+  "grille_path": "evaluation-immobiliere/atelier/HOMOLOGATION-METIER-GRILLE-V1.json",
+  "reviews_count": 3,
+  "reviewers_count": 2,
+  "reviewed_pilot_cases": 3,
+  "status_disagreements": 0,
+  "gaps_count": 3,
+  "gap_counts_by_priority": {
+    "P2": 2,
+    "P1": 1
+  },
+  "decisions_count": {
+    "ACCEPTE": 1,
+    "A_REVOIR": 2
+  },
+  "errors": [],
+  "warnings": [
+    "D-PILOTE-RES-002: EXT-GAP-001: ecart conditionnel P2",
+    "D-PILOTE-RES-003: EXT-GAP-002: ecart conditionnel P1",
+    "D-PILOTE-RES-003: EXT-GAP-003: ecart conditionnel P2"
+  ],
+  "cases": [
+    {
+      "dossier_id": "D-PILOTE-RES-001",
+      "runtime_status": "PRET_REVISION_FINALE",
+      "expected_statuses": [
+        "PRET_REVISION_FINALE"
+      ],
+      "reviewers": [
+        "EV-EXT-01"
+      ],
+      "decisions": {
+        "ACCEPTE": 1
+      },
+      "gaps_count": 0
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-002",
+      "runtime_status": "BROUILLON",
+      "expected_statuses": [
+        "BROUILLON"
+      ],
+      "reviewers": [
+        "EV-EXT-01"
+      ],
+      "decisions": {
+        "A_REVOIR": 1
+      },
+      "gaps_count": 1
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-003",
+      "runtime_status": "A_REVOIR",
+      "expected_statuses": [
+        "A_REVOIR"
+      ],
+      "reviewers": [
+        "EV-EXT-02"
+      ],
+      "decisions": {
+        "A_REVOIR": 1
+      },
+      "gaps_count": 2
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "EXT-GAP-002",
+      "dossier_id": "D-PILOTE-RES-003",
+      "runtime_status": "A_REVOIR",
+      "expected_status": "A_REVOIR",
+      "status_disagreement": false,
+      "reviewer_id": "EV-EXT-02",
+      "decision": "A_REVOIR",
+      "priority": "P1",
+      "category": "conformite_comparable",
+      "target": "comps-market.justifications_comparables.json",
+      "status": "A_TRAITER_AVANT_GO",
+      "summary": "Conserver le statut A_REVOIR tant que le comparable hors fenetre n'est pas justifie.",
+      "recommendation": "Fermer le blocage de conformite ou documenter son acceptation metier.",
+      "evidence": "Le dossier pilote revision conformite contient un blocage temporel."
+    },
+    {
+      "gap_id": "EXT-GAP-001",
+      "dossier_id": "D-PILOTE-RES-002",
+      "runtime_status": "BROUILLON",
+      "expected_status": "BROUILLON",
+      "status_disagreement": false,
+      "reviewer_id": "EV-EXT-01",
+      "decision": "A_REVOIR",
+      "priority": "P2",
+      "category": "explication_confiance",
+      "target": "compliance-qa.recommandations_corrections.md",
+      "status": "A_PLANIFIER",
+      "summary": "Expliciter la confiance limitee dans la synthese evaluateur.",
+      "recommendation": "Ajouter une phrase de reserve metier avant signature finale.",
+      "evidence": "Le dossier reste en BROUILLON et non en PRET_REVISION_FINALE."
+    },
+    {
+      "gap_id": "EXT-GAP-003",
+      "dossier_id": "D-PILOTE-RES-003",
+      "runtime_status": "A_REVOIR",
+      "expected_status": "A_REVOIR",
+      "status_disagreement": false,
+      "reviewer_id": "EV-EXT-02",
+      "decision": "A_REVOIR",
+      "priority": "P2",
+      "category": "redaction",
+      "target": "redaction.brouillon_rapport.md",
+      "status": "A_PLANIFIER",
+      "summary": "Le brouillon de rapport doit rester absent lorsque le statut est A_REVOIR.",
+      "recommendation": "Maintenir l'arret de redaction et exposer la raison dans les recommandations.",
+      "evidence": "La redaction finale n'est pas requise pour un retour correction obligatoire."
+    }
+  ]
+}

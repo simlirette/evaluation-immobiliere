@@ -9,7 +9,7 @@ ATELIER_DIR_DEFAULT = Path("evaluation-immobiliere/atelier")
 CI_OUT_DEFAULT = ATELIER_DIR_DEFAULT / "PIPELINE-CI-V1.md"
 CD_OUT_DEFAULT = ATELIER_DIR_DEFAULT / "PIPELINE-CD-V1.md"
 ROLLBACK_OUT_DEFAULT = ATELIER_DIR_DEFAULT / "RUNBOOK-ROLLBACK-V1.md"
-PHASE_H_STATUS_DEFAULT = "EN_ATTENTE_REPONSES_TERRAIN"
+PHASE_H_STATUS_DEFAULT = "GO_PROD_PREPARATION"
 
 
 def read_text(path: Path) -> str:
@@ -31,6 +31,9 @@ def build_ci_markdown(workflow_path: Path, workflow_text: str, phase_h_status: s
         ("Integrite runtime", "analyser_integrite_runtime_v0.py", workflow_signal(workflow_text, "analyser_integrite_runtime_v0.py")),
         ("Chaine pre-reponses", "executer_pre_reponses_v0.py", workflow_signal(workflow_text, "executer_pre_reponses_v0.py")),
         ("Contrats infra", "valider_rapports_infra_v0.py", workflow_signal(workflow_text, "valider_rapports_infra_v0.py")),
+        ("Revues evaluateurs externes strictes", "verifier_revues_evaluateurs_externes_v1.py --strict", workflow_signal(workflow_text, "verifier_revues_evaluateurs_externes_v1.py")),
+        ("Fermeture ecarts evaluateurs stricte", "verifier_fermeture_ecarts_evaluateurs_v1.py --strict", workflow_signal(workflow_text, "verifier_fermeture_ecarts_evaluateurs_v1.py")),
+        ("Release candidate strict", "verifier_release_candidate_v1.py --strict", workflow_signal(workflow_text, "verifier_release_candidate_v1.py")),
         ("Tests unitaires", "python -m unittest discover", workflow_signal(workflow_text, "python -m unittest discover")),
     ]
 
@@ -46,7 +49,7 @@ def build_ci_markdown(workflow_path: Path, workflow_text: str, phase_h_status: s
         "",
         f"- Workflow source: `{workflow_path.as_posix()}`",
         f"- Statut Phase H: **{phase_h_status}**",
-        "- Decision Phase I: **GO_CONDITIONNEL_PREPARATION** tant que les retours terrain ne sont pas signes.",
+        "- Decision Phase I: **GO_PREPARATION_PROD**; le go live reste soumis au dress rehearsal et au tag release-candidate.",
         "",
         "## Gates CI",
         "",
@@ -78,13 +81,18 @@ def build_ci_markdown(workflow_path: Path, workflow_text: str, phase_h_status: s
             "|---|---|---|",
             "| Derive des artefacts generes | Gate `git diff --exit-code` | Platform |",
             "| Tests locaux dependants du dossier temporaire Windows | `.test-tmp/` controle et ignore par git | QA/Platform |",
-            "| Phase H non signee | CI autorisee, promotion prod bloquee | Product + Lead Metier |",
+            "| Go live avant dress rehearsal | CI autorisee, promotion prod bloquee jusqu'au tag release-candidate | Product + Platform |",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
 
 
 def build_cd_markdown(phase_h_status: str = PHASE_H_STATUS_DEFAULT) -> str:
+    status_line = (
+        f"Statut Phase H: **{phase_h_status}**. La preparation prod est autorisee; le go live reste bloque jusqu'au dress rehearsal staging."
+        if phase_h_status == "GO_PROD_PREPARATION"
+        else f"Statut Phase H: **{phase_h_status}**. La production reste bloquee tant que la campagne terrain n'est pas signee."
+    )
     lines = [
         "# PIPELINE CD V1",
         "",
@@ -93,7 +101,7 @@ def build_cd_markdown(phase_h_status: str = PHASE_H_STATUS_DEFAULT) -> str:
         "## Objectif",
         "Definir les promotions dev -> staging -> prod avec approbations et preuves minimales.",
         "",
-        f"Statut Phase H: **{phase_h_status}**. La production reste bloquee tant que la campagne terrain n'est pas signee.",
+        status_line,
         "",
         "## Environnements",
         "",
@@ -130,6 +138,11 @@ def build_cd_markdown(phase_h_status: str = PHASE_H_STATUS_DEFAULT) -> str:
 
 
 def build_rollback_markdown(phase_h_status: str = PHASE_H_STATUS_DEFAULT) -> str:
+    context_line = (
+        f"Contexte Phase H: **{phase_h_status}**. Le rollback staging doit etre repete avant tout go live controle."
+        if phase_h_status == "GO_PROD_PREPARATION"
+        else f"Contexte Phase H: **{phase_h_status}**. Aucun rollback prod reel n'est execute tant que la prod n'est pas ouverte."
+    )
     lines = [
         "# RUNBOOK ROLLBACK V1",
         "",
@@ -138,7 +151,7 @@ def build_rollback_markdown(phase_h_status: str = PHASE_H_STATUS_DEFAULT) -> str
         "## Objectif",
         "Fournir une procedure de retour arriere applicative, contrats et donnees sessionnelles.",
         "",
-        f"Contexte Phase H: **{phase_h_status}**. Aucun rollback prod reel n'est execute tant que la prod n'est pas ouverte.",
+        context_line,
         "",
         "## Declencheurs",
         "",
