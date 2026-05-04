@@ -13,7 +13,9 @@ Le serveur utilise uniquement la bibliotheque standard Python.
 Interface locale:
 
 ```text
+http://127.0.0.1:8787/product
 http://127.0.0.1:8787/ui
+http://127.0.0.1:8787/review/ui
 ```
 
 Endpoints:
@@ -21,9 +23,17 @@ Endpoints:
 - `GET /ui`
 - `GET /fixtures`
 - `GET /health`
+- `GET /product/summary`
+- `POST /product/demo`
 - `POST /session`
 - `POST /start`
+- `GET /session/summary?session_id=<id>`
+- `GET /status?session_id=<id>`
+- `GET /artifacts?session_id=<id>`
+- `GET /artifact?session_id=<id>&event_id=<event_id>`
 - `GET /stream?session_id=<id>`
+- `POST /review`
+- `POST /resume`
 
 ## Creer une session
 
@@ -95,6 +105,17 @@ Evenements exposes:
 - `warning_detected`
 - `blocking_detected`
 - `schema_invalid`
+
+## Relire une session et ses artefacts
+
+```bash
+curl http://127.0.0.1:8787/session/summary?session_id=<id>
+curl http://127.0.0.1:8787/artifact?session_id=<id>^&event_id=<event_id>
+```
+
+`/artifact` refuse les chemins hors repertoire de session et renvoie seulement
+un apercu texte/JSON plafonne a 64 KiB pour garder l'UI exploitable sans exposer
+de lecture arbitraire du disque.
 
 ## Persistance locale
 

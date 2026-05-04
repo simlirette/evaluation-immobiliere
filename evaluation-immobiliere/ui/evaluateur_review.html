@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Revue evaluateur</title>
+  <title>Revue dossier</title>
   <style>
     :root {
       color-scheme: light;
@@ -110,6 +110,8 @@
       font-weight: 700;
     }
     tr.selected { background: #e8f4f1; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover { background: #f0f7f5; }
     .queue {
       max-height: calc(100vh - 180px);
       overflow: auto;
@@ -191,7 +193,7 @@
 </head>
 <body>
   <header>
-    <h1>Revue evaluateur</h1>
+    <h1>Revue dossier</h1>
     <div class="muted" id="updated">Chargement...</div>
   </header>
   <main>
@@ -200,6 +202,11 @@
         <div class="toolbar">
           <button class="primary" id="refresh">Actualiser</button>
           <button id="start">Ouvrir dossier</button>
+        </div>
+        <label for="sessionInput">Session existante</label>
+        <input id="sessionInput" placeholder="session_id">
+        <div class="toolbar">
+          <button id="loadSession">Charger session</button>
         </div>
         <h2>File</h2>
         <div class="muted" id="queueCount">-</div>
@@ -222,6 +229,18 @@
           <span>Statut</span>
           <strong><span class="status" id="status">-</span></strong>
         </div>
+        <div class="metric">
+          <span>Warnings / blocages</span>
+          <strong id="signals">-</strong>
+        </div>
+        <div class="metric">
+          <span>Artefacts</span>
+          <strong id="artifactCount">-</strong>
+        </div>
+        <div class="metric">
+          <span>Integrite</span>
+          <strong id="integrity">-</strong>
+        </div>
         <div class="span2">
           <h2>Artefacts</h2>
           <table id="artifacts"></table>
@@ -236,13 +255,17 @@
             <option value="REJETE">REJETE</option>
           </select>
           <label for="reviewer">Relecteur</label>
-          <input id="reviewer" value="Evaluateur">
+          <input id="reviewer" value="QA produit">
           <label for="notes">Notes</label>
           <textarea id="notes"></textarea>
           <div class="toolbar">
             <button class="primary" id="saveReview">Enregistrer</button>
             <button id="resume">Reprise</button>
           </div>
+        </div>
+        <div class="full">
+          <h2>Artefact ouvert</h2>
+          <pre id="artifactDetail">{}</pre>
         </div>
         <div class="full">
           <h2>Evenements</h2>
@@ -274,6 +297,16 @@
       return body;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
     function priorityClass(value) {
       if (value === 'P1') return 'bad';
       if (value === 'P2') return 'warn';
@@ -283,7 +316,7 @@
     function renderQueue() {
       $('queueCount').textContent = `${queueRows.length} items`;
       $('queueTable').innerHTML = '<thead><tr><th>ID</th><th>P</th><th>Dossier</th><th>Type</th><th>Cible</th></tr></thead><tbody>' +
-        queueRows.map((row, index) => `<tr data-index="${index}" class="${selected === row ? 'selected' : ''}"><td>${row.id || '-'}</td><td class="${priorityClass(row.priority)}">${row.priority || '-'}</td><td>${row.dossier_id || '-'}</td><td>${row.item_type || '-'}</td><td>${row.target || '-'}</td></tr>`).join('') +
+        queueRows.map((row, index) => `<tr data-index="${index}" class="${selected === row ? 'selected' : ''}"><td>${escapeHtml(row.id || '-')}</td><td class="${priorityClass(row.priority)}">${escapeHtml(row.priority || '-')}</td><td>${escapeHtml(row.dossier_id || '-')}</td><td>${escapeHtml(row.item_type || '-')}</td><td>${escapeHtml(row.target || '-')}</td></tr>`).join('') +
         '</tbody>';
       document.querySelectorAll('#queueTable tbody tr').forEach((tr) => {
         tr.addEventListener('click', () => {
@@ -316,21 +349,41 @@
         body: JSON.stringify({ fixture: fixture.name, strict_mode: true })
       });
       activeSession = payload.session;
-      $('session').textContent = activeSession.session_id;
-      $('dossier').textContent = payload.result.dossier_id;
-      $('status').textContent = payload.result.status;
-      $('raw').textContent = JSON.stringify(payload, null, 2);
-      await loadArtifacts();
+      $('sessionInput').value = activeSession.session_id;
+      await loadSessionSummary(activeSession.session_id);
       openStream();
     }
 
-    async function loadArtifacts() {
-      if (!activeSession) return;
-      const payload = await json(`/artifacts?session_id=${activeSession.session_id}`);
-      const rows = (payload.artifacts || []).slice(0, 32);
+    async function loadSessionSummary(sessionId) {
+      const payload = await json(`/session/summary?session_id=${encodeURIComponent(sessionId)}`);
+      activeSession = payload.session;
+      $('session').textContent = activeSession.session_id;
+      $('dossier').textContent = payload.result.dossier_id || activeSession.dossier_id || '-';
+      $('status').textContent = payload.result.status || activeSession.status || '-';
+      $('signals').textContent = `${(payload.result.warnings || []).length} / ${(payload.result.blocking_failures || []).length}`;
+      $('artifactCount').textContent = payload.artifacts.artifacts_count || 0;
+      $('integrity').textContent = payload.integrity.ok ? 'OK' : 'A verifier';
+      $('raw').textContent = JSON.stringify(payload, null, 2);
+      renderArtifacts(payload.artifacts || {});
+    }
+
+    function renderArtifacts(payload) {
+      const rows = (payload.artifacts || []).slice(0, 48);
       $('artifacts').innerHTML = '<thead><tr><th>Step</th><th>Artefact</th><th>Bytes</th><th>SHA-256</th></tr></thead><tbody>' +
-        rows.map((row) => `<tr><td>${row.step || '-'}</td><td>${row.artifact || '-'}</td><td>${row.bytes || 0}</td><td>${String(row.sha256 || '').slice(0, 12)}</td></tr>`).join('') +
+        rows.map((row) => `<tr class="clickable" data-event-id="${escapeHtml(row.event_id || '')}"><td>${escapeHtml(row.step || '-')}</td><td>${escapeHtml(row.artifact || '-')}</td><td>${escapeHtml(row.bytes || 0)}</td><td>${escapeHtml(String(row.sha256 || '').slice(0, 12))}</td></tr>`).join('') +
         '</tbody>';
+      document.querySelectorAll('#artifacts tbody tr').forEach((tr) => {
+        tr.addEventListener('click', () => openArtifact(tr.dataset.eventId).catch((error) => $('artifactDetail').textContent = error.message));
+      });
+    }
+
+    async function openArtifact(eventId) {
+      if (!activeSession) throw new Error('Aucune session active');
+      if (!eventId) throw new Error('event_id artefact manquant');
+      const params = new URLSearchParams({ session_id: activeSession.session_id, event_id: eventId });
+      const payload = await json(`/artifact?${params.toString()}`);
+      const rendered = payload.json ? JSON.stringify(payload.json, null, 2) : payload.text;
+      $('artifactDetail').textContent = `${payload.artifact.step}.${payload.artifact.artifact}\n${payload.bytes} bytes${payload.truncated ? ' - tronque' : ''}\n\n${rendered}`;
     }
 
     function openStream() {
@@ -358,6 +411,7 @@
         })
       });
       $('raw').textContent = JSON.stringify(payload, null, 2);
+      await loadSessionSummary(activeSession.session_id);
     }
 
     async function resume() {
@@ -367,10 +421,12 @@
         body: JSON.stringify({ session_id: activeSession.session_id })
       });
       $('raw').textContent = JSON.stringify(payload, null, 2);
+      await loadSessionSummary(activeSession.session_id);
     }
 
     $('refresh').addEventListener('click', () => refresh().catch((error) => $('raw').textContent = error.message));
     $('start').addEventListener('click', () => openSelected().catch((error) => $('raw').textContent = error.message));
+    $('loadSession').addEventListener('click', () => loadSessionSummary($('sessionInput').value.trim()).then(openStream).catch((error) => $('raw').textContent = error.message));
     $('saveReview').addEventListener('click', () => saveReview().catch((error) => $('raw').textContent = error.message));
     $('resume').addEventListener('click', () => resume().catch((error) => $('raw').textContent = error.message));
 

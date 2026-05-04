@@ -101,7 +101,9 @@ Endpoints:
 - `GET /fixtures`
 - `POST /session`
 - `POST /start`
+- `GET /session/summary?session_id=<id>`
 - `GET /stream?session_id=<id>`
+- `GET /artifact?session_id=<id>&event_id=<event_id>`
 - `GET /health`
 
 Demo depuis un autre terminal:
@@ -112,6 +114,7 @@ python evaluation-immobiliere/outils/demo_api_v0.py --fixture case_nominal.json
 
 ## Prochaine etape logique
 
-Etendre les contrats metier des artefacts vers des criteres signes par
-evaluateur: seuils de comparables, reconciliation finale et format de rapport
-pret a reviser.
+Continuer la finalisation produit backend/frontend: lecture detaillee des
+artefacts, workflow de revue dossier, reprise session, securite minimale,
+observabilite et gates CI. La revue par un evaluateur immobilier reste une
+etape finale de validation, pas le centre de la construction produit.
