@@ -115,6 +115,16 @@ La synthese dossier agrege les artefacts indexes de session:
 
 Elle signale les artefacts requis manquants dans `coverage.missing`.
 
+## Contrat `/ops/snapshot`
+Sortie: `ops_observability_snapshot_v1`.
+
+La synthese ops expose:
+- `expected_reports_count`, `present_reports_count`, `missing_reports_count`;
+- la liste `missing_reports`;
+- le dernier `pre_reponses_run.json` si present;
+- le lock `pre_reponses.lock` si actif;
+- `next_action` pour guider le cockpit produit.
+
 ## Contrat `/review`
 La review produit `review.json`.
 

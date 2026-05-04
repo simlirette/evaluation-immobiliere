@@ -254,6 +254,10 @@
         <h2>Routes backend</h2>
         <table id="routes"></table>
       </section>
+      <section class="span6">
+        <h2>Observabilite ops</h2>
+        <table id="opsSnapshot"></table>
+      </section>
       <section class="full">
         <h2>Reponse brute</h2>
         <pre id="raw">{}</pre>
@@ -327,6 +331,14 @@
       renderFixtures(payload.fixtures?.items || []);
       renderObjectTable("runtimeStatus", payload.runtime?.status_counts || {});
       renderObjectTable("routes", payload.routes || {});
+      renderObjectTable("opsSnapshot", {
+        status: payload.ops_snapshot?.status,
+        present: `${payload.ops_snapshot?.present_reports_count || 0} / ${payload.ops_snapshot?.expected_reports_count || 0}`,
+        missing: payload.ops_snapshot?.missing_reports_count || 0,
+        last_run_ok: payload.ops_snapshot?.last_run?.ok ?? null,
+        lock: payload.ops_snapshot?.lock?.status || "-",
+        next_action: payload.ops_snapshot?.next_action || "-"
+      });
       $("raw").textContent = JSON.stringify(payload, null, 2);
     }
 
