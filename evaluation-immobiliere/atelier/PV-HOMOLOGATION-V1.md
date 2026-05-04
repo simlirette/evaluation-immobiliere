@@ -8,13 +8,15 @@ Proces-verbal preparatoire d'homologation metier et pre-production multi-parties
 ## Decision
 
 - Decision runtime metier: **PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN**
-- Decision Phase J: **GO_PROD_PREPARATION**
-- Revues terrain: **REVUES_TERRAIN_EXPLOITABLES**
+- Decision homologation synthetique: **GO_PROD_PREPARATION**
+- Gate Phase H reelle: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**
+- Revues evaluateurs fixture: **REVUES_TERRAIN_EXPLOITABLES**
 - Fermeture ecarts: **ECARTS_FERMES_SIGNATURES_SIGNEES**
 - Release candidate: **PRET_GO_LIVE_CONTROLE**
 - P0 ouverts: **0**
 - P1/P2 ouverts: **0**
-- Go production: **PREPARATION_AUTORISEE**
+- Preparation staging/synthetique: **PREPARATION_AUTORISEE**
+- Go production reelle: **NON**
 - Go live: **A_CONTROLER_APRES_STAGING**
 
 ## Synthese Runtime
@@ -27,8 +29,9 @@ Proces-verbal preparatoire d'homologation metier et pre-production multi-parties
 
 ## Conditions avant Go production
 
-- Revues terrain signees par au moins deux evaluateurs agrees.
-- Couverture de trois dossiers pilotes revue et acceptee.
+- Dossiers reels anonymises valides par le gate Phase H reelle.
+- Revues terrain reelles signees par au moins deux evaluateurs agrees.
+- Couverture de trois dossiers reels/pilotes revue et acceptee.
 - Tous les ecarts P0 fermes, P1/P2 acceptes formellement ou fermes.
 - Dress rehearsal staging rejoue avec CI/CD et rollback.
 - Signature metier et Product obtenue.
@@ -37,7 +40,7 @@ Proces-verbal preparatoire d'homologation metier et pre-production multi-parties
 
 | Role | Owner | Statut | Commentaire |
 |---|---|---|---|
-| Lead Metier | A nommer | SIGNE | Preparation prod approuvee |
-| Product | A nommer | SIGNE | Preparation prod approuvee |
+| Lead Metier | A nommer | SIGNE | Preparation staging approuvee; prod reelle bloquee par Phase H |
+| Product | A nommer | SIGNE | Preparation staging approuvee; prod reelle bloquee par Phase H |
 | Platform | A nommer | A_SIGNER | Preprod preparable |
 | QA/Securite | A nommer | SIGNE | Controles finaux approuves |

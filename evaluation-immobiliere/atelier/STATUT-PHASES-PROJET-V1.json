@@ -1,0 +1,148 @@
+{
+  "schema_version": "statut_phases_projet_v1",
+  "ok": true,
+  "decision": "PROJET_PRET_TERRAIN_REEL_PROD_BLOQUEE",
+  "phase_h_decision": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
+  "active_real_cases": 0,
+  "response_active_rows": 0,
+  "calibration_active_rows": 0,
+  "release_candidate_decision": "PRET_GO_LIVE_CONTROLE",
+  "homologation_synthetic_decision": "GO_PROD_PREPARATION",
+  "external_reviews_decision": "GO_CONDITIONNEL_ECARTS_EVALUATEURS",
+  "closure_decision": "GO_PROD_PREPARATION",
+  "open_preprod_gaps": 2,
+  "open_preprod_p0": 1,
+  "open_preprod_p1": 1,
+  "open_slo": true,
+  "checks": [
+    {
+      "name": "phase_h_gate",
+      "ok": true,
+      "status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
+      "evidence": "0 dossier(s) terrain actif(s)"
+    },
+    {
+      "name": "aucune_reponse_inventee",
+      "ok": true,
+      "status": "AUCUNE_REPONSE_ACTIVE",
+      "evidence": "reponses=0; calibration=0; erreurs_reponses=0"
+    },
+    {
+      "name": "ci_couvre_phase_h_et_statut_projet",
+      "ok": true,
+      "status": "COUVERT",
+      "evidence": ".github/workflows/validation.yml"
+    },
+    {
+      "name": "production_bloquee_avant_phase_h_reelle",
+      "ok": true,
+      "status": "BLOQUEE",
+      "evidence": "Phase J/K/L et CD declarent le blocage production."
+    },
+    {
+      "name": "pv_homologation_scope_reel",
+      "ok": true,
+      "status": "PORTEE_REELLE_EXPLICITE",
+      "evidence": "evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md"
+    }
+  ],
+  "phases": [
+    {
+      "code": "A",
+      "name": "Cadrage",
+      "status": "TERMINE",
+      "decision": "BASELINE_DOCUMENTEE",
+      "blocking": false,
+      "evidence": "PLAN-DIRECTEUR-COMPLET-V1.md"
+    },
+    {
+      "code": "B",
+      "name": "Contrats Aston",
+      "status": "TERMINE",
+      "decision": "CONTRATS_DOCUMENTES",
+      "blocking": false,
+      "evidence": "CONTRATS-INTEGRATION-ASTON-V1.yaml"
+    },
+    {
+      "code": "C",
+      "name": "Runtime v0",
+      "status": "TERMINE",
+      "decision": "RUNTIME_EN_CI",
+      "blocking": false,
+      "evidence": "tests/runtime/runtime_summary.json"
+    },
+    {
+      "code": "D",
+      "name": "API persistence",
+      "status": "PREPARE",
+      "decision": "CONTRATS_API_DOCUMENTES",
+      "blocking": false,
+      "evidence": "API-RUNTIME-V0.md"
+    },
+    {
+      "code": "E",
+      "name": "UI evaluateur",
+      "status": "PREPARE",
+      "decision": "SPEC_UI_DOCUMENTEE",
+      "blocking": false,
+      "evidence": "SPEC-UI-EVALUATEUR-V1.md"
+    },
+    {
+      "code": "F",
+      "name": "Securite gouvernance",
+      "status": "PREPARE",
+      "decision": "BASELINE_DOCUMENTEE",
+      "blocking": false,
+      "evidence": "SECURITY-BASELINE-V1.md"
+    },
+    {
+      "code": "G",
+      "name": "Perf fiabilite cout",
+      "status": "GO_CONDITIONNEL",
+      "decision": "SLO_A_FERMER",
+      "blocking": true,
+      "evidence": "SLO-SLA-V1.md"
+    },
+    {
+      "code": "H",
+      "name": "Campagne terrain reelle",
+      "status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
+      "decision": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
+      "blocking": true,
+      "evidence": "verifier_campagne_terrain_reelle_v1.py"
+    },
+    {
+      "code": "I",
+      "name": "CI/CD",
+      "status": "PRET_STAGING",
+      "decision": "GO_PREPARATION_STAGING",
+      "blocking": false,
+      "evidence": ".github/workflows/validation.yml"
+    },
+    {
+      "code": "J",
+      "name": "Preproduction",
+      "status": "PROD_BLOQUEE",
+      "decision": "NO_GO_PROD_PREPARATION",
+      "blocking": true,
+      "evidence": "RAPPORT-DRESS-REHEARSAL-V1.md"
+    },
+    {
+      "code": "K",
+      "name": "Canary",
+      "status": "PROD_BLOQUEE",
+      "decision": "DEPLOIEMENT_PROD_BLOQUE",
+      "blocking": true,
+      "evidence": "PLAN-DEPLOIEMENT-CANARY-V1.md"
+    },
+    {
+      "code": "L",
+      "name": "Hypercare",
+      "status": "PREPARE_PROD_BLOQUEE",
+      "decision": "HYPERCARE_PREPARE_PROD_BLOQUEE",
+      "blocking": true,
+      "evidence": "PLAN-HYPERCARE-V1.md"
+    }
+  ],
+  "errors": []
+}

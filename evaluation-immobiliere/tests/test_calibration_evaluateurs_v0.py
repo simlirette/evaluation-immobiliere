@@ -78,8 +78,8 @@ class TestCalibrationEvaluateursV0(unittest.TestCase):
         self.assertGreaterEqual(len(report["runtime_questions"]), 3)
         self.assertIn("Ne pas inventer", markdown)
         self.assertIn("Aucun item confirme", backlog)
-        self.assertEqual(phase_h_status(report), "EN_ATTENTE_REPONSES_TERRAIN")
-        self.assertIn("EN_ATTENTE_REPONSES_TERRAIN", build_campaign_markdown(report))
+        self.assertEqual(phase_h_status(report), "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertIn("EN_ATTENTE_ENTREES_TERRAIN_REELLES", build_campaign_markdown(report))
         self.assertIn("A_SIGNER", build_acceptance_markdown(report))
 
     def test_active_responses_create_status_and_scoring_backlog(self) -> None:
@@ -250,7 +250,7 @@ class TestCalibrationEvaluateursV0(unittest.TestCase):
 
             write_phase_h_outputs(report, campaign_out, matrix_out, acceptance_out)
 
-            self.assertIn("EN_ATTENTE_REPONSES_TERRAIN", campaign_out.read_text(encoding="utf-8"))
+            self.assertIn("EN_ATTENTE_ENTREES_TERRAIN_REELLES", campaign_out.read_text(encoding="utf-8"))
             self.assertEqual(read_csv_rows(matrix_out), [])
             self.assertIn("Signature metier", acceptance_out.read_text(encoding="utf-8"))
         finally:

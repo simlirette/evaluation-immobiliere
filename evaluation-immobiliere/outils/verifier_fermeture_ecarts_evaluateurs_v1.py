@@ -248,8 +248,10 @@ def build_pv_signature_markdown(report: dict[str, Any]) -> str:
         "## Decision",
         "",
         f"- Decision: **{report.get('decision', 'UNKNOWN')}**",
+        "- Portee: **fixture homologation / preparation staging**",
         f"- Ecarts fermes ou acceptes: **{report.get('closures_count', 0)}/{report.get('external_gaps_to_close', 0)}**",
         f"- Roles signes: **{format_items(report.get('signed_roles'))}**",
+        "- Go production reelle: **NON_AVANT_PHASE_H_REELLE**",
         "- Go live: **A_PLANIFIER_APRES_DRESS_REHEARSAL**",
         "",
         "## Fermeture des ecarts",
@@ -266,6 +268,7 @@ def build_pv_signature_markdown(report: dict[str, Any]) -> str:
             "- Dress rehearsal staging rejoue sur le commit a promouvoir.",
             "- CI verte sur le commit exact.",
             "- Runbook rollback relu et lie au tag release-candidate.",
+            "- Gate Phase H reelle alimente par dossiers anonymises et reponses evaluateurs non synthetiques.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"

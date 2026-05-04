@@ -36,6 +36,7 @@ class TestCicdPhaseIV0(unittest.TestCase):
                 "python evaluation-immobiliere/outils/executer_pre_reponses_v0.py",
                 "python evaluation-immobiliere/outils/valider_rapports_infra_v0.py",
                 "python evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py",
+                "python evaluation-immobiliere/outils/verifier_statut_phases_projet_v1.py",
                 "python evaluation-immobiliere/outils/verifier_revues_evaluateurs_externes_v1.py --strict",
                 "python evaluation-immobiliere/outils/verifier_fermeture_ecarts_evaluateurs_v1.py --strict",
                 "python evaluation-immobiliere/outils/verifier_release_candidate_v1.py --strict",
@@ -46,8 +47,9 @@ class TestCicdPhaseIV0(unittest.TestCase):
         markdown = build_ci_markdown(Path(".github/workflows/validation.yml"), workflow_text)
 
         self.assertIn("PIPELINE CI V1", markdown)
-        self.assertIn("GO_PREPARATION_PROD", markdown)
+        self.assertIn("GO_PREPARATION_STAGING", markdown)
         self.assertIn("Gate campagne terrain reelle", markdown)
+        self.assertIn("Statut phases projet", markdown)
         self.assertIn("Fermeture ecarts evaluateurs stricte", markdown)
         self.assertIn("Release candidate strict", markdown)
         self.assertIn("| Tests unitaires | `python -m unittest discover` | present | oui |", markdown)

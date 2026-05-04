@@ -60,6 +60,7 @@ jobs:
             evaluation-immobiliere/outils/verifier_contrats_skills_agents_v0.py \
             evaluation-immobiliere/outils/verifier_contrats_artefacts_agents_v0.py \
             evaluation-immobiliere/outils/verifier_campagne_terrain_reelle_v1.py \
+            evaluation-immobiliere/outils/verifier_statut_phases_projet_v1.py \
             evaluation-immobiliere/outils/verifier_homologation_metier_v0.py \
             evaluation-immobiliere/outils/verifier_revues_evaluateurs_externes_v1.py \
             evaluation-immobiliere/outils/verifier_fermeture_ecarts_evaluateurs_v1.py \
@@ -142,6 +143,9 @@ jobs:
             --report-out .test-tmp/runtime_pilotes_reels_waiting/phase_h_campagne_terrain_gate.json \
             --markdown-out .test-tmp/runtime_pilotes_reels_waiting/PHASE-H-CAMPAGNE-TERRAIN-GATE-V1.md
 
+      - name: Verify project phase status
+        run: python evaluation-immobiliere/outils/verifier_statut_phases_projet_v1.py
+
       - name: Verify generated artifacts are committed
         run: |
           git diff --exit-code -- \
@@ -151,6 +155,8 @@ jobs:
             evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md \
             evaluation-immobiliere/atelier/PV-SIGNATURE-METIER-V1.md \
             evaluation-immobiliere/atelier/RELEASE-CANDIDATE-MANIFEST-V1.json \
+            evaluation-immobiliere/atelier/STATUT-PHASES-PROJET-V1.json \
+            evaluation-immobiliere/atelier/STATUT-PHASES-PROJET-V1.md \
             evaluation-immobiliere/atelier/RAPPORT-ECARTS-EVALUATEURS-EXTERNES-V1.md \
             evaluation-immobiliere/atelier/RAPPORT-DRESS-REHEARSAL-STAGING-V1.md \
             evaluation-immobiliere/atelier/RAPPORT-ROLLBACK-REHEARSAL-V1.md \

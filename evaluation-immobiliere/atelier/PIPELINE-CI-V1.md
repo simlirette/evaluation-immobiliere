@@ -9,7 +9,7 @@ Formaliser le pipeline CI bloquant pour chaque pull request et chaque push vers 
 
 - Workflow source: `.github/workflows/validation.yml`
 - Statut Phase H: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**
-- Decision Phase I: **GO_PREPARATION_PROD**; le go live reste soumis au dress rehearsal, au tag release-candidate et au gate terrain Phase H.
+- Decision Phase I: **GO_PREPARATION_STAGING**; le go live reel reste soumis au dress rehearsal, au tag release-candidate et au gate terrain Phase H.
 
 ## Gates CI
 
@@ -23,6 +23,7 @@ Formaliser le pipeline CI bloquant pour chaque pull request et chaque push vers 
 | Chaine pre-reponses | `executer_pre_reponses_v0.py` | present | oui |
 | Contrats infra | `valider_rapports_infra_v0.py` | present | oui |
 | Gate campagne terrain reelle | `verifier_campagne_terrain_reelle_v1.py` | present | oui |
+| Statut phases projet | `verifier_statut_phases_projet_v1.py` | present | oui |
 | Revues evaluateurs externes strictes | `verifier_revues_evaluateurs_externes_v1.py --strict` | present | oui |
 | Fermeture ecarts evaluateurs stricte | `verifier_fermeture_ecarts_evaluateurs_v1.py --strict` | present | oui |
 | Release candidate strict | `verifier_release_candidate_v1.py --strict` | present | oui |

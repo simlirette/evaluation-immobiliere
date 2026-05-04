@@ -35,7 +35,7 @@ class TestPreprodPhaseJV0(unittest.TestCase):
             {"status": "OK", "summary": {"review_queue_items": 16}},
             {"status": "PRET_A_TRANSMETTRE", "required_present": 19, "required_count": 19},
             {"status": "PRET_A_RECEVOIR_REPONSES", "risks_to_calibrate": {"contract_errors": 1}},
-            "Statut courant: **EN_ATTENTE_REPONSES_TERRAIN**.",
+            "Statut courant: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**.",
             "| latence_p95_dossier | n/d | <= 900 sec | INSTRUMENTATION_REQUISE |",
             "La production reste bloquee",
             "# RUNBOOK ROLLBACK V1",
@@ -64,7 +64,7 @@ class TestPreprodPhaseJV0(unittest.TestCase):
             write_json(handoff, {"status": "PRET_A_TRANSMETTRE", "required_present": 2, "required_count": 2})
             write_json(readiness, {"status": "PRET_A_RECEVOIR_REPONSES", "risks_to_calibrate": {}})
             slo.write_text("INSTRUMENTATION_REQUISE\n", encoding="utf-8")
-            acceptance.write_text("EN_ATTENTE_REPONSES_TERRAIN\n", encoding="utf-8")
+            acceptance.write_text("EN_ATTENTE_ENTREES_TERRAIN_REELLES\n", encoding="utf-8")
             cd.write_text("production reste bloquee\n", encoding="utf-8")
             rollback.write_text("# RUNBOOK ROLLBACK V1\n", encoding="utf-8")
 
