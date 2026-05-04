@@ -60,6 +60,9 @@ jobs:
             evaluation-immobiliere/outils/verifier_contrats_skills_agents_v0.py \
             evaluation-immobiliere/outils/verifier_contrats_artefacts_agents_v0.py \
             evaluation-immobiliere/outils/verifier_homologation_metier_v0.py \
+            evaluation-immobiliere/outils/verifier_revues_evaluateurs_externes_v1.py \
+            evaluation-immobiliere/outils/verifier_fermeture_ecarts_evaluateurs_v1.py \
+            evaluation-immobiliere/outils/verifier_release_candidate_v1.py \
             evaluation-immobiliere/outils/verifier_preuve_runtime_skills_v0.py \
             evaluation-immobiliere/outils/generer_registre_skills.py \
             evaluation-immobiliere/outils/valider_fixtures_v0.py \
@@ -104,6 +107,15 @@ jobs:
       - name: Verify business homologation
         run: python evaluation-immobiliere/outils/verifier_homologation_metier_v0.py
 
+      - name: Verify external evaluator reviews strict gate
+        run: python evaluation-immobiliere/outils/verifier_revues_evaluateurs_externes_v1.py --strict
+
+      - name: Verify evaluator gap closure strict gate
+        run: python evaluation-immobiliere/outils/verifier_fermeture_ecarts_evaluateurs_v1.py --strict
+
+      - name: Verify release candidate strict gate
+        run: python evaluation-immobiliere/outils/verifier_release_candidate_v1.py --strict
+
       - name: Verify runtime skills evidence
         run: python evaluation-immobiliere/outils/verifier_preuve_runtime_skills_v0.py
 
@@ -126,6 +138,12 @@ jobs:
             evaluation-immobiliere/atelier/RAPPORT-VALIDATION-REPONSES.md \
             evaluation-immobiliere/atelier/RAPPORT-PILOTE-RUNTIME-V0.md \
             evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md \
+            evaluation-immobiliere/atelier/PV-SIGNATURE-METIER-V1.md \
+            evaluation-immobiliere/atelier/RELEASE-CANDIDATE-MANIFEST-V1.json \
+            evaluation-immobiliere/atelier/RAPPORT-ECARTS-EVALUATEURS-EXTERNES-V1.md \
+            evaluation-immobiliere/atelier/RAPPORT-DRESS-REHEARSAL-STAGING-V1.md \
+            evaluation-immobiliere/atelier/RAPPORT-ROLLBACK-REHEARSAL-V1.md \
+            evaluation-immobiliere/atelier/MATRICE-ECARTS-EVALUATEURS-EXTERNES-V1.csv \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.csv \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.md \
             evaluation-immobiliere/tests/runtime

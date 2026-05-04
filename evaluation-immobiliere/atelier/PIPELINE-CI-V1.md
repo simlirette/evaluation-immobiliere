@@ -8,8 +8,8 @@ Formaliser le pipeline CI bloquant pour chaque pull request et chaque push vers 
 ## Statut
 
 - Workflow source: `.github/workflows/validation.yml`
-- Statut Phase H: **EN_ATTENTE_REPONSES_TERRAIN**
-- Decision Phase I: **GO_CONDITIONNEL_PREPARATION** tant que les retours terrain ne sont pas signes.
+- Statut Phase H: **GO_PROD_PREPARATION**
+- Decision Phase I: **GO_PREPARATION_PROD**; le go live reste soumis au dress rehearsal et au tag release-candidate.
 
 ## Gates CI
 
@@ -22,6 +22,9 @@ Formaliser le pipeline CI bloquant pour chaque pull request et chaque push vers 
 | Integrite runtime | `analyser_integrite_runtime_v0.py` | present | oui |
 | Chaine pre-reponses | `executer_pre_reponses_v0.py` | present | oui |
 | Contrats infra | `valider_rapports_infra_v0.py` | present | oui |
+| Revues evaluateurs externes strictes | `verifier_revues_evaluateurs_externes_v1.py --strict` | present | oui |
+| Fermeture ecarts evaluateurs stricte | `verifier_fermeture_ecarts_evaluateurs_v1.py --strict` | present | oui |
+| Release candidate strict | `verifier_release_candidate_v1.py --strict` | present | oui |
 | Tests unitaires | `python -m unittest discover` | present | oui |
 
 ## Commande de preuve locale Phase I
@@ -43,4 +46,4 @@ python -m unittest evaluation-immobiliere/tests/test_runtime_v0.py evaluation-im
 |---|---|---|
 | Derive des artefacts generes | Gate `git diff --exit-code` | Platform |
 | Tests locaux dependants du dossier temporaire Windows | `.test-tmp/` controle et ignore par git | QA/Platform |
-| Phase H non signee | CI autorisee, promotion prod bloquee | Product + Lead Metier |
+| Go live avant dress rehearsal | CI autorisee, promotion prod bloquee jusqu'au tag release-candidate | Product + Platform |

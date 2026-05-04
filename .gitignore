@@ -15,7 +15,9 @@ evaluation-immobiliere/runtime_api_*.log
 
 # Local external real-estate pilot dossiers. D-REEL inputs stay off-repo; the
 # active project knowledge lives in skills/ and synthetic fixtures.
-evaluation-immobiliere/tests/fixtures_external/
+evaluation-immobiliere/tests/fixtures_external/*
+!evaluation-immobiliere/tests/fixtures_external/
+!evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json
 evaluation-immobiliere/tests/fixtures/draft_dossier_reel_*.json
 evaluation-immobiliere/tests/fixtures/case_pilote_reel_*.json
 

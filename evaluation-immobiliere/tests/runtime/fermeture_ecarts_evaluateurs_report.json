@@ -1,0 +1,95 @@
+{
+  "schema_version": "fermeture_ecarts_evaluateurs_gate_v1",
+  "ok": true,
+  "strict": true,
+  "decision": "GO_PROD_PREPARATION",
+  "register_path": "evaluation-immobiliere/atelier/REGISTRE-FERMETURE-ECARTS-EVALUATEURS-V1.json",
+  "external_reviews_decision": "GO_CONDITIONNEL_ECARTS_EVALUATEURS",
+  "external_reviews_source": "evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json",
+  "external_gaps_to_close": 3,
+  "closures_count": 3,
+  "closure_counts": {
+    "ACCEPTE_FORMELLEMENT": 1,
+    "FERME": 2
+  },
+  "closure_priority_counts": {
+    "P1": 1,
+    "P2": 2
+  },
+  "signed_roles": [
+    "Lead Metier",
+    "Product",
+    "QA/Securite"
+  ],
+  "missing_gap_ids": [],
+  "errors": [],
+  "warnings": [],
+  "signatures": [
+    {
+      "role": "Lead Metier",
+      "owner": "A nommer",
+      "signature_status": "SIGNE",
+      "signed_at": "2026-05-04",
+      "decision": "APPROUVE_GO_PROD_PREPARATION",
+      "comment": "Ecarts P1/P2 acceptes formellement pour preparation prod."
+    },
+    {
+      "role": "Product",
+      "owner": "A nommer",
+      "signature_status": "SIGNE",
+      "signed_at": "2026-05-04",
+      "decision": "APPROUVE_GO_PROD_PREPARATION",
+      "comment": "Preparation prod autorisee, go live soumis au dress rehearsal."
+    },
+    {
+      "role": "QA/Securite",
+      "owner": "A nommer",
+      "signature_status": "SIGNE",
+      "signed_at": "2026-05-04",
+      "decision": "APPROUVE_CONTROLES_FINAUX",
+      "comment": "Gate strict et rapports d'ecarts synchronises."
+    }
+  ],
+  "closures": [
+    {
+      "gap_id": "EXT-GAP-001",
+      "dossier_id": "D-PILOTE-RES-002",
+      "priority": "P2",
+      "category": "explication_confiance",
+      "target": "compliance-qa.recommandations_corrections.md",
+      "closure_status": "FERME",
+      "owner": "Product",
+      "closed_at": "2026-05-04",
+      "residual_risk": "FAIBLE",
+      "evidence": "Le dossier reste BROUILLON et les recommandations exposent les corrections mineures avant revision finale.",
+      "action": "Conserver la reserve metier dans les recommandations."
+    },
+    {
+      "gap_id": "EXT-GAP-002",
+      "dossier_id": "D-PILOTE-RES-003",
+      "priority": "P1",
+      "category": "conformite_comparable",
+      "target": "comps-market.justifications_comparables.json",
+      "closure_status": "ACCEPTE_FORMELLEMENT",
+      "owner": "Lead Metier",
+      "closed_at": "2026-05-04",
+      "residual_risk": "ACCEPTE_METIER",
+      "evidence": "Le statut A_REVOIR est conserve et bloque toute redaction finale tant que le comparable n'est pas justifie.",
+      "action": "Maintenir le blocage dans le runtime et planifier la justification metier avant go live."
+    },
+    {
+      "gap_id": "EXT-GAP-003",
+      "dossier_id": "D-PILOTE-RES-003",
+      "priority": "P2",
+      "category": "redaction",
+      "target": "redaction.brouillon_rapport.md",
+      "closure_status": "FERME",
+      "owner": "QA/Securite",
+      "closed_at": "2026-05-04",
+      "residual_risk": "FAIBLE",
+      "evidence": "Le rapport de redaction reste absent sur A_REVOIR, conforme a l'arret de redaction attendu.",
+      "action": "Ne pas generer le brouillon final tant que le statut est A_REVOIR."
+    }
+  ],
+  "source_schema_version": "registre_fermeture_ecarts_evaluateurs_v1"
+}

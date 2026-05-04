@@ -2,7 +2,7 @@
   "schema_version": "homologation_metier_report_v1",
   "ok": true,
   "runtime_decision": "PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN",
-  "production_decision": "NO_GO_PROD_PREPARATION",
+  "production_decision": "GO_PROD_PREPARATION",
   "runtime_dir": "evaluation-immobiliere/tests/runtime",
   "grille_path": "evaluation-immobiliere/atelier/HOMOLOGATION-METIER-GRILLE-V1.json",
   "cases_count": 8,
@@ -13,15 +13,52 @@
     "PRET_REVISION_FINALE": 2
   },
   "external_reviews": {
-    "status": "EN_ATTENTE_REPONSES_TERRAIN",
+    "status": "REVUES_TERRAIN_EXPLOITABLES",
     "path": "evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json",
-    "reviews_count": 0,
-    "reviewers_count": 0,
-    "reviewed_pilot_cases": 0
+    "reviews_count": 3,
+    "reviewers_count": 2,
+    "reviewed_pilot_cases": 3,
+    "gap_counts_by_priority": {
+      "P2": 2,
+      "P1": 1
+    },
+    "decisions_count": {
+      "ACCEPTE": 1,
+      "A_REVOIR": 2
+    }
+  },
+  "gap_closure": {
+    "status": "ECARTS_FERMES_SIGNATURES_SIGNEES",
+    "path": "evaluation-immobiliere/atelier/REGISTRE-FERMETURE-ECARTS-EVALUATEURS-V1.json",
+    "closures_count": 3,
+    "closure_counts": {
+      "ACCEPTE_FORMELLEMENT": 1,
+      "FERME": 2
+    },
+    "priority_closed_counts": {
+      "P1": 1,
+      "P2": 2
+    },
+    "signed_roles": [
+      "Lead Metier",
+      "Product",
+      "QA/Securite"
+    ],
+    "missing_signature_roles": []
+  },
+  "release_candidate": {
+    "status": "PRET_GO_LIVE_CONTROLE",
+    "path": "evaluation-immobiliere/tests/runtime/release_candidate_report.json",
+    "decision": "PRET_GO_LIVE_CONTROLE",
+    "release_candidate_id": "rc-2026-05-04-001",
+    "go_live_status": "A_CONTROLER_APRES_STAGING",
+    "commit_ref": "HEAD"
   },
   "errors": [],
   "warnings": [
-    "revues evaluateurs absentes: evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json"
+    "review[1] EXT-GAP-001: ecart conditionnel P2",
+    "review[2] EXT-GAP-002: ecart conditionnel P1",
+    "review[2] EXT-GAP-003: ecart conditionnel P2"
   ],
   "cases": [
     {

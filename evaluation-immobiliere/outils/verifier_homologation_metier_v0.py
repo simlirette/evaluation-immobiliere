@@ -12,8 +12,10 @@ REPO_ROOT = PROJECT_ROOT.parent
 RUNTIME_DIR_DEFAULT = PROJECT_ROOT / "tests" / "runtime"
 GRILLE_PATH_DEFAULT = PROJECT_ROOT / "atelier" / "HOMOLOGATION-METIER-GRILLE-V1.json"
 EXTERNAL_REVIEWS_DEFAULT = PROJECT_ROOT / "tests" / "fixtures_external" / "homologation_evaluateurs_v1.json"
+CLOSURE_REGISTER_DEFAULT = PROJECT_ROOT / "atelier" / "REGISTRE-FERMETURE-ECARTS-EVALUATEURS-V1.json"
 REPORT_JSON_NAME = "homologation_metier_report.json"
 REPORT_MD_NAME = "HOMOLOGATION-METIER-EVIDENCE-V1.md"
+RELEASE_CANDIDATE_REPORT_NAME = "release_candidate_report.json"
 PV_DEFAULT = PROJECT_ROOT / "atelier" / "PV-HOMOLOGATION-V1.md"
 
 READY_STATUS = "PRET_REVISION_FINALE"
@@ -22,6 +24,9 @@ REVIEW_STATUS = "A_REVOIR"
 WAITING_FIELD_STATUS = "EN_ATTENTE_REPONSES_TERRAIN"
 RUNTIME_OK_STATUS = "PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN"
 RUNTIME_FAIL_STATUS = "NO_GO_HOMOLOGATION_METIER"
+SIGNED_STATUS = "SIGNE"
+REQUIRED_SIGNATURE_ROLES = {"Lead Metier", "Product"}
+ACCEPTABLE_CLOSURE_STATUSES = {"FERME", "ACCEPTE_FORMELLEMENT", "NON_APPLICABLE"}
 
 
 def load_json(path: Path) -> Any:
@@ -259,6 +264,8 @@ def evaluate_external_reviews(path: Path, grille: dict[str, Any], *, require_ext
             "reviews_count": 0,
             "reviewers_count": 0,
             "reviewed_pilot_cases": 0,
+            "gap_counts_by_priority": {},
+            "decisions_count": {},
         }
         message = f"revues evaluateurs absentes: {normalize_path(path)}"
         if require_external_reviews:
@@ -270,12 +277,16 @@ def evaluate_external_reviews(path: Path, grille: dict[str, Any], *, require_ext
     raw = load_json(path)
     reviews = as_list(raw.get("reviews")) if isinstance(raw, dict) else []
     allowed = set(str(item) for item in as_list(policy.get("allowed_decisions")))
+    blocking_decisions = set(str(item) for item in as_list(policy.get("blocking_decisions") or ["REJETE"]))
+    blocking_gap_priorities = set(str(item).upper() for item in as_list(policy.get("blocking_gap_priorities") or ["P0"]))
     reviewers = {str(review.get("reviewer_id") or review.get("reviewer_role") or "") for review in reviews if isinstance(review, dict)}
     reviewed_pilots = {
         str(review.get("dossier_id") or "")
         for review in reviews
         if isinstance(review, dict) and str(review.get("dossier_id") or "").startswith("D-PILOTE-")
     }
+    decisions = Counter(str(review.get("decision") or "INCONNU") for review in reviews if isinstance(review, dict))
+    gap_counts: Counter[str] = Counter()
 
     for idx, review in enumerate(reviews):
         if not isinstance(review, dict):
@@ -283,8 +294,21 @@ def evaluate_external_reviews(path: Path, grille: dict[str, Any], *, require_ext
             continue
         if review.get("decision") not in allowed:
             errors.append(f"review[{idx}] decision invalide: {review.get('decision')}")
+        if review.get("decision") in blocking_decisions:
+            errors.append(f"review[{idx}] decision bloquante evaluateur: {review.get('decision')}")
         if not review.get("dossier_id"):
             errors.append(f"review[{idx}] dossier_id absent")
+        for gap_idx, gap in enumerate(as_list(review.get("gaps") or review.get("ecarts"))):
+            if not isinstance(gap, dict):
+                errors.append(f"review[{idx}].gap[{gap_idx}] invalide")
+                continue
+            priority = str(gap.get("priority") or "").upper()
+            gap_id = str(gap.get("gap_id") or f"gap[{gap_idx}]")
+            gap_counts.update([priority or "INCONNU"])
+            if priority in blocking_gap_priorities:
+                errors.append(f"review[{idx}] {gap_id}: ecart bloquant {priority}")
+            elif priority:
+                warnings.append(f"review[{idx}] {gap_id}: ecart conditionnel {priority}")
 
     min_reviewers = int(policy.get("minimum_reviewers", 2))
     min_pilots = int(policy.get("minimum_reviewed_pilot_cases", 3))
@@ -301,10 +325,134 @@ def evaluate_external_reviews(path: Path, grille: dict[str, Any], *, require_ext
             "reviews_count": len(reviews),
             "reviewers_count": len([item for item in reviewers if item]),
             "reviewed_pilot_cases": len([item for item in reviewed_pilots if item]),
+            "gap_counts_by_priority": dict(gap_counts),
+            "decisions_count": dict(decisions),
         },
         errors,
         warnings,
     )
+
+
+def evaluate_gap_closure(
+    path: Path,
+    external: dict[str, Any],
+    *,
+    require_gap_closure: bool,
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    external_status = str(external.get("status") or "")
+    if external_status != "REVUES_TERRAIN_EXPLOITABLES":
+        return (
+            {
+                "status": "NON_APPLICABLE_AVANT_REVUES_TERRAIN",
+                "path": normalize_path(path),
+                "closures_count": 0,
+                "signed_roles": [],
+            },
+            errors,
+            warnings,
+        )
+
+    if not path.exists():
+        message = f"registre fermeture ecarts absent: {normalize_path(path)}"
+        if require_gap_closure:
+            errors.append(message)
+        else:
+            warnings.append(message)
+        return (
+            {
+                "status": "EN_ATTENTE_FERMETURE_ECARTS",
+                "path": normalize_path(path),
+                "closures_count": 0,
+                "signed_roles": [],
+            },
+            errors,
+            warnings,
+        )
+
+    payload = load_json(path)
+    if not isinstance(payload, dict) or payload.get("schema_version") != "registre_fermeture_ecarts_evaluateurs_v1":
+        errors.append("registre fermeture ecarts invalide")
+        payload = {}
+
+    source = str(payload.get("source_external_reviews_fixture") or "").strip()
+    expected_source = str(external.get("path") or "").strip()
+    if source and source != expected_source:
+        message = f"registre fermeture ecarts lie a une autre fixture: {source} != {expected_source}"
+        if require_gap_closure:
+            errors.append(message)
+        else:
+            warnings.append(message)
+
+    closures = [item for item in as_list(payload.get("closures")) if isinstance(item, dict)]
+    signatures = [item for item in as_list(payload.get("signatures")) if isinstance(item, dict)]
+    closure_counts = Counter(str(item.get("closure_status") or "INCONNU") for item in closures)
+    priority_closed_counts = Counter(
+        str(item.get("priority") or "INCONNU").upper()
+        for item in closures
+        if str(item.get("closure_status") or "") in ACCEPTABLE_CLOSURE_STATUSES
+    )
+    external_gap_counts = as_dict(external.get("gap_counts_by_priority"))
+
+    for priority in ("P0", "P1", "P2"):
+        required = int(external_gap_counts.get(priority, 0) or 0)
+        closed = int(priority_closed_counts.get(priority, 0) or 0)
+        if closed < required:
+            errors.append(f"fermetures {priority} insuffisantes ({closed}/{required})")
+
+    signed_roles = sorted(
+        str(signature.get("role") or "")
+        for signature in signatures
+        if str(signature.get("signature_status") or "") == SIGNED_STATUS and str(signature.get("role") or "")
+    )
+    missing_roles = sorted(role for role in REQUIRED_SIGNATURE_ROLES if role not in set(signed_roles))
+    if missing_roles:
+        message = "signatures metier manquantes: " + ", ".join(missing_roles)
+        if require_gap_closure:
+            errors.append(message)
+        else:
+            warnings.append(message)
+
+    status = "FERMETURE_ECARTS_A_CORRIGER"
+    if not errors and not missing_roles:
+        status = "ECARTS_FERMES_SIGNATURES_SIGNEES"
+    elif not errors:
+        status = "ECARTS_FERMES_SIGNATURES_A_SIGNER"
+
+    return (
+        {
+            "status": status,
+            "path": normalize_path(path),
+            "closures_count": len(closures),
+            "closure_counts": dict(closure_counts),
+            "priority_closed_counts": dict(priority_closed_counts),
+            "signed_roles": signed_roles,
+            "missing_signature_roles": missing_roles,
+        },
+        errors,
+        warnings,
+    )
+
+
+def evaluate_release_candidate_snapshot(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "status": "A_PREPARER",
+            "path": normalize_path(path),
+            "decision": "A_PREPARER",
+        }
+    payload = read_json_dict(path)
+    decision = str(payload.get("decision") or "UNKNOWN")
+    status = "PRET_GO_LIVE_CONTROLE" if payload.get("ok") is True and decision == "PRET_GO_LIVE_CONTROLE" else "A_CORRIGER"
+    return {
+        "status": status,
+        "path": normalize_path(path),
+        "decision": decision,
+        "release_candidate_id": payload.get("release_candidate_id", "UNKNOWN"),
+        "go_live_status": payload.get("go_live_status", "UNKNOWN"),
+        "commit_ref": payload.get("commit_ref", "UNKNOWN"),
+    }
 
 
 def validate_homologation_metier(
@@ -313,6 +461,9 @@ def validate_homologation_metier(
     grille_path: Path = GRILLE_PATH_DEFAULT,
     external_reviews_path: Path = EXTERNAL_REVIEWS_DEFAULT,
     require_external_reviews: bool = False,
+    closure_register_path: Path = CLOSURE_REGISTER_DEFAULT,
+    require_gap_closure: bool = False,
+    release_candidate_report_path: Path | None = None,
 ) -> dict[str, Any]:
     grille = load_json(grille_path)
     summary = load_summary(runtime_dir)
@@ -351,11 +502,24 @@ def validate_homologation_metier(
     errors.extend(external_errors)
     warnings.extend(external_warnings)
 
+    gap_closure, closure_errors, closure_warnings = evaluate_gap_closure(
+        closure_register_path,
+        external,
+        require_gap_closure=require_gap_closure,
+    )
+    errors.extend(closure_errors)
+    warnings.extend(closure_warnings)
+    release_candidate = evaluate_release_candidate_snapshot(release_candidate_report_path or runtime_dir / RELEASE_CANDIDATE_REPORT_NAME)
+
     ok = not errors
     runtime_decision = RUNTIME_OK_STATUS if ok else RUNTIME_FAIL_STATUS
     production_decision = "NO_GO_PROD_PREPARATION"
     if ok and external.get("status") == "REVUES_TERRAIN_EXPLOITABLES":
         production_decision = "GO_CONDITIONNEL_SIGNATURE_METIER"
+        if gap_closure.get("status") == "ECARTS_FERMES_SIGNATURES_A_SIGNER":
+            production_decision = "PRET_SIGNATURE_PROD"
+        if gap_closure.get("status") == "ECARTS_FERMES_SIGNATURES_SIGNEES":
+            production_decision = "GO_PROD_PREPARATION"
 
     return {
         "schema_version": "homologation_metier_report_v1",
@@ -368,6 +532,8 @@ def validate_homologation_metier(
         "pilot_cases_count": pilot_cases_count,
         "status_counts": dict(status_counts),
         "external_reviews": external,
+        "gap_closure": gap_closure,
+        "release_candidate": release_candidate,
         "errors": errors,
         "warnings": warnings,
         "cases": cases,
@@ -375,6 +541,10 @@ def validate_homologation_metier(
 
 
 def build_markdown(report: dict[str, Any]) -> str:
+    external = as_dict(report.get("external_reviews"))
+    gap_counts = as_dict(external.get("gap_counts_by_priority"))
+    gap_closure = as_dict(report.get("gap_closure"))
+    release_candidate = as_dict(report.get("release_candidate"))
     lines = [
         "# Homologation Metier Evidence V1",
         "",
@@ -385,7 +555,10 @@ def build_markdown(report: dict[str, Any]) -> str:
         f"- Decision production: **{report.get('production_decision', 'UNKNOWN')}**",
         f"- Dossiers analyses: **{report.get('cases_count', 0)}**",
         f"- Dossiers pilotes: **{report.get('pilot_cases_count', 0)}**",
-        f"- Revues terrain: **{as_dict(report.get('external_reviews')).get('status', 'UNKNOWN')}**",
+        f"- Revues terrain: **{external.get('status', 'UNKNOWN')}**",
+        f"- Fermeture ecarts: **{gap_closure.get('status', 'UNKNOWN')}**",
+        f"- Release candidate: **{release_candidate.get('status', 'UNKNOWN')}**",
+        f"- Ecarts evaluateurs P1/P2: **{int(gap_counts.get('P1', 0) or 0) + int(gap_counts.get('P2', 0) or 0)}**",
         f"- Erreurs: **{len(as_list(report.get('errors')))}**",
         f"- Warnings: **{len(as_list(report.get('warnings')))}**",
         "",
@@ -435,10 +608,25 @@ def build_markdown(report: dict[str, Any]) -> str:
 
 
 def build_pv_markdown(report: dict[str, Any]) -> str:
-    external_status = as_dict(report.get("external_reviews")).get("status", "UNKNOWN")
+    external = as_dict(report.get("external_reviews"))
+    external_status = external.get("status", "UNKNOWN")
+    gap_counts = as_dict(external.get("gap_counts_by_priority"))
+    gap_closure = as_dict(report.get("gap_closure"))
+    release_candidate = as_dict(report.get("release_candidate"))
     status_counts = as_dict(report.get("status_counts"))
-    p0_open = 0 if report.get("ok") else len(as_list(report.get("errors")))
-    p1_open = len(as_list(report.get("warnings")))
+    p0_open = int(gap_counts.get("P0", 0) or 0)
+    if not report.get("ok"):
+        p0_open = max(p0_open, len(as_list(report.get("errors"))))
+    external_p1_p2 = int(gap_counts.get("P1", 0) or 0) + int(gap_counts.get("P2", 0) or 0)
+    if gap_closure.get("status") == "ECARTS_FERMES_SIGNATURES_SIGNEES":
+        p1_open = 0
+    else:
+        p1_open = external_p1_p2
+    if p1_open == 0 and external_p1_p2 == 0:
+        p1_open = len(as_list(report.get("warnings")))
+    go_production = "PREPARATION_AUTORISEE" if report.get("production_decision") == "GO_PROD_PREPARATION" else "NON"
+    go_live = release_candidate.get("go_live_status", "A_PREPARER")
+    signed_roles = set(str(role) for role in as_list(gap_closure.get("signed_roles")))
     lines = [
         "# PV HOMOLOGATION V1",
         "",
@@ -452,9 +640,12 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         f"- Decision runtime metier: **{report.get('runtime_decision', 'UNKNOWN')}**",
         f"- Decision Phase J: **{report.get('production_decision', 'UNKNOWN')}**",
         f"- Revues terrain: **{external_status}**",
+        f"- Fermeture ecarts: **{gap_closure.get('status', 'UNKNOWN')}**",
+        f"- Release candidate: **{release_candidate.get('status', 'UNKNOWN')}**",
         f"- P0 ouverts: **{p0_open}**",
-        f"- P1 ouverts: **{p1_open}**",
-        "- Go production: **NON**",
+        f"- P1/P2 ouverts: **{p1_open}**",
+        f"- Go production: **{go_production}**",
+        f"- Go live: **{go_live}**",
         "",
         "## Synthese Runtime",
         "",
@@ -468,7 +659,7 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         "",
         "- Revues terrain signees par au moins deux evaluateurs agrees.",
         "- Couverture de trois dossiers pilotes revue et acceptee.",
-        "- Tous les ecarts P0 fermes, P1 acceptes formellement ou fermes.",
+        "- Tous les ecarts P0 fermes, P1/P2 acceptes formellement ou fermes.",
         "- Dress rehearsal staging rejoue avec CI/CD et rollback.",
         "- Signature metier et Product obtenue.",
         "",
@@ -476,10 +667,10 @@ def build_pv_markdown(report: dict[str, Any]) -> str:
         "",
         "| Role | Owner | Statut | Commentaire |",
         "|---|---|---|---|",
-        "| Lead Metier | A nommer | A_SIGNER | Bloque par retours terrain |",
-        "| Product | A nommer | A_SIGNER | Bloque par retours terrain |",
+        f"| Lead Metier | A nommer | {'SIGNE' if 'Lead Metier' in signed_roles else 'A_SIGNER'} | {'Preparation prod approuvee' if 'Lead Metier' in signed_roles else 'Bloque par signature finale'} |",
+        f"| Product | A nommer | {'SIGNE' if 'Product' in signed_roles else 'A_SIGNER'} | {'Preparation prod approuvee' if 'Product' in signed_roles else 'Bloque par signature finale'} |",
         "| Platform | A nommer | A_SIGNER | Preprod preparable |",
-        "| QA/Securite | A nommer | A_SIGNER | Revue finale requise |",
+        f"| QA/Securite | A nommer | {'SIGNE' if 'QA/Securite' in signed_roles else 'A_SIGNER'} | {'Controles finaux approuves' if 'QA/Securite' in signed_roles else 'Revue finale requise'} |",
     ]
     return "\n".join(lines).rstrip() + "\n"
 
@@ -500,6 +691,9 @@ def main() -> int:
     parser.add_argument("--grille", type=Path, default=GRILLE_PATH_DEFAULT)
     parser.add_argument("--external-reviews", type=Path, default=EXTERNAL_REVIEWS_DEFAULT)
     parser.add_argument("--require-external-reviews", action="store_true")
+    parser.add_argument("--closure-register", type=Path, default=CLOSURE_REGISTER_DEFAULT)
+    parser.add_argument("--require-gap-closure", action="store_true")
+    parser.add_argument("--release-candidate-report", type=Path, default=None)
     parser.add_argument("--report-out", type=Path, default=None)
     parser.add_argument("--markdown-out", type=Path, default=None)
     parser.add_argument("--pv-out", type=Path, default=PV_DEFAULT)
@@ -511,6 +705,9 @@ def main() -> int:
         grille_path=args.grille,
         external_reviews_path=args.external_reviews,
         require_external_reviews=args.require_external_reviews,
+        closure_register_path=args.closure_register,
+        require_gap_closure=args.require_gap_closure,
+        release_candidate_report_path=args.release_candidate_report,
     )
     report_out = args.report_out or args.runtime_dir / REPORT_JSON_NAME
     markdown_out = args.markdown_out or args.runtime_dir / REPORT_MD_NAME

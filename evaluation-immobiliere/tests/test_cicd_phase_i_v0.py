@@ -35,6 +35,9 @@ class TestCicdPhaseIV0(unittest.TestCase):
                 "python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py",
                 "python evaluation-immobiliere/outils/executer_pre_reponses_v0.py",
                 "python evaluation-immobiliere/outils/valider_rapports_infra_v0.py",
+                "python evaluation-immobiliere/outils/verifier_revues_evaluateurs_externes_v1.py --strict",
+                "python evaluation-immobiliere/outils/verifier_fermeture_ecarts_evaluateurs_v1.py --strict",
+                "python evaluation-immobiliere/outils/verifier_release_candidate_v1.py --strict",
                 "python -m unittest discover",
             ]
         )
@@ -42,7 +45,9 @@ class TestCicdPhaseIV0(unittest.TestCase):
         markdown = build_ci_markdown(Path(".github/workflows/validation.yml"), workflow_text)
 
         self.assertIn("PIPELINE CI V1", markdown)
-        self.assertIn("GO_CONDITIONNEL_PREPARATION", markdown)
+        self.assertIn("GO_PREPARATION_PROD", markdown)
+        self.assertIn("Fermeture ecarts evaluateurs stricte", markdown)
+        self.assertIn("Release candidate strict", markdown)
         self.assertIn("| Tests unitaires | `python -m unittest discover` | present | oui |", markdown)
 
     def test_cd_and_rollback_block_prod_while_phase_h_is_waiting(self) -> None:
@@ -73,7 +78,7 @@ class TestCicdPhaseIV0(unittest.TestCase):
             self.assertTrue(ci_out.exists())
             self.assertTrue(cd_out.exists())
             self.assertTrue(rollback_out.exists())
-            self.assertEqual(outputs["phase_h_status"], "EN_ATTENTE_REPONSES_TERRAIN")
+            self.assertEqual(outputs["phase_h_status"], "GO_PROD_PREPARATION")
             self.assertIn("PIPELINE CI V1", ci_out.read_text(encoding="utf-8"))
         finally:
             shutil.rmtree(root, ignore_errors=True)

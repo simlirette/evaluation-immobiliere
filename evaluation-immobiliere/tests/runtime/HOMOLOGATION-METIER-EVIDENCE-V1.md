@@ -4,12 +4,15 @@
 
 - OK runtime synthetique: **true**
 - Decision runtime: **PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN**
-- Decision production: **NO_GO_PROD_PREPARATION**
+- Decision production: **GO_PROD_PREPARATION**
 - Dossiers analyses: **8**
 - Dossiers pilotes: **3**
-- Revues terrain: **EN_ATTENTE_REPONSES_TERRAIN**
+- Revues terrain: **REVUES_TERRAIN_EXPLOITABLES**
+- Fermeture ecarts: **ECARTS_FERMES_SIGNATURES_SIGNEES**
+- Release candidate: **PRET_GO_LIVE_CONTROLE**
+- Ecarts evaluateurs P1/P2: **3**
 - Erreurs: **0**
-- Warnings: **1**
+- Warnings: **3**
 
 ## Distribution Statuts
 
@@ -32,4 +35,6 @@
 
 ## Warnings
 
-- revues evaluateurs absentes: evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json
+- review[1] EXT-GAP-001: ecart conditionnel P2
+- review[2] EXT-GAP-002: ecart conditionnel P1
+- review[2] EXT-GAP-003: ecart conditionnel P2

@@ -57,10 +57,13 @@ class TestHomologationMetierV0(unittest.TestCase):
 
         self.assertTrue(report["ok"], report["errors"])
         self.assertEqual(report["runtime_decision"], "PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN")
-        self.assertEqual(report["production_decision"], "NO_GO_PROD_PREPARATION")
+        self.assertEqual(report["production_decision"], "GO_PROD_PREPARATION")
         self.assertEqual(report["cases_count"], 8)
         self.assertEqual(report["pilot_cases_count"], 3)
-        self.assertEqual(report["external_reviews"]["status"], "EN_ATTENTE_REPONSES_TERRAIN")
+        self.assertEqual(report["external_reviews"]["status"], "REVUES_TERRAIN_EXPLOITABLES")
+        self.assertEqual(report["external_reviews"]["reviewed_pilot_cases"], 3)
+        self.assertEqual(report["external_reviews"]["gap_counts_by_priority"]["P1"], 1)
+        self.assertEqual(report["gap_closure"]["status"], "ECARTS_FERMES_SIGNATURES_SIGNEES")
 
     def test_detects_ready_case_without_redaction_artifacts(self) -> None:
         root = copy_runtime_fixture("homologation_redaction")
@@ -130,6 +133,7 @@ class TestHomologationMetierV0(unittest.TestCase):
                 runtime_dir,
                 external_reviews_path=reviews_path,
                 require_external_reviews=True,
+                closure_register_path=root / "missing_register.json",
             )
 
             self.assertTrue(report["ok"], report["errors"])
