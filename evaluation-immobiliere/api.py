@@ -23,6 +23,7 @@ UI_PATH = ROOT / "ui" / "pilote_api.html"
 PRODUCT_UI_PATH = ROOT / "ui" / "product_cockpit.html"
 OPS_UI_PATH = ROOT / "ui" / "ops_cockpit.html"
 EVALUATOR_UI_PATH = ROOT / "ui" / "evaluateur_review.html"
+AUTH_CLIENT_PATH = ROOT / "ui" / "auth_client.js"
 OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
 OPS_JSON_REPORTS = {
     "readiness": "readiness_pre_reponses.json",
@@ -808,6 +809,25 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path in {"/review/ui", "/evaluateur", "/evaluateur/revue"}:
             self._send_file(EVALUATOR_UI_PATH, "text/html; charset=utf-8")
+            return
+        if parsed.path == "/auth/client.js":
+            self._send_file(AUTH_CLIENT_PATH, "text/javascript; charset=utf-8")
+            return
+        if parsed.path == "/auth/status":
+            context = self._auth_context()
+            role = str(context["role"])
+            self._send_json(
+                200,
+                {
+                    "schema_version": "runtime_auth_status_v1",
+                    "enabled": bool(context["enabled"]),
+                    "authorized": bool(context["authorized"]),
+                    "role": role,
+                    "reason": context["reason"],
+                    "permissions": sorted(ROLE_PERMISSIONS.get(role, set())),
+                    "roles": sorted(ROLE_PERMISSIONS),
+                },
+            )
             return
         if parsed.path == "/health":
             self._send_json(200, {"status": "ok"})

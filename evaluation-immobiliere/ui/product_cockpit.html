@@ -51,7 +51,7 @@
       flex-wrap: wrap;
       gap: 8px;
     }
-    a, button, select {
+    a, button, select, input {
       font: inherit;
       border-radius: 6px;
     }
@@ -70,7 +70,7 @@
       color: #fff;
     }
     button.primary:hover { background: var(--accent-dark); }
-    select {
+    select, input {
       min-height: 36px;
       border: 1px solid var(--line);
       background: #fff;
@@ -200,6 +200,7 @@
       <select id="fixture"></select>
       <button id="demo">Lancer demo</button>
       <button id="resume">Reprise session</button>
+      <div class="toolbar" id="authPanel"></div>
     </div>
     <div class="grid">
       <section class="span6">
@@ -259,20 +260,14 @@
       </section>
     </div>
   </main>
+  <script src="/auth/client.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     let summary = {};
     let activeSessionId = "";
 
     async function api(url, options = {}) {
-      const response = await fetch(url, {
-        ...options,
-        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
-      });
-      const text = await response.text();
-      const body = text ? JSON.parse(text) : {};
-      if (!response.ok) throw new Error(body.error || response.statusText);
-      return body;
+      return RuntimeAuth.fetchJson(url, options);
     }
 
     function cssFor(value) {
@@ -381,6 +376,7 @@
     $("refresh").addEventListener("click", () => refresh().catch((error) => $("raw").textContent = error.message));
     $("demo").addEventListener("click", () => launchDemo().catch((error) => $("raw").textContent = error.message));
     $("resume").addEventListener("click", () => resumeSession().catch((error) => $("raw").textContent = error.message));
+    RuntimeAuth.mount("authPanel");
     refresh().catch((error) => $("raw").textContent = error.message);
   </script>
 </body>

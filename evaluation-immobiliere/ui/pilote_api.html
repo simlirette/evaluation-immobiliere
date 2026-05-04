@@ -86,6 +86,7 @@
       }
 
       select,
+      input,
       textarea,
       button {
         width: 100%;
@@ -93,6 +94,7 @@
       }
 
       select,
+      input,
       textarea {
         border: 1px solid var(--line);
         border-radius: 6px;
@@ -100,7 +102,8 @@
         color: var(--text);
       }
 
-      select {
+      select,
+      input {
         height: 40px;
         padding: 0 10px;
       }
@@ -247,6 +250,7 @@
     <header>
       <div class="wrap topbar">
         <h1>Runtime evaluation immobiliere</h1>
+        <div class="actions" id="authPanel"></div>
         <span class="muted" id="health">API: verification...</span>
       </div>
     </header>
@@ -289,6 +293,7 @@
       </section>
     </main>
 
+    <script src="/auth/client.js"></script>
     <script>
       const fixtureSelect = document.querySelector("#fixture");
       const payload = document.querySelector("#payload");
@@ -335,14 +340,7 @@
       }
 
       async function api(path, options = {}) {
-        const response = await fetch(path, {
-          ...options,
-          headers: { "Content-Type": "application/json", ...(options.headers || {}) }
-        });
-        const text = await response.text();
-        const body = text ? JSON.parse(text) : {};
-        if (!response.ok) throw new Error(body.error || response.statusText);
-        return body;
+        return RuntimeAuth.fetchJson(path, options);
       }
 
       async function refreshFixtures() {
@@ -368,7 +366,6 @@
       async function start(body) {
         setBusy(true);
         events.innerHTML = "";
-        if (source) source.close();
         try {
           const result = await api("/start", {
             method: "POST",
@@ -380,10 +377,7 @@
           document.querySelector("#dossier").textContent = runtime.dossier_id;
           document.querySelector("#artifact-dir").textContent = `Artifacts: ${runtime.artifact_dir}`;
           setStatus(runtime.status);
-          source = new EventSource(session.events_url);
-          ["step_start", "artifact_written", "step_done", "warning_detected", "blocking_detected", "schema_invalid"].forEach((name) => {
-            source.addEventListener(name, (event) => addEvent(name, JSON.parse(event.data)));
-          });
+          source = RuntimeAuth.fetchEventStream(session.events_url, addEvent).catch((error) => addEvent("error", { message: error.message }));
         } catch (error) {
           addEvent("error", { message: error.message });
         } finally {
@@ -394,6 +388,7 @@
       runFixture.addEventListener("click", () => start({ fixture: fixtureSelect.value, strict_mode: true }));
       runInline.addEventListener("click", () => start({ case: JSON.parse(payload.value), strict_mode: true }));
 
+      RuntimeAuth.mount("authPanel");
       checkHealth();
       refreshFixtures().catch((error) => addEvent("error", { message: error.message }));
     </script>

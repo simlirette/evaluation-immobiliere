@@ -47,7 +47,7 @@
       align-items: center;
       margin-bottom: 16px;
     }
-    button {
+    button, select, input {
       border: 1px solid var(--line);
       background: var(--panel);
       color: var(--text);
@@ -141,6 +141,7 @@
       <button class="primary" id="refresh">Actualiser</button>
       <button id="dryRun">Dry-run pre-reponses</button>
       <button id="run">Executer pre-reponses</button>
+      <div class="toolbar" id="authPanel"></div>
     </div>
     <section class="grid">
       <div class="panel">
@@ -201,13 +202,12 @@
       </div>
     </section>
   </main>
+  <script src="/auth/client.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
 
     async function getJson(url) {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      return response.json();
+      return RuntimeAuth.fetchJson(url);
     }
 
     function classForStatus(value) {
@@ -279,14 +279,9 @@
     }
 
     async function runChain(dryRun) {
-      const payload = await fetch('/ops/pre-response-run', {
+      const payload = await RuntimeAuth.fetchJson('/ops/pre-response-run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dry_run: dryRun })
-      }).then(async response => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || response.statusText);
-        return body;
       });
       $('raw').textContent = JSON.stringify(payload, null, 2);
       await refresh();
@@ -295,6 +290,7 @@
     $('refresh').addEventListener('click', refresh);
     $('dryRun').addEventListener('click', () => runChain(true).catch(err => $('raw').textContent = err.message));
     $('run').addEventListener('click', () => runChain(false).catch(err => $('raw').textContent = err.message));
+    RuntimeAuth.mount('authPanel');
     refresh().catch(err => $('raw').textContent = err.message);
   </script>
 </body>

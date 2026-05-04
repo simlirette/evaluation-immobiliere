@@ -27,13 +27,18 @@ Sans `EVAL_RUNTIME_API_TOKEN`, l'API reste en mode `local_dev` pour conserver l'
 | Route | Permission | Public si auth active |
 |---|---|---|
 | `GET /health` | Aucune | Oui |
-| `GET /`, `/ui`, `/ops/ui`, `/review/ui` | Aucune | Oui |
+| `GET /`, `/product`, `/ui`, `/ops/ui`, `/review/ui`, `/auth/client.js` | Aucune | Oui |
+| `GET /auth/status` | Aucune | Oui |
+| `GET /product/summary` | `runtime_read` | Non |
+| `POST /product/demo` | `runtime_write` | Non |
 | `GET /fixtures` | `runtime_read` | Non |
 | `POST /session` | `runtime_write` | Non |
 | `POST /start` | `runtime_write` | Non |
 | `GET /session` | `runtime_read` | Non |
 | `GET /status` | `runtime_read` | Non |
 | `GET /artifacts` | `runtime_read` | Non |
+| `GET /artifact` | `runtime_read` | Non |
+| `GET /review/dossier` | `runtime_read` | Non |
 | `GET /stream` | `runtime_read` | Non |
 | `POST /review` | `review_write` | Non |
 | `POST /resume` | `runtime_write` | Non |

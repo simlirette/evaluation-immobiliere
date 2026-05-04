@@ -23,6 +23,7 @@ Endpoints:
 - `GET /ui`
 - `GET /fixtures`
 - `GET /health`
+- `GET /auth/status`
 - `GET /product/summary`
 - `POST /product/demo`
 - `POST /session`
@@ -121,6 +122,14 @@ de lecture arbitraire du disque.
 
 `/review/dossier` transforme les artefacts runtime en synthese produit:
 faits, comparables, approches de valeur, conformite et apercu du rapport.
+
+## Auth locale optionnelle
+
+Si `EVAL_RUNTIME_API_TOKEN` est defini, les routes de donnees/actions exigent
+`Authorization: Bearer <token>` ou `X-API-Key`, avec `X-Runtime-Role`.
+Les pages HTML chargent `/auth/client.js`, qui ajoute ces headers depuis un
+panneau local de role/token. `/auth/status` permet de verifier le role,
+l'etat d'autorisation et les permissions vues par l'API.
 
 ## Persistance locale
 
