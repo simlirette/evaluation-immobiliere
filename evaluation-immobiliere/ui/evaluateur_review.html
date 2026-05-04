@@ -117,6 +117,10 @@
       overflow: auto;
       border-top: 1px solid var(--line);
     }
+    .queue.sessions {
+      max-height: 300px;
+      border-bottom: 1px solid var(--line);
+    }
     .workspace {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -215,6 +219,13 @@
       <div class="queue">
         <table id="queueTable"></table>
       </div>
+      <div class="panel">
+        <h2>Sessions existantes</h2>
+        <div class="muted" id="sessionCount">-</div>
+      </div>
+      <div class="queue sessions">
+        <table id="sessionTable"></table>
+      </div>
     </section>
     <section class="panel">
       <div class="workspace">
@@ -241,6 +252,14 @@
         <div class="metric">
           <span>Integrite</span>
           <strong id="integrity">-</strong>
+        </div>
+        <div class="metric">
+          <span>Decision</span>
+          <strong id="reviewDecision">-</strong>
+        </div>
+        <div class="metric">
+          <span>Action suivante</span>
+          <strong id="nextAction">-</strong>
         </div>
         <div class="full">
           <h2>Synthese dossier</h2>
@@ -299,6 +318,7 @@
   <script>
     const $ = (id) => document.getElementById(id);
     let queueRows = [];
+    let sessionRows = [];
     let fixtures = [];
     let selected = null;
     let activeSession = null;
@@ -338,17 +358,33 @@
       });
     }
 
+    function renderSessions() {
+      $('sessionCount').textContent = `${sessionRows.length} sessions`;
+      $('sessionTable').innerHTML = '<thead><tr><th>Session</th><th>Dossier</th><th>Decision</th><th>Action</th></tr></thead><tbody>' +
+        sessionRows.map((row) => `<tr class="clickable ${activeSession && activeSession.session_id === row.session_id ? 'selected' : ''}" data-session-id="${escapeHtml(row.session_id || '')}"><td>${escapeHtml(row.session_id || '-')}</td><td>${escapeHtml(row.dossier_id || '-')}</td><td>${escapeHtml(row.review_decision || '-')}</td><td>${escapeHtml(row.next_action || '-')}</td></tr>`).join('') +
+        '</tbody>';
+      document.querySelectorAll('#sessionTable tbody tr').forEach((tr) => {
+        tr.addEventListener('click', () => {
+          const sessionId = tr.dataset.sessionId;
+          $('sessionInput').value = sessionId;
+          loadSessionSummary(sessionId).then(openStream).catch((error) => $('raw').textContent = error.message);
+        });
+      });
+    }
+
     function fixtureForSelected() {
       if (!selected) return null;
       return fixtures.find((fixture) => fixture.dossier_id === selected.dossier_id);
     }
 
     async function refresh() {
-      const [queue, fixtureData] = await Promise.all([json('/ops/review_queue'), json('/fixtures')]);
+      const [queue, fixtureData, workbench] = await Promise.all([json('/ops/review_queue'), json('/fixtures'), json('/review/workbench')]);
       queueRows = queue.rows || [];
       fixtures = fixtureData.fixtures || [];
+      sessionRows = workbench.sessions || [];
       if (!selected && queueRows.length) selected = queueRows[0];
       renderQueue();
+      renderSessions();
       $('updated').textContent = `Derniere actualisation: ${new Date().toLocaleString()}`;
     }
 
@@ -374,8 +410,12 @@
       $('signals').textContent = `${(payload.result.warnings || []).length} / ${(payload.result.blocking_failures || []).length}`;
       $('artifactCount').textContent = payload.artifacts.artifacts_count || 0;
       $('integrity').textContent = payload.integrity.ok ? 'OK' : 'A verifier';
+      const sessionRecord = sessionRows.find((row) => row.session_id === activeSession.session_id) || {};
+      $('reviewDecision').textContent = payload.review.decision || activeSession.review_decision || sessionRecord.review_decision || 'A_SAISIR';
+      $('nextAction').textContent = sessionRecord.next_action || (payload.integrity.ok ? 'SAISIR_DECISION' : 'VERIFIER_INTEGRITE');
       $('raw').textContent = JSON.stringify(payload, null, 2);
       renderArtifacts(payload.artifacts || {});
+      renderSessions();
       await loadDossierReview(activeSession.session_id);
     }
 
@@ -449,6 +489,7 @@
         })
       });
       $('raw').textContent = JSON.stringify(payload, null, 2);
+      await refresh();
       await loadSessionSummary(activeSession.session_id);
     }
 
