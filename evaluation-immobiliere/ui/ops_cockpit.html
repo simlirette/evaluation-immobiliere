@@ -161,6 +161,10 @@
         <div class="metric" id="doctor">-</div>
       </div>
       <div class="panel">
+        <h2>Phase H</h2>
+        <div class="metric" id="phaseH">-</div>
+      </div>
+      <div class="panel">
         <h2>Schemas</h2>
         <div class="metric" id="schemas">-</div>
       </div>
@@ -232,7 +236,7 @@
     }
 
     async function refresh() {
-      const [summary, readiness, contracts, queue, handoff, schemas, packageGate, doctor] = await Promise.all([
+      const [summary, readiness, contracts, queue, handoff, schemas, packageGate, phaseH, doctor] = await Promise.all([
         getJson('/ops'),
         getJson('/ops/readiness'),
         getJson('/ops/infra_contracts'),
@@ -240,6 +244,7 @@
         getJson('/ops/handoff'),
         getJson('/ops/schema_validation'),
         getJson('/ops/package_gate'),
+        getJson('/ops/phase_h_gate'),
         getJson('/ops/doctor')
       ]);
       $('readiness').textContent = summary.readiness_status || '-';
@@ -250,6 +255,8 @@
       $('handoff').className = `metric ${classForStatus(summary.handoff_status)}`;
       $('doctor').textContent = summary.doctor_status || '-';
       $('doctor').className = `metric ${classForStatus(summary.doctor_status)}`;
+      $('phaseH').textContent = summary.phase_h_gate_status || '-';
+      $('phaseH').className = `metric ${classForStatus(summary.phase_h_gate_status)}`;
       $('schemas').textContent = summary.schema_validation_status || '-';
       $('schemas').className = `metric ${classForStatus(summary.schema_validation_status)}`;
       $('cases').textContent = summary.quality_cases_count ?? '-';
@@ -257,24 +264,32 @@
       $('runs').textContent = summary.registry_runs_count ?? '-';
       renderObjectTable($('risks'), readiness.risks_to_calibrate || {});
       renderObjectTable($('contracts'), {
+        status: contracts.status || (contracts.ok ? 'OK' : 'A_CORRIGER'),
         ok: contracts.ok,
         files_checked: contracts.files_checked,
-        files_invalid: contracts.files_invalid
+        files_invalid: contracts.files_invalid,
+        files_invalid_blocking: contracts.files_invalid_blocking ?? 0
       });
       renderObjectTable($('handoffTable'), {
         status: handoff.status,
         required_present: handoff.required_present,
         required_count: handoff.required_count,
-        required_missing: handoff.required_missing
+        required_missing: handoff.required_missing,
+        required_missing_blocking: handoff.required_missing_blocking || []
       });
       renderObjectTable($('gates'), {
+        phase_h: phaseH.decision || phaseH.status,
+        phase_h_mode: phaseH.mode || '-',
+        active_cases: phaseH.active_cases_count ?? 0,
+        waiting_for_real_inputs: summary.waiting_for_real_inputs,
+        blocking_counts: summary.blocking_counts || {},
         schemas: schemas.status,
         package_gate: packageGate.status,
         doctor: doctor.status,
         doctor_issues: (doctor.issues || []).length
       });
       renderReviewQueue(queue);
-      $('raw').textContent = JSON.stringify({ summary, readiness, handoff, schemas, packageGate, doctor }, null, 2);
+      $('raw').textContent = JSON.stringify({ summary, readiness, handoff, schemas, packageGate, phaseH, doctor }, null, 2);
       $('updated').textContent = `Derniere actualisation: ${new Date().toLocaleString()}`;
     }
 
