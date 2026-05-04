@@ -53,8 +53,8 @@ Champs interdits:
 ## Validation
 | Preuve | Résultat |
 |---|---|
-| Chaîne pré-réponses | 18 étapes OK |
-| Contrats infra | 8/8 OK |
+| Chaîne pré-réponses | 20 étapes OK |
+| Contrats infra | 8/8 OK; attente terrain sans manquant bloquant |
 | Tests API sécurité | 11 tests OK |
 | Anonymisation pré-envoi | Rapport généré par chaîne ops |
 

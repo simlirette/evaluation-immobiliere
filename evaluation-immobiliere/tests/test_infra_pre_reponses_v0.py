@@ -106,6 +106,20 @@ class TestInfraPreReponsesV0(unittest.TestCase):
         self.assertEqual(report["risks_to_calibrate"]["open_runtime_questions"], 2)
         self.assertIn("Readiness pre-reponses", markdown)
 
+    def test_readiness_report_waits_for_real_inputs_without_runtime_cases(self) -> None:
+        report = build_readiness_report(
+            {},
+            {"status": "PRET_A_RECEVOIR_REPONSES"},
+            {"fingerprint_sha256": "abc"},
+            "EN_ATTENTE_DOSSIERS_REELS",
+        )
+        markdown = build_readiness_markdown(report)
+
+        self.assertEqual(report["status"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertFalse(report["checks"]["quality_report_present"])
+        self.assertTrue(report["checks"]["package_waiting_real_inputs"])
+        self.assertIn("EN_ATTENTE_ENTREES_TERRAIN_REELLES", markdown)
+
     def test_run_readiness_reads_package_index_and_writes_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -220,6 +234,15 @@ class TestInfraPreReponsesV0(unittest.TestCase):
         self.assertIn("valider_schemas_ops", [step["name"] for step in report["steps"]])
         self.assertIn("valider_paquet_evaluateurs", [step["name"] for step in report["steps"]])
         self.assertIn("verifier_campagne_terrain_reelle", [step["name"] for step in report["steps"]])
+        empty_waiting_steps = {
+            "executer_dossiers_reels",
+            "preparer_revue_interne",
+            "preparer_durcissement_contrats",
+            "preparer_paquet_evaluateurs",
+        }
+        commands_by_step = {step["name"]: step["command"] for step in report["steps"]}
+        for step_name in empty_waiting_steps:
+            self.assertIn("--allow-empty", commands_by_step[step_name])
         self.assertEqual(report["steps_count"], len(report["steps"]))
         self.assertIn("duration_seconds", report["steps"][0])
 
@@ -297,6 +320,25 @@ class TestInfraPreReponsesV0(unittest.TestCase):
 
         self.assertTrue(report["ok"])
         self.assertEqual(report["files_checked"], 8)
+
+    def test_infra_contract_report_allows_missing_quality_while_waiting_for_real_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_dir = Path(tmp) / "runtime"
+            runtime_dir.mkdir()
+            write_json(runtime_dir / "calibration_evaluateurs.json", {"schema_version": "calibration_evaluateurs_v0", "status": "PRET_A_RECEVOIR_REPONSES", "responses_count": 0, "cases": [], "backlog": []})
+            write_json(runtime_dir / "runtime_manifest.json", {"schema_version": "runtime_manifest_v0", "fingerprint_sha256": "abc", "files_count": 1, "artifacts": []})
+            write_json(runtime_dir / "readiness_pre_reponses.json", {"schema_version": "readiness_pre_reponses_v0", "status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES", "checks": {}, "risks_to_calibrate": {}})
+            write_json(runtime_dir / "knowledge_snapshot.json", {"schema_version": "knowledge_snapshot_v0", "runtime_fingerprint_sha256": "abc", "cases_count": 0, "cases": []})
+            write_json(runtime_dir / "runtime_registry.json", {"schema_version": "runtime_registry_v0", "latest_run_id": "RUN", "runs_count": 1, "runs": []})
+            write_json(runtime_dir / "runtime_delta_report.json", {"schema_version": "runtime_delta_report_v0", "status": "OBSERVATION_INITIALE", "current": {}, "previous": {}, "deltas": {}, "regressions": []})
+            write_json(runtime_dir / "ops_handoff_manifest.json", {"schema_version": "ops_handoff_manifest_v0", "status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES", "files_count": 1, "required_missing": ["quality_report.json"], "files": []})
+
+            report = build_infra_contract_report(runtime_dir)
+
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["status"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertEqual(report["files_invalid"], 1)
+        self.assertEqual(report["files_invalid_blocking"], 0)
 
 
 if __name__ == "__main__":

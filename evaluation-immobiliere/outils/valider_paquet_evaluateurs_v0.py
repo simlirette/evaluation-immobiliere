@@ -13,6 +13,8 @@ ATELIER_DIR_DEFAULT = Path("evaluation-immobiliere/atelier")
 OUT_JSON_DEFAULT = RUNTIME_DIR_DEFAULT / "paquet_evaluateurs_gate.json"
 OUT_MD_DEFAULT = RUNTIME_DIR_DEFAULT / "PAQUET-EVALUATEURS-GATE-V0.md"
 PACKAGE_INDEX_NAME = "PAQUET-EVALUATEURS-V0.md"
+WAITING_PACKAGE_STATUS = "EN_ATTENTE_DOSSIERS_REELS"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
 REQUIRED_FILES = [
     PACKAGE_INDEX_NAME,
     "CHECKLIST-ENVOI-EVALUATEURS.md",
@@ -131,20 +133,31 @@ def build_paquet_gate_report(package_dir: Path, runtime_dir: Path, atelier_dir: 
             issues.append({"severity": "error", "code": "CSV_HEADER_MISMATCH", "target": check["file"]})
     if not case_manifest["ok"]:
         issues.append({"severity": "error", "code": "CASE_MANIFEST_MISMATCH", "target": "MANIFESTE-CAS-PILOTES.csv"})
-    if index_status != "PRET_A_ENVOYER":
+    if index_status == WAITING_PACKAGE_STATUS:
+        issues.append({"severity": "info", "code": "PACKAGE_WAITING_REAL_INPUTS", "target": index_status})
+    elif index_status != "PRET_A_ENVOYER":
         issues.append({"severity": "error", "code": "PACKAGE_STATUS_NOT_READY", "target": index_status})
     if anonymization_status != "OK":
         issues.append({"severity": "error", "code": "ANONYMIZATION_NOT_OK", "target": anonymization_status})
     for finding in sensitive_findings:
         issues.append({"severity": "error", "code": "SENSITIVE_PATTERN", "target": finding["file"], "pattern": finding["pattern"]})
 
+    blocking_issues = [issue for issue in issues if issue.get("severity") == "error"]
+    if blocking_issues:
+        status = "A_CORRIGER"
+    elif index_status == WAITING_PACKAGE_STATUS:
+        status = WAITING_REAL_INPUTS_STATUS
+    else:
+        status = "PRET_A_ENVOYER"
+
     return {
         "schema_version": "paquet_evaluateurs_gate_v0",
-        "status": "PRET_A_ENVOYER" if not issues else "A_CORRIGER",
+        "status": status,
         "package_dir": package_dir.as_posix(),
         "runtime_dir": runtime_dir.as_posix(),
         "package_status": index_status,
         "anonymization_status": anonymization_status,
+        "blocking_issues_count": len(blocking_issues),
         "required_files": file_checks,
         "csv_headers": header_checks,
         "case_manifest": case_manifest,
@@ -162,6 +175,7 @@ def build_markdown(report: dict[str, object]) -> str:
         f"- Statut paquet: **{report.get('package_status', 'UNKNOWN')}**",
         f"- Audit anonymisation: **{report.get('anonymization_status', 'UNKNOWN')}**",
         f"- Issues: **{len(issues)}**",
+        f"- Issues bloquantes: **{report.get('blocking_issues_count', 0)}**",
         "",
         "## Fichiers requis",
         "",
@@ -207,7 +221,7 @@ def main() -> int:
     print(f"Gate paquet JSON: {args.json_out}")
     print(f"Gate paquet Markdown: {args.markdown_out}")
     print(f"Statut: {report['status']}")
-    return 0 if report["status"] == "PRET_A_ENVOYER" else 2
+    return 0 if report["status"] in {"PRET_A_ENVOYER", WAITING_REAL_INPUTS_STATUS} else 2
 
 
 if __name__ == "__main__":

@@ -22,6 +22,18 @@ python evaluation-immobiliere/outils/executer_pre_reponses_v0.py
 
 ## Statut attendu avant reponses
 
+Sans dossiers reels anonymises actifs:
+
+- `pre_reponses_run.json`: `OK: True`, 20 etapes OK
+- `READINESS-PRE-REPONSES-V0.md`: `EN_ATTENTE_ENTREES_TERRAIN_REELLES`
+- `OPS-HANDOFF-MANIFEST-V0.md`: `EN_ATTENTE_ENTREES_TERRAIN_REELLES`
+- `RAPPORT-CONTRATS-INFRA-V0.md`: `EN_ATTENTE_ENTREES_TERRAIN_REELLES`, 0 manquant bloquant
+- `RAPPORT-SCHEMAS-OPS-V0.md`: `EN_ATTENTE_ENTREES_TERRAIN_REELLES`, 0 invalide bloquant
+- `PAQUET-EVALUATEURS-GATE-V0.md`: `EN_ATTENTE_ENTREES_TERRAIN_REELLES`
+- `OPS-DOCTOR-V0.md`: `EN_ATTENTE_ENTREES_TERRAIN_REELLES`
+
+Avec dossiers reels anonymises actifs et runtime execute:
+
 - `RAPPORT-CALIBRATION-EVALUATEURS-V0.md`: `PRET_A_RECEVOIR_REPONSES`
 - `READINESS-PRE-REPONSES-V0.md`: `PRET_A_RECEVOIR_REPONSES`
 - `RAPPORT-ANONYMISATION-V0.md`: `OK`
@@ -65,6 +77,13 @@ Go:
 - manifest runtime present;
 - file de revue humaine generee;
 - calibration vide ou valide.
+
+Attente controlee:
+
+- `EN_ATTENTE_ENTREES_TERRAIN_REELLES` sur readiness, handoff, schemas, paquet et ops doctor;
+- aucun manquant bloquant dans les rapports infra/schema;
+- aucune reponse evaluateur inventee;
+- `runtime_pilotes_reels/` reste ignore par Git.
 
 No-go:
 

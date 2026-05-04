@@ -8,6 +8,8 @@ from pathlib import Path
 RUNTIME_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels")
 OUT_JSON_DEFAULT = RUNTIME_DIR_DEFAULT / "infra_contracts_report.json"
 OUT_MD_DEFAULT = RUNTIME_DIR_DEFAULT / "RAPPORT-CONTRATS-INFRA-V0.md"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
+WAITING_ALLOWED_MISSING = {"quality_report.json"}
 
 
 def load_json(path: Path) -> object:
@@ -84,24 +86,54 @@ def build_infra_contract_report(runtime_dir: Path) -> dict[str, object]:
             expected_schema="ops_handoff_manifest_v0",
         ),
     ]
-    failures = [failure for check in checks for failure in check["failures"]]
+    readiness_status = read_status(runtime_dir / "readiness_pre_reponses.json")
+    handoff_status = read_status(runtime_dir / "ops_handoff_manifest.json")
+    waiting_mode = readiness_status == WAITING_REAL_INPUTS_STATUS or handoff_status == WAITING_REAL_INPUTS_STATUS
+    blocking_failures = [
+        {
+            "path": check["path"],
+            "failure": failure,
+        }
+        for check in checks
+        for failure in check["failures"]
+        if is_blocking_failure(str(check["path"]), str(failure), waiting_mode)
+    ]
+    ok = not blocking_failures
     return {
         "schema_version": "infra_contracts_report_v0",
         "runtime_dir": runtime_dir.as_posix(),
-        "ok": not failures,
+        "status": WAITING_REAL_INPUTS_STATUS if ok and waiting_mode else ("OK" if ok else "A_CORRIGER"),
+        "ok": ok,
+        "readiness_status": readiness_status,
+        "handoff_status": handoff_status,
+        "waiting_mode": waiting_mode,
         "files_checked": len(checks),
         "files_invalid": sum(1 for check in checks if not check["ok"]),
+        "files_invalid_blocking": len({item["path"] for item in blocking_failures}),
+        "blocking_failures": blocking_failures,
         "checks": checks,
     }
+
+
+def read_status(path: Path) -> str:
+    payload = load_json(path)
+    return str(payload.get("status", "")) if isinstance(payload, dict) else ""
+
+
+def is_blocking_failure(path: str, failure: str, waiting_mode: bool) -> bool:
+    if waiting_mode and failure == "FILE_MISSING" and Path(path).name in WAITING_ALLOWED_MISSING:
+        return False
+    return True
 
 
 def build_markdown(report: dict[str, object]) -> str:
     lines = [
         "# Rapport contrats infra v0",
         "",
-        f"- Statut: **{'OK' if report.get('ok') else 'A_CORRIGER'}**",
+        f"- Statut: **{report.get('status', 'UNKNOWN')}**",
         f"- Fichiers verifies: **{report.get('files_checked', 0)}**",
         f"- Fichiers invalides: **{report.get('files_invalid', 0)}**",
+        f"- Fichiers invalides bloquants: **{report.get('files_invalid_blocking', 0)}**",
         "",
         "| Fichier | Statut | Echecs |",
         "|---|---|---|",

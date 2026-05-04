@@ -10,6 +10,8 @@ from pathlib import Path
 RUNTIME_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels")
 OUT_JSON_DEFAULT = RUNTIME_DIR_DEFAULT / "ops_handoff_manifest.json"
 OUT_MD_DEFAULT = RUNTIME_DIR_DEFAULT / "OPS-HANDOFF-MANIFEST-V0.md"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
+WAITING_ALLOWED_MISSING = {"quality_report.json", "RAPPORT-QUALITE-RUNTIME-V0.md"}
 
 
 @dataclass(frozen=True)
@@ -80,19 +82,48 @@ def inspect_file(runtime_dir: Path, item: HandoffFile) -> dict[str, object]:
 def build_handoff_manifest(runtime_dir: Path, files: list[HandoffFile] | None = None) -> dict[str, object]:
     entries = [inspect_file(runtime_dir, item) for item in (files or HANDOFF_FILES)]
     required_missing = [str(item["path"]) for item in entries if item["required"] and not item["exists"]]
+    readiness_status = load_readiness_status(runtime_dir)
+    required_missing_blocking = blocking_missing(required_missing, readiness_status)
     present_required = sum(1 for item in entries if item["required"] and item["exists"])
     required_count = sum(1 for item in entries if item["required"])
     return {
         "schema_version": "ops_handoff_manifest_v0",
-        "status": "PRET_A_TRANSMETTRE" if not required_missing else "A_COMPLETER",
+        "status": handoff_status(required_missing, required_missing_blocking, readiness_status),
+        "readiness_status": readiness_status,
         "runtime_dir": runtime_dir.as_posix(),
         "files_count": len(entries),
         "required_count": required_count,
         "required_present": present_required,
         "required_missing": required_missing,
+        "required_missing_blocking": required_missing_blocking,
         "total_bytes": sum(int(item["bytes"]) for item in entries),
         "files": entries,
     }
+
+
+def load_readiness_status(runtime_dir: Path) -> str:
+    path = runtime_dir / "readiness_pre_reponses.json"
+    if not path.exists():
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return ""
+    return str(payload.get("status", "")) if isinstance(payload, dict) else ""
+
+
+def blocking_missing(required_missing: list[str], readiness_status: str) -> list[str]:
+    if readiness_status != WAITING_REAL_INPUTS_STATUS:
+        return required_missing
+    return [path for path in required_missing if path not in WAITING_ALLOWED_MISSING]
+
+
+def handoff_status(required_missing: list[str], required_missing_blocking: list[str], readiness_status: str) -> str:
+    if not required_missing:
+        return "PRET_A_TRANSMETTRE"
+    if readiness_status == WAITING_REAL_INPUTS_STATUS and not required_missing_blocking:
+        return WAITING_REAL_INPUTS_STATUS
+    return "A_COMPLETER"
 
 
 def build_markdown(manifest: dict[str, object]) -> str:
@@ -100,6 +131,7 @@ def build_markdown(manifest: dict[str, object]) -> str:
         "# Manifest handoff ops v0",
         "",
         f"- Statut: **{manifest.get('status', 'UNKNOWN')}**",
+        f"- Readiness: **{manifest.get('readiness_status', '-')}**",
         f"- Repertoire runtime: `{manifest.get('runtime_dir', '-')}`",
         f"- Fichiers requis presents: **{manifest.get('required_present', 0)}/{manifest.get('required_count', 0)}**",
         f"- Octets inventories: **{manifest.get('total_bytes', 0)}**",
@@ -126,6 +158,13 @@ def build_markdown(manifest: dict[str, object]) -> str:
     lines.extend(["", "## Manquants requis", ""])
     if missing:
         for path in missing:
+            lines.append(f"- `{path}`")
+    else:
+        lines.append("- Aucun.")
+    blocking = manifest.get("required_missing_blocking", []) if isinstance(manifest.get("required_missing_blocking"), list) else []
+    lines.extend(["", "## Manquants bloquants", ""])
+    if blocking:
+        for path in blocking:
             lines.append(f"- `{path}`")
     else:
         lines.append("- Aucun.")
@@ -156,7 +195,7 @@ def main() -> int:
     print(f"Handoff ops JSON: {args.json_out}")
     print(f"Handoff ops Markdown: {args.markdown_out}")
     print(f"Statut: {manifest['status']}")
-    return 0 if manifest["status"] == "PRET_A_TRANSMETTRE" else 1
+    return 0 if manifest["status"] in {"PRET_A_TRANSMETTRE", WAITING_REAL_INPUTS_STATUS} else 1
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@
   "required": ["schema_version", "status", "checks", "risks_to_calibrate", "decision"],
   "properties": {
     "schema_version": {"const": "readiness_pre_reponses_v0"},
-    "status": {"enum": ["PRET_A_RECEVOIR_REPONSES", "REPONSES_A_INTEGRER", "A_COMPLETER_AVANT_ENVOI", "A_CORRIGER", "A_CONTROLER"]},
+    "status": {"enum": ["EN_ATTENTE_ENTREES_TERRAIN_REELLES", "PRET_A_RECEVOIR_REPONSES", "REPONSES_A_INTEGRER", "A_COMPLETER_AVANT_ENVOI", "A_CORRIGER", "A_CONTROLER"]},
     "package_status": {"type": "string"},
     "calibration_status": {"type": "string"},
     "runtime_fingerprint_sha256": {"type": "string"},

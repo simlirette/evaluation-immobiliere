@@ -9,6 +9,7 @@ from pathlib import Path
 RUNTIME_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels")
 OUT_JSON_DEFAULT = RUNTIME_DIR_DEFAULT / "ops_doctor_report.json"
 OUT_MD_DEFAULT = RUNTIME_DIR_DEFAULT / "OPS-DOCTOR-V0.md"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
 
 
 def load_json(path: Path) -> dict:
@@ -44,19 +45,23 @@ def build_ops_doctor_report(runtime_dir: Path) -> dict[str, object]:
     review_queue = load_csv_rows(runtime_dir / "FILE-REVUE-HUMAINE-V0.csv")
 
     issues: list[dict[str, object]] = []
-    if readiness.get("status") != "PRET_A_RECEVOIR_REPONSES":
+    waiting_mode = any(
+        item.get("status") == WAITING_REAL_INPUTS_STATUS
+        for item in (readiness, handoff, schemas, package_gate)
+    )
+    if readiness.get("status") not in {"PRET_A_RECEVOIR_REPONSES", WAITING_REAL_INPUTS_STATUS}:
         issues.append(control_issue("READINESS_NOT_READY", "readiness", readiness.get("status")))
     if delta.get("status") == "A_CONTROLER":
         issues.append(control_issue("RUNTIME_DELTA_TO_REVIEW", "delta", delta.get("regressions", [])))
     if delta.get("status") in {"ABSENT", "INVALID_ROOT"}:
         issues.append(correction_issue("RUNTIME_DELTA_ABSENT", "delta", delta.get("path", "")))
-    if handoff.get("status") != "PRET_A_TRANSMETTRE":
+    if handoff.get("status") not in {"PRET_A_TRANSMETTRE", WAITING_REAL_INPUTS_STATUS}:
         issues.append(correction_issue("HANDOFF_NOT_READY", "handoff", handoff.get("status")))
     if infra.get("ok") is not True:
         issues.append(correction_issue("INFRA_CONTRACTS_NOT_OK", "infra_contracts", infra.get("files_invalid", "")))
-    if schemas.get("status") != "OK":
+    if schemas.get("status") not in {"OK", WAITING_REAL_INPUTS_STATUS}:
         issues.append(correction_issue("SCHEMAS_NOT_OK", "schema_validation", schemas.get("files_invalid", "")))
-    if package_gate.get("status") != "PRET_A_ENVOYER":
+    if package_gate.get("status") not in {"PRET_A_ENVOYER", WAITING_REAL_INPUTS_STATUS}:
         issues.append(correction_issue("PACKAGE_GATE_NOT_READY", "package_gate", package_gate.get("status")))
     if anonymization.get("status") != "OK":
         issues.append(correction_issue("ANONYMIZATION_NOT_OK", "anonymization", anonymization.get("status")))
@@ -65,6 +70,8 @@ def build_ops_doctor_report(runtime_dir: Path) -> dict[str, object]:
         status = "A_CORRIGER"
     elif issues:
         status = "A_CONTROLER"
+    elif waiting_mode:
+        status = WAITING_REAL_INPUTS_STATUS
     else:
         status = "OK"
 
@@ -126,7 +133,7 @@ def run_doctor(runtime_dir: Path, json_out: Path, markdown_out: Path) -> dict[st
 
 
 def exit_code(status: str) -> int:
-    return {"OK": 0, "A_CONTROLER": 1, "A_CORRIGER": 2}.get(status, 2)
+    return {"OK": 0, WAITING_REAL_INPUTS_STATUS: 0, "A_CONTROLER": 1, "A_CORRIGER": 2}.get(status, 2)
 
 
 def main() -> int:

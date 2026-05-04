@@ -11,6 +11,8 @@ RUNTIME_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels")
 SCHEMAS_DIR_DEFAULT = Path("evaluation-immobiliere/schemas/ops")
 OUT_JSON_DEFAULT = RUNTIME_DIR_DEFAULT / "schema_validation_report.json"
 OUT_MD_DEFAULT = RUNTIME_DIR_DEFAULT / "RAPPORT-SCHEMAS-OPS-V0.md"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
+WAITING_ALLOWED_MISSING_TARGETS = {"quality"}
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,16 @@ SCHEMA_TARGETS = [
 
 def load_json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_status(path: Path) -> str:
+    if not path.exists():
+        return ""
+    try:
+        payload = load_json(path)
+    except json.JSONDecodeError:
+        return ""
+    return str(payload.get("status", "")) if isinstance(payload, dict) else ""
 
 
 def validate_type(value: object, expected: object) -> bool:
@@ -121,16 +133,39 @@ def target_result(target: SchemaTarget, report_path: Path, schema_path: Path, fa
 
 def build_schema_validation_report(runtime_dir: Path, schemas_dir: Path, targets: list[SchemaTarget] | None = None) -> dict[str, object]:
     checks = [validate_target(target, runtime_dir, schemas_dir) for target in (targets or SCHEMA_TARGETS)]
-    failures = [failure for check in checks for failure in check["failures"]]
+    readiness_status = read_status(runtime_dir / "readiness_pre_reponses.json")
+    handoff_status = read_status(runtime_dir / "ops_handoff_manifest.json")
+    waiting_mode = readiness_status == WAITING_REAL_INPUTS_STATUS or handoff_status == WAITING_REAL_INPUTS_STATUS
+    blocking_failures = [
+        {
+            "name": check["name"],
+            "failure": failure,
+        }
+        for check in checks
+        for failure in check["failures"]
+        if is_blocking_failure(str(check["name"]), str(failure), waiting_mode)
+    ]
+    ok = not blocking_failures
     return {
         "schema_version": "schema_validation_report_v0",
-        "status": "OK" if not failures else "A_CORRIGER",
+        "status": WAITING_REAL_INPUTS_STATUS if ok and waiting_mode else ("OK" if ok else "A_CORRIGER"),
+        "readiness_status": readiness_status,
+        "handoff_status": handoff_status,
+        "waiting_mode": waiting_mode,
         "runtime_dir": runtime_dir.as_posix(),
         "schemas_dir": schemas_dir.as_posix(),
         "files_checked": len(checks),
         "files_invalid": sum(1 for check in checks if not check["ok"]),
+        "files_invalid_blocking": len({item["name"] for item in blocking_failures}),
+        "blocking_failures": blocking_failures,
         "checks": checks,
     }
+
+
+def is_blocking_failure(name: str, failure: str, waiting_mode: bool) -> bool:
+    if waiting_mode and name in WAITING_ALLOWED_MISSING_TARGETS and failure == "REPORT_MISSING":
+        return False
+    return True
 
 
 def build_markdown(report: dict[str, object]) -> str:
@@ -140,6 +175,7 @@ def build_markdown(report: dict[str, object]) -> str:
         f"- Statut: **{report.get('status', 'UNKNOWN')}**",
         f"- Fichiers verifies: **{report.get('files_checked', 0)}**",
         f"- Fichiers invalides: **{report.get('files_invalid', 0)}**",
+        f"- Fichiers invalides bloquants: **{report.get('files_invalid_blocking', 0)}**",
         "",
         "| Rapport | Statut | Echecs |",
         "|---|---|---|",
@@ -182,7 +218,7 @@ def main() -> int:
     print(f"Validation schemas JSON: {args.json_out}")
     print(f"Validation schemas Markdown: {args.markdown_out}")
     print(f"Statut: {report['status']}")
-    return 0 if report["status"] == "OK" else 1
+    return 0 if report["status"] in {"OK", WAITING_REAL_INPUTS_STATUS} else 1
 
 
 if __name__ == "__main__":
