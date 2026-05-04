@@ -1,0 +1,369 @@
+{
+  "version": "1.0",
+  "purpose": "Registre Aston-like des skills agents du projet evaluation-immobiliere.",
+  "skills_root": "skills",
+  "skills": [
+    {
+      "name": "analyse-approche-comparaison",
+      "path": "skills/analyse-approche-comparaison/SKILL.md",
+      "description": "Methodologie complete de l'approche par comparaison directe pour l'evaluation immobiliere. Utiliser ce skill pour appliquer la technique des prix de vente rajustes ou la modelisation statistique.",
+      "type": "analyse",
+      "agents": [
+        "valuation-draft"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "00-cuspap",
+        "04-oeaq-normes",
+        "15-methodes-internationaux"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "analyse-approche-cout",
+      "path": "skills/analyse-approche-cout/SKILL.md",
+      "description": "Methodologie complete de l'approche par le cout pour l'evaluation immobiliere. Utiliser ce skill pour estimer le cout neuf, appliquer les facteurs de rajustement MEFQ et calculer la depreciation.",
+      "type": "analyse",
+      "agents": [
+        "valuation-draft"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "_legacy-unstructured",
+        "00-cuspap",
+        "04-oeaq-normes"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "analyse-approche-revenu",
+      "path": "skills/analyse-approche-revenu/SKILL.md",
+      "description": "Methodologie complete de l'approche par le revenu pour l'evaluation immobiliere. Utiliser ce skill pour appliquer le MRB, la capitalisation directe, les flux monetaires actualises ou la technique residuelle.",
+      "type": "analyse",
+      "agents": [
+        "valuation-draft"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "23-baux-logement-revenu",
+        "00-cuspap",
+        "04-oeaq-normes"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "analyse-conformite",
+      "path": "skills/analyse-conformite/SKILL.md",
+      "description": "Verification de conformite d'un dossier d'evaluation immobiliere contre les normes CUSPAP 2026, NPP OEAQ, Code de deontologie et les 18 gates KQG. Utiliser ce skill pour valider la conformite avant finalisation.",
+      "type": "analyse",
+      "agents": [
+        "compliance-qa"
+      ],
+      "sources": [
+        "00-cuspap",
+        "04-oeaq-normes",
+        "05-oeaq-reglements",
+        "09-jurisprudence-discipline"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "analyse-extraction-faits",
+      "path": "skills/analyse-extraction-faits/SKILL.md",
+      "description": "Extraction, validation et recoupement des faits immobiliers a partir des donnees disponibles. Utiliser ce skill pour structurer la collecte de donnees, valider les informations et identifier les incoherences dans un dossier d'evaluation.",
+      "type": "analyse",
+      "agents": [
+        "data-facts"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "02-mefq-complements",
+        "15-methodes-internationaux"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "analyse-reconciliation-valeur",
+      "path": "skills/analyse-reconciliation-valeur/SKILL.md",
+      "description": "Reconciliation des indications de valeur des trois approches d'evaluation (comparaison, cout, revenu). Utiliser ce skill pour ponderer les resultats, attribuer les niveaux de confiance et conclure a la valeur finale.",
+      "type": "analyse",
+      "agents": [
+        "valuation-draft"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "00-cuspap",
+        "04-oeaq-normes"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "analyse-selection-comparables",
+      "path": "skills/analyse-selection-comparables/SKILL.md",
+      "description": "Selection, scoring et justification des comparables pour la methode de comparaison. Utiliser ce skill pour filtrer, classer et documenter les ventes comparables selon les criteres MEFQ, CUSPAP/NPP et IAAO.",
+      "type": "analyse",
+      "agents": [
+        "comps-market"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "15-methodes-internationaux",
+        "00-cuspap",
+        "04-oeaq-normes"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-baux-revenus",
+      "path": "skills/recherche-baux-revenus/SKILL.md",
+      "description": "Recherche sur le cadre juridique des baux residentiels au Quebec, les criteres de fixation de loyer du TAL, et les donnees locatives necessaires a l'approche par le revenu. Utiliser ce skill pour les questions sur les baux, loyers, fixation de loyer et donnees de revenus locatifs.",
+      "type": "recherche",
+      "agents": [
+        "valuation-draft",
+        "data-facts"
+      ],
+      "sources": [
+        "23-baux-logement-revenu"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-cadre-legal",
+      "path": "skills/recherche-cadre-legal/SKILL.md",
+      "description": "Recherche et extraction du cadre juridique québécois applicable à l'évaluation immobilière : lois fiscales municipales, droit des biens (CCQ), réglementation professionnelle OEAQ, droits de mutation, compétences municipales et courtage. Utiliser ce skill chaque fois qu'une question touche le droit, la fiscalité municipale, la déontologie, les obligations professionnelles ou les transactions immobilières.",
+      "type": "recherche",
+      "agents": [
+        "compliance-qa",
+        "data-facts"
+      ],
+      "sources": [
+        "03-loi-fiscalite-municipale",
+        "05-oeaq-reglements",
+        "16-droit-immobilier"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-domaines-specialises",
+      "path": "skills/recherche-domaines-specialises/SKILL.md",
+      "description": "Connaissances specialisees en expropriation, copropriete divise, patrimoine culturel, financement hypothecaire, evaluation agricole et performance energetique. Utiliser ce skill quand le dossier implique un de ces domaines verticaux.",
+      "type": "recherche",
+      "agents": [
+        "data-facts",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "sources": [
+        "13-sources-specialisees",
+        "19-expropriation-recours",
+        "20-copropriete-fonds-prevoyance",
+        "24-patrimoine-culturel-contraintes",
+        "25-financement-hypothecaire-risque",
+        "26-agricole-specialise",
+        "27-energie-performance-batiment"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-jurisprudence-discipline",
+      "path": "skills/recherche-jurisprudence-discipline/SKILL.md",
+      "description": "Decisions disciplinaires de l'OEAQ, infractions sanctionnees et signaux de risque pour la conformite en evaluation immobiliere. Utiliser ce skill pour identifier les erreurs professionnelles a eviter et les regles de prevention derivees de la jurisprudence.",
+      "type": "recherche",
+      "agents": [
+        "compliance-qa"
+      ],
+      "sources": [
+        "09-jurisprudence-discipline"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-marche-donnees",
+      "path": "skills/recherche-marche-donnees/SKILL.md",
+      "description": "Recherche et extraction des donnees de marche immobilier, facteurs de rajustement au cout de base (MEFQ), verification et ajustement des ventes (IAAO), et standards internationaux de mesure (IPMS). Utiliser ce skill pour toute question sur les sources de donnees de marche, les facteurs de rajustement et la validation des transactions.",
+      "type": "recherche",
+      "agents": [
+        "comps-market",
+        "data-facts"
+      ],
+      "sources": [
+        "_legacy-unstructured",
+        "15-methodes-internationaux",
+        "12-fournisseurs-donnees"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-mefq-methodologie",
+      "path": "skills/recherche-mefq-methodologie/SKILL.md",
+      "description": "Recherche et synthese de la methodologie prescrite par le Manuel d'evaluation fonciere du Quebec (MEFQ) 2025",
+      "type": "recherche",
+      "agents": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "02-mefq-complements-et-outils",
+        "03-loi-fiscalite-municipale"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-normes-professionnelles",
+      "path": "skills/recherche-normes-professionnelles/SKILL.md",
+      "description": "Recherche et extraction des normes professionnelles applicables à l'évaluation immobilière : CUSPAP 2026 (AIC), NPP OEAQ, code de déontologie, standards de rapport, portée de pratique, éthique et gouvernance. Utiliser ce skill chaque fois qu'une question touche les standards professionnels, la conformité normative, les obligations du membre, la portée de pratique, le contenu obligatoire d'un rapport ou les règles éthiques.",
+      "type": "recherche",
+      "agents": [
+        "compliance-qa",
+        "data-facts",
+        "valuation-draft",
+        "comps-market",
+        "redaction"
+      ],
+      "sources": [
+        "00-cuspap",
+        "04-oeaq-normes",
+        "06-aic",
+        "07-aic-practice"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-registre-cadastre",
+      "path": "skills/recherche-registre-cadastre/SKILL.md",
+      "description": "Recherche et extraction des informations cadastrales, foncieres et de droits de propriete applicables a l'evaluation immobiliere au Quebec. Utiliser ce skill pour les questions sur le cadastre, le registre foncier, les donnees publiques immobilieres, les droits reels et les mutations.",
+      "type": "recherche",
+      "agents": [
+        "data-facts",
+        "comps-market"
+      ],
+      "sources": [
+        "21-cadastre-donnees",
+        "22-droits-fonciers"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "recherche-urbanisme-construction",
+      "path": "skills/recherche-urbanisme-construction/SKILL.md",
+      "description": "Recherche et extraction des règles d'urbanisme, zonage, construction et inspection applicables à l'évaluation immobilière au Québec : hiérarchie de planification (OGAT, PMAD, SAD, PU), règlement de zonage (LAU art. 113), lotissement (LAU art. 115), densité, zone agricole (LPTAA/CPTAQ), Code de construction (B-1.1, r. 2), environnement (LQE Q-2), terrains contaminés (Q-2, r. 37), zones inondables, contraintes naturelles et anthropiques. Utiliser ce skill chaque fois qu'une question touche le zonage, l'urbanisme, la construction, l'inspection, l'environnement ou les contraintes physiques affectant un immeuble.",
+      "type": "recherche",
+      "agents": [
+        "data-facts"
+      ],
+      "sources": [
+        "17-urbanisme-zonage",
+        "18-construction-inspection"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "redaction-analyse-marche",
+      "path": "skills/redaction-analyse-marche/SKILL.md",
+      "description": "Redaction des sections d'analyse de marche dans le rapport d'evaluation immobiliere. Utiliser ce skill pour generer les descriptions de secteur, les etudes de marche et les donnees municipales contextuelles.",
+      "type": "redaction",
+      "agents": [
+        "redaction"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "10-rapports-precedents-firme",
+        "12-fournisseurs-donnees"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "redaction-fiches-techniques",
+      "path": "skills/redaction-fiches-techniques/SKILL.md",
+      "description": "Redaction des fiches de propriete, index de sources et chronologies pour les dossiers d'evaluation immobiliere. Utiliser ce skill pour structurer et rediger les fiches techniques standardisees d'un mandat d'evaluation.",
+      "type": "redaction",
+      "agents": [
+        "data-facts"
+      ],
+      "sources": [
+        "01-mefq-manuel",
+        "02-mefq-complements",
+        "04-oeaq-normes"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "redaction-rapport-conformite",
+      "path": "skills/redaction-rapport-conformite/SKILL.md",
+      "description": "Generation du rapport de conformite structure documentant les resultats de verification des 18 gates KQG, les non-conformites et les signaux de risque disciplinaire. Utiliser ce skill pour produire le livrable de l'agent compliance-qa.",
+      "type": "redaction",
+      "agents": [
+        "compliance-qa"
+      ],
+      "sources": [
+        "00-cuspap",
+        "04-oeaq-normes",
+        "09-jurisprudence-discipline"
+      ],
+      "has_analysis": true
+    },
+    {
+      "name": "redaction-rapport-evaluation",
+      "path": "skills/redaction-rapport-evaluation/SKILL.md",
+      "description": "Redaction du rapport d'evaluation immobiliere complet conforme aux normes CUSPAP 2026 et NPP OEAQ. Utiliser ce skill pour generer le rapport final selon le format appropriate au mandat (narratif complet, abrege, mise a jour).",
+      "type": "redaction",
+      "agents": [
+        "redaction"
+      ],
+      "sources": [
+        "00-cuspap",
+        "04-oeaq-normes",
+        "10-rapports-precedents-firme"
+      ],
+      "has_analysis": true
+    }
+  ],
+  "skills_by_agent": {
+    "data-facts": [
+      "analyse-extraction-faits",
+      "recherche-baux-revenus",
+      "recherche-cadre-legal",
+      "recherche-domaines-specialises",
+      "recherche-marche-donnees",
+      "recherche-mefq-methodologie",
+      "recherche-normes-professionnelles",
+      "recherche-registre-cadastre",
+      "recherche-urbanisme-construction",
+      "redaction-fiches-techniques"
+    ],
+    "comps-market": [
+      "analyse-selection-comparables",
+      "recherche-marche-donnees",
+      "recherche-mefq-methodologie",
+      "recherche-normes-professionnelles",
+      "recherche-registre-cadastre"
+    ],
+    "valuation-draft": [
+      "analyse-approche-comparaison",
+      "analyse-approche-cout",
+      "analyse-approche-revenu",
+      "analyse-reconciliation-valeur",
+      "recherche-baux-revenus",
+      "recherche-domaines-specialises",
+      "recherche-mefq-methodologie",
+      "recherche-normes-professionnelles"
+    ],
+    "compliance-qa": [
+      "analyse-conformite",
+      "recherche-cadre-legal",
+      "recherche-domaines-specialises",
+      "recherche-jurisprudence-discipline",
+      "recherche-mefq-methodologie",
+      "recherche-normes-professionnelles",
+      "redaction-rapport-conformite"
+    ],
+    "redaction": [
+      "recherche-normes-professionnelles",
+      "redaction-analyse-marche",
+      "redaction-rapport-evaluation"
+    ]
+  }
+}

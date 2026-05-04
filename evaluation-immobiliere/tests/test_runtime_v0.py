@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from engine.runtime import RuntimeEngine, RuntimeStep, PipelineValidationError, validate_contract_rules, validate_pipeline_steps
 import engine.runtime as runtime_module
+from engine.skills import build_skill_registry
 
 
 def writable_tmp_dir(prefix: str) -> Path:
@@ -40,8 +41,15 @@ class TestRuntimeV0(unittest.TestCase):
             self.assertTrue(Path(result["artifact_dir"]).exists())
             self.assertGreaterEqual(result["metrics"]["wall_clock_seconds"], 0)
             self.assertIn("artifact_written", {event["event"] for event in result["events"]})
+            self.assertIn("analyse-extraction-faits", result["skills_by_agent"]["data-facts"])
         finally:
             shutil.rmtree(root, ignore_errors=True)
+
+    def test_skill_registry_maps_project_skills_to_agents(self) -> None:
+        registry = build_skill_registry(PROJECT_ROOT / "skills")
+        self.assertEqual(len(registry["skills"]), 20)
+        self.assertIn("analyse-conformite", registry["skills_by_agent"]["compliance-qa"])
+        self.assertIn("redaction-rapport-evaluation", registry["skills_by_agent"]["redaction"])
 
     def test_run_case_data_blocks_on_contract_failure(self) -> None:
         case = {

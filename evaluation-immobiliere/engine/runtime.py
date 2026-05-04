@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 import json
@@ -10,6 +10,7 @@ import time
 import ast
 
 from engine.audit import append_audit_log
+from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills
 from engine.tools import search_comparables, validate_schema
 from engine.valuation import calculate_valuation_trace
 
@@ -19,6 +20,8 @@ class RuntimeStep:
     name: str
     reads: list[str]
     writes: list[str]
+    skills: list[str] = field(default_factory=list)
+    agent_config: str | None = None
 
 
 class PipelineValidationError(ValueError):
@@ -67,6 +70,8 @@ def load_steps_from_pipeline_yaml(pipeline_path: Path) -> list[RuntimeStep]:
     lines = pipeline_path.read_text(encoding="utf-8").splitlines()
     steps: list[RuntimeStep] = []
     current_name: str | None = None
+    current_agent_config: str | None = None
+    current_skills: list[str] = []
     current_reads: list[str] = []
     current_writes: list[str] = []
     mode: str | None = None
@@ -77,8 +82,10 @@ def load_steps_from_pipeline_yaml(pipeline_path: Path) -> list[RuntimeStep]:
 
         if re.match(r"^\s*- step:\s*\d+", line):
             if current_name:
-                steps.append(RuntimeStep(current_name, current_reads, current_writes))
+                steps.append(RuntimeStep(current_name, current_reads, current_writes, current_skills, current_agent_config))
             current_name = None
+            current_agent_config = None
+            current_skills = []
             current_reads = []
             current_writes = []
             mode = None
@@ -87,6 +94,8 @@ def load_steps_from_pipeline_yaml(pipeline_path: Path) -> list[RuntimeStep]:
         if stripped.startswith("agent_config:"):
             agent_file = stripped.split(":", 1)[1].strip()
             current_name = _name_from_agent_config(agent_file)
+            current_agent_config = agent_file
+            current_skills = load_agent_config_skills(pipeline_path.parent / agent_file)
             continue
 
         if stripped == "reads:":
@@ -109,7 +118,7 @@ def load_steps_from_pipeline_yaml(pipeline_path: Path) -> list[RuntimeStep]:
             mode = None
 
     if current_name:
-        steps.append(RuntimeStep(current_name, current_reads, current_writes))
+        steps.append(RuntimeStep(current_name, current_reads, current_writes, current_skills, current_agent_config))
 
     validate_pipeline_steps(steps, pipeline_path)
     return steps
@@ -141,12 +150,16 @@ def validate_pipeline_steps(steps: list[RuntimeStep], pipeline_path: Path | None
         raise PipelineValidationError(prefix + "; ".join(errors))
 
 
+def _skills_for_agent(agent_name: str) -> list[str]:
+    return list(DEFAULT_SKILLS_BY_AGENT[agent_name])
+
+
 DEFAULT_STEPS = [
-    RuntimeStep("data-facts", ["dossier_input", "documents_sources"], ["fiche_bien.json", "timeline_faits.json", "source_index.json"]),
-    RuntimeStep("comps-market", ["fiche_bien.json", "source_index.json", "market_data_sources"], ["comparables_proposes.json", "justifications_comparables.json", "source_index.json"]),
-    RuntimeStep("valuation-draft", ["comparables_proposes.json", "couts_reference", "revenus_depenses", "source_index.json"], ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "brouillon_valeur.md"]),
-    RuntimeStep("compliance-qa", ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "source_index.json"], ["rapport_non_conformites.json", "statut_sortie.json", "recommandations_corrections.md"]),
-    RuntimeStep("redaction", ["statut_sortie.json", "recommandations_corrections.md", "source_index.json"], ["brouillon_rapport.md", "annexe_sources.md"]),
+    RuntimeStep("data-facts", ["dossier_input", "documents_sources"], ["fiche_bien.json", "timeline_faits.json", "source_index.json"], _skills_for_agent("data-facts"), "AGENTCONFIG-DATA-FACTS-V0.yaml"),
+    RuntimeStep("comps-market", ["fiche_bien.json", "source_index.json", "market_data_sources"], ["comparables_proposes.json", "justifications_comparables.json", "source_index.json"], _skills_for_agent("comps-market"), "AGENTCONFIG-COMPS-MARKET-V0.yaml"),
+    RuntimeStep("valuation-draft", ["comparables_proposes.json", "couts_reference", "revenus_depenses", "source_index.json"], ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "brouillon_valeur.md"], _skills_for_agent("valuation-draft"), "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"),
+    RuntimeStep("compliance-qa", ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "source_index.json"], ["rapport_non_conformites.json", "statut_sortie.json", "recommandations_corrections.md"], _skills_for_agent("compliance-qa"), "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"),
+    RuntimeStep("redaction", ["statut_sortie.json", "recommandations_corrections.md", "source_index.json"], ["brouillon_rapport.md", "annexe_sources.md"], _skills_for_agent("redaction"), "AGENTCONFIG-REDACTION-V0.yaml"),
 ]
 
 
@@ -355,7 +368,12 @@ class RuntimeEngine:
             self._record_event(events, audit_log_path, {"event": "warning_detected", "dossier_id": dossier_id, "warning": warning})
 
         for step in self.steps:
-            self._record_event(events, audit_log_path, {"event": "step_start", "step": step.name, "dossier_id": dossier_id})
+            step_start_event = {"event": "step_start", "step": step.name, "dossier_id": dossier_id}
+            if step.skills:
+                step_start_event["skills_allowed"] = step.skills
+            if step.agent_config:
+                step_start_event["agent_config"] = step.agent_config
+            self._record_event(events, audit_log_path, step_start_event)
 
             for artifact in step.writes:
                 artifact_path = case_dir / f"{case_key}.{step.name}.{artifact}" if not case_subdir else case_dir / f"{step.name}.{artifact}"
@@ -363,6 +381,10 @@ class RuntimeEngine:
 
                 payload = self._artifact_payload(step.name, artifact, case, status, blocking, warnings, valuation_values)
                 payload["source_fixture"] = source_fixture
+                if step.skills:
+                    payload["agent_skills_allowed"] = step.skills
+                if step.agent_config:
+                    payload["agent_config"] = step.agent_config
                 if step.name == "valuation-draft" and artifact in {
                     "calculs_approche_comparative.json",
                     "calculs_approche_cout.json",
@@ -423,6 +445,7 @@ class RuntimeEngine:
             "events": events,
             "audit_log": audit_log_path.as_posix(),
             "artifact_dir": case_dir.as_posix(),
+            "skills_by_agent": {step.name: step.skills for step in self.steps},
             "metrics": {
                 "wall_clock_seconds": wall_clock_seconds,
                 "total_tokens": 0,

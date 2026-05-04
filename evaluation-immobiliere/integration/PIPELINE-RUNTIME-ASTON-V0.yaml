@@ -1,6 +1,16 @@
 version: 0.1
 pipeline_name: evaluation-immobiliere-runtime-aston
 
+skills_registry: skills/SKILLS-REGISTRY.json
+
+skill_policy:
+  scope: project_agents
+  load_mode: progressive_disclosure
+  rule: >
+    Chaque AgentConfig declare ses skills_allowed. Le runtime propage cette
+    liste dans les evenements et artefacts pour conserver la trace du contexte
+    de specialisation sans charger tous les skills dans chaque etape.
+
 description: >
   Orchestration cible des agents immobiliers dans la vraie boucle Aston.
   Ce fichier décrit l'ordre d'exécution, les artefacts de handoff,

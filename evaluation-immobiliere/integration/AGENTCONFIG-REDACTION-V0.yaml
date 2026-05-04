@@ -39,6 +39,12 @@ tools_allowed:
   - format_document
   - append_audit_log
 
+skills_registry: skills/SKILLS-REGISTRY.json
+skills_allowed:
+  - recherche-normes-professionnelles
+  - redaction-analyse-marche
+  - redaction-rapport-evaluation
+
 quality_gates:
   blocking:
     - B001_required_sections
