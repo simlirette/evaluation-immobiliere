@@ -41,7 +41,9 @@ class TestStatutPhasesProjetV1(unittest.TestCase):
         markdown = build_markdown(report)
 
         self.assertTrue(report["ok"], report["errors"])
-        self.assertEqual(report["decision"], "PROJET_PRET_TERRAIN_REEL_PROD_BLOQUEE")
+        self.assertEqual(report["decision"], "PROJET_PRET_FINALISATION_V1_PRE_EVALUATEUR_PROD_BLOQUEE")
+        self.assertEqual(report["target"], "V1_PRE_EVALUATEUR")
+        self.assertEqual(report["pre_evaluator_decision"], "PRET_FINALISATION_V1_PRE_EVALUATEUR")
         self.assertEqual(report["phase_h_decision"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
         self.assertEqual(report["response_active_rows"], 0)
         self.assertIn("DEPLOIEMENT_PROD_BLOQUE", {phase["decision"] for phase in report["phases"]})

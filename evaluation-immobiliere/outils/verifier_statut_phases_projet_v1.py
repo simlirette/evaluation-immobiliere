@@ -36,6 +36,8 @@ RESPONSE_INPUT_DEFAULT = ATELIER_DIR / "REPONSES-EVALUATEURS.csv"
 CALIBRATION_INPUT_DEFAULT = ATELIER_DIR / "CALIBRATION-EVALUATEURS.csv"
 REPORT_JSON_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json"
 REPORT_MD_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.md"
+PRE_EVALUATOR_TARGET = "V1_PRE_EVALUATEUR"
+PRE_EVALUATOR_DECISION = "PRET_FINALISATION_V1_PRE_EVALUATEUR"
 
 
 def read_text(path: Path) -> str:
@@ -153,6 +155,7 @@ def build_project_status_report(
     )
     pv_real_scope_ok = "Go production reelle: **NON**" in pv_text or "Go production: **NON**" in pv_text
     no_active_responses_before_stop = response_active_rows == 0 and calibration_active_rows == 0 and response_errors == 0
+    pre_evaluator_plan_exists = (ATELIER_DIR / "PLAN-V1-PRE-EVALUATEUR-AGREE.md").exists()
 
     checks = [
         check(
@@ -185,6 +188,18 @@ def build_project_status_report(
             bool_status(pv_real_scope_ok, "PORTEE_REELLE_EXPLICITE", "AMBIGU"),
             normalize_path(ATELIER_DIR / "PV-HOMOLOGATION-V1.md"),
         ),
+        check(
+            "phase_h_non_bloquante_pour_v1_pre_evaluateur",
+            phase_h_decision in {PHASE_H_WAITING_INPUTS, PHASE_H_READY_FOR_RESPONSES},
+            "PHASE_H_POST_V1" if phase_h_decision in {PHASE_H_WAITING_INPUTS, PHASE_H_READY_FOR_RESPONSES} else "A_CONTROLER",
+            "La Phase H bloque seulement la validation terrain/prod reelle, pas la finalisation produit pre-evaluateur.",
+        ),
+        check(
+            "plan_v1_pre_evaluateur",
+            pre_evaluator_plan_exists,
+            "PRESENT" if pre_evaluator_plan_exists else "ABSENT",
+            normalize_path(ATELIER_DIR / "PLAN-V1-PRE-EVALUATEUR-AGREE.md"),
+        ),
     ]
 
     phases = [
@@ -206,7 +221,9 @@ def build_project_status_report(
     return {
         "schema_version": "statut_phases_projet_v1",
         "ok": ok,
-        "decision": "PROJET_PRET_TERRAIN_REEL_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
+        "decision": "PROJET_PRET_FINALISATION_V1_PRE_EVALUATEUR_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
+        "target": PRE_EVALUATOR_TARGET,
+        "pre_evaluator_decision": PRE_EVALUATOR_DECISION if ok else "A_CORRIGER",
         "phase_h_decision": phase_h_decision,
         "active_real_cases": active_real_cases,
         "response_active_rows": response_active_rows,
@@ -234,6 +251,8 @@ def build_markdown(report: dict[str, Any]) -> str:
         "## Synthese",
         "",
         f"- Decision: **{report.get('decision', 'UNKNOWN')}**",
+        f"- Cible produit: **{report.get('target', 'UNKNOWN')}**",
+        f"- Decision pre-evaluateur: **{report.get('pre_evaluator_decision', 'UNKNOWN')}**",
         f"- OK coherence: **{str(report.get('ok')).lower()}**",
         f"- Phase H reelle: **{report.get('phase_h_decision', 'UNKNOWN')}**",
         f"- Dossiers terrain actifs: **{report.get('active_real_cases', 0)}**",
@@ -282,7 +301,8 @@ def build_markdown(report: dict[str, Any]) -> str:
             "- Aucun dossier reel anonymise actif n'est versionne dans le repo.",
             "- Aucune reponse evaluateur active n'est presente dans les CSV de collecte.",
             "- Les revues evaluateurs externes versionnees restent des fixtures d'homologation/preparation, pas des retours de campagne terrain reelle.",
-            "- La prochaine action non simulable est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.",
+            "- La prochaine action produit est la finalisation V1 pre-evaluateur: demo, UI/API, rapport exemple et paquet de revue.",
+            "- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"

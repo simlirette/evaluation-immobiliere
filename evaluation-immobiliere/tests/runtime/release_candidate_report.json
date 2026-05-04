@@ -14,7 +14,7 @@
   "external_reviews_decision": "GO_CONDITIONNEL_ECARTS_EVALUATEURS",
   "closure_decision": "GO_PROD_PREPARATION",
   "required_reports_count": 3,
-  "required_artifacts_count": 9,
+  "required_artifacts_count": 10,
   "missing_reports": [],
   "missing_artifacts": [],
   "staging_scenarios_count": 3,
@@ -36,6 +36,7 @@
     "required_artifacts": [
       "evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md",
       "evaluation-immobiliere/atelier/PV-SIGNATURE-METIER-V1.md",
+      "evaluation-immobiliere/atelier/PLAN-V1-PRE-EVALUATEUR-AGREE.md",
       "evaluation-immobiliere/atelier/REGISTRE-FERMETURE-ECARTS-EVALUATEURS-V1.json",
       "evaluation-immobiliere/atelier/MATRICE-ECARTS-EVALUATEURS-EXTERNES-V1.csv",
       "evaluation-immobiliere/atelier/RAPPORT-ECARTS-EVALUATEURS-EXTERNES-V1.md",

@@ -2,6 +2,19 @@
 
 Objectif: demarrer la campagne terrain sur dossiers reels anonymises sans introduire de donnees sensibles dans le repo actif et sans inventer de reponses evaluateurs.
 
+## Position dans la strategie produit
+
+La Phase H reelle est une phase de revue/calibration **apres** une V1 pre-evaluateur demonstrable.
+
+Elle ne bloque pas la construction de l'infrastructure, des skills, de l'UI, de l'API, des rapports exemples ou du paquet de demonstration. Elle bloque seulement les affirmations suivantes:
+
+- validation terrain reelle;
+- go production metier;
+- calibration signee par evaluateur immobilier agree;
+- usage de dossiers clients reels.
+
+La cible avant Phase H est donc: **V1_PRE_EVALUATEUR**, puis revue avec un evaluateur agree.
+
 ## Statut courant
 
 - Statut: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**

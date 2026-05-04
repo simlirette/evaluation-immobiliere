@@ -4,7 +4,9 @@ _As-of date: 2026-05-04 (UTC)_
 
 ## Synthese
 
-- Decision: **PROJET_PRET_TERRAIN_REEL_PROD_BLOQUEE**
+- Decision: **PROJET_PRET_FINALISATION_V1_PRE_EVALUATEUR_PROD_BLOQUEE**
+- Cible produit: **V1_PRE_EVALUATEUR**
+- Decision pre-evaluateur: **PRET_FINALISATION_V1_PRE_EVALUATEUR**
 - OK coherence: **true**
 - Phase H reelle: **EN_ATTENTE_ENTREES_TERRAIN_REELLES**
 - Dossiers terrain actifs: **0**
@@ -39,10 +41,13 @@ _As-of date: 2026-05-04 (UTC)_
 | ci_couvre_phase_h_et_statut_projet | COUVERT | true | .github/workflows/validation.yml |
 | production_bloquee_avant_phase_h_reelle | BLOQUEE | true | Phase J/K/L et CD declarent le blocage production. |
 | pv_homologation_scope_reel | PORTEE_REELLE_EXPLICITE | true | evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md |
+| phase_h_non_bloquante_pour_v1_pre_evaluateur | PHASE_H_POST_V1 | true | La Phase H bloque seulement la validation terrain/prod reelle, pas la finalisation produit pre-evaluateur. |
+| plan_v1_pre_evaluateur | PRESENT | true | evaluation-immobiliere/atelier/PLAN-V1-PRE-EVALUATEUR-AGREE.md |
 
 ## Situation dossiers/reponses
 
 - Aucun dossier reel anonymise actif n'est versionne dans le repo.
 - Aucune reponse evaluateur active n'est presente dans les CSV de collecte.
 - Les revues evaluateurs externes versionnees restent des fixtures d'homologation/preparation, pas des retours de campagne terrain reelle.
-- La prochaine action non simulable est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.
+- La prochaine action produit est la finalisation V1 pre-evaluateur: demo, UI/API, rapport exemple et paquet de revue.
+- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.

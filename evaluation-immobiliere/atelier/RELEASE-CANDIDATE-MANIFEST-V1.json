@@ -13,6 +13,7 @@
   "required_artifacts": [
     "evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md",
     "evaluation-immobiliere/atelier/PV-SIGNATURE-METIER-V1.md",
+    "evaluation-immobiliere/atelier/PLAN-V1-PRE-EVALUATEUR-AGREE.md",
     "evaluation-immobiliere/atelier/REGISTRE-FERMETURE-ECARTS-EVALUATEURS-V1.json",
     "evaluation-immobiliere/atelier/MATRICE-ECARTS-EVALUATEURS-EXTERNES-V1.csv",
     "evaluation-immobiliere/atelier/RAPPORT-ECARTS-EVALUATEURS-EXTERNES-V1.md",

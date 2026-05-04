@@ -1,5 +1,24 @@
 # Plan directeur complet post-merge `85555aa` (2026-04-30)
 
+## Mise a jour 2026-05-04 - cible V1 pre-evaluateur
+
+Le plan est reoriente pour finaliser d'abord une **V1_PRE_EVALUATEUR**: un produit complet, coherent et demonstrable avant consultation d'un evaluateur immobilier agree.
+
+Principes:
+
+- Les dossiers reels et reponses d'evaluateurs ne sont pas requis pour terminer l'infrastructure, les skills, l'UI, l'API, la demo et les artefacts de V1.
+- La Phase H devient une phase post-V1 de revue/calibration metier. Elle bloque la validation terrain et la production reelle, pas la finalisation du produit a presenter.
+- La cible court terme est `PRET_FINALISATION_V1_PRE_EVALUATEUR`.
+- Le go production reel reste bloque tant que la Phase H reelle n'est pas faite ou qu'une derogation metier formelle n'est pas signee.
+
+Plan d'enchainement actualise:
+
+1. Finaliser runtime/demo E2E sur cas representatif non sensible.
+2. Finaliser UI/API evaluateur pour presenter session, artefacts, warnings, blocages et corrections.
+3. Produire un rapport exemple complet et un paquet de revue evaluateur.
+4. Garder CI/CD, statut phases et gates verts.
+5. Presenter la V1 a l'evaluateur agree, puis transformer ses retours en backlog V2/Phase H.
+
 ## 1) État actuel complet du projet
 
 ## 1.1 Niveau de maturité
