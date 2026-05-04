@@ -28,7 +28,9 @@ from api import (
     ops_summary,
     product_summary,
     resume_session,
+    session_artifact_content,
     session_artifacts,
+    session_summary,
     session_status,
     start_runtime,
 )
@@ -68,6 +70,8 @@ class TestApiV0(unittest.TestCase):
         self.assertGreaterEqual(summary["runtime"]["cases_count"], 1)
         self.assertGreaterEqual(summary["fixtures"]["count"], 1)
         self.assertEqual(summary["routes"]["product"], "/product")
+        self.assertEqual(summary["routes"]["session_summary"], "/session/summary")
+        self.assertEqual(summary["routes"]["artifact_content"], "/artifact")
         self.assertIn("release_candidate_decision", summary)
 
     def test_ops_summary_reads_generated_reports_from_runtime_dir(self) -> None:
@@ -271,9 +275,75 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(package_gate["status"], "PRET_A_ENVOYER")
         self.assertEqual(doctor["status"], "OK")
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
-        self.assertIn("<title>Revue evaluateur</title>", evaluator_ui)
+        self.assertIn("<title>Revue dossier</title>", evaluator_ui)
         self.assertIn("<title>Produit evaluation immobiliere</title>", product_ui)
         self.assertEqual(product_summary_payload["schema_version"], "product_cockpit_summary_v1")
+
+    def test_session_summary_and_artifact_content_are_readable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                started = start_runtime({"fixture": "case_nominal.json"})
+                session_id = started["session"]["session_id"]
+                summary = session_summary(session_id)
+                first_artifact = summary["artifacts"]["artifacts"][0]
+                content = session_artifact_content(session_id, event_id=first_artifact["event_id"])
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(summary["schema_version"], "session_summary_v1")
+        self.assertTrue(summary["integrity"]["ok"])
+        self.assertEqual(summary["result"]["status"], "PRET_REVISION_FINALE")
+        self.assertEqual(content["schema_version"], "session_artifact_content_v1")
+        self.assertEqual(content["session_id"], session_id)
+        self.assertIn("text", content)
+        self.assertFalse(content["truncated"])
+
+    def test_http_session_summary_artifact_and_review_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), QuietRuntimeApiHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            host, port = server.server_address
+            try:
+                started = self.http_json("POST", host, port, "/start", {"fixture": "case_nominal.json"})
+                session_id = started["session"]["session_id"]
+                summary = self.http_json("GET", host, port, f"/session/summary?session_id={session_id}")
+                event_id = summary["artifacts"]["artifacts"][0]["event_id"]
+                artifact = self.http_json("GET", host, port, f"/artifact?session_id={session_id}&event_id={event_id}")
+                invalid_status, invalid_raw = self.http_request(
+                    "POST",
+                    host,
+                    port,
+                    "/review",
+                    {"session_id": session_id, "decision": "VALIDE", "reviewer": "QA produit"},
+                )
+                valid_review = self.http_json(
+                    "POST",
+                    host,
+                    port,
+                    "/review",
+                    {
+                        "session_id": session_id,
+                        "decision": "VALIDE",
+                        "reviewer": "QA produit",
+                        "notes": "Validation produit sur fixture nominale.",
+                    },
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(summary["schema_version"], "session_summary_v1")
+        self.assertEqual(artifact["schema_version"], "session_artifact_content_v1")
+        self.assertEqual(invalid_status, 400)
+        self.assertIn("notes requises", json.loads(invalid_raw)["error"])
+        self.assertEqual(valid_review["review"]["decision"], "VALIDE")
 
     def test_product_demo_endpoint_runs_default_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

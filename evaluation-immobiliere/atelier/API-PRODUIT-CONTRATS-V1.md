@@ -87,6 +87,22 @@ Chaque artefact contient:
 - `bytes`;
 - `sha256`.
 
+## Contrat `/session/summary`
+Sortie: `session_summary_v1`.
+
+Le resume consolide la session, le resultat runtime, l'integrite,
+la review persistante, le snapshot knowledge et l'index d'artefacts.
+Il alimente l'UI produit/revue sans recalcul cote navigateur.
+
+## Contrat `/artifact`
+Sortie: `session_artifact_content_v1`.
+
+Contraintes:
+- l'artefact doit etre present dans `artifact_index_v1`;
+- la lecture est resolue sous le repertoire de session uniquement;
+- le contenu est renvoye en texte avec detection JSON/Markdown;
+- l'apercu est plafonne a 64 KiB et signale par `truncated`.
+
 ## Contrat `/review`
 La review produit `review.json`.
 
@@ -97,6 +113,13 @@ Champs:
 - `reviewer`;
 - `notes`;
 - `created_at_utc`.
+
+Validation minimale:
+- `decision` doit etre dans `PRET_REVUE`, `A_CORRIGER`, `VALIDE`, `REJETE`;
+- `reviewer` est obligatoire;
+- `notes` est obligatoire pour `A_CORRIGER`, `VALIDE` et `REJETE`;
+- `VALIDE` est refuse si l'integrite session est invalide ou si le runtime
+  contient des blocages.
 
 ## Contrat `/resume`
 La reprise produit `resume.json` et ne modifie pas le statut métier du runtime. Elle ajoute seulement un état technique:
@@ -114,9 +137,9 @@ La reprise produit `resume.json` et ne modifie pas le statut métier du runtime.
 ## Décisions prises
 - Les endpoints Phase D restent compatibles avec les routes existantes `/session`, `/start`, `/stream`.
 - Les nouveaux endpoints utilisent `session_id` comme clé unique côté produit.
-- L'index d'artefacts expose les checksums, mais pas le contenu brut des fichiers pour l'instant.
+- L'index d'artefacts expose les checksums; le contenu est accessible via
+  `/artifact` seulement pour les fichiers indexes dans la session.
 
 ## Questions ouvertes
-- Faut-il exposer un endpoint de téléchargement d'artefact par identifiant plutôt que par chemin ?
 - Faut-il normaliser les erreurs HTTP avant Phase E UI évaluateur ?
 - Le stream doit-il devenir live pendant exécution ou rester replayable tant que les runs sont courts ?

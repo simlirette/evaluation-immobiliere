@@ -358,17 +358,15 @@
 
     async function loadSession(sessionId) {
       if (!sessionId) return;
-      const [status, artifacts] = await Promise.all([
-        api(`/status?session_id=${sessionId}`),
-        api(`/artifacts?session_id=${sessionId}`)
-      ]);
+      const summary = await api(`/session/summary?session_id=${sessionId}`);
       $("demoTable").innerHTML = `<tbody>
-        <tr><th>Session</th><td>${status.session.session_id}</td></tr>
-        <tr><th>Dossier</th><td>${status.session.dossier_id || "-"}</td></tr>
-        <tr><th>Statut</th><td><span class="pill ${cssFor(status.session.status)}">${status.session.status || "-"}</span></td></tr>
-        <tr><th>Artefacts</th><td>${artifacts.artifacts_count || 0}</td></tr>
+        <tr><th>Session</th><td>${summary.session.session_id}</td></tr>
+        <tr><th>Dossier</th><td>${summary.result.dossier_id || "-"}</td></tr>
+        <tr><th>Statut</th><td><span class="pill ${cssFor(summary.result.status)}">${summary.result.status || "-"}</span></td></tr>
+        <tr><th>Integrite</th><td>${summary.integrity.ok ? "OK" : "A verifier"}</td></tr>
+        <tr><th>Artefacts</th><td>${summary.artifacts.artifacts_count || 0}</td></tr>
       </tbody>`;
-      $("raw").textContent = JSON.stringify({ status, artifacts }, null, 2);
+      $("raw").textContent = JSON.stringify(summary, null, 2);
     }
 
     async function resumeSession() {

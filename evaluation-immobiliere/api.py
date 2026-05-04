@@ -43,6 +43,9 @@ OPS_CSV_REPORTS = {
     "review_queue": "FILE-REVUE-HUMAINE-V0.csv",
 }
 ACCESS_AUDIT_FILENAME = "access_audit.jsonl"
+ARTIFACT_PREVIEW_MAX_BYTES = 64 * 1024
+REVIEW_DECISIONS = {"PRET_REVUE", "A_CORRIGER", "VALIDE", "REJETE"}
+REVIEW_NOTES_REQUIRED = {"A_CORRIGER", "VALIDE", "REJETE"}
 ROLE_PERMISSIONS = {
     "evaluator": {"runtime_read", "runtime_write", "review_write"},
     "ops": {"runtime_read", "ops_read", "ops_write"},
@@ -130,7 +133,7 @@ def list_fixtures() -> list[dict[str, object]]:
 
 
 def read_json_dict(path: Path) -> dict:
-    if not path.exists():
+    if not path.exists() or not path.is_file():
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
@@ -227,6 +230,8 @@ def product_summary() -> dict:
             "review": "/review/ui",
             "summary": "/product/summary",
             "demo": "/product/demo",
+            "session_summary": "/session/summary",
+            "artifact_content": "/artifact",
         },
     }
 
@@ -423,15 +428,119 @@ def session_artifacts(session_id: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def session_summary(session_id: str) -> dict:
+    session = require_session(session_id)
+    result = read_json_dict(Path(str(session.get("result_path") or "")))
+    knowledge = read_json_dict(Path(str(session.get("knowledge_snapshot_path") or "")))
+    review = read_json_dict(Path(str(session.get("review_path") or "")))
+    artifacts = session_artifacts(session_id)
+    integrity = validate_session_integrity(session)
+    return {
+        "schema_version": "session_summary_v1",
+        "session": session,
+        "result": {
+            "dossier_id": result.get("dossier_id", session.get("dossier_id", "")),
+            "status": result.get("status", session.get("status", "UNKNOWN")),
+            "blocking_failures": result.get("blocking_failures", []),
+            "warnings": result.get("warnings", []),
+            "events_count": len(result.get("events", [])) if isinstance(result.get("events"), list) else 0,
+        },
+        "knowledge": knowledge,
+        "review": review,
+        "integrity": integrity,
+        "artifacts": artifacts,
+    }
+
+
+def resolve_session_artifact(session: dict, *, event_id: str = "", artifact_path: str = "") -> tuple[dict, Path]:
+    artifact_index = session_artifacts(str(session["session_id"]))
+    artifacts = artifact_index.get("artifacts", []) if isinstance(artifact_index, dict) else []
+    selected: dict | None = None
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        if event_id and artifact.get("event_id") == event_id:
+            selected = artifact
+            break
+        if artifact_path and artifact.get("path") == artifact_path:
+            selected = artifact
+            break
+
+    if selected is None:
+        raise FileNotFoundError("artefact introuvable dans l'index de session")
+
+    raw_path = Path(str(selected.get("path") or ""))
+    resolved_path = raw_path.resolve()
+    session_dir = Path(str(session["session_dir"])).resolve()
+    try:
+        resolved_path.relative_to(session_dir)
+    except ValueError as exc:
+        raise ValueError("artefact hors session refuse") from exc
+
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"artefact introuvable sur disque: {selected.get('path', '')}")
+    return selected, resolved_path
+
+
+def session_artifact_content(session_id: str, *, event_id: str = "", artifact_path: str = "") -> dict:
+    session = require_session(session_id)
+    artifact, path = resolve_session_artifact(session, event_id=event_id, artifact_path=artifact_path)
+    size = path.stat().st_size
+    raw = path.read_bytes()[:ARTIFACT_PREVIEW_MAX_BYTES]
+    text = raw.decode("utf-8", errors="replace")
+    suffix = path.suffix.lower()
+    payload = {
+        "schema_version": "session_artifact_content_v1",
+        "session_id": session_id,
+        "artifact": artifact,
+        "path": artifact.get("path", ""),
+        "bytes": size,
+        "truncated": size > ARTIFACT_PREVIEW_MAX_BYTES,
+        "content_type": "application/json" if suffix == ".json" else "text/markdown" if suffix == ".md" else "text/plain",
+        "text": text,
+    }
+    if suffix == ".json" and not payload["truncated"]:
+        try:
+            payload["json"] = json.loads(text)
+        except json.JSONDecodeError:
+            payload["json_error"] = "JSONDecodeError"
+    return payload
+
+
+def validate_review_payload(session: dict, body: dict) -> dict:
+    decision = str(body.get("decision") or "PENDING").strip()
+    reviewer = str(body.get("reviewer") or "").strip()
+    notes = str(body.get("notes") or "").strip()
+
+    if decision not in REVIEW_DECISIONS:
+        raise ValueError(f"decision invalide: {decision}")
+    if not reviewer:
+        raise ValueError("reviewer requis")
+    if decision in REVIEW_NOTES_REQUIRED and not notes:
+        raise ValueError(f"notes requises pour decision {decision}")
+
+    if decision == "VALIDE":
+        integrity = validate_session_integrity(session)
+        result = read_json_dict(Path(str(session.get("result_path") or "")))
+        blocking_failures = result.get("blocking_failures", [])
+        if not integrity["ok"]:
+            raise ValueError("validation refusee: integrite session invalide")
+        if blocking_failures:
+            raise ValueError("validation refusee: blocages runtime presents")
+
+    return {"decision": decision, "reviewer": reviewer, "notes": notes}
+
+
 def save_review(body: dict) -> dict:
     session = require_session(str(body.get("session_id", "")))
+    validated = validate_review_payload(session, body)
     review = {
         "schema_version": "session_review_v1",
         "session_id": session["session_id"],
         "run_id": session["run_id"],
-        "decision": body.get("decision", "PENDING"),
-        "reviewer": body.get("reviewer", ""),
-        "notes": body.get("notes", ""),
+        "decision": validated["decision"],
+        "reviewer": validated["reviewer"],
+        "notes": validated["notes"],
         "created_at_utc": utc_now_iso(),
     }
     review_path = Path(session["session_dir"]) / "review.json"
@@ -598,6 +707,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, require_session(parse_qs(parsed.query).get("session_id", [""])[0]))
             return
+        if parsed.path == "/session/summary":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, session_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
         if parsed.path == "/status":
             if not self._require_permission("runtime_read"):
                 return
@@ -607,6 +721,19 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, session_artifacts(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/artifact":
+            if not self._require_permission("runtime_read"):
+                return
+            query = parse_qs(parsed.query)
+            self._send_json(
+                200,
+                session_artifact_content(
+                    query.get("session_id", [""])[0],
+                    event_id=query.get("event_id", [""])[0],
+                    artifact_path=query.get("path", [""])[0],
+                ),
+            )
             return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):

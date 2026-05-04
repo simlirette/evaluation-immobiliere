@@ -8,6 +8,10 @@ Définir et démarrer l'interface évaluateur Phase E pour traiter la file de re
 ## Statut Phase E
 Décision actuelle: **GO CONDITIONNEL**.
 
+Mise a jour produit: l'interface devient une revue dossier exploitable avant
+revue externe finale. Elle consomme `/session/summary` pour l'etat consolide et
+`/artifact` pour lire les artefacts JSON/Markdown indexes dans la session.
+
 Une première UI exploitable est disponible:
 - fichier: `evaluation-immobiliere/ui/evaluateur_review.html`;
 - routes: `/review/ui`, `/evaluateur`, `/evaluateur/revue`;
