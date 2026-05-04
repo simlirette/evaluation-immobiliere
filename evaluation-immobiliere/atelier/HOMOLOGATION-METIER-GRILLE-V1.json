@@ -1,0 +1,50 @@
+{
+  "schema_version": "homologation_metier_grille_v1",
+  "description": "Grille minimale pour transformer les sorties runtime en decision de revision metier.",
+  "status_allowed": ["PRET_REVISION_FINALE", "BROUILLON", "A_REVOIR"],
+  "minimums": {
+    "cases": 3,
+    "pilot_cases": 3,
+    "ready_cases": 1,
+    "source_count_for_ready_or_draft": 1,
+    "comparables_for_ready_or_draft": 1
+  },
+  "required_valuation_approaches": [
+    "approche_comparative",
+    "approche_cout",
+    "approche_revenu"
+  ],
+  "case_rules": {
+    "PRET_REVISION_FINALE": [
+      "no_blocking_failures",
+      "no_warnings",
+      "sources_present",
+      "comparables_present",
+      "valuation_values_positive",
+      "calculation_traces_complete",
+      "redaction_artifacts_present"
+    ],
+    "BROUILLON": [
+      "no_blocking_failures",
+      "warnings_present",
+      "warnings_documented",
+      "sources_present",
+      "comparables_present",
+      "valuation_values_positive",
+      "calculation_traces_complete",
+      "redaction_artifacts_present"
+    ],
+    "A_REVOIR": [
+      "blocking_failures_present",
+      "blocking_failures_documented",
+      "correction_recommendations_present",
+      "redaction_not_required"
+    ]
+  },
+  "external_review_policy": {
+    "default_status_when_absent": "EN_ATTENTE_REPONSES_TERRAIN",
+    "minimum_reviewers": 2,
+    "minimum_reviewed_pilot_cases": 3,
+    "allowed_decisions": ["ACCEPTE", "A_REVOIR", "REJETE"]
+  }
+}

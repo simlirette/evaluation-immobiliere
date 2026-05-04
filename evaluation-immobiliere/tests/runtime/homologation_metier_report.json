@@ -1,0 +1,212 @@
+{
+  "schema_version": "homologation_metier_report_v1",
+  "ok": true,
+  "runtime_decision": "PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN",
+  "production_decision": "NO_GO_PROD_PREPARATION",
+  "runtime_dir": "evaluation-immobiliere/tests/runtime",
+  "grille_path": "evaluation-immobiliere/atelier/HOMOLOGATION-METIER-GRILLE-V1.json",
+  "cases_count": 8,
+  "pilot_cases_count": 3,
+  "status_counts": {
+    "BROUILLON": 2,
+    "A_REVOIR": 4,
+    "PRET_REVISION_FINALE": 2
+  },
+  "external_reviews": {
+    "status": "EN_ATTENTE_REPONSES_TERRAIN",
+    "path": "evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json",
+    "reviews_count": 0,
+    "reviewers_count": 0,
+    "reviewed_pilot_cases": 0
+  },
+  "errors": [],
+  "warnings": [
+    "revues evaluateurs absentes: evaluation-immobiliere/tests/fixtures_external/homologation_evaluateurs_v1.json"
+  ],
+  "cases": [
+    {
+      "dossier_id": "D-005",
+      "status": "BROUILLON",
+      "decision": "BROUILLON_CORRECTIONS_MINEURES",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_low_confidence",
+      "metrics": {
+        "sources_count": 1,
+        "fiche_source_ids_count": 1,
+        "comparables_count": 1,
+        "justifications_count": 1,
+        "valuation_values": {
+          "approche_comparative": 505000.0,
+          "approche_cout": 505000.0,
+          "approche_revenu": 505000.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": true
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-002",
+      "status": "A_REVOIR",
+      "decision": "RETOUR_CORRECTION_OBLIGATOIRE",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_missing_source",
+      "metrics": {
+        "sources_count": 0,
+        "fiche_source_ids_count": 0,
+        "comparables_count": 0,
+        "justifications_count": 1,
+        "valuation_values": {
+          "approche_comparative": 0.0,
+          "approche_cout": 0.0,
+          "approche_revenu": 0.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": false
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-001",
+      "status": "PRET_REVISION_FINALE",
+      "decision": "PRET_REVISION_EVALUATEUR",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_nominal",
+      "metrics": {
+        "sources_count": 1,
+        "fiche_source_ids_count": 1,
+        "comparables_count": 1,
+        "justifications_count": 1,
+        "valuation_values": {
+          "approche_comparative": 510000.0,
+          "approche_cout": 510000.0,
+          "approche_revenu": 510000.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": true
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-002",
+      "status": "BROUILLON",
+      "decision": "BROUILLON_CORRECTIONS_MINEURES",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_confiance_limitee",
+      "metrics": {
+        "sources_count": 2,
+        "fiche_source_ids_count": 2,
+        "comparables_count": 2,
+        "justifications_count": 2,
+        "valuation_values": {
+          "approche_comparative": 410366.7,
+          "approche_cout": 410750.0,
+          "approche_revenu": 410750.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": true
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-001",
+      "status": "PRET_REVISION_FINALE",
+      "decision": "PRET_REVISION_EVALUATEUR",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_residentiel_standard",
+      "metrics": {
+        "sources_count": 5,
+        "fiche_source_ids_count": 5,
+        "comparables_count": 3,
+        "justifications_count": 3,
+        "valuation_values": {
+          "approche_comparative": 569122.09,
+          "approche_cout": 569000.0,
+          "approche_revenu": 568500.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": true
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-003",
+      "status": "A_REVOIR",
+      "decision": "RETOUR_CORRECTION_OBLIGATOIRE",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_revision_conformite",
+      "metrics": {
+        "sources_count": 2,
+        "fiche_source_ids_count": 2,
+        "comparables_count": 1,
+        "justifications_count": 2,
+        "valuation_values": {
+          "approche_comparative": 634000.0,
+          "approche_cout": 634000.0,
+          "approche_revenu": 634000.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": false
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-003",
+      "status": "A_REVOIR",
+      "decision": "RETOUR_CORRECTION_OBLIGATOIRE",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation",
+      "metrics": {
+        "sources_count": 1,
+        "fiche_source_ids_count": 1,
+        "comparables_count": 1,
+        "justifications_count": 1,
+        "valuation_values": {
+          "approche_comparative": 500000.0,
+          "approche_cout": 500000.0,
+          "approche_revenu": 500000.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": false
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-004",
+      "status": "A_REVOIR",
+      "decision": "RETOUR_CORRECTION_OBLIGATOIRE",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_unit_incoherence",
+      "metrics": {
+        "sources_count": 1,
+        "fiche_source_ids_count": 1,
+        "comparables_count": 1,
+        "justifications_count": 1,
+        "valuation_values": {
+          "approche_comparative": 0.0,
+          "approche_cout": 0.0,
+          "approche_revenu": 0.0
+        },
+        "calculation_traces_complete": true,
+        "recommendations_present": true,
+        "redaction_artifacts_present": false
+      },
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    }
+  ]
+}

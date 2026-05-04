@@ -1,0 +1,236 @@
+{
+  "schema_version": "agent_skills_contracts_v0",
+  "purpose": "Contrats de couverture metier des skills critiques par agent hors redaction finale. Le contrat de redaction reste dans REDACTION-SKILLS-CONTRACT.json.",
+  "policy": {
+    "forbidden_in_skill_md": [
+      "D-REEL"
+    ]
+  },
+  "agents": [
+    {
+      "agent_type": "data-facts",
+      "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml",
+      "required_skills": [
+        {
+          "name": "analyse-extraction-faits",
+          "required_anchors": [
+            {
+              "id": "sources_lacunes",
+              "terms": ["sources", "lacunes"]
+            },
+            {
+              "id": "incoherences",
+              "terms": ["incoherences"]
+            },
+            {
+              "id": "date_reference",
+              "terms": ["date de reference"]
+            },
+            {
+              "id": "surfaces",
+              "terms": ["superficie"]
+            },
+            {
+              "id": "recoupement",
+              "terms": ["recoupement", "validation croisee"]
+            },
+            {
+              "id": "ne_pas_inventer",
+              "terms": ["ne jamais inventer"]
+            }
+          ]
+        },
+        {
+          "name": "redaction-fiches-techniques",
+          "required_anchors": [
+            {
+              "id": "fiche_source_chronologie",
+              "terms": ["fiche de propriete", "index de sources", "chronologie"]
+            },
+            {
+              "id": "mefq_cubf",
+              "terms": ["MEFQ", "CUBF"]
+            },
+            {
+              "id": "donnees_factuelles",
+              "terms": ["pas d'interpretation", "source"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agent_type": "comps-market",
+      "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml",
+      "required_skills": [
+        {
+          "name": "analyse-selection-comparables",
+          "required_anchors": [
+            {
+              "id": "selection_scoring_justification",
+              "terms": ["selection", "scoring", "justification"]
+            },
+            {
+              "id": "date_vente_fenetre",
+              "terms": ["date de vente", "3 ans"]
+            },
+            {
+              "id": "conditions_transaction",
+              "terms": ["conditions de transaction"]
+            },
+            {
+              "id": "ventes_invalides",
+              "terms": ["vente forcee", "exclure"]
+            },
+            {
+              "id": "ajustements",
+              "terms": ["ajustements", "ordre prescrit"]
+            },
+            {
+              "id": "documentation",
+              "terms": ["identification", "source", "score", "ajustements"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agent_type": "valuation-draft",
+      "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml",
+      "required_skills": [
+        {
+          "name": "analyse-approche-comparaison",
+          "required_anchors": [
+            {
+              "id": "comparaison_prioritaire",
+              "terms": ["methode prioritaire", "donnees insuffisantes"]
+            },
+            {
+              "id": "ajustements_marche",
+              "terms": ["ajustements", "derive du marche"]
+            },
+            {
+              "id": "pas_moyenne",
+              "terms": ["pas une moyenne"]
+            }
+          ]
+        },
+        {
+          "name": "analyse-approche-cout",
+          "required_anchors": [
+            {
+              "id": "formule_cout",
+              "terms": ["valeur du terrain", "cout neuf", "depreciation"]
+            },
+            {
+              "id": "facteurs_conjoints",
+              "terms": ["5 facteurs", "conjointement"]
+            },
+            {
+              "id": "age_depreciation",
+              "terms": ["age chronologique", "age apparent", "depreciation"]
+            }
+          ]
+        },
+        {
+          "name": "analyse-approche-revenu",
+          "required_anchors": [
+            {
+              "id": "techniques_revenu",
+              "terms": ["MRB", "capitalisation directe", "TGA"]
+            },
+            {
+              "id": "normalisation",
+              "terms": ["normaliser", "loyers", "depenses"]
+            },
+            {
+              "id": "marche",
+              "terms": ["derive", "marche"]
+            }
+          ]
+        },
+        {
+          "name": "analyse-reconciliation-valeur",
+          "required_anchors": [
+            {
+              "id": "trois_approches",
+              "terms": ["trois approches"]
+            },
+            {
+              "id": "confiance",
+              "terms": ["niveaux de confiance"]
+            },
+            {
+              "id": "pas_moyenne",
+              "terms": ["pas une moyenne", "ponderation"]
+            },
+            {
+              "id": "divergences",
+              "terms": ["divergences", "10-15"]
+            },
+            {
+              "id": "valeur_finale",
+              "terms": ["valeur finale", "fourchette"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agent_type": "compliance-qa",
+      "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml",
+      "required_skills": [
+        {
+          "name": "analyse-conformite",
+          "required_anchors": [
+            {
+              "id": "normes",
+              "terms": ["CUSPAP", "OEAQ"]
+            },
+            {
+              "id": "gates",
+              "terms": ["18 gates", "KQG"]
+            },
+            {
+              "id": "p0_p1",
+              "terms": ["P0", "P1"]
+            },
+            {
+              "id": "bloquer",
+              "terms": ["FAIL", "BLOQUER"]
+            },
+            {
+              "id": "validation_humaine",
+              "terms": ["validation humaine"]
+            },
+            {
+              "id": "work_file",
+              "terms": ["work-file"]
+            }
+          ]
+        },
+        {
+          "name": "redaction-rapport-conformite",
+          "required_anchors": [
+            {
+              "id": "rapport_interne",
+              "terms": ["rapport de conformite", "document interne"]
+            },
+            {
+              "id": "non_conformites",
+              "terms": ["non-conformite", "recommandation corrective"]
+            },
+            {
+              "id": "statut_global",
+              "terms": ["GO", "NO_GO", "CONDITIONNEL"]
+            },
+            {
+              "id": "tracabilite",
+              "terms": ["tracabilite", "18 gates"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

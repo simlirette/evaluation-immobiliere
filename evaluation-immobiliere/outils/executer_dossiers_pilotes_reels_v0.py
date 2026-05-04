@@ -18,7 +18,7 @@ from outils.analyser_qualite_runtime_v0 import generate_quality_report
 from outils.valider_contrats_runtime_v0 import validate_runtime_contracts
 from outils.valider_fixtures_v0 import FixtureValidation, validate_fixture, write_report
 
-FIXTURES_DIR = Path("evaluation-immobiliere/tests/fixtures")
+FIXTURES_DIR = Path("evaluation-immobiliere/tests/fixtures_external")
 CASE_PATTERN = "case_pilote_reel_*.json"
 PIPELINE_PATH = Path("evaluation-immobiliere/integration/PIPELINE-RUNTIME-ASTON-V0.yaml")
 OUT_DIR = Path("evaluation-immobiliere/runtime_pilotes_reels")
@@ -50,10 +50,11 @@ def build_waiting_report(fixtures_dir: Path = FIXTURES_DIR) -> str:
             "- Statut: **EN_ATTENTE_DOSSIERS**",
             f"- Repertoire fixtures: `{fixtures_dir.as_posix()}`",
             f"- Pattern attendu: `{CASE_PATTERN}`",
+            "- Politique: les D-REEL et dossiers clients restent hors repo; les skills sont la source active de connaissance metier.",
             "",
             "## Prochaine action",
             "",
-            "Remplir et valider les brouillons `draft_dossier_reel_*.json`, puis renommer chaque dossier pret en `case_pilote_reel_*.json`.",
+            "Ajouter uniquement des copies anonymisees externes dans le repertoire ignore, puis executer le script avec `--fixtures-dir` si necessaire.",
             "",
         ]
     )
@@ -118,7 +119,7 @@ def run_real_pilot_cases(case_paths: list[Path], out_dir: Path) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Valide et execute les dossiers pilotes reels anonymises.")
+    parser = argparse.ArgumentParser(description="Valide et execute des dossiers pilotes reels anonymises hors repo.")
     parser.add_argument("--fixtures-dir", type=Path, default=FIXTURES_DIR)
     parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
     parser.add_argument(

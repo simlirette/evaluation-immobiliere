@@ -1,0 +1,138 @@
+{
+  "schema_version": "runtime_skills_evidence_v0",
+  "ok": true,
+  "runtime_dir": "evaluation-immobiliere/tests/runtime",
+  "summary_path": "evaluation-immobiliere/tests/runtime/runtime_summary.json",
+  "cases_count": 8,
+  "audit_logs_checked": 8,
+  "step_events_checked": 36,
+  "artifacts_checked": 120,
+  "cases": [
+    {
+      "case": "case_low_confidence",
+      "dossier_id": "D-005",
+      "status": "BROUILLON",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_low_confidence/case_low_confidence.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_checked": 16,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_missing_source",
+      "dossier_id": "D-002",
+      "status": "A_REVOIR",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_missing_source/case_missing_source.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_checked": 14,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_nominal",
+      "dossier_id": "D-001",
+      "status": "PRET_REVISION_FINALE",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_nominal/case_nominal.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_checked": 16,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_pilote_confiance_limitee",
+      "dossier_id": "D-PILOTE-RES-002",
+      "status": "BROUILLON",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_pilote_confiance_limitee/case_pilote_confiance_limitee.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_checked": 16,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_pilote_residentiel_standard",
+      "dossier_id": "D-PILOTE-RES-001",
+      "status": "PRET_REVISION_FINALE",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_pilote_residentiel_standard/case_pilote_residentiel_standard.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_checked": 16,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_pilote_revision_conformite",
+      "dossier_id": "D-PILOTE-RES-003",
+      "status": "A_REVOIR",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_pilote_revision_conformite/case_pilote_revision_conformite.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_checked": 14,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_sensitive_no_validation",
+      "dossier_id": "D-003",
+      "status": "A_REVOIR",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation/case_sensitive_no_validation.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_checked": 14,
+      "ok": true,
+      "errors": []
+    },
+    {
+      "case": "case_unit_incoherence",
+      "dossier_id": "D-004",
+      "status": "A_REVOIR",
+      "audit_log": "evaluation-immobiliere/tests/runtime/case_unit_incoherence/case_unit_incoherence.audit.jsonl",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_checked": 14,
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}

@@ -16,6 +16,7 @@ Statut courant: **EN_ATTENTE_REPONSES_TERRAIN**.
 | Desaccords statut | 0 | 0 | OK |
 | Backlog P0 metier | 0 | 0 | OK |
 | Saisie valide | PRET_A_RECEVOIR_REPONSES | != A_CORRIGER | OK |
+| Homologation runtime synthetique | PRET_HOMOLOGATION_SYNTHETIQUE_EN_ATTENTE_TERRAIN | != NO_GO_HOMOLOGATION_METIER | OK |
 | Signature metier | A_SIGNER | SIGNE | A_TRAITER |
 
 ## Regles Go/No-Go

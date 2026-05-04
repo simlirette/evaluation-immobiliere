@@ -1,0 +1,156 @@
+{
+  "schema_version": "agent_artifact_contracts_report_v0",
+  "ok": true,
+  "contract_path": "evaluation-immobiliere/integration/AGENT-ARTIFACT-CONTRACTS-V0.json",
+  "runtime_dir": "evaluation-immobiliere/tests/runtime",
+  "pipeline_path": "evaluation-immobiliere/integration/PIPELINE-RUNTIME-ASTON-V0.yaml",
+  "cases_count": 8,
+  "agents_checked": 5,
+  "artifacts_expected": 120,
+  "artifacts_checked": 120,
+  "artifacts_skipped": 8,
+  "errors": [],
+  "warnings": [],
+  "cases": [
+    {
+      "dossier_id": "D-005",
+      "status": "BROUILLON",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_low_confidence",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_expected": 16,
+      "artifacts_checked": 16,
+      "artifacts_skipped": 0,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-002",
+      "status": "A_REVOIR",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_missing_source",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_expected": 14,
+      "artifacts_checked": 14,
+      "artifacts_skipped": 2,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-001",
+      "status": "PRET_REVISION_FINALE",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_nominal",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_expected": 16,
+      "artifacts_checked": 16,
+      "artifacts_skipped": 0,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-002",
+      "status": "BROUILLON",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_confiance_limitee",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_expected": 16,
+      "artifacts_checked": 16,
+      "artifacts_skipped": 0,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-001",
+      "status": "PRET_REVISION_FINALE",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_residentiel_standard",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa",
+        "redaction"
+      ],
+      "artifacts_expected": 16,
+      "artifacts_checked": 16,
+      "artifacts_skipped": 0,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-PILOTE-RES-003",
+      "status": "A_REVOIR",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_revision_conformite",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_expected": 14,
+      "artifacts_checked": 14,
+      "artifacts_skipped": 2,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-003",
+      "status": "A_REVOIR",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_expected": 14,
+      "artifacts_checked": 14,
+      "artifacts_skipped": 2,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "dossier_id": "D-004",
+      "status": "A_REVOIR",
+      "artifact_dir": "evaluation-immobiliere/tests/runtime/case_unit_incoherence",
+      "executed_steps": [
+        "data-facts",
+        "comps-market",
+        "valuation-draft",
+        "compliance-qa"
+      ],
+      "artifacts_expected": 14,
+      "artifacts_checked": 14,
+      "artifacts_skipped": 2,
+      "ok": true,
+      "errors": [],
+      "warnings": []
+    }
+  ]
+}

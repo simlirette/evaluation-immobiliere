@@ -26,6 +26,7 @@ jobs:
             evaluation-immobiliere/api.py \
             evaluation-immobiliere/engine/audit.py \
             evaluation-immobiliere/engine/runtime.py \
+            evaluation-immobiliere/engine/skills.py \
             evaluation-immobiliere/engine/tools.py \
             evaluation-immobiliere/engine/valuation.py \
             evaluation-immobiliere/outils/lancer_api_v0.py \
@@ -54,6 +55,13 @@ jobs:
             evaluation-immobiliere/outils/simuler_runtime_engine_v0.py \
             evaluation-immobiliere/outils/verifier_point_arret_reponses_v0.py \
             evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py \
+            evaluation-immobiliere/outils/verifier_readiness_skills_v0.py \
+            evaluation-immobiliere/outils/verifier_contrat_redaction_skills_v0.py \
+            evaluation-immobiliere/outils/verifier_contrats_skills_agents_v0.py \
+            evaluation-immobiliere/outils/verifier_contrats_artefacts_agents_v0.py \
+            evaluation-immobiliere/outils/verifier_homologation_metier_v0.py \
+            evaluation-immobiliere/outils/verifier_preuve_runtime_skills_v0.py \
+            evaluation-immobiliere/outils/generer_registre_skills.py \
             evaluation-immobiliere/outils/valider_fixtures_v0.py \
             evaluation-immobiliere/outils/valider_reponses_evaluateurs.py \
             evaluation-immobiliere/outils/compiler_reponses_evaluateurs.py \
@@ -78,8 +86,26 @@ jobs:
       - name: Verify runtime coherence
         run: python evaluation-immobiliere/outils/verifier_coherence_runtime_v0.py
 
+      - name: Verify skills registry and matrix
+        run: python evaluation-immobiliere/outils/verifier_readiness_skills_v0.py
+
+      - name: Verify redaction skills contract
+        run: python evaluation-immobiliere/outils/verifier_contrat_redaction_skills_v0.py
+
+      - name: Verify agent skills contracts
+        run: python evaluation-immobiliere/outils/verifier_contrats_skills_agents_v0.py
+
       - name: Simulate runtime
         run: python evaluation-immobiliere/outils/simuler_runtime_engine_v0.py
+
+      - name: Verify agent artifact contracts
+        run: python evaluation-immobiliere/outils/verifier_contrats_artefacts_agents_v0.py
+
+      - name: Verify business homologation
+        run: python evaluation-immobiliere/outils/verifier_homologation_metier_v0.py
+
+      - name: Verify runtime skills evidence
+        run: python evaluation-immobiliere/outils/verifier_preuve_runtime_skills_v0.py
 
       - name: Analyze runtime integrity
         run: python evaluation-immobiliere/outils/analyser_integrite_runtime_v0.py
@@ -87,11 +113,11 @@ jobs:
       - name: Generate pilot runtime report
         run: python evaluation-immobiliere/outils/generer_rapport_pilote_runtime_v0.py
 
-      - name: Run pre-response infrastructure chain
-        run: python evaluation-immobiliere/outils/executer_pre_reponses_v0.py
-
-      - name: Validate infrastructure reports
-        run: python evaluation-immobiliere/outils/valider_rapports_infra_v0.py
+      - name: Verify external pilot waiting mode
+        run: |
+          python evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py \
+            --allow-empty \
+            --out-dir .test-tmp/runtime_pilotes_reels_waiting
 
       - name: Verify generated artifacts are committed
         run: |
@@ -99,6 +125,7 @@ jobs:
             evaluation-immobiliere/atelier/RAPPORT-VALIDATION-DOSSIER-PILOTE.md \
             evaluation-immobiliere/atelier/RAPPORT-VALIDATION-REPONSES.md \
             evaluation-immobiliere/atelier/RAPPORT-PILOTE-RUNTIME-V0.md \
+            evaluation-immobiliere/atelier/PV-HOMOLOGATION-V1.md \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.csv \
             evaluation-immobiliere/atelier/MATRICE-PRIORISATION-MVP.md \
             evaluation-immobiliere/tests/runtime
