@@ -1,7 +1,7 @@
 {
   "schema_version": "statut_phases_projet_v1",
   "ok": true,
-  "decision": "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE",
+  "decision": "PROJET_V1_PRODUIT_PRET_REVUE_FINALE_PROD_BLOQUEE",
   "target": "V1_PRE_EVALUATEUR",
   "pre_evaluator_decision": "PRET_SEANCE_REVUE_EVALUATEUR_AGREE",
   "pre_evaluator_package_status": "PRET_REVUE_EVALUATEUR_AGREE",

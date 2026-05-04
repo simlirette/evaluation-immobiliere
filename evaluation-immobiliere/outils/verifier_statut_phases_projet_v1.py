@@ -37,6 +37,7 @@ CALIBRATION_INPUT_DEFAULT = ATELIER_DIR / "CALIBRATION-EVALUATEURS.csv"
 REPORT_JSON_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json"
 REPORT_MD_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.md"
 PRE_EVALUATOR_TARGET = "V1_PRE_EVALUATEUR"
+PRODUCT_READY_DECISION = "PROJET_V1_PRODUIT_PRET_REVUE_FINALE_PROD_BLOQUEE"
 PRE_EVALUATOR_PACKAGE_DECISION = "PRET_REVUE_EVALUATEUR_AGREE"
 PRE_EVALUATOR_HANDOFF_DECISION = "PRET_SEANCE_REVUE_EVALUATEUR_AGREE"
 PRE_EVALUATOR_HANDOFF_STOP_POINT = "ARRET_AVANT_INTEGRATION_REPONSES_EVALUATEUR"
@@ -334,7 +335,7 @@ def build_project_status_report(
     return {
         "schema_version": "statut_phases_projet_v1",
         "ok": ok,
-        "decision": "PROJET_PRET_SEANCE_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
+        "decision": PRODUCT_READY_DECISION if ok else "STATUT_PHASES_A_CORRIGER",
         "target": PRE_EVALUATOR_TARGET,
         "pre_evaluator_decision": pre_evaluator_decision,
         "pre_evaluator_package_status": pre_evaluator_package["status"],
@@ -422,8 +423,9 @@ def build_markdown(report: dict[str, Any]) -> str:
             "- Aucun dossier reel anonymise actif n'est versionne dans le repo.",
             "- Aucune reponse evaluateur active n'est presente dans les CSV de collecte.",
             "- Les revues evaluateurs externes versionnees restent des fixtures d'homologation/preparation, pas des retours de campagne terrain reelle.",
-            "- La prochaine action produit est la tenue de la seance avec l'evaluateur a partir du handoff versionne.",
-            "- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.",
+            "- La prochaine action produit est de poursuivre la finalisation backend/frontend, la securite minimale, l'observabilite et le durcissement UI.",
+            "- La revue avec un evaluateur immobilier agree reste une etape finale de validation apres V1 produit complete.",
+            "- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif et de retours humains reels.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
