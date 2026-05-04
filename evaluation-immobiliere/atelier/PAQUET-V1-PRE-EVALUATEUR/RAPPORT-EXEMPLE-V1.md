@@ -36,25 +36,25 @@ Rapport genere depuis une fixture de demonstration non sensible. Aucune validati
 
 ## Artefacts disponibles
 
-| Artefact | Taille | Chemin |
-|---|---:|---|
-| case_nominal.audit.jsonl | 6382 | `evaluation-immobiliere/tests/runtime/case_nominal/case_nominal.audit.jsonl` |
-| compliance-qa.rapport_non_conformites.json | 537 | `evaluation-immobiliere/tests/runtime/case_nominal/compliance-qa.rapport_non_conformites.json` |
-| compliance-qa.recommandations_corrections.md | 502 | `evaluation-immobiliere/tests/runtime/case_nominal/compliance-qa.recommandations_corrections.md` |
-| compliance-qa.statut_sortie.json | 699 | `evaluation-immobiliere/tests/runtime/case_nominal/compliance-qa.statut_sortie.json` |
-| comps-market.comparables_proposes.json | 1280 | `evaluation-immobiliere/tests/runtime/case_nominal/comps-market.comparables_proposes.json` |
-| comps-market.justifications_comparables.json | 588 | `evaluation-immobiliere/tests/runtime/case_nominal/comps-market.justifications_comparables.json` |
-| comps-market.source_index.json | 472 | `evaluation-immobiliere/tests/runtime/case_nominal/comps-market.source_index.json` |
-| data-facts.fiche_bien.json | 690 | `evaluation-immobiliere/tests/runtime/case_nominal/data-facts.fiche_bien.json` |
-| data-facts.source_index.json | 640 | `evaluation-immobiliere/tests/runtime/case_nominal/data-facts.source_index.json` |
-| data-facts.timeline_faits.json | 674 | `evaluation-immobiliere/tests/runtime/case_nominal/data-facts.timeline_faits.json` |
-| redaction.annexe_sources.md | 307 | `evaluation-immobiliere/tests/runtime/case_nominal/redaction.annexe_sources.md` |
-| redaction.brouillon_rapport.md | 442 | `evaluation-immobiliere/tests/runtime/case_nominal/redaction.brouillon_rapport.md` |
-| valuation-draft.brouillon_valeur.md | 573 | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.brouillon_valeur.md` |
-| valuation-draft.calculs_approche_comparative.json | 2062 | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.calculs_approche_comparative.json` |
-| valuation-draft.calculs_approche_cout.json | 2044 | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.calculs_approche_cout.json` |
-| valuation-draft.calculs_approche_revenu.json | 2052 | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.calculs_approche_revenu.json` |
-| valuation-draft.hypotheses_explicites.json | 567 | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.hypotheses_explicites.json` |
+| Artefact | Chemin |
+|---|---|
+| case_nominal.audit.jsonl | `evaluation-immobiliere/tests/runtime/case_nominal/case_nominal.audit.jsonl` |
+| compliance-qa.rapport_non_conformites.json | `evaluation-immobiliere/tests/runtime/case_nominal/compliance-qa.rapport_non_conformites.json` |
+| compliance-qa.recommandations_corrections.md | `evaluation-immobiliere/tests/runtime/case_nominal/compliance-qa.recommandations_corrections.md` |
+| compliance-qa.statut_sortie.json | `evaluation-immobiliere/tests/runtime/case_nominal/compliance-qa.statut_sortie.json` |
+| comps-market.comparables_proposes.json | `evaluation-immobiliere/tests/runtime/case_nominal/comps-market.comparables_proposes.json` |
+| comps-market.justifications_comparables.json | `evaluation-immobiliere/tests/runtime/case_nominal/comps-market.justifications_comparables.json` |
+| comps-market.source_index.json | `evaluation-immobiliere/tests/runtime/case_nominal/comps-market.source_index.json` |
+| data-facts.fiche_bien.json | `evaluation-immobiliere/tests/runtime/case_nominal/data-facts.fiche_bien.json` |
+| data-facts.source_index.json | `evaluation-immobiliere/tests/runtime/case_nominal/data-facts.source_index.json` |
+| data-facts.timeline_faits.json | `evaluation-immobiliere/tests/runtime/case_nominal/data-facts.timeline_faits.json` |
+| redaction.annexe_sources.md | `evaluation-immobiliere/tests/runtime/case_nominal/redaction.annexe_sources.md` |
+| redaction.brouillon_rapport.md | `evaluation-immobiliere/tests/runtime/case_nominal/redaction.brouillon_rapport.md` |
+| valuation-draft.brouillon_valeur.md | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.brouillon_valeur.md` |
+| valuation-draft.calculs_approche_comparative.json | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.calculs_approche_comparative.json` |
+| valuation-draft.calculs_approche_cout.json | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.calculs_approche_cout.json` |
+| valuation-draft.calculs_approche_revenu.json | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.calculs_approche_revenu.json` |
+| valuation-draft.hypotheses_explicites.json | `evaluation-immobiliere/tests/runtime/case_nominal/valuation-draft.hypotheses_explicites.json` |
 
 ## Lecture attendue par l'evaluateur
 

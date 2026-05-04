@@ -93,7 +93,6 @@ def artifact_inventory(directory: Path) -> list[dict[str, Any]]:
             {
                 "name": path.name,
                 "path": normalize_path(path),
-                "bytes": path.stat().st_size,
                 "kind": path.suffix.removeprefix(".") or "text",
             }
         )
@@ -258,10 +257,10 @@ def build_report_markdown(context: dict[str, Any], manifest: dict[str, Any]) -> 
     lines.append(f"- Blocages: {format_items(as_list(manifest.get('blocking_failures')))}")
     lines.append(f"- Warnings: {format_items(as_list(manifest.get('warnings')))}")
 
-    lines.extend(["", "## Artefacts disponibles", "", "| Artefact | Taille | Chemin |", "|---|---:|---|"])
+    lines.extend(["", "## Artefacts disponibles", "", "| Artefact | Chemin |", "|---|---|"])
     for item in inventory:
         if isinstance(item, dict):
-            lines.append(f"| {item.get('name', '-')} | {item.get('bytes', 0)} | `{item.get('path', '-')}` |")
+            lines.append(f"| {item.get('name', '-')} | `{item.get('path', '-')}` |")
 
     lines.extend(
         [
