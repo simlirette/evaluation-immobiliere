@@ -38,6 +38,7 @@ OPS_JSON_REPORTS = {
     "handoff": "ops_handoff_manifest.json",
     "schema_validation": "schema_validation_report.json",
     "package_gate": "paquet_evaluateurs_gate.json",
+    "phase_h_gate": "phase_h_campagne_terrain_gate.json",
     "doctor": "ops_doctor_report.json",
 }
 OPS_CSV_REPORTS = {
@@ -216,6 +217,13 @@ def product_summary() -> dict:
         },
         "ops": ops,
         "ops_snapshot": ops_snapshot,
+        "terrain": {
+            "status": ops.get("phase_h_gate_status", "ABSENT"),
+            "mode": ops.get("phase_h_mode", ""),
+            "active_cases_count": ops.get("phase_h_active_cases_count", 0),
+            "waiting_for_real_inputs": ops.get("waiting_for_real_inputs", False),
+            "blocking_counts": ops.get("blocking_counts", {}),
+        },
         "package": {
             "status": package_manifest.get("status", "UNKNOWN"),
             "dossier_id": package_manifest.get("dossier_id", ""),
@@ -273,26 +281,66 @@ def ops_summary(runtime_dir: Path | None = None) -> dict:
     registry = load_ops_json("registry", runtime_dir)
     delta = load_ops_json("delta", runtime_dir)
     handoff = load_ops_json("handoff", runtime_dir)
+    infra = load_ops_json("infra_contracts", runtime_dir)
     schemas = load_ops_json("schema_validation", runtime_dir)
     package_gate = load_ops_json("package_gate", runtime_dir)
+    phase_h_gate = load_ops_json("phase_h_gate", runtime_dir)
     doctor = load_ops_json("doctor", runtime_dir)
     review_queue = load_ops_csv("review_queue", runtime_dir)
+    phase_h_status = phase_h_gate.get("decision") or phase_h_gate.get("status", "ABSENT")
+    waiting_for_real_inputs = "EN_ATTENTE_ENTREES_TERRAIN_REELLES" in {
+        str(readiness.get("status", "")),
+        str(handoff.get("status", "")),
+        str(schemas.get("status", "")),
+        str(package_gate.get("status", "")),
+        str(phase_h_status),
+        str(doctor.get("status", "")),
+    }
     return {
         "readiness_status": readiness.get("status", "ABSENT"),
         "delta_status": delta.get("status", "ABSENT"),
         "handoff_status": handoff.get("status", "ABSENT"),
+        "infra_contracts_status": infra_status(infra),
         "schema_validation_status": schemas.get("status", "ABSENT"),
         "package_gate_status": package_gate.get("status", "ABSENT"),
+        "phase_h_gate_status": phase_h_status,
+        "phase_h_mode": phase_h_gate.get("mode", ""),
+        "phase_h_active_cases_count": phase_h_gate.get("active_cases_count", 0),
         "doctor_status": doctor.get("status", "ABSENT"),
         "quality_cases_count": quality.get("cases_count", 0),
         "runtime_fingerprint_sha256": readiness.get("runtime_fingerprint_sha256", ""),
         "registry_runs_count": registry.get("runs_count", 0),
         "review_queue_items": review_queue.get("rows_count", 0),
+        "waiting_for_real_inputs": waiting_for_real_inputs,
+        "blocking_counts": {
+            "handoff_missing": len(handoff.get("required_missing_blocking", [])) if isinstance(handoff.get("required_missing_blocking"), list) else 0,
+            "infra_invalid": int(infra_invalid_blocking(infra)),
+            "schemas_invalid": int(schemas.get("files_invalid_blocking", 0) or 0),
+            "package_issues": int(package_gate.get("blocking_issues_count", 0) or 0),
+            "phase_h_errors": len(phase_h_gate.get("errors", [])) if isinstance(phase_h_gate.get("errors"), list) else 0,
+            "doctor_issues": len(doctor.get("issues", [])) if isinstance(doctor.get("issues"), list) else 0,
+        },
         "reports": {
             key: str(runtime_dir / filename)
             for key, filename in {**OPS_JSON_REPORTS, **OPS_CSV_REPORTS}.items()
         },
     }
+
+
+def infra_invalid_blocking(report: dict) -> int:
+    if "files_invalid_blocking" in report:
+        return int(report.get("files_invalid_blocking", 0) or 0)
+    return 0 if report.get("ok") is True else int(report.get("files_invalid", 0) or 0)
+
+
+def infra_status(report: dict) -> str:
+    if report.get("status"):
+        return str(report.get("status"))
+    if report.get("ok") is True:
+        return "OK"
+    if report.get("ok") is False:
+        return "A_CORRIGER"
+    return str(report.get("status", "ABSENT"))
 
 
 def file_observability_record(name: str, path: Path) -> dict:

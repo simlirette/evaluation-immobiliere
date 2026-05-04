@@ -234,6 +234,11 @@
         <div class="sub" id="opsSub">-</div>
       </section>
       <section class="span3">
+        <h2>Terrain Phase H</h2>
+        <div class="metric" id="terrain">-</div>
+        <div class="sub" id="terrainSub">-</div>
+      </section>
+      <section class="span3">
         <h2>Paquet V1</h2>
         <div class="metric" id="package">-</div>
         <div class="sub" id="packageSub">-</div>
@@ -325,6 +330,8 @@
       metric("fixturesCount", payload.fixtures?.count);
       metric("ops", payload.ops?.readiness_status);
       $("opsSub").textContent = `doctor ${payload.ops?.doctor_status || "-"} | file ${payload.ops?.review_queue_items ?? "-"}`;
+      metric("terrain", payload.terrain?.status || payload.ops?.phase_h_gate_status);
+      $("terrainSub").textContent = `${payload.terrain?.active_cases_count ?? 0} dossier(s) actifs | ${payload.terrain?.mode || "-"}`;
       metric("package", payload.package?.status);
       $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts`;
       renderSessions(payload.sessions?.recent || []);
@@ -337,6 +344,8 @@
         missing: payload.ops_snapshot?.missing_reports_count || 0,
         last_run_ok: payload.ops_snapshot?.last_run?.ok ?? null,
         lock: payload.ops_snapshot?.lock?.status || "-",
+        phase_h: payload.ops?.phase_h_gate_status || "-",
+        blocages: payload.terrain?.blocking_counts || {},
         next_action: payload.ops_snapshot?.next_action || "-"
       });
       $("raw").textContent = JSON.stringify(payload, null, 2);

@@ -81,6 +81,8 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["dossier_review"], "/review/dossier")
         self.assertEqual(summary["routes"]["ops_snapshot"], "/ops/snapshot")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
+        self.assertIn("terrain", summary)
+        self.assertIn("phase_h_gate_status", summary["ops"])
         self.assertIn("release_candidate_decision", summary)
 
     def test_ops_summary_reads_generated_reports_from_runtime_dir(self) -> None:
@@ -96,6 +98,10 @@ class TestApiV0(unittest.TestCase):
             (runtime_dir / "ops_handoff_manifest.json").write_text(json.dumps({"status": "PRET_A_TRANSMETTRE"}), encoding="utf-8")
             (runtime_dir / "schema_validation_report.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
             (runtime_dir / "paquet_evaluateurs_gate.json").write_text(json.dumps({"status": "PRET_A_ENVOYER"}), encoding="utf-8")
+            (runtime_dir / "phase_h_campagne_terrain_gate.json").write_text(
+                json.dumps({"decision": "PRET_A_RECEVOIR_REPONSES_TERRAIN", "mode": "active", "active_cases_count": 3, "errors": []}),
+                encoding="utf-8",
+            )
             (runtime_dir / "ops_doctor_report.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
             (runtime_dir / "FILE-REVUE-HUMAINE-V0.csv").write_text("id,priority\nREV-001,P1\n", encoding="utf-8")
 
@@ -106,10 +112,40 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["handoff_status"], "PRET_A_TRANSMETTRE")
         self.assertEqual(summary["schema_validation_status"], "OK")
         self.assertEqual(summary["package_gate_status"], "PRET_A_ENVOYER")
+        self.assertEqual(summary["phase_h_gate_status"], "PRET_A_RECEVOIR_REPONSES_TERRAIN")
+        self.assertEqual(summary["phase_h_active_cases_count"], 3)
+        self.assertFalse(summary["waiting_for_real_inputs"])
         self.assertEqual(summary["doctor_status"], "OK")
         self.assertEqual(summary["quality_cases_count"], 3)
         self.assertEqual(summary["registry_runs_count"], 2)
         self.assertEqual(summary["review_queue_items"], 1)
+        self.assertEqual(summary["blocking_counts"]["phase_h_errors"], 0)
+
+    def test_ops_summary_surfaces_waiting_phase_h_without_runtime_cases(self) -> None:
+        waiting = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_dir = Path(tmp)
+            (runtime_dir / "readiness_pre_reponses.json").write_text(json.dumps({"status": waiting}), encoding="utf-8")
+            (runtime_dir / "runtime_delta_report.json").write_text(json.dumps({"status": "STABLE"}), encoding="utf-8")
+            (runtime_dir / "ops_handoff_manifest.json").write_text(
+                json.dumps({"status": waiting, "required_missing_blocking": []}),
+                encoding="utf-8",
+            )
+            (runtime_dir / "infra_contracts_report.json").write_text(json.dumps({"ok": True, "files_invalid_blocking": 0}), encoding="utf-8")
+            (runtime_dir / "schema_validation_report.json").write_text(json.dumps({"status": waiting, "files_invalid_blocking": 0}), encoding="utf-8")
+            (runtime_dir / "paquet_evaluateurs_gate.json").write_text(json.dumps({"status": waiting, "blocking_issues_count": 0}), encoding="utf-8")
+            (runtime_dir / "phase_h_campagne_terrain_gate.json").write_text(
+                json.dumps({"decision": waiting, "mode": "waiting", "active_cases_count": 0, "errors": []}),
+                encoding="utf-8",
+            )
+            (runtime_dir / "ops_doctor_report.json").write_text(json.dumps({"status": waiting, "issues": []}), encoding="utf-8")
+
+            summary = ops_summary(runtime_dir)
+
+        self.assertTrue(summary["waiting_for_real_inputs"])
+        self.assertEqual(summary["phase_h_gate_status"], waiting)
+        self.assertEqual(summary["phase_h_active_cases_count"], 0)
+        self.assertEqual(sum(summary["blocking_counts"].values()), 0)
 
     def test_ops_observability_snapshot_counts_present_missing_and_last_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -280,6 +316,10 @@ class TestApiV0(unittest.TestCase):
             )
             (runtime_dir / "schema_validation_report.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
             (runtime_dir / "paquet_evaluateurs_gate.json").write_text(json.dumps({"status": "PRET_A_ENVOYER"}), encoding="utf-8")
+            (runtime_dir / "phase_h_campagne_terrain_gate.json").write_text(
+                json.dumps({"decision": "PRET_A_RECEVOIR_REPONSES_TERRAIN", "mode": "active", "active_cases_count": 3, "errors": []}),
+                encoding="utf-8",
+            )
             (runtime_dir / "ops_doctor_report.json").write_text(json.dumps({"status": "OK", "issues": []}), encoding="utf-8")
             (runtime_dir / "FILE-REVUE-HUMAINE-V0.csv").write_text("id,priority\nREV-001,P1\n", encoding="utf-8")
 
@@ -299,6 +339,7 @@ class TestApiV0(unittest.TestCase):
                 handoff = self.http_json("GET", host, port, "/ops/handoff")
                 schemas = self.http_json("GET", host, port, "/ops/schema_validation")
                 package_gate = self.http_json("GET", host, port, "/ops/package_gate")
+                phase_h_gate = self.http_json("GET", host, port, "/ops/phase_h_gate")
                 doctor = self.http_json("GET", host, port, "/ops/doctor")
                 ops_ui = self.http_text("GET", host, port, "/ops/ui")
                 evaluator_ui = self.http_text("GET", host, port, "/review/ui")
@@ -322,6 +363,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(handoff["status"], "PRET_A_TRANSMETTRE")
         self.assertEqual(schemas["status"], "OK")
         self.assertEqual(package_gate["status"], "PRET_A_ENVOYER")
+        self.assertEqual(phase_h_gate["decision"], "PRET_A_RECEVOIR_REPONSES_TERRAIN")
         self.assertEqual(doctor["status"], "OK")
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
         self.assertIn("<title>Revue dossier</title>", evaluator_ui)
@@ -329,9 +371,12 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("RuntimeAuth.mount", product_ui)
         self.assertIn("RuntimeAuth.mount", evaluator_ui)
         self.assertIn("RuntimeAuth.mount", ops_ui)
+        self.assertIn("Phase H", ops_ui)
+        self.assertIn("Terrain Phase H", product_ui)
         self.assertIn("RuntimeAuth.mount", runtime_ui)
         self.assertIn("window.RuntimeAuth", auth_client)
         self.assertEqual(product_summary_payload["schema_version"], "product_cockpit_summary_v1")
+        self.assertIn("terrain", product_summary_payload)
 
     def test_session_summary_and_artifact_content_are_readable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
