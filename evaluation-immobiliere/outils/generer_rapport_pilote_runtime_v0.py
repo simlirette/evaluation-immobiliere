@@ -101,7 +101,7 @@ def build_markdown(summary: list[dict]) -> str:
         [
             "## Lecture produit",
             "",
-            "- Les cas `PRET_REVISION_FINALE` servent de reference positive pour les dossiers pilotes reels.",
+            "- Les cas `PRET_REVISION_FINALE` servent de reference positive pour les fixtures de validation.",
             "- Les cas `BROUILLON` indiquent que les donnees sont exploitables mais demandent encore jugement humain ou confiance accrue.",
             "- Les cas `A_REVOIR` valident que les garde-fous bloquants stoppent les dossiers incomplets ou incoherents.",
         ]

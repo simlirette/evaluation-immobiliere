@@ -1,4 +1,4 @@
 respondant_id,role,dossier_id,cible_type,cible_id,artefact,statut_attendu,decision,impact_1_5,effort_1_5,priorite,commentaire
-EV-SIM-1,evaluateur,D-REEL-002,statut,statut_sortie,compliance-qa.statut_sortie.json,PRET_REVISION_FINALE,ajuster,4,2,,Le dossier peut passer en revision finale si la confiance faible est documentee.
-EV-SIM-1,evaluateur,D-REEL-003,blocage,CONF005,comps-market.comparables_proposes.json,,confirmer,5,1,P1,Le comparable hors fenetre doit rester bloquant.
-EV-SIM-1,evaluateur,D-REEL-003,score_comparable,C-REEL-003-03,comps-market.comparables_proposes.json,,refuser,4,3,,Comparable trop faible pour le secteur.
+EV-SIM-1,evaluateur,DOSSIER-SYN-002,statut,statut_sortie,compliance-qa.statut_sortie.json,PRET_REVISION_FINALE,ajuster,4,2,,Le dossier peut passer en revision finale si la confiance faible est documentee.
+EV-SIM-1,evaluateur,DOSSIER-SYN-003,blocage,CONF005,comps-market.comparables_proposes.json,,confirmer,5,1,P1,Le comparable hors fenetre doit rester bloquant.
+EV-SIM-1,evaluateur,DOSSIER-SYN-003,score_comparable,C-SYN-003-03,comps-market.comparables_proposes.json,,refuser,4,3,,Comparable trop faible pour le secteur.

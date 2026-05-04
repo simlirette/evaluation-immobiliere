@@ -13,8 +13,11 @@ evaluation-immobiliere/runtime_api_*.log
 # Local test scratch directories
 .test-tmp/
 
-# Local draft real-estate pilot dossiers before strict anonymization validation
+# Local external real-estate pilot dossiers. D-REEL inputs stay off-repo; the
+# active project knowledge lives in skills/ and synthetic fixtures.
+evaluation-immobiliere/tests/fixtures_external/
 evaluation-immobiliere/tests/fixtures/draft_dossier_reel_*.json
+evaluation-immobiliere/tests/fixtures/case_pilote_reel_*.json
 
 # Local real pilot runtime outputs
 evaluation-immobiliere/runtime_pilotes_reels/

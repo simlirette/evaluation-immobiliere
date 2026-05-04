@@ -1,0 +1,152 @@
+{
+  "schema_version": "redaction_skills_contract_v0",
+  "purpose": "Contrat de couverture metier des skills de redaction. Ce gate remplace toute dependance active aux D-REEL dans le repo.",
+  "policy": {
+    "forbidden_in_skill_md": [
+      "D-REEL"
+    ]
+  },
+  "provenance": {
+    "path": "skills/SKILLS-PROVENANCE.md",
+    "required_terms": [
+      "source active",
+      "D-REEL",
+      "fixtures_external",
+      "tests/runtime"
+    ]
+  },
+  "required_skills": [
+    {
+      "name": "redaction-rapport-evaluation",
+      "required_anchors": [
+        {
+          "id": "formats_rapport",
+          "terms": ["narratif complet", "abrege", "mise a jour"]
+        },
+        {
+          "id": "elements_obligatoires",
+          "terms": ["16 elements obligatoires"]
+        },
+        {
+          "id": "umpp",
+          "terms": ["UMPP"]
+        },
+        {
+          "id": "rejet_methode",
+          "terms": ["rejet", "methode"]
+        },
+        {
+          "id": "reconciliation_pas_moyenne",
+          "terms": ["reconciliation", "moyenne"]
+        },
+        {
+          "id": "attestation",
+          "terms": ["attestation", "7 declarations"]
+        },
+        {
+          "id": "valeur_chiffres_lettres",
+          "terms": ["chiffres", "lettres"]
+        },
+        {
+          "id": "hypotheses_extraordinaires",
+          "terms": ["hypotheses extraordinaires"]
+        },
+        {
+          "id": "annexes",
+          "terms": ["annexes"]
+        }
+      ]
+    },
+    {
+      "name": "redaction-analyse-marche",
+      "required_anchors": [
+        {
+          "id": "composantes_marche",
+          "terms": ["description ville", "secteur immediat", "marche local", "donnees municipales"]
+        },
+        {
+          "id": "sources",
+          "terms": ["sources de donnees"]
+        },
+        {
+          "id": "donnees_actuelles",
+          "terms": ["moins de 12 mois"]
+        },
+        {
+          "id": "proportion_mediane",
+          "terms": ["proportion mediane"]
+        },
+        {
+          "id": "lien_methodes",
+          "terms": ["UMPP", "ajustements", "TGA"]
+        },
+        {
+          "id": "municipal_pas_marche",
+          "terms": ["donnees municipales", "valeur marchande"]
+        }
+      ]
+    },
+    {
+      "name": "redaction-rapport-conformite",
+      "required_anchors": [
+        {
+          "id": "gates_kqg",
+          "terms": ["18 gates", "KQG"]
+        },
+        {
+          "id": "statuts_globaux",
+          "terms": ["GO", "NO_GO", "CONDITIONNEL"]
+        },
+        {
+          "id": "p0_bloquant",
+          "terms": ["P0", "FAIL", "NO_GO"]
+        },
+        {
+          "id": "validation_humaine",
+          "terms": ["validation humaine"]
+        },
+        {
+          "id": "dossier_travail",
+          "terms": ["dossier de travail"]
+        },
+        {
+          "id": "non_conformites",
+          "terms": ["non-conformite", "norme enfreinte"]
+        },
+        {
+          "id": "recommandations",
+          "terms": ["recommandations", "actionnables"]
+        }
+      ]
+    },
+    {
+      "name": "redaction-fiches-techniques",
+      "required_anchors": [
+        {
+          "id": "types_fiches",
+          "terms": ["fiche de propriete", "fiche comparable", "index de sources", "chronologie"]
+        },
+        {
+          "id": "structure_mefq",
+          "terms": ["MEFQ", "blocs"]
+        },
+        {
+          "id": "cubf",
+          "terms": ["CUBF"]
+        },
+        {
+          "id": "lacunes",
+          "terms": ["donnee obligatoire", "manquante"]
+        },
+        {
+          "id": "conservation",
+          "terms": ["conservation", "7 ans"]
+        },
+        {
+          "id": "dossier_travail",
+          "terms": ["dossier de travail"]
+        }
+      ]
+    }
+  ]
+}

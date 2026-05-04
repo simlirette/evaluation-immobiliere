@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-FIXTURES_DIR_DEFAULT = Path("evaluation-immobiliere/tests/fixtures")
+FIXTURES_DIR_DEFAULT = Path("evaluation-immobiliere/tests/fixtures_external")
 TEXT_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/source_text")
 OUT_DIR_DEFAULT = Path("evaluation-immobiliere/runtime_pilotes_reels/ingestion_v0")
 CASE_PATTERN = "case_pilote_reel_*.json"
@@ -434,7 +434,7 @@ def nested(data: dict, *keys: str) -> object:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare les dossiers normalises et traces de champs depuis PDF anonymises.")
+    parser = argparse.ArgumentParser(description="Prepare les dossiers normalises et traces de champs depuis PDF anonymises hors repo.")
     parser.add_argument("--pdf", dest="pdfs", type=Path, action="append", default=[], help="Chemin d'un PDF anonymise. Repetable.")
     parser.add_argument("--fixtures-dir", type=Path, default=FIXTURES_DIR_DEFAULT)
     parser.add_argument("--text-dir", type=Path, default=TEXT_DIR_DEFAULT)

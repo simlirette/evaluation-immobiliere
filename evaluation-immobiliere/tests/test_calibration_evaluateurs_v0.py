@@ -133,14 +133,14 @@ class TestCalibrationEvaluateursV0(unittest.TestCase):
                 "status_counts": {"BROUILLON": 1, "A_REVOIR": 1},
                 "cases": [
                     {
-                        "dossier_id": "D-REEL-002",
+                        "dossier_id": "DOSSIER-SYN-002",
                         "status": "BROUILLON",
                         "blocking_failures": [],
                         "warnings": ["W001: confiance faible"],
                         "artifacts": {"missing": []},
                     },
                     {
-                        "dossier_id": "D-REEL-003",
+                        "dossier_id": "DOSSIER-SYN-003",
                         "status": "A_REVOIR",
                         "blocking_failures": ["CONF005: comparable hors fenetre temporelle"],
                         "warnings": [],

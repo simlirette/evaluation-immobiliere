@@ -1,0 +1,175 @@
+{
+  "schema_version": "agent_artifact_contracts_v0",
+  "description": "Contrats metier minimaux des artefacts produits par agent runtime.",
+  "agents": [
+    {
+      "agent_type": "data-facts",
+      "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml",
+      "artifacts": [
+        {
+          "name": "fiche_bien.json",
+          "format": "json",
+          "required_fields": ["date_reference", "surface", "confidence", "source_ids"],
+          "required_list_fields": ["source_ids"],
+          "rules": ["confidence_range", "nonempty_source_ids_when_not_a_revoir"]
+        },
+        {
+          "name": "timeline_faits.json",
+          "format": "json",
+          "required_fields": ["events"],
+          "required_list_fields": ["events"],
+          "rules": ["timeline_has_date_reference"]
+        },
+        {
+          "name": "source_index.json",
+          "format": "json",
+          "required_fields": ["sources"],
+          "required_list_fields": ["sources"],
+          "rules": ["sources_have_source_id", "nonempty_sources_when_not_a_revoir"]
+        }
+      ]
+    },
+    {
+      "agent_type": "comps-market",
+      "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml",
+      "artifacts": [
+        {
+          "name": "comparables_proposes.json",
+          "format": "json",
+          "required_fields": ["date_reference", "comparables"],
+          "required_list_fields": ["comparables"],
+          "rules": [
+            "nonempty_comparables_when_not_a_revoir",
+            "comparables_have_required_fields",
+            "comparable_scores_range"
+          ]
+        },
+        {
+          "name": "justifications_comparables.json",
+          "format": "json",
+          "required_fields": ["justifications"],
+          "required_list_fields": ["justifications"],
+          "rules": ["justifications_have_required_fields"]
+        },
+        {
+          "name": "source_index.json",
+          "format": "json",
+          "required_fields": ["sources"],
+          "required_list_fields": ["sources"],
+          "rules": ["sources_have_source_id", "nonempty_sources_when_not_a_revoir"]
+        }
+      ]
+    },
+    {
+      "agent_type": "valuation-draft",
+      "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml",
+      "artifacts": [
+        {
+          "name": "calculs_approche_comparative.json",
+          "format": "json",
+          "required_fields": ["approach", "method", "value", "input_count", "trace"],
+          "required_dict_fields": ["trace"],
+          "rules": [
+            "value_number",
+            "input_count_integer",
+            "positive_value_when_not_a_revoir",
+            "positive_input_count_when_not_a_revoir",
+            "trace_has_selected_comparables",
+            "trace_has_weights_used",
+            "trace_has_calculation_policy"
+          ]
+        },
+        {
+          "name": "calculs_approche_cout.json",
+          "format": "json",
+          "required_fields": ["approach", "method", "value", "input_count", "trace"],
+          "required_dict_fields": ["trace"],
+          "rules": [
+            "value_number",
+            "input_count_integer",
+            "positive_value_when_not_a_revoir",
+            "positive_input_count_when_not_a_revoir",
+            "trace_has_selected_comparables",
+            "trace_has_weights_used",
+            "trace_has_calculation_policy"
+          ]
+        },
+        {
+          "name": "calculs_approche_revenu.json",
+          "format": "json",
+          "required_fields": ["approach", "method", "value", "input_count", "trace"],
+          "required_dict_fields": ["trace"],
+          "rules": [
+            "value_number",
+            "input_count_integer",
+            "positive_value_when_not_a_revoir",
+            "positive_input_count_when_not_a_revoir",
+            "trace_has_selected_comparables",
+            "trace_has_weights_used",
+            "trace_has_calculation_policy"
+          ]
+        },
+        {
+          "name": "hypotheses_explicites.json",
+          "format": "json",
+          "required_fields": ["hypotheses", "confidence"],
+          "required_list_fields": ["hypotheses"],
+          "rules": ["confidence_range"]
+        },
+        {
+          "name": "brouillon_valeur.md",
+          "format": "markdown",
+          "required_markdown_terms": ["# brouillon_valeur.md", "## summary", "approche_comparative", "comparables_count"],
+          "rules": ["markdown_contains_case_status"]
+        }
+      ]
+    },
+    {
+      "agent_type": "compliance-qa",
+      "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml",
+      "artifacts": [
+        {
+          "name": "rapport_non_conformites.json",
+          "format": "json",
+          "required_fields": ["blocking_failures", "warnings"],
+          "required_list_fields": ["blocking_failures", "warnings"]
+        },
+        {
+          "name": "statut_sortie.json",
+          "format": "json",
+          "required_fields": ["status", "blocking_failures", "warnings", "valuation_values"],
+          "required_list_fields": ["blocking_failures", "warnings"],
+          "required_dict_fields": ["valuation_values"],
+          "rules": [
+            "status_allowed",
+            "status_matches_summary",
+            "status_consistent_with_findings",
+            "valuation_values_match_calculs"
+          ]
+        },
+        {
+          "name": "recommandations_corrections.md",
+          "format": "markdown",
+          "required_markdown_terms": ["# recommandations_corrections.md", "## recommendations"]
+        }
+      ]
+    },
+    {
+      "agent_type": "redaction",
+      "agent_config": "AGENTCONFIG-REDACTION-V0.yaml",
+      "artifacts": [
+        {
+          "name": "brouillon_rapport.md",
+          "format": "markdown",
+          "required_markdown_terms": ["# brouillon_rapport.md", "## sections", "resume"],
+          "rules": ["markdown_contains_case_status"]
+        },
+        {
+          "name": "annexe_sources.md",
+          "format": "markdown",
+          "required_markdown_terms": ["# annexe_sources.md", "## sources"]
+        }
+      ]
+    }
+  ]
+}

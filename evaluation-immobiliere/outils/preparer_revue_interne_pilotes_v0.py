@@ -32,7 +32,7 @@ def build_waiting_report(runtime_dir: Path) -> str:
             "",
             "## Prochaine action",
             "",
-            "Executer d'abord `evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py` apres avoir ajoute des fixtures `case_pilote_reel_*.json` validees.",
+            "Executer d'abord `evaluation-immobiliere/outils/executer_dossiers_pilotes_reels_v0.py` apres avoir ajoute des fixtures `case_pilote_reel_*.json` anonymisees dans un repertoire hors repo ignore.",
             "",
         ]
     )
