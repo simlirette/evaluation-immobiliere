@@ -17,6 +17,7 @@ from http.server import ThreadingHTTPServer
 
 import api
 from api import (
+    AUTH_CLIENT_PATH,
     EVALUATOR_UI_PATH,
     OPS_UI_PATH,
     PRODUCT_UI_PATH,
@@ -57,6 +58,9 @@ class TestApiV0(unittest.TestCase):
 
     def test_product_ui_file_exists(self) -> None:
         self.assertTrue(PRODUCT_UI_PATH.exists())
+
+    def test_auth_client_file_exists(self) -> None:
+        self.assertTrue(AUTH_CLIENT_PATH.exists())
 
     def test_evaluator_ui_file_exists(self) -> None:
         self.assertTrue(EVALUATOR_UI_PATH.exists())
@@ -184,7 +188,15 @@ class TestApiV0(unittest.TestCase):
             host, port = server.server_address
             try:
                 health_status, _ = self.http_request("GET", host, port, "/health")
+                auth_missing = self.http_json("GET", host, port, "/auth/status")
                 blocked_status, blocked_raw = self.http_request("GET", host, port, "/fixtures")
+                auth_allowed = self.http_json(
+                    "GET",
+                    host,
+                    port,
+                    "/auth/status",
+                    headers={"Authorization": "Bearer secret-token", "X-Runtime-Role": "supervisor"},
+                )
                 allowed = self.http_json(
                     "GET",
                     host,
@@ -213,6 +225,11 @@ class TestApiV0(unittest.TestCase):
                     os.environ["EVAL_RUNTIME_API_TOKEN"] = previous_token
 
         self.assertEqual(health_status, 200)
+        self.assertTrue(auth_missing["enabled"])
+        self.assertFalse(auth_missing["authorized"])
+        self.assertEqual(auth_missing["reason"], "token_missing")
+        self.assertTrue(auth_allowed["authorized"])
+        self.assertIn("ops_write", auth_allowed["permissions"])
         self.assertEqual(blocked_status, 401)
         self.assertEqual(json.loads(blocked_raw)["code"], "token_missing")
         self.assertIn("fixtures", allowed)
@@ -260,6 +277,8 @@ class TestApiV0(unittest.TestCase):
                 ops_ui = self.http_text("GET", host, port, "/ops/ui")
                 evaluator_ui = self.http_text("GET", host, port, "/review/ui")
                 product_ui = self.http_text("GET", host, port, "/product")
+                runtime_ui = self.http_text("GET", host, port, "/ui")
+                auth_client = self.http_text("GET", host, port, "/auth/client.js")
                 product_summary_payload = self.http_json("GET", host, port, "/product/summary")
             finally:
                 server.shutdown()
@@ -279,6 +298,11 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
         self.assertIn("<title>Revue dossier</title>", evaluator_ui)
         self.assertIn("<title>Produit evaluation immobiliere</title>", product_ui)
+        self.assertIn("RuntimeAuth.mount", product_ui)
+        self.assertIn("RuntimeAuth.mount", evaluator_ui)
+        self.assertIn("RuntimeAuth.mount", ops_ui)
+        self.assertIn("RuntimeAuth.mount", runtime_ui)
+        self.assertIn("window.RuntimeAuth", auth_client)
         self.assertEqual(product_summary_payload["schema_version"], "product_cockpit_summary_v1")
 
     def test_session_summary_and_artifact_content_are_readable(self) -> None:

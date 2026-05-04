@@ -97,6 +97,7 @@ Endpoints:
 
 - `GET /product/summary`
 - `POST /product/demo`
+- `GET /auth/status`
 - `GET /ui`
 - `GET /fixtures`
 - `POST /session`

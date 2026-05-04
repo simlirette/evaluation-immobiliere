@@ -203,6 +203,7 @@
           <button class="primary" id="refresh">Actualiser</button>
           <button id="start">Ouvrir dossier</button>
         </div>
+        <div class="toolbar" id="authPanel"></div>
         <label for="sessionInput">Session existante</label>
         <input id="sessionInput" placeholder="session_id">
         <div class="toolbar">
@@ -294,6 +295,7 @@
       </div>
     </section>
   </main>
+  <script src="/auth/client.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     let queueRows = [];
@@ -303,14 +305,7 @@
     let stream = null;
 
     async function json(url, options = {}) {
-      const response = await fetch(url, {
-        ...options,
-        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
-      });
-      const text = await response.text();
-      const body = text ? JSON.parse(text) : {};
-      if (!response.ok) throw new Error(body.error || response.statusText);
-      return body;
+      return RuntimeAuth.fetchJson(url, options);
     }
 
     function escapeHtml(value) {
@@ -435,15 +430,11 @@
 
     function openStream() {
       if (!activeSession) return;
-      if (stream) stream.close();
       const events = [];
-      stream = new EventSource(activeSession.events_url);
-      ['step_start', 'artifact_written', 'step_done', 'warning_detected', 'blocking_detected', 'contract_invalid'].forEach((name) => {
-        stream.addEventListener(name, (event) => {
-          events.push({ event: name, data: JSON.parse(event.data) });
-          $('events').textContent = JSON.stringify(events.slice(-80), null, 2);
-        });
-      });
+      stream = RuntimeAuth.fetchEventStream(activeSession.events_url, (name, data) => {
+        events.push({ event: name, data });
+        $('events').textContent = JSON.stringify(events.slice(-80), null, 2);
+      }).catch((error) => $('events').textContent = error.message);
     }
 
     async function saveReview() {
@@ -477,6 +468,7 @@
     $('saveReview').addEventListener('click', () => saveReview().catch((error) => $('raw').textContent = error.message));
     $('resume').addEventListener('click', () => resume().catch((error) => $('raw').textContent = error.message));
 
+    RuntimeAuth.mount('authPanel');
     refresh().catch((error) => $('raw').textContent = error.message);
   </script>
 </body>

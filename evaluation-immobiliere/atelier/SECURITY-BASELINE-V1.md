@@ -14,7 +14,9 @@ La baseline est active en mode local avec sécurité opt-in:
 - support `Authorization: Bearer <token>` ou `X-API-Key`;
 - journal d'accès JSONL dans `runtime_sessions/access_audit.jsonl`;
 - routes publiques limitées aux pages UI et `/health`;
-- routes données/actions protégées quand le token est actif.
+- routes données/actions protégées quand le token est actif;
+- pages UI capables de fournir localement le token et le rôle via `/auth/client.js`;
+- statut d'authentification consultable via `/auth/status`.
 
 ## Contrôles actifs
 | Contrôle | Implémentation | Statut |
@@ -23,6 +25,7 @@ La baseline est active en mode local avec sécurité opt-in:
 | RBAC minimal | Rôles `evaluator`, `ops`, `supervisor` dans `api.py` | Actif |
 | Journal d'accès | `access_audit.jsonl` écrit pour réponses JSON/fichiers/options | Actif |
 | CORS explicite | Headers `Authorization`, `X-API-Key`, `X-Runtime-Role` autorisés | Actif |
+| Auth UI locale | Panneau role/token sur cockpits produit, runtime, ops et revue | Actif |
 | Audit infra | `valider_rapports_infra_v0.py` | OK |
 | Chaîne ops complète | `executer_pre_reponses_v0.py --force-lock` | OK |
 | Anonymisation | `anonymisation_audit.json` via chaîne pré-réponses | OK |
@@ -47,13 +50,15 @@ Résultat: `OK: True`, 8 fichiers vérifiés, 0 invalide.
 | Token requis si `EVAL_RUNTIME_API_TOKEN` actif | Requête `/fixtures` sans token retourne 401 |
 | RBAC par rôle | `evaluator` refusé sur `/ops/pre-response-run` avec 403 |
 | Journal d'accès | Entrées 401/403 écrites dans `access_audit.jsonl` |
-| Suite API | 11 tests OK |
+| Statut auth | `/auth/status` retourne role, permissions et autorisation |
+| Suite API | 17 tests OK |
 
 ## Limites restantes
 - Le token statique est une baseline locale; un fournisseur IAM externe reste requis avant production.
 - Le chiffrement au repos dépend encore du poste/volume, pas d'un store applicatif.
 - Le journal d'accès est fichier local, pas encore centralisé ni immuable.
-- Les pages UI ne portent pas encore de flux de saisie token; en mode token actif, un proxy ou client outillé doit injecter les headers.
+- Le token UI est stocke dans `localStorage`; acceptable pour usage local/dev,
+  mais a remplacer par IAM/proxy en staging/prod.
 
 ## Go/No-Go
 Décision: **GO CONDITIONNEL** vers suite Phase G.
