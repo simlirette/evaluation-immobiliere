@@ -22,6 +22,7 @@ LOCK_TTL_SECONDS_DEFAULT = 60 * 60
 class PreResponseStep:
     name: str
     script: Path
+    args: tuple[str, ...] = ()
 
 
 class PreResponseLockError(RuntimeError):
@@ -33,10 +34,26 @@ def build_pre_response_steps(project_root: Path = PROJECT_ROOT) -> list[PreRespo
     return [
         PreResponseStep("auditer_anonymisation", outils / "auditer_anonymisation_v0.py"),
         PreResponseStep("preparer_ingestion_pdf", outils / "preparer_ingestion_pdf_v0.py"),
-        PreResponseStep("executer_dossiers_reels", outils / "executer_dossiers_pilotes_reels_v0.py"),
-        PreResponseStep("preparer_revue_interne", outils / "preparer_revue_interne_pilotes_v0.py"),
-        PreResponseStep("preparer_durcissement_contrats", outils / "preparer_durcissement_contrats_v0.py"),
-        PreResponseStep("preparer_paquet_evaluateurs", outils / "preparer_paquet_evaluateurs_v0.py"),
+        PreResponseStep(
+            "executer_dossiers_reels",
+            outils / "executer_dossiers_pilotes_reels_v0.py",
+            ("--allow-empty",),
+        ),
+        PreResponseStep(
+            "preparer_revue_interne",
+            outils / "preparer_revue_interne_pilotes_v0.py",
+            ("--allow-empty",),
+        ),
+        PreResponseStep(
+            "preparer_durcissement_contrats",
+            outils / "preparer_durcissement_contrats_v0.py",
+            ("--allow-empty",),
+        ),
+        PreResponseStep(
+            "preparer_paquet_evaluateurs",
+            outils / "preparer_paquet_evaluateurs_v0.py",
+            ("--allow-empty",),
+        ),
         PreResponseStep("calibrer_reponses_evaluateurs", outils / "calibrer_reponses_evaluateurs_v0.py"),
         PreResponseStep("generer_file_revue_humaine", outils / "generer_file_revue_humaine_v0.py"),
         PreResponseStep("generer_manifest_runtime_initial", outils / "generer_manifest_runtime_v0.py"),
@@ -59,7 +76,7 @@ def run_steps(steps: list[PreResponseStep], *, cwd: Path, dry_run: bool = False)
     started_at = utc_now_iso()
     monotonic_start = time.perf_counter()
     for step in steps:
-        command = [sys.executable, str(step.script)]
+        command = [sys.executable, str(step.script), *step.args]
         step_started_at = utc_now_iso()
         step_monotonic_start = time.perf_counter()
         if dry_run:

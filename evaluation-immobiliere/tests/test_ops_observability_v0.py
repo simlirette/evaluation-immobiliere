@@ -12,7 +12,11 @@ if str(OUTILS_DIR) not in sys.path:
     sys.path.insert(0, str(OUTILS_DIR))
 
 from analyser_delta_runtime_v0 import build_delta_report, build_markdown as build_delta_markdown, generate_delta_report
-from preparer_handoff_ops_v0 import HandoffFile, build_handoff_manifest, build_markdown as build_handoff_markdown
+from preparer_handoff_ops_v0 import (
+    HandoffFile,
+    build_handoff_manifest,
+    build_markdown as build_handoff_markdown,
+)
 
 
 def write_json(path: Path, payload: object) -> None:
@@ -100,6 +104,25 @@ class TestOpsObservabilityV0(unittest.TestCase):
         self.assertEqual(manifest["required_missing"], ["readiness_pre_reponses.json"])
         self.assertTrue(manifest["files"][0]["sha256"])
         self.assertIn("Manifest handoff ops", markdown)
+
+    def test_handoff_manifest_allows_quality_missing_while_waiting_for_real_inputs(self) -> None:
+        runtime_dir = writable_tmp_dir("ops_handoff_waiting")
+        try:
+            write_json(runtime_dir / "readiness_pre_reponses.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            files = [
+                HandoffFile("quality", "quality_report.json", "quality"),
+                HandoffFile("readiness", "readiness_pre_reponses.json", "readiness"),
+            ]
+
+            manifest = build_handoff_manifest(runtime_dir, files)
+            markdown = build_handoff_markdown(manifest)
+        finally:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
+
+        self.assertEqual(manifest["status"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertEqual(manifest["required_missing"], ["quality_report.json"])
+        self.assertEqual(manifest["required_missing_blocking"], [])
+        self.assertIn("Manquants bloquants", markdown)
 
 
 if __name__ == "__main__":

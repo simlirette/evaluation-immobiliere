@@ -68,6 +68,30 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
         self.assertEqual(report["status"], "OK")
         self.assertEqual(report["files_checked"], 1)
 
+    def test_schema_validation_report_allows_missing_quality_while_waiting_for_real_inputs(self) -> None:
+        root = writable_tmp_dir("schema_gate_waiting")
+        try:
+            runtime_dir = root / "runtime"
+            schemas_dir = root / "schemas"
+            write_json(runtime_dir / "readiness_pre_reponses.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            write_json(runtime_dir / "ops_handoff_manifest.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            write_json(
+                schemas_dir / "quality.schema.json",
+                {"type": "object", "required": ["schema_version"]},
+            )
+
+            report = build_schema_validation_report(
+                runtime_dir,
+                schemas_dir,
+                [SchemaTarget("quality", "quality_report.json", "quality.schema.json")],
+            )
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+        self.assertEqual(report["status"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertEqual(report["files_invalid"], 1)
+        self.assertEqual(report["files_invalid_blocking"], 0)
+
     def test_package_gate_accepts_ready_package(self) -> None:
         root = writable_tmp_dir("package_ready")
         try:
@@ -93,6 +117,32 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
 
         self.assertEqual(report["status"], "PRET_A_ENVOYER")
         self.assertEqual(report["issues"], [])
+
+    def test_package_gate_waits_for_real_inputs_when_package_is_structurally_ready(self) -> None:
+        root = writable_tmp_dir("package_waiting")
+        try:
+            runtime_dir = root / "runtime"
+            package_dir = root / "package"
+            atelier_dir = root / "atelier"
+            response_header = ["respondant_id", "role", "segment"]
+            calibration_header = ["respondant_id", "role", "dossier_id"]
+            write_json(runtime_dir / "anonymisation_audit.json", {"status": "OK"})
+            package_dir.mkdir()
+            (package_dir / "PAQUET-EVALUATEURS-V0.md").write_text("- Statut: **EN_ATTENTE_DOSSIERS_REELS**\n", encoding="utf-8")
+            (package_dir / "CHECKLIST-ENVOI-EVALUATEURS.md").write_text("# Checklist\n", encoding="utf-8")
+            write_csv(package_dir / "MANIFESTE-CAS-PILOTES.csv", ["cas", "dossier_id", "statut_runtime", "blocages", "warnings", "artefacts"])
+            write_csv(package_dir / "REPONSES-EVALUATEURS-A-REMPLIR.csv", response_header)
+            write_csv(package_dir / "CALIBRATION-EVALUATEURS-A-REMPLIR.csv", calibration_header)
+            write_csv(atelier_dir / "REPONSES-EVALUATEURS-TEMPLATE.csv", response_header)
+            write_csv(atelier_dir / "CALIBRATION-EVALUATEURS-TEMPLATE.csv", calibration_header)
+
+            report = build_paquet_gate_report(package_dir, runtime_dir, atelier_dir)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+        self.assertEqual(report["status"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertEqual(report["blocking_issues_count"], 0)
+        self.assertIn("PACKAGE_WAITING_REAL_INPUTS", {item["code"] for item in report["issues"]})
 
     def test_package_gate_rejects_sensitive_package_content(self) -> None:
         root = writable_tmp_dir("package_sensitive")
@@ -130,6 +180,25 @@ class TestOpsProfessionalGatesV0(unittest.TestCase):
             shutil.rmtree(runtime_dir, ignore_errors=True)
 
         self.assertEqual(report["status"], "OK")
+        self.assertEqual(exit_code(report["status"]), 0)
+
+    def test_ops_doctor_returns_waiting_when_all_gates_wait_for_real_inputs(self) -> None:
+        runtime_dir = writable_tmp_dir("ops_doctor_waiting")
+        try:
+            write_json(runtime_dir / "readiness_pre_reponses.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            write_json(runtime_dir / "runtime_delta_report.json", {"status": "STABLE"})
+            write_json(runtime_dir / "ops_handoff_manifest.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            write_json(runtime_dir / "infra_contracts_report.json", {"ok": True})
+            write_json(runtime_dir / "schema_validation_report.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            write_json(runtime_dir / "paquet_evaluateurs_gate.json", {"status": "EN_ATTENTE_ENTREES_TERRAIN_REELLES"})
+            write_json(runtime_dir / "anonymisation_audit.json", {"status": "OK"})
+
+            report = build_ops_doctor_report(runtime_dir)
+        finally:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
+
+        self.assertEqual(report["status"], "EN_ATTENTE_ENTREES_TERRAIN_REELLES")
+        self.assertEqual(report["issues"], [])
         self.assertEqual(exit_code(report["status"]), 0)
 
     def test_ops_doctor_escalates_correction_failures(self) -> None:

@@ -5,12 +5,14 @@
   "required": ["schema_version", "status", "runtime_dir", "files_count", "required_count", "required_present", "required_missing", "files"],
   "properties": {
     "schema_version": {"const": "ops_handoff_manifest_v0"},
-    "status": {"enum": ["PRET_A_TRANSMETTRE", "A_COMPLETER"]},
+    "status": {"enum": ["EN_ATTENTE_ENTREES_TERRAIN_REELLES", "PRET_A_TRANSMETTRE", "A_COMPLETER"]},
+    "readiness_status": {"type": "string"},
     "runtime_dir": {"type": "string"},
     "files_count": {"type": "integer"},
     "required_count": {"type": "integer"},
     "required_present": {"type": "integer"},
     "required_missing": {"type": "array", "items": {"type": "string"}},
+    "required_missing_blocking": {"type": "array", "items": {"type": "string"}},
     "files": {"type": "array", "items": {"type": "object"}}
   }
 }

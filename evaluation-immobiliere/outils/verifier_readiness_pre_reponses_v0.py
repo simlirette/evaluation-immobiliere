@@ -13,6 +13,8 @@ CALIBRATION_DEFAULT = RUNTIME_DIR_DEFAULT / "calibration_evaluateurs.json"
 MANIFEST_DEFAULT = RUNTIME_DIR_DEFAULT / "runtime_manifest.json"
 OUT_JSON_DEFAULT = RUNTIME_DIR_DEFAULT / "readiness_pre_reponses.json"
 OUT_MD_DEFAULT = RUNTIME_DIR_DEFAULT / "READINESS-PRE-REPONSES-V0.md"
+WAITING_REAL_INPUTS_STATUS = "EN_ATTENTE_ENTREES_TERRAIN_REELLES"
+WAITING_PACKAGE_STATUS = "EN_ATTENTE_DOSSIERS_REELS"
 
 
 def load_json(path: Path) -> dict:
@@ -35,6 +37,7 @@ def build_readiness_report(quality: dict, calibration: dict, manifest: dict, pac
         "quality_report_present": bool(quality),
         "runtime_cases_present": int(quality.get("cases_count", 0) or 0) > 0,
         "package_ready": package_state == "PRET_A_ENVOYER",
+        "package_waiting_real_inputs": package_state == WAITING_PACKAGE_STATUS,
         "manifest_present": bool(manifest.get("fingerprint_sha256")),
         "calibration_ready_or_waiting": calibration.get("status") in {"PRET_A_RECEVOIR_REPONSES", "CALIBRATION_COMPILEE"},
         "calibration_has_no_errors": calibration.get("status") != "A_CORRIGER",
@@ -71,6 +74,14 @@ def nested(data: dict, *keys: str) -> object:
 def readiness_status(checks: dict[str, bool], calibration_status: str) -> str:
     if not checks.get("calibration_has_no_errors"):
         return "A_CORRIGER"
+    if (
+        checks.get("package_waiting_real_inputs")
+        and checks.get("manifest_present")
+        and checks.get("calibration_ready_or_waiting")
+        and not checks.get("quality_report_present")
+        and not checks.get("runtime_cases_present")
+    ):
+        return WAITING_REAL_INPUTS_STATUS
     required = [
         "quality_report_present",
         "runtime_cases_present",
@@ -88,6 +99,8 @@ def readiness_status(checks: dict[str, bool], calibration_status: str) -> str:
 
 
 def decision_text(status: str, risks: dict[str, int]) -> str:
+    if status == WAITING_REAL_INPUTS_STATUS:
+        return "Infrastructure materialisee; attendre des dossiers reels anonymises valides avant toute conclusion terrain."
     if status == "PRET_A_RECEVOIR_REPONSES":
         return "Infrastructure prete; attendre les reponses evaluateurs sans modifier les contrats metier."
     if status == "REPONSES_A_INTEGRER":
@@ -161,7 +174,7 @@ def main() -> int:
     print(f"Readiness JSON: {args.json_out}")
     print(f"Readiness Markdown: {args.markdown_out}")
     print(f"Statut: {report['status']}")
-    return 0 if report["status"] in {"PRET_A_RECEVOIR_REPONSES", "REPONSES_A_INTEGRER"} else 1
+    return 0 if report["status"] in {WAITING_REAL_INPUTS_STATUS, "PRET_A_RECEVOIR_REPONSES", "REPONSES_A_INTEGRER"} else 1
 
 
 if __name__ == "__main__":

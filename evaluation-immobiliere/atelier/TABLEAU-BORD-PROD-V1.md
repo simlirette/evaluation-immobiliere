@@ -11,12 +11,12 @@ Statut courant: **DEPLOIEMENT_PROD_BLOQUE**.
 
 | Domaine | Indicateur | Source | Seuil alerte | Statut actuel |
 |---|---|---|---|---|
-| Ops | Ops doctor | `ops_doctor_report.json` | != OK | OK |
+| Ops | Ops doctor | `ops_doctor_report.json` | != OK hors attente terrain | EN_ATTENTE_ENTREES_TERRAIN_REELLES |
 | Runtime | Delta runtime | `runtime_delta_report.json` | A_CONTROLER | STABLE |
-| Handoff | Handoff ops | `ops_handoff_manifest.json` | != PRET_A_TRANSMETTRE | PRET_A_TRANSMETTRE |
-| Schemas | Validation schemas | `schema_validation_report.json` | != OK | OK |
-| Paquet | Gate evaluateurs | `paquet_evaluateurs_gate.json` | != PRET_A_ENVOYER | PRET_A_ENVOYER |
-| Revue humaine | Items file | `FILE-REVUE-HUMAINE-V0.csv` | derive non triee | 16 |
+| Handoff | Handoff ops | `ops_handoff_manifest.json` | != PRET_A_TRANSMETTRE hors attente terrain | EN_ATTENTE_ENTREES_TERRAIN_REELLES |
+| Schemas | Validation schemas | `schema_validation_report.json` | != OK hors attente terrain | EN_ATTENTE_ENTREES_TERRAIN_REELLES |
+| Paquet | Gate evaluateurs | `paquet_evaluateurs_gate.json` | != PRET_A_ENVOYER hors attente terrain | EN_ATTENTE_ENTREES_TERRAIN_REELLES |
+| Revue humaine | Items file | `FILE-REVUE-HUMAINE-V0.csv` | derive non triee | 0 |
 | Performance | P95 dossier | `SLO-SLA-V1.md` + runtime metrics | > cible | A_INSTRUMENTER |
 | Metier | Acceptation terrain | `CRITERES-ACCEPTATION-METIER-V1.md` | non signee | BLOQUE |
 

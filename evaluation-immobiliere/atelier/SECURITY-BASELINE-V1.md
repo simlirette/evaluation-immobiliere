@@ -35,7 +35,7 @@ La baseline est active en mode local avec sécurité opt-in:
 & 'C:\Users\simon\Documents\Codex\2026-04-26\contexte-je-veux-un-review-complet\.tools\poetry-envs\resilio-xN2RUnV3-py3.13\Scripts\python.exe' evaluation-immobiliere/outils/executer_pre_reponses_v0.py --force-lock
 ```
 
-Résultat: `OK: True`, 18 étapes OK.
+Résultat: `OK: True`, 20 étapes OK; statut ops final `EN_ATTENTE_ENTREES_TERRAIN_REELLES` tant qu'aucun dossier reel anonymise actif n'est fourni.
 
 ```powershell
 & 'C:\Users\simon\Documents\Codex\2026-04-26\contexte-je-veux-un-review-complet\.tools\poetry-envs\resilio-xN2RUnV3-py3.13\Scripts\python.exe' evaluation-immobiliere/outils/valider_rapports_infra_v0.py

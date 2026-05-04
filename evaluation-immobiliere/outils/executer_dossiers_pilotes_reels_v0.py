@@ -34,6 +34,8 @@ ANONYMIZATION_AUDIT_MD_PATH = OUT_DIR / "RAPPORT-ANONYMISATION-V0.md"
 PRESERVED_OUTPUT_NAMES = {
     "ingestion_v0",
     "source_text",
+    "anonymisation_audit.json",
+    "RAPPORT-ANONYMISATION-V0.md",
     "DURCISSEMENT-CONTRATS-PILOTES-REELS-V0.md",
     "REVUE-INTERNE-PILOTES-REELS-V0.md",
     "runtime_registry.json",
