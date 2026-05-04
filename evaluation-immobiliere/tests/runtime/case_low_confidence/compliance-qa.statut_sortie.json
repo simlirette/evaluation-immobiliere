@@ -12,5 +12,15 @@
     "approche_cout": 505000.0,
     "approche_revenu": 505000.0
   },
-  "source_fixture": "case_low_confidence.json"
+  "source_fixture": "case_low_confidence.json",
+  "agent_skills_allowed": [
+    "analyse-conformite",
+    "recherche-cadre-legal",
+    "recherche-domaines-specialises",
+    "recherche-jurisprudence-discipline",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "redaction-rapport-conformite"
+  ],
+  "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
 }

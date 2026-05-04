@@ -15,7 +15,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-005"
+        "dossier_id": "D-005",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -43,7 +56,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-005"
+        "dossier_id": "D-005",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -71,7 +92,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-005"
+        "dossier_id": "D-005",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -111,7 +143,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-005"
+        "dossier_id": "D-005",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -139,7 +181,13 @@
       {
         "event": "step_start",
         "step": "redaction",
-        "dossier_id": "D-005"
+        "dossier_id": "D-005",
+        "skills_allowed": [
+          "recherche-normes-professionnelles",
+          "redaction-analyse-marche",
+          "redaction-rapport-evaluation"
+        ],
+        "agent_config": "AGENTCONFIG-REDACTION-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -161,6 +209,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_low_confidence/case_low_confidence.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_low_confidence",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -183,7 +276,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-002"
+        "dossier_id": "D-002",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "contract_invalid",
@@ -219,7 +325,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-002"
+        "dossier_id": "D-002",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "contract_invalid",
@@ -255,7 +369,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-002"
+        "dossier_id": "D-002",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -295,7 +420,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-002"
+        "dossier_id": "D-002",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -329,6 +464,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_missing_source/case_missing_source.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_missing_source",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -345,7 +525,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-001"
+        "dossier_id": "D-001",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -373,7 +566,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-001"
+        "dossier_id": "D-001",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -401,7 +602,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-001"
+        "dossier_id": "D-001",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -441,7 +653,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-001"
+        "dossier_id": "D-001",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -469,7 +691,13 @@
       {
         "event": "step_start",
         "step": "redaction",
-        "dossier_id": "D-001"
+        "dossier_id": "D-001",
+        "skills_allowed": [
+          "recherche-normes-professionnelles",
+          "redaction-analyse-marche",
+          "redaction-rapport-evaluation"
+        ],
+        "agent_config": "AGENTCONFIG-REDACTION-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -491,6 +719,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_nominal/case_nominal.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_nominal",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -526,7 +799,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-PILOTE-RES-002"
+        "dossier_id": "D-PILOTE-RES-002",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -554,7 +840,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-PILOTE-RES-002"
+        "dossier_id": "D-PILOTE-RES-002",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -582,7 +876,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-PILOTE-RES-002"
+        "dossier_id": "D-PILOTE-RES-002",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -622,7 +927,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-PILOTE-RES-002"
+        "dossier_id": "D-PILOTE-RES-002",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -650,7 +965,13 @@
       {
         "event": "step_start",
         "step": "redaction",
-        "dossier_id": "D-PILOTE-RES-002"
+        "dossier_id": "D-PILOTE-RES-002",
+        "skills_allowed": [
+          "recherche-normes-professionnelles",
+          "redaction-analyse-marche",
+          "redaction-rapport-evaluation"
+        ],
+        "agent_config": "AGENTCONFIG-REDACTION-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -672,6 +993,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_pilote_confiance_limitee/case_pilote_confiance_limitee.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_confiance_limitee",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -688,7 +1054,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-PILOTE-RES-001"
+        "dossier_id": "D-PILOTE-RES-001",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -716,7 +1095,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-PILOTE-RES-001"
+        "dossier_id": "D-PILOTE-RES-001",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -744,7 +1131,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-PILOTE-RES-001"
+        "dossier_id": "D-PILOTE-RES-001",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -784,7 +1182,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-PILOTE-RES-001"
+        "dossier_id": "D-PILOTE-RES-001",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -812,7 +1220,13 @@
       {
         "event": "step_start",
         "step": "redaction",
-        "dossier_id": "D-PILOTE-RES-001"
+        "dossier_id": "D-PILOTE-RES-001",
+        "skills_allowed": [
+          "recherche-normes-professionnelles",
+          "redaction-analyse-marche",
+          "redaction-rapport-evaluation"
+        ],
+        "agent_config": "AGENTCONFIG-REDACTION-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -834,6 +1248,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_pilote_residentiel_standard/case_pilote_residentiel_standard.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_residentiel_standard",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -863,7 +1322,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-PILOTE-RES-003"
+        "dossier_id": "D-PILOTE-RES-003",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -891,7 +1363,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-PILOTE-RES-003"
+        "dossier_id": "D-PILOTE-RES-003",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -919,7 +1399,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-PILOTE-RES-003"
+        "dossier_id": "D-PILOTE-RES-003",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -959,7 +1450,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-PILOTE-RES-003"
+        "dossier_id": "D-PILOTE-RES-003",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -993,6 +1494,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_pilote_revision_conformite/case_pilote_revision_conformite.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_pilote_revision_conformite",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -1011,7 +1557,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-003"
+        "dossier_id": "D-003",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1039,7 +1598,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-003"
+        "dossier_id": "D-003",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1067,7 +1634,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-003"
+        "dossier_id": "D-003",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1107,7 +1685,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-003"
+        "dossier_id": "D-003",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1141,6 +1729,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation/case_sensitive_no_validation.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_sensitive_no_validation",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,
@@ -1159,7 +1792,20 @@
       {
         "event": "step_start",
         "step": "data-facts",
-        "dossier_id": "D-004"
+        "dossier_id": "D-004",
+        "skills_allowed": [
+          "analyse-extraction-faits",
+          "recherche-baux-revenus",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre",
+          "recherche-urbanisme-construction",
+          "redaction-fiches-techniques"
+        ],
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1187,7 +1833,15 @@
       {
         "event": "step_start",
         "step": "comps-market",
-        "dossier_id": "D-004"
+        "dossier_id": "D-004",
+        "skills_allowed": [
+          "analyse-selection-comparables",
+          "recherche-marche-donnees",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "recherche-registre-cadastre"
+        ],
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1215,7 +1869,18 @@
       {
         "event": "step_start",
         "step": "valuation-draft",
-        "dossier_id": "D-004"
+        "dossier_id": "D-004",
+        "skills_allowed": [
+          "analyse-approche-comparaison",
+          "analyse-approche-cout",
+          "analyse-approche-revenu",
+          "analyse-reconciliation-valeur",
+          "recherche-baux-revenus",
+          "recherche-domaines-specialises",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles"
+        ],
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1255,7 +1920,17 @@
       {
         "event": "step_start",
         "step": "compliance-qa",
-        "dossier_id": "D-004"
+        "dossier_id": "D-004",
+        "skills_allowed": [
+          "analyse-conformite",
+          "recherche-cadre-legal",
+          "recherche-domaines-specialises",
+          "recherche-jurisprudence-discipline",
+          "recherche-mefq-methodologie",
+          "recherche-normes-professionnelles",
+          "redaction-rapport-conformite"
+        ],
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"
       },
       {
         "event": "artifact_written",
@@ -1289,6 +1964,51 @@
     ],
     "audit_log": "evaluation-immobiliere/tests/runtime/case_unit_incoherence/case_unit_incoherence.audit.jsonl",
     "artifact_dir": "evaluation-immobiliere/tests/runtime/case_unit_incoherence",
+    "skills_by_agent": {
+      "data-facts": [
+        "analyse-extraction-faits",
+        "recherche-baux-revenus",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre",
+        "recherche-urbanisme-construction",
+        "redaction-fiches-techniques"
+      ],
+      "comps-market": [
+        "analyse-selection-comparables",
+        "recherche-marche-donnees",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "recherche-registre-cadastre"
+      ],
+      "valuation-draft": [
+        "analyse-approche-comparaison",
+        "analyse-approche-cout",
+        "analyse-approche-revenu",
+        "analyse-reconciliation-valeur",
+        "recherche-baux-revenus",
+        "recherche-domaines-specialises",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles"
+      ],
+      "compliance-qa": [
+        "analyse-conformite",
+        "recherche-cadre-legal",
+        "recherche-domaines-specialises",
+        "recherche-jurisprudence-discipline",
+        "recherche-mefq-methodologie",
+        "recherche-normes-professionnelles",
+        "redaction-rapport-conformite"
+      ],
+      "redaction": [
+        "recherche-normes-professionnelles",
+        "redaction-analyse-marche",
+        "redaction-rapport-evaluation"
+      ]
+    },
     "metrics": {
       "wall_clock_seconds": 0.0,
       "total_tokens": 0,

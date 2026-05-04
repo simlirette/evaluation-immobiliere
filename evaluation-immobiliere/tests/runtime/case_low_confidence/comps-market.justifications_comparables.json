@@ -10,5 +10,13 @@
       "raison": "source presente"
     }
   ],
-  "source_fixture": "case_low_confidence.json"
+  "source_fixture": "case_low_confidence.json",
+  "agent_skills_allowed": [
+    "analyse-selection-comparables",
+    "recherche-marche-donnees",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "recherche-registre-cadastre"
+  ],
+  "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
 }

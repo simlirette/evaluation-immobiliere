@@ -19,5 +19,13 @@
       "source_id": "SRC-PHOTO-001"
     }
   ],
-  "source_fixture": "case_pilote_residentiel_standard.json"
+  "source_fixture": "case_pilote_residentiel_standard.json",
+  "agent_skills_allowed": [
+    "analyse-selection-comparables",
+    "recherche-marche-donnees",
+    "recherche-mefq-methodologie",
+    "recherche-normes-professionnelles",
+    "recherche-registre-cadastre"
+  ],
+  "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml"
 }
