@@ -232,6 +232,7 @@ def product_summary() -> dict:
             "demo": "/product/demo",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
+            "dossier_review": "/review/dossier",
         },
     }
 
@@ -507,6 +508,120 @@ def session_artifact_content(session_id: str, *, event_id: str = "", artifact_pa
     return payload
 
 
+def find_artifact_record(session: dict, step: str, artifact_name: str) -> dict | None:
+    artifact_index = session_artifacts(str(session["session_id"]))
+    for artifact in artifact_index.get("artifacts", []):
+        if not isinstance(artifact, dict):
+            continue
+        if artifact.get("step") == step and artifact.get("artifact") == artifact_name:
+            return artifact
+    return None
+
+
+def read_indexed_artifact_json(session: dict, step: str, artifact_name: str) -> dict:
+    artifact = find_artifact_record(session, step, artifact_name)
+    if not artifact:
+        return {}
+    _, path = resolve_session_artifact(session, event_id=str(artifact.get("event_id") or ""))
+    return read_json_dict(path)
+
+
+def read_indexed_artifact_text(session: dict, step: str, artifact_name: str, limit: int = 16 * 1024) -> str:
+    artifact = find_artifact_record(session, step, artifact_name)
+    if not artifact:
+        return ""
+    _, path = resolve_session_artifact(session, event_id=str(artifact.get("event_id") or ""))
+    return path.read_text(encoding="utf-8", errors="replace")[:limit]
+
+
+def dossier_review_summary(session_id: str) -> dict:
+    session = require_session(session_id)
+    facts = read_indexed_artifact_json(session, "data-facts", "fiche_bien.json")
+    comparables_payload = read_indexed_artifact_json(session, "comps-market", "comparables_proposes.json")
+    compliance = read_indexed_artifact_json(session, "compliance-qa", "statut_sortie.json")
+    report_preview = read_indexed_artifact_text(session, "redaction", "brouillon_rapport.md")
+    approaches = []
+    for artifact_name in [
+        "calculs_approche_comparative.json",
+        "calculs_approche_cout.json",
+        "calculs_approche_revenu.json",
+    ]:
+        payload = read_indexed_artifact_json(session, "valuation-draft", artifact_name)
+        if not payload:
+            continue
+        approaches.append(
+            {
+                "approach": payload.get("approach", artifact_name.replace("calculs_", "").replace(".json", "")),
+                "method": payload.get("method", ""),
+                "value": payload.get("value"),
+                "input_count": payload.get("input_count", 0),
+            }
+        )
+
+    comparables = comparables_payload.get("comparables", [])
+    if not isinstance(comparables, list):
+        comparables = []
+    comparable_rows = [
+        {
+            "comparable_id": item.get("comparable_id", ""),
+            "prix_vente": item.get("prix_vente"),
+            "score": item.get("score"),
+            "source_id": item.get("source_id", ""),
+            "date_vente": item.get("date_vente", ""),
+        }
+        for item in comparables
+        if isinstance(item, dict)
+    ]
+    required = [
+        ("data-facts", "fiche_bien.json"),
+        ("comps-market", "comparables_proposes.json"),
+        ("valuation-draft", "calculs_approche_comparative.json"),
+        ("valuation-draft", "calculs_approche_cout.json"),
+        ("valuation-draft", "calculs_approche_revenu.json"),
+        ("compliance-qa", "statut_sortie.json"),
+        ("redaction", "brouillon_rapport.md"),
+    ]
+    missing = [f"{step}.{artifact}" for step, artifact in required if not find_artifact_record(session, step, artifact)]
+    valuation_values = compliance.get("valuation_values", {}) if isinstance(compliance, dict) else {}
+    return {
+        "schema_version": "dossier_review_summary_v1",
+        "session_id": session_id,
+        "run_id": session.get("run_id", ""),
+        "dossier_id": facts.get("dossier_id") or compliance.get("dossier_id") or session.get("dossier_id", ""),
+        "status": compliance.get("status", session.get("status", "UNKNOWN")),
+        "source_fixture": facts.get("source_fixture") or compliance.get("source_fixture", ""),
+        "facts": {
+            "date_reference": facts.get("date_reference", ""),
+            "surface": facts.get("surface"),
+            "confidence": facts.get("confidence"),
+            "source_ids": facts.get("source_ids", []),
+            "source_ids_count": len(facts.get("source_ids", [])) if isinstance(facts.get("source_ids"), list) else 0,
+        },
+        "comparables": {
+            "count": len(comparable_rows),
+            "items": comparable_rows,
+        },
+        "valuation": {
+            "approaches": approaches,
+            "values": valuation_values,
+        },
+        "compliance": {
+            "status": compliance.get("status", session.get("status", "UNKNOWN")),
+            "blocking_failures": compliance.get("blocking_failures", []),
+            "warnings": compliance.get("warnings", []),
+        },
+        "report": {
+            "available": bool(report_preview),
+            "preview": report_preview,
+        },
+        "coverage": {
+            "required_count": len(required),
+            "missing_count": len(missing),
+            "missing": missing,
+        },
+    }
+
+
 def validate_review_payload(session: dict, body: dict) -> dict:
     decision = str(body.get("decision") or "PENDING").strip()
     reviewer = str(body.get("reviewer") or "").strip()
@@ -734,6 +849,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                     artifact_path=query.get("path", [""])[0],
                 ),
             )
+            return
+        if parsed.path == "/review/dossier":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, dossier_review_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
             return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):

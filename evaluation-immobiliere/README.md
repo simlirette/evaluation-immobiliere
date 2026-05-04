@@ -102,6 +102,7 @@ Endpoints:
 - `POST /session`
 - `POST /start`
 - `GET /session/summary?session_id=<id>`
+- `GET /review/dossier?session_id=<id>`
 - `GET /stream?session_id=<id>`
 - `GET /artifact?session_id=<id>&event_id=<event_id>`
 - `GET /health`

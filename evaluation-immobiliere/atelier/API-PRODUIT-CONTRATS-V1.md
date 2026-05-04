@@ -103,6 +103,18 @@ Contraintes:
 - le contenu est renvoye en texte avec detection JSON/Markdown;
 - l'apercu est plafonne a 64 KiB et signale par `truncated`.
 
+## Contrat `/review/dossier`
+Sortie: `dossier_review_summary_v1`.
+
+La synthese dossier agrege les artefacts indexes de session:
+- `data-facts.fiche_bien.json` pour les faits de base;
+- `comps-market.comparables_proposes.json` pour les comparables;
+- `valuation-draft.calculs_approche_*.json` pour les valeurs;
+- `compliance-qa.statut_sortie.json` pour les warnings/blocages;
+- `redaction.brouillon_rapport.md` pour l'apercu rapport.
+
+Elle signale les artefacts requis manquants dans `coverage.missing`.
+
 ## Contrat `/review`
 La review produit `review.json`.
 

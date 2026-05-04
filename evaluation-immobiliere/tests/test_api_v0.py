@@ -22,6 +22,7 @@ from api import (
     PRODUCT_UI_PATH,
     UI_PATH,
     RuntimeApiHandler,
+    dossier_review_summary,
     list_fixtures,
     load_ops_csv,
     load_ops_json,
@@ -72,6 +73,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["product"], "/product")
         self.assertEqual(summary["routes"]["session_summary"], "/session/summary")
         self.assertEqual(summary["routes"]["artifact_content"], "/artifact")
+        self.assertEqual(summary["routes"]["dossier_review"], "/review/dossier")
         self.assertIn("release_candidate_decision", summary)
 
     def test_ops_summary_reads_generated_reports_from_runtime_dir(self) -> None:
@@ -287,6 +289,7 @@ class TestApiV0(unittest.TestCase):
                 started = start_runtime({"fixture": "case_nominal.json"})
                 session_id = started["session"]["session_id"]
                 summary = session_summary(session_id)
+                dossier_review = dossier_review_summary(session_id)
                 first_artifact = summary["artifacts"]["artifacts"][0]
                 content = session_artifact_content(session_id, event_id=first_artifact["event_id"])
             finally:
@@ -299,6 +302,9 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(content["session_id"], session_id)
         self.assertIn("text", content)
         self.assertFalse(content["truncated"])
+        self.assertEqual(dossier_review["schema_version"], "dossier_review_summary_v1")
+        self.assertEqual(dossier_review["comparables"]["count"], 1)
+        self.assertEqual(dossier_review["coverage"]["missing_count"], 0)
 
     def test_http_session_summary_artifact_and_review_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -312,6 +318,7 @@ class TestApiV0(unittest.TestCase):
                 started = self.http_json("POST", host, port, "/start", {"fixture": "case_nominal.json"})
                 session_id = started["session"]["session_id"]
                 summary = self.http_json("GET", host, port, f"/session/summary?session_id={session_id}")
+                dossier_review = self.http_json("GET", host, port, f"/review/dossier?session_id={session_id}")
                 event_id = summary["artifacts"]["artifacts"][0]["event_id"]
                 artifact = self.http_json("GET", host, port, f"/artifact?session_id={session_id}&event_id={event_id}")
                 invalid_status, invalid_raw = self.http_request(
@@ -340,6 +347,8 @@ class TestApiV0(unittest.TestCase):
                 api.SESSIONS_DIR = previous_sessions_dir
 
         self.assertEqual(summary["schema_version"], "session_summary_v1")
+        self.assertEqual(dossier_review["schema_version"], "dossier_review_summary_v1")
+        self.assertEqual(dossier_review["valuation"]["approaches"][0]["value"], 510000.0)
         self.assertEqual(artifact["schema_version"], "session_artifact_content_v1")
         self.assertEqual(invalid_status, 400)
         self.assertIn("notes requises", json.loads(invalid_raw)["error"])

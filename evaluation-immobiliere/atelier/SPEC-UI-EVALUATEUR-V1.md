@@ -10,7 +10,8 @@ Décision actuelle: **GO CONDITIONNEL**.
 
 Mise a jour produit: l'interface devient une revue dossier exploitable avant
 revue externe finale. Elle consomme `/session/summary` pour l'etat consolide et
-`/artifact` pour lire les artefacts JSON/Markdown indexes dans la session.
+`/review/dossier` pour la synthese metier, puis `/artifact` pour lire les
+artefacts JSON/Markdown indexes dans la session.
 
 Une première UI exploitable est disponible:
 - fichier: `evaluation-immobiliere/ui/evaluateur_review.html`;
