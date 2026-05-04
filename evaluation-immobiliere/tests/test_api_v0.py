@@ -27,6 +27,7 @@ from api import (
     list_fixtures,
     load_ops_csv,
     load_ops_json,
+    ops_observability_snapshot,
     ops_summary,
     product_summary,
     resume_session,
@@ -78,6 +79,8 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["session_summary"], "/session/summary")
         self.assertEqual(summary["routes"]["artifact_content"], "/artifact")
         self.assertEqual(summary["routes"]["dossier_review"], "/review/dossier")
+        self.assertEqual(summary["routes"]["ops_snapshot"], "/ops/snapshot")
+        self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
         self.assertIn("release_candidate_decision", summary)
 
     def test_ops_summary_reads_generated_reports_from_runtime_dir(self) -> None:
@@ -107,6 +110,28 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["quality_cases_count"], 3)
         self.assertEqual(summary["registry_runs_count"], 2)
         self.assertEqual(summary["review_queue_items"], 1)
+
+    def test_ops_observability_snapshot_counts_present_missing_and_last_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_dir = Path(tmp)
+            (runtime_dir / "readiness_pre_reponses.json").write_text(json.dumps({"status": "PRET_A_RECEVOIR_REPONSES"}), encoding="utf-8")
+            (runtime_dir / "FILE-REVUE-HUMAINE-V0.csv").write_text("id,priority\nREV-001,P1\n", encoding="utf-8")
+            (runtime_dir / "pre_reponses_run.json").write_text(
+                json.dumps({"ok": True, "steps_count": 20, "failed_step": "", "duration_seconds": 1.25}),
+                encoding="utf-8",
+            )
+            (runtime_dir / "pre_reponses.lock").write_text(json.dumps({"status": "RUNNING", "ttl_seconds": 3600}), encoding="utf-8")
+
+            snapshot = ops_observability_snapshot(runtime_dir)
+
+        self.assertEqual(snapshot["schema_version"], "ops_observability_snapshot_v1")
+        self.assertEqual(snapshot["status"], "OBSERVABILITE_PARTIELLE")
+        self.assertEqual(snapshot["present_reports_count"], 2)
+        self.assertGreater(snapshot["missing_reports_count"], 0)
+        self.assertTrue(snapshot["last_run"]["exists"])
+        self.assertTrue(snapshot["last_run"]["ok"])
+        self.assertTrue(snapshot["lock"]["active"])
+        self.assertEqual(snapshot["next_action"], "EXECUTER_PRE_REPONSES")
 
     def test_load_ops_reports_mark_absent_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -266,6 +291,7 @@ class TestApiV0(unittest.TestCase):
             host, port = server.server_address
             try:
                 ops = self.http_json("GET", host, port, "/ops")
+                ops_snapshot = self.http_json("GET", host, port, "/ops/snapshot")
                 readiness = self.http_json("GET", host, port, "/ops/readiness")
                 review_queue = self.http_json("GET", host, port, "/ops/review_queue")
                 infra_contracts = self.http_json("GET", host, port, "/ops/infra_contracts")
@@ -287,6 +313,8 @@ class TestApiV0(unittest.TestCase):
                 api.OPS_RUNTIME_DIR = previous_runtime_dir
 
         self.assertEqual(ops["readiness_status"], "PRET_A_RECEVOIR_REPONSES")
+        self.assertEqual(ops_snapshot["schema_version"], "ops_observability_snapshot_v1")
+        self.assertGreaterEqual(ops_snapshot["present_reports_count"], 1)
         self.assertEqual(readiness["status"], "PRET_A_RECEVOIR_REPONSES")
         self.assertEqual(review_queue["rows_count"], 1)
         self.assertTrue(infra_contracts["ok"])

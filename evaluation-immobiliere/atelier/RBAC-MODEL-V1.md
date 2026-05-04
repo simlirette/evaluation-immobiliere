@@ -42,7 +42,7 @@ Sans `EVAL_RUNTIME_API_TOKEN`, l'API reste en mode `local_dev` pour conserver l'
 | `GET /stream` | `runtime_read` | Non |
 | `POST /review` | `review_write` | Non |
 | `POST /resume` | `runtime_write` | Non |
-| `GET /ops`, `/ops/*` | `ops_read` | Non |
+| `GET /ops`, `/ops/snapshot`, `/ops/*` | `ops_read` | Non |
 | `POST /ops/pre-response-run` | `ops_write` | Non |
 
 ## Comportements d'erreur

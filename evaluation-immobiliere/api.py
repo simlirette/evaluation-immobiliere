@@ -189,6 +189,7 @@ def product_summary() -> dict:
     package_manifest = read_json_dict(ATELIER_DIR / "PAQUET-V1-PRE-EVALUATEUR" / "DEMO-MANIFEST-V1.json")
     handoff_manifest = read_json_dict(ATELIER_DIR / "HANDOFF-REVUE-EVALUATEUR-V1.json")
     ops = ops_summary()
+    ops_snapshot = ops_observability_snapshot()
     decision = str(status_report.get("decision") or "UNKNOWN")
     return {
         "schema_version": "product_cockpit_summary_v1",
@@ -214,6 +215,7 @@ def product_summary() -> dict:
             "recent": recent_sessions(),
         },
         "ops": ops,
+        "ops_snapshot": ops_snapshot,
         "package": {
             "status": package_manifest.get("status", "UNKNOWN"),
             "dossier_id": package_manifest.get("dossier_id", ""),
@@ -234,6 +236,7 @@ def product_summary() -> dict:
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
             "dossier_review": "/review/dossier",
+            "ops_snapshot": "/ops/snapshot",
         },
     }
 
@@ -288,6 +291,74 @@ def ops_summary(runtime_dir: Path | None = None) -> dict:
         "reports": {
             key: str(runtime_dir / filename)
             for key, filename in {**OPS_JSON_REPORTS, **OPS_CSV_REPORTS}.items()
+        },
+    }
+
+
+def file_observability_record(name: str, path: Path) -> dict:
+    exists = path.exists() and path.is_file()
+    record = {
+        "name": name,
+        "path": str(path),
+        "exists": exists,
+        "status": "PRESENT" if exists else "ABSENT",
+        "bytes": 0,
+        "updated_at_utc": "",
+    }
+    if exists:
+        stat = path.stat()
+        record["bytes"] = stat.st_size
+        record["updated_at_utc"] = datetime.fromtimestamp(stat.st_mtime, timezone.utc).replace(microsecond=0).isoformat()
+    return record
+
+
+def ops_observability_snapshot(runtime_dir: Path | None = None) -> dict:
+    runtime_dir = runtime_dir or OPS_RUNTIME_DIR
+    expected = {**OPS_JSON_REPORTS, **OPS_CSV_REPORTS}
+    reports = [file_observability_record(name, runtime_dir / filename) for name, filename in expected.items()]
+    present = [item for item in reports if item["exists"]]
+    missing = [item["name"] for item in reports if not item["exists"]]
+    run_report_path = runtime_dir / "pre_reponses_run.json"
+    run_report = read_json_dict(run_report_path)
+    lock_report = read_json_dict(runtime_dir / "pre_reponses.lock")
+    if len(present) == len(reports):
+        status = "OBSERVABILITE_COMPLETE"
+        next_action = "AUCUNE"
+    elif present:
+        status = "OBSERVABILITE_PARTIELLE"
+        next_action = "EXECUTER_PRE_REPONSES"
+    else:
+        status = "OBSERVABILITE_A_GENERER"
+        next_action = "EXECUTER_PRE_REPONSES"
+    return {
+        "schema_version": "ops_observability_snapshot_v1",
+        "status": status,
+        "runtime_dir": str(runtime_dir),
+        "expected_reports_count": len(reports),
+        "present_reports_count": len(present),
+        "missing_reports_count": len(missing),
+        "missing_reports": missing,
+        "reports": reports,
+        "last_run": {
+            "exists": bool(run_report),
+            "path": str(run_report_path),
+            "ok": run_report.get("ok"),
+            "started_at_utc": run_report.get("started_at_utc", ""),
+            "ended_at_utc": run_report.get("ended_at_utc", ""),
+            "duration_seconds": run_report.get("duration_seconds", 0),
+            "steps_count": run_report.get("steps_count", 0),
+            "failed_step": run_report.get("failed_step", ""),
+        },
+        "lock": {
+            "active": bool(lock_report),
+            "status": lock_report.get("status", "ABSENT") if lock_report else "ABSENT",
+            "acquired_at_utc": lock_report.get("acquired_at_utc", "") if lock_report else "",
+            "ttl_seconds": lock_report.get("ttl_seconds", 0) if lock_report else 0,
+        },
+        "next_action": next_action,
+        "actions": {
+            "dry_run": "/ops/pre-response-run {dry_run:true}",
+            "run": "/ops/pre-response-run {dry_run:false}",
         },
     }
 
@@ -879,6 +950,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("ops_read"):
                 return
             self._send_json(200, ops_summary())
+            return
+        if parsed.path == "/ops/snapshot":
+            if not self._require_permission("ops_read"):
+                return
+            self._send_json(200, ops_observability_snapshot())
             return
         if parsed.path.startswith("/ops/"):
             if not self._require_permission("ops_read"):

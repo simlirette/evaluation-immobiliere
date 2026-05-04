@@ -26,6 +26,7 @@ Endpoints:
 - `GET /auth/status`
 - `GET /product/summary`
 - `POST /product/demo`
+- `GET /ops/snapshot`
 - `POST /session`
 - `POST /start`
 - `GET /session/summary?session_id=<id>`
@@ -130,6 +131,13 @@ Si `EVAL_RUNTIME_API_TOKEN` est defini, les routes de donnees/actions exigent
 Les pages HTML chargent `/auth/client.js`, qui ajoute ces headers depuis un
 panneau local de role/token. `/auth/status` permet de verifier le role,
 l'etat d'autorisation et les permissions vues par l'API.
+
+## Observabilite ops
+
+`GET /ops/snapshot` consolide les rapports attendus dans
+`runtime_pilotes_reels`: nombre de preuves presentes/manquantes, dernier run
+`pre_reponses_run.json`, lock actif et prochaine action (`EXECUTER_PRE_REPONSES`
+ou `AUCUNE`). Le cockpit produit l'utilise pour eviter un etat ops ambigu.
 
 ## Persistance locale
 
