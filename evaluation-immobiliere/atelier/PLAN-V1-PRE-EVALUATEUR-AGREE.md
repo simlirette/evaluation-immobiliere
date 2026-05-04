@@ -11,7 +11,7 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 ## Positionnement
 
 - Cible produit: **V1_PRE_EVALUATEUR**
-- Decision courante: **PRET_FINALISATION_V1_PRE_EVALUATEUR**
+- Decision courante: **PRET_REVUE_EVALUATEUR_AGREE**
 - Production reelle: **bloquee**
 - Validation terrain Phase H: **post-V1**
 - Reponses evaluateurs: **non requises pour finir la V1**, requises seulement pour calibration/homologation metier reelle.
@@ -22,12 +22,12 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 |---|---|---|---|---|---|
 | A - Cadrage | Garder la vision et le perimetre clairs | TERMINE | Mettre a jour les decisions recentes | non | non |
 | B - Contrats | Prouver les entrees/sorties et schemas | TERMINE | Conserver compatibilite CI | non | non |
-| C - Runtime | Produire un dossier exemple complet | A_FINALISER_DEMO | Stabiliser une demo E2E lisible | oui | oui |
-| D - API/persistence | Donner une surface produit coherente | A_FINALISER | Verifier endpoints/session/artefacts utiles a la demo | oui | oui |
-| E - UI evaluateur | Presenter le workflow concret | A_FINALISER | Completer ecran revue, artefacts, corrections, decisions | oui | oui |
+| C - Runtime | Produire un dossier exemple complet | PRET_DEMO | Conserver la demo E2E lisible et reproductible | non | oui |
+| D - API/persistence | Donner une surface produit coherente | PRET_DEMO | Conserver endpoints/session/artefacts utiles a la demo | non | oui |
+| E - UI evaluateur | Presenter le workflow concret | PRET_DEMO | Presenter revue, artefacts, corrections et decisions | non | oui |
 | F - Securite/gouvernance | Montrer que les donnees sensibles sont traitees serieusement | PRET_DEMO | Garder anonymisation, retention, audit, RBAC documentes | non | oui |
 | G - Perf/fiabilite/cout | Montrer les limites et budgets | GO_CONDITIONNEL | Fermer ou documenter SLO manquants | non | oui |
-| H - Revue evaluateur/terrain | Calibration apres V1 | POST_V1 | Preparer paquet de revue, ne pas attendre les reponses | non | oui |
+| H - Revue evaluateur/terrain | Calibration apres V1 | PAQUET_PRET | Utiliser le paquet de revue sans reponse inventee | non | oui |
 | I - CI/CD | Prouver que la V1 est regenerable | PRET_STAGING | Garder gates verts et statut phases en CI | non | non |
 | J - Preprod | Simuler homologation sans prod | PROD_BLOQUEE | Garder dress rehearsal et ecarts ouverts visibles | non | oui |
 | K - Canary | Planifier sans ouvrir prod | PROD_BLOQUEE | Conserver plan canary bloque | non | oui |
@@ -41,6 +41,8 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 4. Paquet de revue evaluateur: rapport, questions, grille de decision, matrice d'ecarts.
 5. Note de limites: ce qui est simule, ce qui est theorique, ce qui attend la revue metier.
 6. Gate `STATUT-PHASES-PROJET-V1` vert avec production reelle bloquee.
+
+Le paquet versionne est produit dans `atelier/PAQUET-V1-PRE-EVALUATEUR/` par `generer_paquet_v1_pre_evaluateur.py`. Il est regenere en CI et bloque le statut global si les fichiers ou signaux machine-readable divergent.
 
 ## Criteres done V1 pre-evaluateur
 

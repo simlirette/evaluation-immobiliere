@@ -1,0 +1,6 @@
+section,question_id,question,reponse_attendue,obligatoire,notes
+statut,Q-STATUT-001,Le statut runtime propose correspond-il a la lecture metier du dossier?,A REMPLIR PAR L'EVALUATEUR,oui,
+comparables,Q-COMP-001,Les comparables proposes sont-ils acceptables pour une premiere revue?,A REMPLIR PAR L'EVALUATEUR,oui,
+valeur,Q-VAL-001,Les approches de valeur et leurs traces sont-elles assez explicites?,A REMPLIR PAR L'EVALUATEUR,oui,
+rapport,Q-RAP-001,Le rapport exemple contient-il les sections attendues pour une revue professionnelle?,A REMPLIR PAR L'EVALUATEUR,oui,
+risques,Q-RISK-001,Quelles reserves doivent rester bloquantes avant usage sur dossier client?,A REMPLIR PAR L'EVALUATEUR,oui,

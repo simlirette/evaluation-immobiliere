@@ -37,7 +37,16 @@ CALIBRATION_INPUT_DEFAULT = ATELIER_DIR / "CALIBRATION-EVALUATEURS.csv"
 REPORT_JSON_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json"
 REPORT_MD_DEFAULT = ATELIER_DIR / "STATUT-PHASES-PROJET-V1.md"
 PRE_EVALUATOR_TARGET = "V1_PRE_EVALUATEUR"
-PRE_EVALUATOR_DECISION = "PRET_FINALISATION_V1_PRE_EVALUATEUR"
+PRE_EVALUATOR_PACKAGE_DECISION = "PRET_REVUE_EVALUATEUR_AGREE"
+PRE_EVALUATOR_PACKAGE_DIR = ATELIER_DIR / "PAQUET-V1-PRE-EVALUATEUR"
+PRE_EVALUATOR_PACKAGE_FILES = [
+    "INDEX.md",
+    "DEMO-MANIFEST-V1.json",
+    "RAPPORT-EXEMPLE-V1.md",
+    "QUESTIONS-REVUE-EVALUATEUR.md",
+    "GRILLE-REVUE-EVALUATEUR.csv",
+    "LIMITES-V1-PRE-EVALUATEUR.md",
+]
 
 
 def read_text(path: Path) -> str:
@@ -104,12 +113,49 @@ def phase(code: str, name: str, status: str, decision: str, evidence: str, *, bl
 
 def workflow_has_required_phase_gates(workflow_text: str) -> bool:
     required = [
+        "generer_paquet_v1_pre_evaluateur.py",
         "verifier_campagne_terrain_reelle_v1.py",
         "verifier_statut_phases_projet_v1.py",
         "verifier_release_candidate_v1.py",
         "python -m unittest discover",
     ]
     return all(item in workflow_text for item in required)
+
+
+def build_pre_evaluator_package_gate() -> dict[str, Any]:
+    manifest_path = PRE_EVALUATOR_PACKAGE_DIR / "DEMO-MANIFEST-V1.json"
+    manifest = read_json_dict(manifest_path)
+    missing_files = [
+        filename for filename in PRE_EVALUATOR_PACKAGE_FILES if not (PRE_EVALUATOR_PACKAGE_DIR / filename).exists()
+    ]
+    invalid_signals: list[str] = []
+    if manifest.get("schema_version") != "paquet_v1_pre_evaluateur_manifest_v1":
+        invalid_signals.append("schema_version")
+    if manifest.get("status") != PRE_EVALUATOR_PACKAGE_DECISION:
+        invalid_signals.append("status")
+    if manifest.get("target") != PRE_EVALUATOR_TARGET:
+        invalid_signals.append("target")
+    if manifest.get("field_validation") != "NON_REVENDIQUEE":
+        invalid_signals.append("field_validation")
+    if manifest.get("runtime_status") != "PRET_REVISION_FINALE":
+        invalid_signals.append("runtime_status")
+    if not str(manifest.get("dossier_id") or "").strip():
+        invalid_signals.append("dossier_id")
+
+    ready = not missing_files and not invalid_signals
+    details = []
+    if missing_files:
+        details.append("manquants=" + ",".join(missing_files))
+    if invalid_signals:
+        details.append("invalides=" + ",".join(invalid_signals))
+    return {
+        "ready": ready,
+        "status": PRE_EVALUATOR_PACKAGE_DECISION if ready else "PAQUET_A_REGENERER",
+        "manifest": manifest,
+        "missing_files": missing_files,
+        "invalid_signals": invalid_signals,
+        "evidence": normalize_path(PRE_EVALUATOR_PACKAGE_DIR) + (f" ({'; '.join(details)})" if details else ""),
+    }
 
 
 def build_project_status_report(
@@ -156,6 +202,8 @@ def build_project_status_report(
     pv_real_scope_ok = "Go production reelle: **NON**" in pv_text or "Go production: **NON**" in pv_text
     no_active_responses_before_stop = response_active_rows == 0 and calibration_active_rows == 0 and response_errors == 0
     pre_evaluator_plan_exists = (ATELIER_DIR / "PLAN-V1-PRE-EVALUATEUR-AGREE.md").exists()
+    pre_evaluator_package = build_pre_evaluator_package_gate()
+    pre_evaluator_package_ready = bool(pre_evaluator_package["ready"])
 
     checks = [
         check(
@@ -200,6 +248,12 @@ def build_project_status_report(
             "PRESENT" if pre_evaluator_plan_exists else "ABSENT",
             normalize_path(ATELIER_DIR / "PLAN-V1-PRE-EVALUATEUR-AGREE.md"),
         ),
+        check(
+            "paquet_v1_pre_evaluateur",
+            pre_evaluator_package_ready,
+            str(pre_evaluator_package["status"]),
+            str(pre_evaluator_package["evidence"]),
+        ),
     ]
 
     phases = [
@@ -218,12 +272,16 @@ def build_project_status_report(
     ]
 
     ok = all(item["ok"] for item in checks)
+    pre_evaluator_decision = PRE_EVALUATOR_PACKAGE_DECISION if ok else "A_CORRIGER"
     return {
         "schema_version": "statut_phases_projet_v1",
         "ok": ok,
-        "decision": "PROJET_PRET_FINALISATION_V1_PRE_EVALUATEUR_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
+        "decision": "PROJET_PRET_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE" if ok else "STATUT_PHASES_A_CORRIGER",
         "target": PRE_EVALUATOR_TARGET,
-        "pre_evaluator_decision": PRE_EVALUATOR_DECISION if ok else "A_CORRIGER",
+        "pre_evaluator_decision": pre_evaluator_decision,
+        "pre_evaluator_package_status": pre_evaluator_package["status"],
+        "pre_evaluator_package_ready": pre_evaluator_package_ready,
+        "pre_evaluator_package_manifest": pre_evaluator_package["manifest"],
         "phase_h_decision": phase_h_decision,
         "active_real_cases": active_real_cases,
         "response_active_rows": response_active_rows,
@@ -253,6 +311,7 @@ def build_markdown(report: dict[str, Any]) -> str:
         f"- Decision: **{report.get('decision', 'UNKNOWN')}**",
         f"- Cible produit: **{report.get('target', 'UNKNOWN')}**",
         f"- Decision pre-evaluateur: **{report.get('pre_evaluator_decision', 'UNKNOWN')}**",
+        f"- Paquet V1 pre-evaluateur: **{report.get('pre_evaluator_package_status', 'UNKNOWN')}**",
         f"- OK coherence: **{str(report.get('ok')).lower()}**",
         f"- Phase H reelle: **{report.get('phase_h_decision', 'UNKNOWN')}**",
         f"- Dossiers terrain actifs: **{report.get('active_real_cases', 0)}**",
@@ -301,7 +360,7 @@ def build_markdown(report: dict[str, Any]) -> str:
             "- Aucun dossier reel anonymise actif n'est versionne dans le repo.",
             "- Aucune reponse evaluateur active n'est presente dans les CSV de collecte.",
             "- Les revues evaluateurs externes versionnees restent des fixtures d'homologation/preparation, pas des retours de campagne terrain reelle.",
-            "- La prochaine action produit est la finalisation V1 pre-evaluateur: demo, UI/API, rapport exemple et paquet de revue.",
+            "- La prochaine action produit est la revue de la V1 avec l'evaluateur a partir du paquet versionne.",
             "- La prochaine action non simulable, apres V1, est la reception de dossiers anonymises valides hors repo actif, puis l'envoi du paquet evaluateurs.",
         ]
     )

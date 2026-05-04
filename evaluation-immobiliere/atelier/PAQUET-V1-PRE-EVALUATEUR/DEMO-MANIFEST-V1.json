@@ -1,0 +1,40 @@
+{
+  "schema_version": "paquet_v1_pre_evaluateur_manifest_v1",
+  "status": "PRET_REVUE_EVALUATEUR_AGREE",
+  "target": "V1_PRE_EVALUATEUR",
+  "field_validation": "NON_REVENDIQUEE",
+  "dossier_id": "D-001",
+  "runtime_status": "PRET_REVISION_FINALE",
+  "source_fixture": "case_nominal.json",
+  "artifact_dir": "evaluation-immobiliere/tests/runtime/case_nominal",
+  "artifacts_count": 17,
+  "comparables_count": 1,
+  "blocking_failures": [],
+  "warnings": [],
+  "valuation_values": {
+    "approche_comparative": 510000.0,
+    "approche_cout": 510000.0,
+    "approche_revenu": 510000.0
+  },
+  "ui_routes": [
+    "/review/ui",
+    "/ui",
+    "/ops/cockpit"
+  ],
+  "api_routes": [
+    "/fixtures",
+    "/start",
+    "/status",
+    "/artifacts",
+    "/review",
+    "/resume"
+  ],
+  "package_files": {
+    "index": "INDEX.md",
+    "manifest": "DEMO-MANIFEST-V1.json",
+    "rapport": "RAPPORT-EXEMPLE-V1.md",
+    "questions": "QUESTIONS-REVUE-EVALUATEUR.md",
+    "grille": "GRILLE-REVUE-EVALUATEUR.csv",
+    "limites": "LIMITES-V1-PRE-EVALUATEUR.md"
+  }
+}

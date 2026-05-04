@@ -1,9 +1,51 @@
 {
   "schema_version": "statut_phases_projet_v1",
   "ok": true,
-  "decision": "PROJET_PRET_FINALISATION_V1_PRE_EVALUATEUR_PROD_BLOQUEE",
+  "decision": "PROJET_PRET_REVUE_EVALUATEUR_AGREE_PROD_BLOQUEE",
   "target": "V1_PRE_EVALUATEUR",
-  "pre_evaluator_decision": "PRET_FINALISATION_V1_PRE_EVALUATEUR",
+  "pre_evaluator_decision": "PRET_REVUE_EVALUATEUR_AGREE",
+  "pre_evaluator_package_status": "PRET_REVUE_EVALUATEUR_AGREE",
+  "pre_evaluator_package_ready": true,
+  "pre_evaluator_package_manifest": {
+    "schema_version": "paquet_v1_pre_evaluateur_manifest_v1",
+    "status": "PRET_REVUE_EVALUATEUR_AGREE",
+    "target": "V1_PRE_EVALUATEUR",
+    "field_validation": "NON_REVENDIQUEE",
+    "dossier_id": "D-001",
+    "runtime_status": "PRET_REVISION_FINALE",
+    "source_fixture": "case_nominal.json",
+    "artifact_dir": "evaluation-immobiliere/tests/runtime/case_nominal",
+    "artifacts_count": 17,
+    "comparables_count": 1,
+    "blocking_failures": [],
+    "warnings": [],
+    "valuation_values": {
+      "approche_comparative": 510000.0,
+      "approche_cout": 510000.0,
+      "approche_revenu": 510000.0
+    },
+    "ui_routes": [
+      "/review/ui",
+      "/ui",
+      "/ops/cockpit"
+    ],
+    "api_routes": [
+      "/fixtures",
+      "/start",
+      "/status",
+      "/artifacts",
+      "/review",
+      "/resume"
+    ],
+    "package_files": {
+      "index": "INDEX.md",
+      "manifest": "DEMO-MANIFEST-V1.json",
+      "rapport": "RAPPORT-EXEMPLE-V1.md",
+      "questions": "QUESTIONS-REVUE-EVALUATEUR.md",
+      "grille": "GRILLE-REVUE-EVALUATEUR.csv",
+      "limites": "LIMITES-V1-PRE-EVALUATEUR.md"
+    }
+  },
   "phase_h_decision": "EN_ATTENTE_ENTREES_TERRAIN_REELLES",
   "active_real_cases": 0,
   "response_active_rows": 0,
@@ -58,6 +100,12 @@
       "ok": true,
       "status": "PRESENT",
       "evidence": "evaluation-immobiliere/atelier/PLAN-V1-PRE-EVALUATEUR-AGREE.md"
+    },
+    {
+      "name": "paquet_v1_pre_evaluateur",
+      "ok": true,
+      "status": "PRET_REVUE_EVALUATEUR_AGREE",
+      "evidence": "evaluation-immobiliere/atelier/PAQUET-V1-PRE-EVALUATEUR"
     }
   ],
   "phases": [
