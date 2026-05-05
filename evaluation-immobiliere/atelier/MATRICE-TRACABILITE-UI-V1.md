@@ -15,6 +15,7 @@ Relier les éléments affichés dans l'interface évaluateur aux sources runtime
 | Artefacts | `/artifacts` | `event_id`, `step`, `artifact`, `sha256` | `artifact_index.json` |
 | Événements | `/stream` | `event_id`, `sequence`, `session_id`, `run_id` | `events.jsonl` |
 | Décision humaine | `/review` | `decision`, `reviewer`, `notes` | `review.json` |
+| Campagne revue | `/review/campaign` | `reviews_count`, `decision_counts`, `ready_for_package_count` | `runtime_sessions/*/review.json` |
 | Reprise | `/resume` | `RESUME_READY` / `RESUME_BLOCKED` | `resume.json` |
 
 ## Couverture des items Phase E
@@ -25,7 +26,7 @@ Relier les éléments affichés dans l'interface évaluateur aux sources runtime
 | Vue approches de valeur | Partiel via artefacts indexés | Comparaison méthodes et écarts à créer |
 | Conformité | Partiel via statut et items P1/P2 | Vue anomalies/recommandations à créer |
 | Validation finale | Couvert par `/review` | Justification obligatoire à durcir |
-| Historique auditable | Couvert par `review.json`, `events.jsonl`, `resume.json` | Consolidation campagne à créer |
+| Historique auditable | Couvert par `review.json`, `events.jsonl`, `resume.json`, `/review/campaign` | Registre central long terme a brancher si necessaire |
 
 ## Invariants
 - Aucune décision UI ne doit être enregistrée sans `session_id`.
@@ -39,9 +40,9 @@ Relier les éléments affichés dans l'interface évaluateur aux sources runtime
 | Route `/review/ui` | Testée via `test_ops_http_endpoints_read_runtime_reports` |
 | Fichier UI | Testé via `test_evaluator_ui_file_exists` |
 | File revue | 16 items générés |
-| Suite complète | 108 tests OK après ajout de la route UI évaluateur |
+| Suite complète | 186 tests OK après ajout du registre de campagne |
 
 ## Prochain durcissement
-- Ajouter un modèle `review_campaign_v1` consolidant toutes les décisions.
+- Registre `review_campaign_v1` disponible via `/review/campaign`; un stockage central long terme reste optionnel.
 - Ajouter validation API: notes obligatoires pour `A_CORRIGER`, `REJETE`, et overrides P1.
 - Ajouter liens directs vers contenu artefact filtré par type.

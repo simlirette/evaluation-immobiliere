@@ -226,6 +226,10 @@
       <div class="queue sessions">
         <table id="sessionTable"></table>
       </div>
+      <div class="panel">
+        <h2>Campagne revue</h2>
+        <table id="campaignTable"></table>
+      </div>
     </section>
     <section class="panel">
       <div class="workspace">
@@ -319,6 +323,7 @@
     const $ = (id) => document.getElementById(id);
     let queueRows = [];
     let sessionRows = [];
+    let campaign = {};
     let fixtures = [];
     let selected = null;
     let activeSession = null;
@@ -372,19 +377,31 @@
       });
     }
 
+    function renderCampaign() {
+      $('campaignTable').innerHTML = `<tbody>
+        <tr><th>Sessions</th><td>${escapeHtml(campaign.sessions_count ?? 0)}</td></tr>
+        <tr><th>Revues</th><td>${escapeHtml(campaign.reviews_count ?? 0)}</td></tr>
+        <tr><th>Validees</th><td>${escapeHtml(campaign.validated_count ?? 0)}</td></tr>
+        <tr><th>A traiter</th><td>${escapeHtml(campaign.pending_count ?? 0)}</td></tr>
+        <tr><th>Bloquees</th><td>${escapeHtml(campaign.blocked_count ?? 0)}</td></tr>
+      </tbody>`;
+    }
+
     function fixtureForSelected() {
       if (!selected) return null;
       return fixtures.find((fixture) => fixture.dossier_id === selected.dossier_id);
     }
 
     async function refresh() {
-      const [queue, fixtureData, workbench] = await Promise.all([json('/ops/review_queue'), json('/fixtures'), json('/review/workbench')]);
+      const [queue, fixtureData, workbench, campaignData] = await Promise.all([json('/ops/review_queue'), json('/fixtures'), json('/review/workbench'), json('/review/campaign')]);
       queueRows = queue.rows || [];
       fixtures = fixtureData.fixtures || [];
       sessionRows = workbench.sessions || [];
+      campaign = campaignData || {};
       if (!selected && queueRows.length) selected = queueRows[0];
       renderQueue();
       renderSessions();
+      renderCampaign();
       $('updated').textContent = `Derniere actualisation: ${new Date().toLocaleString()}`;
     }
 
