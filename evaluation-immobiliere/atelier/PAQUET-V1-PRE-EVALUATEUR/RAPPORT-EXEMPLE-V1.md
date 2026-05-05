@@ -4,7 +4,7 @@ _As-of date: 2026-05-04 (UTC)_
 
 ## Avertissement
 
-Rapport genere depuis une fixture de demonstration non sensible. Aucune validation terrain reelle ni reponse d'evaluateur n'est revendiquee.
+Rapport genere depuis une entree anonymisee ou synthetique validee pour demonstration. Aucune validation terrain reelle ni reponse d'evaluateur n'est revendiquee.
 
 ## Synthese dossier
 

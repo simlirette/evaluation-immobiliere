@@ -19,6 +19,7 @@ Une première UI exploitable est disponible:
 - deeplink session: `/review/ui?session_id=...`;
 - synthese workbench: `/review/workbench`;
 - registre campagne: `/review/campaign`;
+- paquet V1 session: `/review/package`;
 - reprise sessions locales: `/sessions`;
 - source file de revue: `/ops/review_queue`;
 - source fixtures: `/fixtures`;
@@ -39,6 +40,10 @@ Une première UI exploitable est disponible:
 | Reprise | Résultat `/resume` | Vérifier `RESUME_READY` |
 
 ## Workflow UI
+Le bouton `Paquet V1` appelle `/review/package` et reste soumis aux gates
+backend: decision `VALIDE`, integrite OK et aucun blocage runtime. Il produit
+un paquet local sans reponse evaluateur pre-remplie.
+
 1. Charger la file de revue.
 2. Sélectionner un item prioritaire.
 3. Ouvrir le dossier lié au `dossier_id`.

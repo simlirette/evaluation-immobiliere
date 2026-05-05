@@ -7,6 +7,7 @@ _As-of date: 2026-05-04 (UTC)_
 - Statut paquet: **PRET_REVUE_EVALUATEUR_AGREE**
 - Cible: **V1_PRE_EVALUATEUR**
 - Validation terrain reelle: **NON_REVENDIQUEE**
+- Reponses evaluateur externe incluses: **False**
 - Dossier demo: **D-001**
 - Statut runtime: **PRET_REVISION_FINALE**
 - Fixture source: `case_nominal.json`
@@ -32,3 +33,4 @@ _As-of date: 2026-05-04 (UTC)_
 ## Regle de portee
 
 Ce paquet sert a presenter une V1 pre-evaluateur. Il ne remplace pas une validation terrain reelle.
+Il ne contient aucune reponse d'evaluateur agree et ne doit pas en simuler.

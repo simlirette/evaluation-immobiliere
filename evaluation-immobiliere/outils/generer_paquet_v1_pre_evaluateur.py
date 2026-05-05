@@ -128,14 +128,20 @@ def collect_context(case: dict[str, Any]) -> dict[str, Any]:
 
 def build_manifest(context: dict[str, Any]) -> dict[str, Any]:
     case = as_dict(context.get("case"))
+    session = as_dict(context.get("session"))
+    review = as_dict(context.get("review"))
+    integrity = as_dict(context.get("integrity"))
     status = as_dict(context.get("status"))
     comparables = as_dict(context.get("comparables"))
     inventory = as_list(context.get("inventory"))
-    return {
+    manifest = {
         "schema_version": "paquet_v1_pre_evaluateur_manifest_v1",
         "status": PACKAGE_STATUS,
         "target": "V1_PRE_EVALUATEUR",
+        "package_origin": context.get("package_origin", "runtime_summary_demo"),
         "field_validation": "NON_REVENDIQUEE",
+        "external_evaluator_responses_included": False,
+        "sensitive_data_included": False,
         "dossier_id": case.get("dossier_id", ""),
         "runtime_status": case.get("status", "UNKNOWN"),
         "source_fixture": first_source_fixture(context),
@@ -145,10 +151,22 @@ def build_manifest(context: dict[str, Any]) -> dict[str, Any]:
         "blocking_failures": case.get("blocking_failures", []),
         "warnings": case.get("warnings", []),
         "valuation_values": status.get("valuation_values", {}),
-        "ui_routes": ["/review/ui", "/ui", "/ops/cockpit"],
-        "api_routes": ["/fixtures", "/start", "/status", "/artifacts", "/review", "/resume"],
+        "ui_routes": ["/product", "/review/ui", "/ui", "/ops/cockpit"],
+        "api_routes": ["/fixtures", "/start", "/status", "/artifacts", "/review", "/review/package", "/resume"],
         "package_files": {key: str(value) for key, value in PACKAGE_FILES.items()},
     }
+    if session:
+        manifest["source_session_id"] = session.get("session_id", "")
+        manifest["source_run_id"] = session.get("run_id", "")
+    if review:
+        manifest["internal_review_decision"] = review.get("decision", "")
+        manifest["internal_reviewer"] = review.get("reviewer", "")
+        manifest["internal_reviewed_at_utc"] = review.get("created_at_utc", "")
+        manifest["internal_review_notes_present"] = bool(str(review.get("notes") or "").strip())
+    if integrity:
+        manifest["session_integrity_ok"] = bool(integrity.get("ok"))
+        manifest["session_integrity_errors_count"] = len(as_list(integrity.get("errors")))
+    return manifest
 
 
 def first_source_fixture(context: dict[str, Any]) -> str:
@@ -167,6 +185,8 @@ def format_money(value: Any) -> str:
 
 
 def build_index_markdown(context: dict[str, Any], manifest: dict[str, Any]) -> str:
+    session_id = str(manifest.get("source_session_id") or "")
+    review_decision = str(manifest.get("internal_review_decision") or "")
     lines = [
         "# Paquet V1 pre-evaluateur agree",
         "",
@@ -177,32 +197,42 @@ def build_index_markdown(context: dict[str, Any], manifest: dict[str, Any]) -> s
         f"- Statut paquet: **{manifest['status']}**",
         f"- Cible: **{manifest['target']}**",
         f"- Validation terrain reelle: **{manifest['field_validation']}**",
+        f"- Reponses evaluateur externe incluses: **{manifest['external_evaluator_responses_included']}**",
         f"- Dossier demo: **{manifest.get('dossier_id', '-')}**",
         f"- Statut runtime: **{manifest.get('runtime_status', 'UNKNOWN')}**",
         f"- Fixture source: `{manifest.get('source_fixture', '-')}`",
         f"- Artefacts: **{manifest.get('artifacts_count', 0)}**",
-        "",
-        "## Fichiers du paquet",
-        "",
-        "| Fichier | Role |",
-        "|---|---|",
-        "| `RAPPORT-EXEMPLE-V1.md` | Rapport de demonstration a lire avant la revue. |",
-        "| `QUESTIONS-REVUE-EVALUATEUR.md` | Questions ouvertes a faire trancher par l'evaluateur. |",
-        "| `GRILLE-REVUE-EVALUATEUR.csv` | Grille vide de collecte, sans reponse inventee. |",
-        "| `LIMITES-V1-PRE-EVALUATEUR.md` | Limites et hypotheses a presenter explicitement. |",
-        "| `DEMO-MANIFEST-V1.json` | Manifest machine-readable du paquet. |",
-        "",
-        "## Parcours demo",
-        "",
-        "1. Demarrer l'API locale avec `python evaluation-immobiliere/outils/lancer_api_v0.py`.",
-        "2. Ouvrir `/review/ui` pour la revue evaluateur.",
-        "3. Ouvrir le dossier demo et inspecter les artefacts.",
-        "4. Lire le rapport exemple et remplir la grille avec l'evaluateur.",
-        "",
-        "## Regle de portee",
-        "",
-        "Ce paquet sert a presenter une V1 pre-evaluateur. Il ne remplace pas une validation terrain reelle.",
     ]
+    if session_id:
+        lines.append(f"- Session source: `{session_id}`")
+    if review_decision:
+        lines.append(f"- Decision revue interne: **{review_decision}**")
+    lines.extend(
+        [
+            "",
+            "## Fichiers du paquet",
+            "",
+            "| Fichier | Role |",
+            "|---|---|",
+            "| `RAPPORT-EXEMPLE-V1.md` | Rapport de demonstration a lire avant la revue. |",
+            "| `QUESTIONS-REVUE-EVALUATEUR.md` | Questions ouvertes a faire trancher par l'evaluateur. |",
+            "| `GRILLE-REVUE-EVALUATEUR.csv` | Grille vide de collecte, sans reponse inventee. |",
+            "| `LIMITES-V1-PRE-EVALUATEUR.md` | Limites et hypotheses a presenter explicitement. |",
+            "| `DEMO-MANIFEST-V1.json` | Manifest machine-readable du paquet. |",
+            "",
+            "## Parcours demo",
+            "",
+            "1. Demarrer l'API locale avec `python evaluation-immobiliere/outils/lancer_api_v0.py`.",
+            "2. Ouvrir `/review/ui` pour la revue evaluateur.",
+            "3. Ouvrir le dossier demo et inspecter les artefacts.",
+            "4. Lire le rapport exemple et remplir la grille avec l'evaluateur.",
+            "",
+            "## Regle de portee",
+            "",
+            "Ce paquet sert a presenter une V1 pre-evaluateur. Il ne remplace pas une validation terrain reelle.",
+            "Il ne contient aucune reponse d'evaluateur agree et ne doit pas en simuler.",
+        ]
+    )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -220,7 +250,7 @@ def build_report_markdown(context: dict[str, Any], manifest: dict[str, Any]) -> 
         "",
         "## Avertissement",
         "",
-        "Rapport genere depuis une fixture de demonstration non sensible. Aucune validation terrain reelle ni reponse d'evaluateur n'est revendiquee.",
+        "Rapport genere depuis une entree anonymisee ou synthetique validee pour demonstration. Aucune validation terrain reelle ni reponse d'evaluateur n'est revendiquee.",
         "",
         "## Synthese dossier",
         "",
@@ -349,6 +379,7 @@ def build_limits_markdown(manifest: dict[str, Any]) -> str:
         "",
         "- Aucune validation terrain reelle.",
         "- Aucune approbation par evaluateur immobilier agree.",
+        "- Aucune reponse d'evaluateur agree inventee ou pre-remplie.",
         "- Aucun usage de dossier client sensible.",
         "- Aucun go production metier.",
         "",
@@ -384,15 +415,7 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def generate_package(
-    *,
-    summary_path: Path = SUMMARY_DEFAULT,
-    out_dir: Path = OUT_DIR_DEFAULT,
-    dossier_id: str = "",
-) -> dict[str, Any]:
-    summary = load_summary(summary_path)
-    case = select_demo_case(summary, dossier_id=dossier_id)
-    context = collect_context(case)
+def write_package_from_context(context: dict[str, Any], out_dir: Path) -> dict[str, Any]:
     manifest = build_manifest(context)
 
     write_json(out_dir / PACKAGE_FILES["manifest"], manifest)
@@ -409,6 +432,39 @@ def generate_package(
         "out_dir": normalize_path(out_dir),
         "files": {key: normalize_path(out_dir / filename) for key, filename in PACKAGE_FILES.items()},
     }
+
+
+def generate_package_from_case(
+    *,
+    case: dict[str, Any],
+    out_dir: Path,
+    session: dict[str, Any] | None = None,
+    review: dict[str, Any] | None = None,
+    integrity: dict[str, Any] | None = None,
+    package_origin: str = "validated_runtime_session",
+) -> dict[str, Any]:
+    context = collect_context(case)
+    context["package_origin"] = package_origin
+    if session:
+        context["session"] = session
+    if review:
+        context["review"] = review
+    if integrity:
+        context["integrity"] = integrity
+    return write_package_from_context(context, out_dir)
+
+
+def generate_package(
+    *,
+    summary_path: Path = SUMMARY_DEFAULT,
+    out_dir: Path = OUT_DIR_DEFAULT,
+    dossier_id: str = "",
+) -> dict[str, Any]:
+    summary = load_summary(summary_path)
+    case = select_demo_case(summary, dossier_id=dossier_id)
+    context = collect_context(case)
+    context["package_origin"] = "runtime_summary_demo"
+    return write_package_from_context(context, out_dir)
 
 
 def main() -> int:

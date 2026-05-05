@@ -10,7 +10,10 @@
     "schema_version": "paquet_v1_pre_evaluateur_manifest_v1",
     "status": "PRET_REVUE_EVALUATEUR_AGREE",
     "target": "V1_PRE_EVALUATEUR",
+    "package_origin": "runtime_summary_demo",
     "field_validation": "NON_REVENDIQUEE",
+    "external_evaluator_responses_included": false,
+    "sensitive_data_included": false,
     "dossier_id": "D-001",
     "runtime_status": "PRET_REVISION_FINALE",
     "source_fixture": "case_nominal.json",
@@ -25,6 +28,7 @@
       "approche_revenu": 510000.0
     },
     "ui_routes": [
+      "/product",
       "/review/ui",
       "/ui",
       "/ops/cockpit"
@@ -35,6 +39,7 @@
       "/status",
       "/artifacts",
       "/review",
+      "/review/package",
       "/resume"
     ],
     "package_files": {

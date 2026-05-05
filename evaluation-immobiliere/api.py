@@ -46,6 +46,8 @@ OPS_CSV_REPORTS = {
 }
 ACCESS_AUDIT_FILENAME = "access_audit.jsonl"
 ARTIFACT_PREVIEW_MAX_BYTES = 64 * 1024
+V1_PACKAGE_DIRNAME = "package_v1"
+V1_PACKAGE_MANIFEST_FILENAME = "DEMO-MANIFEST-V1.json"
 REVIEW_DECISIONS = {"PRET_REVUE", "A_CORRIGER", "VALIDE", "REJETE"}
 REVIEW_NOTES_REQUIRED = {"A_CORRIGER", "VALIDE", "REJETE"}
 ROLE_PERMISSIONS = {
@@ -181,6 +183,7 @@ def session_workbench_record(session: dict) -> dict:
     result = read_json_dict(Path(str(session.get("result_path") or "")))
     review = read_json_dict(Path(str(session.get("review_path") or "")))
     artifacts = read_json_dict(Path(str(session.get("artifact_index_path") or "")))
+    package = read_session_package_manifest(session)
     try:
         integrity = validate_session_integrity(session) if session_id else {"ok": False, "errors": ["session_id_missing"]}
     except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -217,6 +220,10 @@ def session_workbench_record(session: dict) -> dict:
         "next_action": next_action,
         "session_summary_url": f"/session/summary?session_id={session_id}",
         "dossier_review_url": f"/review/dossier?session_id={session_id}",
+        "package_status": package.get("status", "ABSENT"),
+        "package_origin": package.get("package_origin", ""),
+        "package_generated": bool(package),
+        "package_url": f"/review/package?session_id={session_id}",
     }
 
 
@@ -270,6 +277,7 @@ def review_workbench_summary(limit: int = 50) -> dict:
             "session_summary": "/session/summary",
             "dossier_review": "/review/dossier",
             "save_review": "/review",
+            "session_package": "/review/package",
             "resume": "/resume",
         },
     }
@@ -296,6 +304,8 @@ def review_campaign_summary(limit: int = 100) -> dict:
                 "warnings_count": int(item.get("warnings_count", 0) or 0),
                 "artifacts_count": int(item.get("artifacts_count", 0) or 0),
                 "next_action": item.get("next_action", ""),
+                "package_status": item.get("package_status", "ABSENT"),
+                "package_url": item.get("package_url", ""),
             }
         )
 
@@ -310,6 +320,7 @@ def review_campaign_summary(limit: int = 100) -> dict:
         for row in rows
         if not row["integrity_ok"] or row["blocking_failures_count"] > 0 or row["decision"] in {"A_CORRIGER", "REJETE"}
     ]
+    package_rows = [row for row in rows if row["package_status"] != "ABSENT"]
     return {
         "schema_version": "review_campaign_v1",
         "scope": "REVUE_INTERNE_PRE_EVALUATEUR",
@@ -321,10 +332,12 @@ def review_campaign_summary(limit: int = 100) -> dict:
         "correction_count": decision_counts.get("A_CORRIGER", 0),
         "rejected_count": decision_counts.get("REJETE", 0),
         "ready_for_package_count": len(ready_rows),
+        "package_generated_count": len(package_rows),
         "blocked_count": len(blocked_rows),
         "decision_counts": decision_counts,
         "rows": rows,
         "ready_session_ids": [row["session_id"] for row in ready_rows],
+        "package_session_ids": [row["session_id"] for row in package_rows],
         "blocked_session_ids": [row["session_id"] for row in blocked_rows],
         "source": {
             "sessions_dir": str(SESSIONS_DIR),
@@ -352,6 +365,7 @@ def product_summary() -> dict:
     ops = ops_summary()
     ops_snapshot = ops_observability_snapshot()
     review_campaign = review_campaign_summary(limit=25)
+    session_packages = latest_session_packages_summary(limit=25)
     decision = str(status_report.get("decision") or "UNKNOWN")
     return {
         "schema_version": "product_cockpit_summary_v1",
@@ -377,6 +391,7 @@ def product_summary() -> dict:
             "recent": recent_sessions(),
         },
         "review_campaign": review_campaign,
+        "session_packages": session_packages,
         "ops": ops,
         "ops_snapshot": ops_snapshot,
         "terrain": {
@@ -391,6 +406,8 @@ def product_summary() -> dict:
             "dossier_id": package_manifest.get("dossier_id", ""),
             "runtime_status": package_manifest.get("runtime_status", "UNKNOWN"),
             "artifacts_count": package_manifest.get("artifacts_count", 0),
+            "session_generated_count": session_packages["generated_count"],
+            "latest_session_id": session_packages.get("latest_session_id", ""),
         },
         "handoff": {
             "status": handoff_manifest.get("status", "UNKNOWN"),
@@ -406,6 +423,7 @@ def product_summary() -> dict:
             "sessions": "/sessions",
             "review_workbench": "/review/workbench",
             "review_campaign": "/review/campaign",
+            "review_package": "/review/package",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
             "dossier_review": "/review/dossier",
@@ -907,6 +925,168 @@ def dossier_review_summary(session_id: str) -> dict:
     }
 
 
+def session_package_dir(session: dict) -> Path:
+    raw = str(session.get("session_dir") or "").strip()
+    base = Path(raw) if raw else ROOT / ".missing-session"
+    return base / V1_PACKAGE_DIRNAME
+
+
+def session_package_manifest_path(session: dict) -> Path:
+    return session_package_dir(session) / V1_PACKAGE_MANIFEST_FILENAME
+
+
+def read_session_package_manifest(session: dict) -> dict:
+    return read_json_dict(session_package_manifest_path(session))
+
+
+def session_review_payload(session: dict) -> dict:
+    session_dir = Path(str(session.get("session_dir") or ""))
+    review_path = Path(str(session.get("review_path") or ""))
+    if review_path.exists():
+        try:
+            review_path.resolve().relative_to(session_dir.resolve())
+        except (OSError, ValueError):
+            review_path = session_dir / "review.json"
+    else:
+        review_path = session_dir / "review.json"
+    return read_json_dict(review_path)
+
+
+def validate_v1_package_source(session: dict) -> dict:
+    result = read_json_dict(Path(str(session.get("result_path") or "")))
+    review = session_review_payload(session)
+    integrity = validate_session_integrity(session)
+    errors: list[str] = []
+
+    if not result:
+        errors.append("runtime_result_missing")
+    if review.get("decision") != "VALIDE":
+        errors.append("internal_review_valide_required")
+    if not integrity.get("ok"):
+        errors.append("session_integrity_invalid")
+
+    blocking_failures = result.get("blocking_failures", [])
+    if not isinstance(blocking_failures, list):
+        blocking_failures = ["blocking_failures_invalid"]
+    if blocking_failures:
+        errors.append("runtime_blocking_failures_present")
+
+    artifact_dir = Path(str(result.get("artifact_dir") or ""))
+    if not artifact_dir.exists() or not artifact_dir.is_dir():
+        errors.append("artifact_dir_missing")
+    else:
+        session_dir = Path(str(session.get("session_dir") or "")).resolve()
+        try:
+            artifact_dir.resolve().relative_to(session_dir)
+        except (OSError, ValueError):
+            errors.append("artifact_dir_outside_session")
+
+    return {
+        "schema_version": "v1_package_source_gate_v1",
+        "ok": not errors,
+        "session_id": session.get("session_id", ""),
+        "run_id": session.get("run_id", ""),
+        "required_review_decision": "VALIDE",
+        "actual_review_decision": review.get("decision", "A_SAISIR"),
+        "integrity_ok": bool(integrity.get("ok")),
+        "blocking_failures_count": len(blocking_failures),
+        "artifact_dir": str(artifact_dir) if str(artifact_dir) != "." else "",
+        "blocking_errors_count": len(errors),
+        "blocking_errors": errors,
+        "external_evaluator_responses_included": False,
+    }
+
+
+def session_package_summary(session_id: str) -> dict:
+    session = require_session(session_id)
+    manifest = read_session_package_manifest(session)
+    package_dir = session_package_dir(session)
+    package_files = manifest.get("package_files", {}) if manifest else {}
+    files = {}
+    if isinstance(package_files, dict):
+        files = {
+            key: {
+                "path": str(package_dir / str(filename)),
+                "exists": (package_dir / str(filename)).exists(),
+            }
+            for key, filename in package_files.items()
+        }
+    return {
+        "schema_version": "session_package_v1",
+        "status": manifest.get("status", "ABSENT"),
+        "session_id": session_id,
+        "run_id": session.get("run_id", ""),
+        "dossier_id": manifest.get("dossier_id", session.get("dossier_id", "")),
+        "out_dir": str(package_dir),
+        "manifest_path": str(session_package_manifest_path(session)),
+        "manifest": manifest,
+        "files": files,
+        "gate": validate_v1_package_source(session),
+        "external_evaluator_responses_included": False,
+    }
+
+
+def latest_session_packages_summary(limit: int = 25) -> dict:
+    rows = [
+        {
+            "session_id": item.get("session_id", ""),
+            "dossier_id": item.get("dossier_id", ""),
+            "package_status": item.get("package_status", "ABSENT"),
+            "package_url": item.get("package_url", ""),
+        }
+        for item in list_session_records(limit=limit)
+        if item.get("package_generated")
+    ]
+    return {
+        "schema_version": "session_packages_summary_v1",
+        "generated_count": len(rows),
+        "latest_session_id": rows[0]["session_id"] if rows else "",
+        "rows": rows,
+    }
+
+
+def generate_v1_package_for_session(session_id: str) -> dict:
+    from outils.generer_paquet_v1_pre_evaluateur import PACKAGE_FILES, generate_package_from_case
+
+    session = require_session(session_id)
+    gate = validate_v1_package_source(session)
+    if not gate["ok"]:
+        raise ValueError("paquet V1 refuse: " + "; ".join(gate["blocking_errors"]))
+
+    result = read_json_dict(Path(str(session.get("result_path") or "")))
+    review = session_review_payload(session)
+    integrity = validate_session_integrity(session)
+    out_dir = session_package_dir(session)
+    outputs = generate_package_from_case(
+        case=result,
+        out_dir=out_dir,
+        session=session,
+        review=review,
+        integrity=integrity,
+        package_origin="validated_runtime_session",
+    )
+    manifest_path = out_dir / PACKAGE_FILES["manifest"]
+    manifest = read_json_dict(manifest_path)
+    session["v1_package_path"] = str(out_dir)
+    session["v1_package_manifest_path"] = str(manifest_path)
+    session["v1_package_status"] = outputs["status"]
+    save_session(session)
+    return {
+        "schema_version": "session_package_v1",
+        "status": outputs["status"],
+        "session_id": session_id,
+        "run_id": session.get("run_id", ""),
+        "dossier_id": outputs["dossier_id"],
+        "out_dir": outputs["out_dir"],
+        "manifest_path": str(manifest_path),
+        "manifest": manifest,
+        "files": outputs["files"],
+        "gate": gate,
+        "external_evaluator_responses_included": False,
+        "package_url": f"/review/package?session_id={session_id}",
+    }
+
+
 def validate_review_payload(session: dict, body: dict) -> dict:
     decision = str(body.get("decision") or "PENDING").strip()
     reviewer = str(body.get("reviewer") or "").strip()
@@ -1178,6 +1358,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             limit = bounded_limit(parse_qs(parsed.query).get("limit", ["100"])[0], default=100, maximum=250)
             self._send_json(200, review_campaign_summary(limit=limit))
             return
+        if parsed.path == "/review/package":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, session_package_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):
                 return
@@ -1237,6 +1422,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("review_write"):
                     return
                 self._send_json(200, save_review(body))
+                return
+            if self.path == "/review/package":
+                if not self._require_permission("review_write"):
+                    return
+                self._send_json(200, generate_v1_package_for_session(str(body.get("session_id", ""))))
                 return
             if self.path == "/ops/pre-response-run":
                 if not self._require_permission("ops_write"):

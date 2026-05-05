@@ -44,6 +44,8 @@ Cette V1 ne pretend pas etre validee terrain reel. Elle doit etre assez complete
 
 Le paquet versionne est produit dans `atelier/PAQUET-V1-PRE-EVALUATEUR/` par `generer_paquet_v1_pre_evaluateur.py`. Il est regenere en CI et bloque le statut global si les fichiers ou signaux machine-readable divergent.
 
+Le paquet de session est produit a la demande par `POST /review/package` dans `runtime_sessions/<session_id>/package_v1/`. Il exige une session validee en revue interne, une integrite OK et aucun blocage runtime. Il reste local/ignore par git et expose `external_evaluator_responses_included=false`.
+
 Le handoff de seance est produit par `generer_handoff_revue_evaluateur_v1.py`. Il transforme le paquet en brief, ordre du jour, checklist et manifest de point d'arret avant integration de vraies reponses evaluateur.
 
 ## Criteres done V1 pre-evaluateur
