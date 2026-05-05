@@ -509,8 +509,19 @@
     $('saveReview').addEventListener('click', () => saveReview().catch((error) => $('raw').textContent = error.message));
     $('resume').addEventListener('click', () => resume().catch((error) => $('raw').textContent = error.message));
 
+    async function bootstrap() {
+      await refresh();
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id') || '';
+      if (sessionId) {
+        $('sessionInput').value = sessionId;
+        await loadSessionSummary(sessionId);
+        openStream();
+      }
+    }
+
     RuntimeAuth.mount('authPanel');
-    refresh().catch((error) => $('raw').textContent = error.message);
+    bootstrap().catch((error) => $('raw').textContent = error.message);
   </script>
 </body>
 </html>

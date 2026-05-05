@@ -70,6 +70,7 @@
       color: #fff;
     }
     button.primary:hover { background: var(--accent-dark); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
     select, input {
       min-height: 36px;
       border: 1px solid var(--line);
@@ -200,6 +201,7 @@
       <select id="fixture"></select>
       <button id="demo">Lancer demo</button>
       <button id="resume">Reprise session</button>
+      <button id="openReview" disabled>Ouvrir revue</button>
       <div class="toolbar" id="authPanel"></div>
     </div>
     <div class="grid">
@@ -317,6 +319,11 @@
       ).join("");
     }
 
+    function setActiveSession(sessionId) {
+      activeSessionId = sessionId || "";
+      $("openReview").disabled = !activeSessionId;
+    }
+
     function renderSummary(payload) {
       summary = payload;
       metric("status", payload.status);
@@ -361,7 +368,7 @@
         method: "POST",
         body: JSON.stringify({ fixture })
       });
-      activeSessionId = payload.session.session_id;
+      setActiveSession(payload.session.session_id);
       $("demoTable").innerHTML = `<tbody>
         <tr><th>Session</th><td>${payload.session.session_id}</td></tr>
         <tr><th>Dossier</th><td>${payload.result.dossier_id}</td></tr>
@@ -374,7 +381,8 @@
 
     async function loadSession(sessionId) {
       if (!sessionId) return;
-      const summary = await api(`/session/summary?session_id=${sessionId}`);
+      setActiveSession(sessionId);
+      const summary = await api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`);
       $("demoTable").innerHTML = `<tbody>
         <tr><th>Session</th><td>${summary.session.session_id}</td></tr>
         <tr><th>Dossier</th><td>${summary.result.dossier_id || "-"}</td></tr>
@@ -394,9 +402,15 @@
       await refresh();
     }
 
+    function openReview() {
+      if (!activeSessionId) return;
+      window.location.href = `/review/ui?session_id=${encodeURIComponent(activeSessionId)}`;
+    }
+
     $("refresh").addEventListener("click", () => refresh().catch((error) => $("raw").textContent = error.message));
     $("demo").addEventListener("click", () => launchDemo().catch((error) => $("raw").textContent = error.message));
     $("resume").addEventListener("click", () => resumeSession().catch((error) => $("raw").textContent = error.message));
+    $("openReview").addEventListener("click", openReview);
     RuntimeAuth.mount("authPanel");
     refresh().catch((error) => $("raw").textContent = error.message);
   </script>

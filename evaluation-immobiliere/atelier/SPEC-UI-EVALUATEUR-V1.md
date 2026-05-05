@@ -16,6 +16,7 @@ artefacts JSON/Markdown indexes dans la session.
 Une première UI exploitable est disponible:
 - fichier: `evaluation-immobiliere/ui/evaluateur_review.html`;
 - routes: `/review/ui`, `/evaluateur`, `/evaluateur/revue`;
+- deeplink session: `/review/ui?session_id=...`;
 - synthese workbench: `/review/workbench`;
 - reprise sessions locales: `/sessions`;
 - source file de revue: `/ops/review_queue`;
@@ -40,7 +41,7 @@ Une première UI exploitable est disponible:
 1. Charger la file de revue.
 2. Sélectionner un item prioritaire.
 3. Ouvrir le dossier lié au `dossier_id`.
-4. Reprendre au besoin une session existante depuis le workbench.
+4. Reprendre au besoin une session existante depuis le workbench ou un deeplink produit.
 5. Inspecter statut, événements et artefacts.
 6. Enregistrer une décision humaine.
 7. Lancer la reprise pour prouver l'intégrité persistée.
