@@ -24,13 +24,16 @@ from api import (
     UI_PATH,
     RuntimeApiHandler,
     dossier_review_summary,
+    list_session_records,
     list_fixtures,
     load_ops_csv,
     load_ops_json,
     ops_observability_snapshot,
     ops_summary,
     product_summary,
+    review_workbench_summary,
     resume_session,
+    save_review,
     session_artifact_content,
     session_artifacts,
     session_summary,
@@ -80,6 +83,8 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["artifact_content"], "/artifact")
         self.assertEqual(summary["routes"]["dossier_review"], "/review/dossier")
         self.assertEqual(summary["routes"]["ops_snapshot"], "/ops/snapshot")
+        self.assertEqual(summary["routes"]["sessions"], "/sessions")
+        self.assertEqual(summary["routes"]["review_workbench"], "/review/workbench")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
         self.assertIn("terrain", summary)
         self.assertIn("phase_h_gate_status", summary["ops"])
@@ -367,6 +372,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(doctor["status"], "OK")
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
         self.assertIn("<title>Revue dossier</title>", evaluator_ui)
+        self.assertIn("Sessions existantes", evaluator_ui)
         self.assertIn("<title>Produit evaluation immobiliere</title>", product_ui)
         self.assertIn("RuntimeAuth.mount", product_ui)
         self.assertIn("RuntimeAuth.mount", evaluator_ui)
@@ -403,6 +409,38 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(dossier_review["comparables"]["count"], 1)
         self.assertEqual(dossier_review["coverage"]["missing_count"], 0)
 
+    def test_review_workbench_lists_persisted_sessions_and_decisions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                first = start_runtime({"fixture": "case_nominal.json"})
+                second = start_runtime({"fixture": "case_low_confidence.json"})
+                save_review(
+                    {
+                        "session_id": first["session"]["session_id"],
+                        "decision": "VALIDE",
+                        "reviewer": "QA produit",
+                        "notes": "Validation interne sur fixture nominale.",
+                    }
+                )
+                sessions = list_session_records()
+                workbench = review_workbench_summary()
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(len(sessions), 2)
+        self.assertEqual(workbench["schema_version"], "review_workbench_summary_v1")
+        self.assertEqual(workbench["sessions_count"], 2)
+        self.assertEqual(workbench["validated_count"], 1)
+        self.assertEqual(workbench["pending_count"], 1)
+        self.assertEqual(workbench["integrity_blocked_count"], 0)
+        self.assertIn("VALIDE", workbench["decision_counts"])
+        self.assertEqual({item["dossier_id"] for item in workbench["sessions"]}, {"D-001", "D-005"})
+        self.assertTrue(all(item["artifacts_count"] > 0 for item in workbench["sessions"]))
+        self.assertTrue(all(item["next_action"] for item in workbench["sessions"]))
+        self.assertNotEqual(second["session"]["session_id"], first["session"]["session_id"])
+
     def test_http_session_summary_artifact_and_review_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_sessions_dir = api.SESSIONS_DIR
@@ -437,6 +475,8 @@ class TestApiV0(unittest.TestCase):
                         "notes": "Validation produit sur fixture nominale.",
                     },
                 )
+                sessions_payload = self.http_json("GET", host, port, "/sessions?limit=10")
+                workbench_payload = self.http_json("GET", host, port, "/review/workbench")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -450,6 +490,11 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(invalid_status, 400)
         self.assertIn("notes requises", json.loads(invalid_raw)["error"])
         self.assertEqual(valid_review["review"]["decision"], "VALIDE")
+        self.assertEqual(sessions_payload["schema_version"], "runtime_sessions_v1")
+        self.assertEqual(sessions_payload["sessions_count"], 1)
+        self.assertEqual(sessions_payload["sessions"][0]["review_decision"], "VALIDE")
+        self.assertEqual(workbench_payload["schema_version"], "review_workbench_summary_v1")
+        self.assertEqual(workbench_payload["validated_count"], 1)
 
     def test_product_demo_endpoint_runs_default_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

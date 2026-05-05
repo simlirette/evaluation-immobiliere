@@ -148,7 +148,19 @@ def read_json_list(path: Path) -> list:
     return payload if isinstance(payload, list) else []
 
 
+def bounded_limit(value: str, default: int = 50, maximum: int = 100) -> int:
+    try:
+        limit = int(value)
+    except (TypeError, ValueError):
+        limit = default
+    return min(max(limit, 0), maximum)
+
+
 def recent_sessions(limit: int = 8) -> list[dict]:
+    return list_session_records(limit=limit)
+
+
+def list_session_records(limit: int = 50) -> list[dict]:
     if not SESSIONS_DIR.exists():
         return []
     sessions: list[dict] = []
@@ -159,19 +171,108 @@ def recent_sessions(limit: int = 8) -> list[dict]:
             continue
         if not isinstance(session, dict):
             continue
-        sessions.append(
-            {
-                "session_id": session.get("session_id", ""),
-                "run_id": session.get("run_id", ""),
-                "dossier_id": session.get("dossier_id", ""),
-                "status": session.get("status", "CREATED"),
-                "updated_at_utc": session.get("updated_at_utc", ""),
-                "review_decision": session.get("review_decision", ""),
-                "artifact_index_path": session.get("artifact_index_path", ""),
-            }
-        )
+        sessions.append(session_workbench_record(session))
     sessions.sort(key=lambda item: str(item.get("updated_at_utc") or ""), reverse=True)
-    return sessions[:limit]
+    return sessions[: max(0, limit)]
+
+
+def session_workbench_record(session: dict) -> dict:
+    session_id = str(session.get("session_id") or "")
+    result = read_json_dict(Path(str(session.get("result_path") or "")))
+    review = read_json_dict(Path(str(session.get("review_path") or "")))
+    artifacts = read_json_dict(Path(str(session.get("artifact_index_path") or "")))
+    try:
+        integrity = validate_session_integrity(session) if session_id else {"ok": False, "errors": ["session_id_missing"]}
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        integrity = {"ok": False, "errors": [f"integrity_unreadable:{type(exc).__name__}"]}
+
+    blocking_failures = result.get("blocking_failures", [])
+    warnings = result.get("warnings", [])
+    if not isinstance(blocking_failures, list):
+        blocking_failures = []
+    if not isinstance(warnings, list):
+        warnings = []
+    review_decision = str(review.get("decision") or session.get("review_decision") or "A_SAISIR")
+    next_action = review_next_action(
+        has_result=bool(result),
+        integrity_ok=bool(integrity.get("ok")),
+        blocking_failures_count=len(blocking_failures),
+        review_decision=review_decision,
+    )
+    return {
+        "session_id": session_id,
+        "run_id": session.get("run_id", ""),
+        "dossier_id": result.get("dossier_id") or session.get("dossier_id", ""),
+        "status": result.get("status") or session.get("status", "CREATED"),
+        "created_at_utc": session.get("created_at_utc", ""),
+        "updated_at_utc": session.get("updated_at_utc", ""),
+        "review_decision": review_decision,
+        "reviewer": review.get("reviewer", ""),
+        "reviewed_at_utc": review.get("created_at_utc", ""),
+        "integrity_ok": bool(integrity.get("ok")),
+        "integrity_errors_count": len(integrity.get("errors", [])) if isinstance(integrity.get("errors"), list) else 0,
+        "artifacts_count": int(artifacts.get("artifacts_count", 0) or 0),
+        "warnings_count": len(warnings),
+        "blocking_failures_count": len(blocking_failures),
+        "next_action": next_action,
+        "session_summary_url": f"/session/summary?session_id={session_id}",
+        "dossier_review_url": f"/review/dossier?session_id={session_id}",
+    }
+
+
+def review_next_action(*, has_result: bool, integrity_ok: bool, blocking_failures_count: int, review_decision: str) -> str:
+    if not has_result:
+        return "EXECUTER_RUNTIME"
+    if not integrity_ok:
+        return "VERIFIER_INTEGRITE"
+    if blocking_failures_count:
+        return "CORRIGER_BLOCAGES"
+    if review_decision == "A_SAISIR":
+        return "SAISIR_DECISION"
+    if review_decision == "PRET_REVUE":
+        return "POURSUIVRE_REVUE"
+    if review_decision == "A_CORRIGER":
+        return "APPLIQUER_CORRECTIONS"
+    if review_decision == "VALIDE":
+        return "DOSSIER_VALIDE"
+    if review_decision == "REJETE":
+        return "DOSSIER_REJETE"
+    return "POURSUIVRE_REVUE"
+
+
+def review_workbench_summary(limit: int = 50) -> dict:
+    sessions = list_session_records(limit=limit)
+    decision_counts: dict[str, int] = {}
+    for item in sessions:
+        decision = str(item.get("review_decision") or "A_SAISIR")
+        decision_counts[decision] = decision_counts.get(decision, 0) + 1
+    integrity_blocked = [item for item in sessions if not item.get("integrity_ok")]
+    blocking_runtime = [item for item in sessions if int(item.get("blocking_failures_count", 0) or 0) > 0]
+    queue = load_ops_csv("review_queue")
+    return {
+        "schema_version": "review_workbench_summary_v1",
+        "sessions_count": len(sessions),
+        "pending_count": decision_counts.get("A_SAISIR", 0) + decision_counts.get("PRET_REVUE", 0),
+        "validated_count": decision_counts.get("VALIDE", 0),
+        "correction_count": decision_counts.get("A_CORRIGER", 0),
+        "rejected_count": decision_counts.get("REJETE", 0),
+        "integrity_blocked_count": len(integrity_blocked),
+        "runtime_blocked_count": len(blocking_runtime),
+        "decision_counts": decision_counts,
+        "sessions": sessions,
+        "review_queue": {
+            "status": queue.get("status", "ABSENT"),
+            "items_count": queue.get("rows_count", 0),
+        },
+        "decisions_allowed": sorted(REVIEW_DECISIONS),
+        "routes": {
+            "sessions": "/sessions",
+            "session_summary": "/session/summary",
+            "dossier_review": "/review/dossier",
+            "save_review": "/review",
+            "resume": "/resume",
+        },
+    }
 
 
 def product_summary() -> dict:
@@ -241,6 +342,8 @@ def product_summary() -> dict:
             "review": "/review/ui",
             "summary": "/product/summary",
             "demo": "/product/demo",
+            "sessions": "/sessions",
+            "review_workbench": "/review/workbench",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
             "dossier_review": "/review/dossier",
@@ -859,7 +962,7 @@ def require_session(session_id: str) -> dict:
 
 
 def load_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
+    if not path.exists() or not path.is_file():
         return []
     items: list[dict] = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -956,6 +1059,13 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, {"fixtures": list_fixtures()})
             return
+        if parsed.path == "/sessions":
+            if not self._require_permission("runtime_read"):
+                return
+            limit = bounded_limit(parse_qs(parsed.query).get("limit", ["50"])[0])
+            sessions = list_session_records(limit=limit)
+            self._send_json(200, {"schema_version": "runtime_sessions_v1", "sessions_count": len(sessions), "sessions": sessions})
+            return
         if parsed.path == "/session":
             if not self._require_permission("runtime_read"):
                 return
@@ -993,6 +1103,12 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, dossier_review_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/review/workbench":
+            if not self._require_permission("runtime_read"):
+                return
+            limit = bounded_limit(parse_qs(parsed.query).get("limit", ["50"])[0])
+            self._send_json(200, review_workbench_summary(limit=limit))
             return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):
