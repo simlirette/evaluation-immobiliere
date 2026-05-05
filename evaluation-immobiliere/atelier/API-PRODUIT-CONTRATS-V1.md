@@ -16,6 +16,9 @@ Versionner le contrat API produit Phase D pour démarrer, suivre, streamer, reli
 | `GET` | `/status?session_id=...` | `session_id` | Session + intégrité | Nouveau Phase D |
 | `GET` | `/stream?session_id=...` | `session_id` | SSE depuis `events.jsonl` | Existant enrichi |
 | `GET` | `/artifacts?session_id=...` | `session_id` | `artifact_index_v1` | Nouveau Phase D |
+| `GET` | `/sessions` | `limit` optionnel | `runtime_sessions_v1` | Nouveau Phase E |
+| `GET` | `/review/workbench` | `limit` optionnel | `review_workbench_summary_v1` | Nouveau Phase E |
+| `GET` | `/review/campaign` | `limit` optionnel | `review_campaign_v1` | Nouveau Phase E |
 | `POST` | `/review` | `session_id`, `decision`, `reviewer`, `notes` | Review persistée | Nouveau Phase D |
 | `POST` | `/resume` | `session_id` | Résultat reprise + intégrité | Nouveau Phase D |
 
@@ -142,6 +145,22 @@ Validation minimale:
 - `notes` est obligatoire pour `A_CORRIGER`, `VALIDE` et `REJETE`;
 - `VALIDE` est refuse si l'integrite session est invalide ou si le runtime
   contient des blocages.
+
+## Contrat `/review/campaign`
+Sortie: `review_campaign_v1`.
+
+La campagne consolide les `review.json` locaux par session runtime. Elle ne
+contient aucune reponse d'evaluateur externe et expose explicitement
+`external_evaluator_responses_included=false`.
+
+Champs principaux:
+- `scope`: `REVUE_INTERNE_PRE_EVALUATEUR`;
+- `sessions_count`, `reviews_count`, `pending_count`;
+- `validated_count`, `correction_count`, `rejected_count`;
+- `ready_for_package_count` pour les sessions `VALIDE` avec integrite OK et
+  sans blocage runtime;
+- `rows[]` avec `session_id`, `dossier_id`, `decision`, `reviewer`,
+  `integrity_ok`, compteurs de warnings/blocages et `next_action`.
 
 ## Contrat `/resume`
 La reprise produit `resume.json` et ne modifie pas le statut métier du runtime. Elle ajoute seulement un état technique:

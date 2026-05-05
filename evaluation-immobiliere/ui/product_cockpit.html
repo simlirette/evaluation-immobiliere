@@ -241,6 +241,11 @@
         <div class="sub" id="terrainSub">-</div>
       </section>
       <section class="span3">
+        <h2>Campagne revue</h2>
+        <div class="metric" id="reviewCampaign">-</div>
+        <div class="sub" id="reviewCampaignSub">-</div>
+      </section>
+      <section class="span3">
         <h2>Paquet V1</h2>
         <div class="metric" id="package">-</div>
         <div class="sub" id="packageSub">-</div>
@@ -339,6 +344,8 @@
       $("opsSub").textContent = `doctor ${payload.ops?.doctor_status || "-"} | file ${payload.ops?.review_queue_items ?? "-"}`;
       metric("terrain", payload.terrain?.status || payload.ops?.phase_h_gate_status);
       $("terrainSub").textContent = `${payload.terrain?.active_cases_count ?? 0} dossier(s) actifs | ${payload.terrain?.mode || "-"}`;
+      metric("reviewCampaign", `${payload.review_campaign?.validated_count ?? 0} / ${payload.review_campaign?.sessions_count ?? 0}`);
+      $("reviewCampaignSub").textContent = `revues ${payload.review_campaign?.reviews_count ?? 0} | bloques ${payload.review_campaign?.blocked_count ?? 0}`;
       metric("package", payload.package?.status);
       $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts`;
       renderSessions(payload.sessions?.recent || []);

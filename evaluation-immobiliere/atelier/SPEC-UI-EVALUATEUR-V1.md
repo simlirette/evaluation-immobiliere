@@ -18,6 +18,7 @@ Une première UI exploitable est disponible:
 - routes: `/review/ui`, `/evaluateur`, `/evaluateur/revue`;
 - deeplink session: `/review/ui?session_id=...`;
 - synthese workbench: `/review/workbench`;
+- registre campagne: `/review/campaign`;
 - reprise sessions locales: `/sessions`;
 - source file de revue: `/ops/review_queue`;
 - source fixtures: `/fixtures`;

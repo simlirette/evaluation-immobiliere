@@ -31,6 +31,7 @@ from api import (
     ops_observability_snapshot,
     ops_summary,
     product_summary,
+    review_campaign_summary,
     review_workbench_summary,
     resume_session,
     save_review,
@@ -85,7 +86,9 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["ops_snapshot"], "/ops/snapshot")
         self.assertEqual(summary["routes"]["sessions"], "/sessions")
         self.assertEqual(summary["routes"]["review_workbench"], "/review/workbench")
+        self.assertEqual(summary["routes"]["review_campaign"], "/review/campaign")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
+        self.assertEqual(summary["review_campaign"]["schema_version"], "review_campaign_v1")
         self.assertIn("terrain", summary)
         self.assertIn("phase_h_gate_status", summary["ops"])
         self.assertIn("release_candidate_decision", summary)
@@ -373,8 +376,10 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("<title>Ops runtime immobilier</title>", ops_ui)
         self.assertIn("<title>Revue dossier</title>", evaluator_ui)
         self.assertIn("Sessions existantes", evaluator_ui)
+        self.assertIn("Campagne revue", evaluator_ui)
         self.assertIn("URLSearchParams(window.location.search)", evaluator_ui)
         self.assertIn("<title>Produit evaluation immobiliere</title>", product_ui)
+        self.assertIn("reviewCampaign", product_ui)
         self.assertIn("RuntimeAuth.mount", product_ui)
         self.assertIn("openReview", product_ui)
         self.assertIn("RuntimeAuth.mount", evaluator_ui)
@@ -385,6 +390,7 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("window.RuntimeAuth", auth_client)
         self.assertEqual(product_summary_payload["schema_version"], "product_cockpit_summary_v1")
         self.assertIn("terrain", product_summary_payload)
+        self.assertIn("review_campaign", product_summary_payload)
 
     def test_session_summary_and_artifact_content_are_readable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -428,13 +434,20 @@ class TestApiV0(unittest.TestCase):
                 )
                 sessions = list_session_records()
                 workbench = review_workbench_summary()
+                campaign = review_campaign_summary()
             finally:
                 api.SESSIONS_DIR = previous_sessions_dir
 
         self.assertEqual(len(sessions), 2)
         self.assertEqual(workbench["schema_version"], "review_workbench_summary_v1")
+        self.assertEqual(campaign["schema_version"], "review_campaign_v1")
+        self.assertFalse(campaign["external_evaluator_responses_included"])
         self.assertEqual(workbench["sessions_count"], 2)
+        self.assertEqual(campaign["sessions_count"], 2)
+        self.assertEqual(campaign["reviews_count"], 1)
         self.assertEqual(workbench["validated_count"], 1)
+        self.assertEqual(campaign["validated_count"], 1)
+        self.assertEqual(campaign["ready_for_package_count"], 1)
         self.assertEqual(workbench["pending_count"], 1)
         self.assertEqual(workbench["integrity_blocked_count"], 0)
         self.assertIn("VALIDE", workbench["decision_counts"])
@@ -479,6 +492,7 @@ class TestApiV0(unittest.TestCase):
                 )
                 sessions_payload = self.http_json("GET", host, port, "/sessions?limit=10")
                 workbench_payload = self.http_json("GET", host, port, "/review/workbench")
+                campaign_payload = self.http_json("GET", host, port, "/review/campaign")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -497,6 +511,9 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(sessions_payload["sessions"][0]["review_decision"], "VALIDE")
         self.assertEqual(workbench_payload["schema_version"], "review_workbench_summary_v1")
         self.assertEqual(workbench_payload["validated_count"], 1)
+        self.assertEqual(campaign_payload["schema_version"], "review_campaign_v1")
+        self.assertEqual(campaign_payload["ready_for_package_count"], 1)
+        self.assertFalse(campaign_payload["external_evaluator_responses_included"])
 
     def test_product_demo_endpoint_runs_default_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

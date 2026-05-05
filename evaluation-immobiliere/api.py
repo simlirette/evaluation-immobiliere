@@ -275,6 +275,65 @@ def review_workbench_summary(limit: int = 50) -> dict:
     }
 
 
+def review_campaign_summary(limit: int = 100) -> dict:
+    sessions = list_session_records(limit=limit)
+    decision_counts: dict[str, int] = {}
+    rows: list[dict] = []
+    for item in sessions:
+        decision = str(item.get("review_decision") or "A_SAISIR")
+        decision_counts[decision] = decision_counts.get(decision, 0) + 1
+        rows.append(
+            {
+                "session_id": item.get("session_id", ""),
+                "run_id": item.get("run_id", ""),
+                "dossier_id": item.get("dossier_id", ""),
+                "runtime_status": item.get("status", "UNKNOWN"),
+                "decision": decision,
+                "reviewer": item.get("reviewer", ""),
+                "reviewed_at_utc": item.get("reviewed_at_utc", ""),
+                "integrity_ok": bool(item.get("integrity_ok")),
+                "blocking_failures_count": int(item.get("blocking_failures_count", 0) or 0),
+                "warnings_count": int(item.get("warnings_count", 0) or 0),
+                "artifacts_count": int(item.get("artifacts_count", 0) or 0),
+                "next_action": item.get("next_action", ""),
+            }
+        )
+
+    reviewed = [row for row in rows if row["decision"] != "A_SAISIR"]
+    ready_rows = [
+        row
+        for row in rows
+        if row["decision"] == "VALIDE" and row["integrity_ok"] and row["blocking_failures_count"] == 0
+    ]
+    blocked_rows = [
+        row
+        for row in rows
+        if not row["integrity_ok"] or row["blocking_failures_count"] > 0 or row["decision"] in {"A_CORRIGER", "REJETE"}
+    ]
+    return {
+        "schema_version": "review_campaign_v1",
+        "scope": "REVUE_INTERNE_PRE_EVALUATEUR",
+        "external_evaluator_responses_included": False,
+        "sessions_count": len(rows),
+        "reviews_count": len(reviewed),
+        "pending_count": decision_counts.get("A_SAISIR", 0) + decision_counts.get("PRET_REVUE", 0),
+        "validated_count": decision_counts.get("VALIDE", 0),
+        "correction_count": decision_counts.get("A_CORRIGER", 0),
+        "rejected_count": decision_counts.get("REJETE", 0),
+        "ready_for_package_count": len(ready_rows),
+        "blocked_count": len(blocked_rows),
+        "decision_counts": decision_counts,
+        "rows": rows,
+        "ready_session_ids": [row["session_id"] for row in ready_rows],
+        "blocked_session_ids": [row["session_id"] for row in blocked_rows],
+        "source": {
+            "sessions_dir": str(SESSIONS_DIR),
+            "review_files": "runtime_sessions/*/review.json",
+            "generated_from": "local_runtime_sessions",
+        },
+    }
+
+
 def product_summary() -> dict:
     status_report = read_json_dict(ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json")
     release_report = read_json_dict(RUNTIME_DIR / "release_candidate_report.json")
@@ -292,6 +351,7 @@ def product_summary() -> dict:
     handoff_manifest = read_json_dict(ATELIER_DIR / "HANDOFF-REVUE-EVALUATEUR-V1.json")
     ops = ops_summary()
     ops_snapshot = ops_observability_snapshot()
+    review_campaign = review_campaign_summary(limit=25)
     decision = str(status_report.get("decision") or "UNKNOWN")
     return {
         "schema_version": "product_cockpit_summary_v1",
@@ -316,6 +376,7 @@ def product_summary() -> dict:
         "sessions": {
             "recent": recent_sessions(),
         },
+        "review_campaign": review_campaign,
         "ops": ops,
         "ops_snapshot": ops_snapshot,
         "terrain": {
@@ -344,6 +405,7 @@ def product_summary() -> dict:
             "demo": "/product/demo",
             "sessions": "/sessions",
             "review_workbench": "/review/workbench",
+            "review_campaign": "/review/campaign",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
             "dossier_review": "/review/dossier",
@@ -1109,6 +1171,12 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             limit = bounded_limit(parse_qs(parsed.query).get("limit", ["50"])[0])
             self._send_json(200, review_workbench_summary(limit=limit))
+            return
+        if parsed.path == "/review/campaign":
+            if not self._require_permission("runtime_read"):
+                return
+            limit = bounded_limit(parse_qs(parsed.query).get("limit", ["100"])[0], default=100, maximum=250)
+            self._send_json(200, review_campaign_summary(limit=limit))
             return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):
