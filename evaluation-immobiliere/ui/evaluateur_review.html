@@ -265,6 +265,10 @@
           <span>Action suivante</span>
           <strong id="nextAction">-</strong>
         </div>
+        <div class="metric">
+          <span>Paquet V1</span>
+          <strong id="packageStatus">-</strong>
+        </div>
         <div class="full">
           <h2>Synthese dossier</h2>
           <table id="dossierSummary"></table>
@@ -301,6 +305,7 @@
           <div class="toolbar">
             <button class="primary" id="saveReview">Enregistrer</button>
             <button id="resume">Reprise</button>
+            <button id="generatePackage">Paquet V1</button>
           </div>
         </div>
         <div class="full">
@@ -365,8 +370,8 @@
 
     function renderSessions() {
       $('sessionCount').textContent = `${sessionRows.length} sessions`;
-      $('sessionTable').innerHTML = '<thead><tr><th>Session</th><th>Dossier</th><th>Decision</th><th>Action</th></tr></thead><tbody>' +
-        sessionRows.map((row) => `<tr class="clickable ${activeSession && activeSession.session_id === row.session_id ? 'selected' : ''}" data-session-id="${escapeHtml(row.session_id || '')}"><td>${escapeHtml(row.session_id || '-')}</td><td>${escapeHtml(row.dossier_id || '-')}</td><td>${escapeHtml(row.review_decision || '-')}</td><td>${escapeHtml(row.next_action || '-')}</td></tr>`).join('') +
+      $('sessionTable').innerHTML = '<thead><tr><th>Session</th><th>Dossier</th><th>Decision</th><th>Paquet</th><th>Action</th></tr></thead><tbody>' +
+        sessionRows.map((row) => `<tr class="clickable ${activeSession && activeSession.session_id === row.session_id ? 'selected' : ''}" data-session-id="${escapeHtml(row.session_id || '')}"><td>${escapeHtml(row.session_id || '-')}</td><td>${escapeHtml(row.dossier_id || '-')}</td><td>${escapeHtml(row.review_decision || '-')}</td><td>${escapeHtml(row.package_status || 'ABSENT')}</td><td>${escapeHtml(row.next_action || '-')}</td></tr>`).join('') +
         '</tbody>';
       document.querySelectorAll('#sessionTable tbody tr').forEach((tr) => {
         tr.addEventListener('click', () => {
@@ -382,6 +387,8 @@
         <tr><th>Sessions</th><td>${escapeHtml(campaign.sessions_count ?? 0)}</td></tr>
         <tr><th>Revues</th><td>${escapeHtml(campaign.reviews_count ?? 0)}</td></tr>
         <tr><th>Validees</th><td>${escapeHtml(campaign.validated_count ?? 0)}</td></tr>
+        <tr><th>Pretes paquet</th><td>${escapeHtml(campaign.ready_for_package_count ?? 0)}</td></tr>
+        <tr><th>Paquets</th><td>${escapeHtml(campaign.package_generated_count ?? 0)}</td></tr>
         <tr><th>A traiter</th><td>${escapeHtml(campaign.pending_count ?? 0)}</td></tr>
         <tr><th>Bloquees</th><td>${escapeHtml(campaign.blocked_count ?? 0)}</td></tr>
       </tbody>`;
@@ -430,6 +437,7 @@
       const sessionRecord = sessionRows.find((row) => row.session_id === activeSession.session_id) || {};
       $('reviewDecision').textContent = payload.review.decision || activeSession.review_decision || sessionRecord.review_decision || 'A_SAISIR';
       $('nextAction').textContent = sessionRecord.next_action || (payload.integrity.ok ? 'SAISIR_DECISION' : 'VERIFIER_INTEGRITE');
+      $('packageStatus').textContent = sessionRecord.package_status || activeSession.v1_package_status || 'ABSENT';
       $('raw').textContent = JSON.stringify(payload, null, 2);
       renderArtifacts(payload.artifacts || {});
       renderSessions();
@@ -520,11 +528,24 @@
       await loadSessionSummary(activeSession.session_id);
     }
 
+    async function generatePackage() {
+      if (!activeSession) throw new Error('Aucune session active');
+      const payload = await json('/review/package', {
+        method: 'POST',
+        body: JSON.stringify({ session_id: activeSession.session_id })
+      });
+      $('raw').textContent = JSON.stringify(payload, null, 2);
+      $('packageStatus').textContent = payload.status || 'ABSENT';
+      await refresh();
+      await loadSessionSummary(activeSession.session_id);
+    }
+
     $('refresh').addEventListener('click', () => refresh().catch((error) => $('raw').textContent = error.message));
     $('start').addEventListener('click', () => openSelected().catch((error) => $('raw').textContent = error.message));
     $('loadSession').addEventListener('click', () => loadSessionSummary($('sessionInput').value.trim()).then(openStream).catch((error) => $('raw').textContent = error.message));
     $('saveReview').addEventListener('click', () => saveReview().catch((error) => $('raw').textContent = error.message));
     $('resume').addEventListener('click', () => resume().catch((error) => $('raw').textContent = error.message));
+    $('generatePackage').addEventListener('click', () => generatePackage().catch((error) => $('raw').textContent = error.message));
 
     async function bootstrap() {
       await refresh();

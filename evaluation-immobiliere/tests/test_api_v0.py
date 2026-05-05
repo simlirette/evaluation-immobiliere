@@ -31,10 +31,12 @@ from api import (
     ops_observability_snapshot,
     ops_summary,
     product_summary,
+    generate_v1_package_for_session,
     review_campaign_summary,
     review_workbench_summary,
     resume_session,
     save_review,
+    session_package_summary,
     session_artifact_content,
     session_artifacts,
     session_summary,
@@ -87,8 +89,10 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["sessions"], "/sessions")
         self.assertEqual(summary["routes"]["review_workbench"], "/review/workbench")
         self.assertEqual(summary["routes"]["review_campaign"], "/review/campaign")
+        self.assertEqual(summary["routes"]["review_package"], "/review/package")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
         self.assertEqual(summary["review_campaign"]["schema_version"], "review_campaign_v1")
+        self.assertEqual(summary["session_packages"]["schema_version"], "session_packages_summary_v1")
         self.assertIn("terrain", summary)
         self.assertIn("phase_h_gate_status", summary["ops"])
         self.assertIn("release_candidate_decision", summary)
@@ -377,9 +381,11 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("<title>Revue dossier</title>", evaluator_ui)
         self.assertIn("Sessions existantes", evaluator_ui)
         self.assertIn("Campagne revue", evaluator_ui)
+        self.assertIn("generatePackage", evaluator_ui)
         self.assertIn("URLSearchParams(window.location.search)", evaluator_ui)
         self.assertIn("<title>Produit evaluation immobiliere</title>", product_ui)
         self.assertIn("reviewCampaign", product_ui)
+        self.assertIn("generatePackage", product_ui)
         self.assertIn("RuntimeAuth.mount", product_ui)
         self.assertIn("openReview", product_ui)
         self.assertIn("RuntimeAuth.mount", evaluator_ui)
@@ -391,6 +397,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(product_summary_payload["schema_version"], "product_cockpit_summary_v1")
         self.assertIn("terrain", product_summary_payload)
         self.assertIn("review_campaign", product_summary_payload)
+        self.assertIn("session_packages", product_summary_payload)
 
     def test_session_summary_and_artifact_content_are_readable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -456,6 +463,46 @@ class TestApiV0(unittest.TestCase):
         self.assertTrue(all(item["next_action"] for item in workbench["sessions"]))
         self.assertNotEqual(second["session"]["session_id"], first["session"]["session_id"])
 
+    def test_v1_package_requires_validated_session_and_writes_local_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                started = start_runtime({"fixture": "case_nominal.json"})
+                session_id = started["session"]["session_id"]
+                absent = session_package_summary(session_id)
+                with self.assertRaisesRegex(ValueError, "internal_review_valide_required"):
+                    generate_v1_package_for_session(session_id)
+                save_review(
+                    {
+                        "session_id": session_id,
+                        "decision": "VALIDE",
+                        "reviewer": "QA produit",
+                        "notes": "Validation interne avant paquet V1.",
+                    }
+                )
+                package = generate_v1_package_for_session(session_id)
+                loaded = session_package_summary(session_id)
+                campaign = review_campaign_summary()
+                manifest_path = Path(package["manifest_path"])
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+            self.assertEqual(absent["status"], "ABSENT")
+            self.assertFalse(absent["gate"]["ok"])
+            self.assertEqual(package["schema_version"], "session_package_v1")
+            self.assertEqual(package["status"], "PRET_REVUE_EVALUATEUR_AGREE")
+            self.assertTrue(package["gate"]["ok"])
+            self.assertFalse(package["external_evaluator_responses_included"])
+            self.assertTrue(manifest_path.exists())
+            self.assertEqual(package["manifest"]["package_origin"], "validated_runtime_session")
+            self.assertEqual(package["manifest"]["source_session_id"], session_id)
+            self.assertEqual(package["manifest"]["internal_review_decision"], "VALIDE")
+            self.assertFalse(package["manifest"]["external_evaluator_responses_included"])
+            self.assertEqual(loaded["status"], "PRET_REVUE_EVALUATEUR_AGREE")
+            self.assertEqual(campaign["package_generated_count"], 1)
+            self.assertIn(session_id, campaign["package_session_ids"])
+
     def test_http_session_summary_artifact_and_review_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_sessions_dir = api.SESSIONS_DIR
@@ -490,6 +537,8 @@ class TestApiV0(unittest.TestCase):
                         "notes": "Validation produit sur fixture nominale.",
                     },
                 )
+                package = self.http_json("POST", host, port, "/review/package", {"session_id": session_id})
+                package_get = self.http_json("GET", host, port, f"/review/package?session_id={session_id}")
                 sessions_payload = self.http_json("GET", host, port, "/sessions?limit=10")
                 workbench_payload = self.http_json("GET", host, port, "/review/workbench")
                 campaign_payload = self.http_json("GET", host, port, "/review/campaign")
@@ -506,13 +555,19 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(invalid_status, 400)
         self.assertIn("notes requises", json.loads(invalid_raw)["error"])
         self.assertEqual(valid_review["review"]["decision"], "VALIDE")
+        self.assertEqual(package["status"], "PRET_REVUE_EVALUATEUR_AGREE")
+        self.assertTrue(package["gate"]["ok"])
+        self.assertEqual(package_get["status"], "PRET_REVUE_EVALUATEUR_AGREE")
+        self.assertFalse(package_get["external_evaluator_responses_included"])
         self.assertEqual(sessions_payload["schema_version"], "runtime_sessions_v1")
         self.assertEqual(sessions_payload["sessions_count"], 1)
         self.assertEqual(sessions_payload["sessions"][0]["review_decision"], "VALIDE")
+        self.assertEqual(sessions_payload["sessions"][0]["package_status"], "PRET_REVUE_EVALUATEUR_AGREE")
         self.assertEqual(workbench_payload["schema_version"], "review_workbench_summary_v1")
         self.assertEqual(workbench_payload["validated_count"], 1)
         self.assertEqual(campaign_payload["schema_version"], "review_campaign_v1")
         self.assertEqual(campaign_payload["ready_for_package_count"], 1)
+        self.assertEqual(campaign_payload["package_generated_count"], 1)
         self.assertFalse(campaign_payload["external_evaluator_responses_included"])
 
     def test_product_demo_endpoint_runs_default_fixture(self) -> None:

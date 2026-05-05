@@ -10,6 +10,7 @@
 
 - Aucune validation terrain reelle.
 - Aucune approbation par evaluateur immobilier agree.
+- Aucune reponse d'evaluateur agree inventee ou pre-remplie.
 - Aucun usage de dossier client sensible.
 - Aucun go production metier.
 

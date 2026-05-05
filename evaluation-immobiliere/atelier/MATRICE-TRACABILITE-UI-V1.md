@@ -16,6 +16,7 @@ Relier les éléments affichés dans l'interface évaluateur aux sources runtime
 | Événements | `/stream` | `event_id`, `sequence`, `session_id`, `run_id` | `events.jsonl` |
 | Décision humaine | `/review` | `decision`, `reviewer`, `notes` | `review.json` |
 | Campagne revue | `/review/campaign` | `reviews_count`, `decision_counts`, `ready_for_package_count` | `runtime_sessions/*/review.json` |
+| Paquet V1 session | `/review/package` | `session_package_v1`, `package_origin`, `external_evaluator_responses_included` | `runtime_sessions/*/package_v1/DEMO-MANIFEST-V1.json` |
 | Reprise | `/resume` | `RESUME_READY` / `RESUME_BLOCKED` | `resume.json` |
 
 ## Couverture des items Phase E

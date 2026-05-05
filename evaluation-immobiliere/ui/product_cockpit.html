@@ -202,6 +202,7 @@
       <button id="demo">Lancer demo</button>
       <button id="resume">Reprise session</button>
       <button id="openReview" disabled>Ouvrir revue</button>
+      <button id="generatePackage" disabled>Paquet V1</button>
       <div class="toolbar" id="authPanel"></div>
     </div>
     <div class="grid">
@@ -307,9 +308,9 @@
 
     function renderSessions(items) {
       const rows = (items || []).map((item) =>
-        `<tr data-session="${item.session_id || ""}"><td>${item.session_id || "-"}</td><td>${item.dossier_id || "-"}</td><td><span class="pill ${cssFor(item.status)}">${item.status || "-"}</span></td><td>${item.review_decision || "-"}</td></tr>`
+        `<tr data-session="${item.session_id || ""}"><td>${item.session_id || "-"}</td><td>${item.dossier_id || "-"}</td><td><span class="pill ${cssFor(item.status)}">${item.status || "-"}</span></td><td>${item.review_decision || "-"}</td><td>${item.package_status || "ABSENT"}</td></tr>`
       ).join("");
-      $("sessions").innerHTML = `<thead><tr><th>Session</th><th>Dossier</th><th>Statut</th><th>Revue</th></tr></thead><tbody>${rows}</tbody>`;
+      $("sessions").innerHTML = `<thead><tr><th>Session</th><th>Dossier</th><th>Statut</th><th>Revue</th><th>Paquet</th></tr></thead><tbody>${rows}</tbody>`;
       document.querySelectorAll("#sessions tbody tr").forEach((row) => {
         row.addEventListener("click", () => {
           activeSessionId = row.dataset.session || "";
@@ -327,6 +328,7 @@
     function setActiveSession(sessionId) {
       activeSessionId = sessionId || "";
       $("openReview").disabled = !activeSessionId;
+      $("generatePackage").disabled = !activeSessionId;
     }
 
     function renderSummary(payload) {
@@ -347,7 +349,7 @@
       metric("reviewCampaign", `${payload.review_campaign?.validated_count ?? 0} / ${payload.review_campaign?.sessions_count ?? 0}`);
       $("reviewCampaignSub").textContent = `revues ${payload.review_campaign?.reviews_count ?? 0} | bloques ${payload.review_campaign?.blocked_count ?? 0}`;
       metric("package", payload.package?.status);
-      $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts`;
+      $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts | sessions ${payload.package?.session_generated_count || 0}`;
       renderSessions(payload.sessions?.recent || []);
       renderFixtures(payload.fixtures?.items || []);
       renderObjectTable("runtimeStatus", payload.runtime?.status_counts || {});
@@ -414,10 +416,21 @@
       window.location.href = `/review/ui?session_id=${encodeURIComponent(activeSessionId)}`;
     }
 
+    async function generatePackage() {
+      if (!activeSessionId) throw new Error("session absente");
+      const payload = await api("/review/package", {
+        method: "POST",
+        body: JSON.stringify({ session_id: activeSessionId })
+      });
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      await refresh();
+    }
+
     $("refresh").addEventListener("click", () => refresh().catch((error) => $("raw").textContent = error.message));
     $("demo").addEventListener("click", () => launchDemo().catch((error) => $("raw").textContent = error.message));
     $("resume").addEventListener("click", () => resumeSession().catch((error) => $("raw").textContent = error.message));
     $("openReview").addEventListener("click", openReview);
+    $("generatePackage").addEventListener("click", () => generatePackage().catch((error) => $("raw").textContent = error.message));
     RuntimeAuth.mount("authPanel");
     refresh().catch((error) => $("raw").textContent = error.message);
   </script>

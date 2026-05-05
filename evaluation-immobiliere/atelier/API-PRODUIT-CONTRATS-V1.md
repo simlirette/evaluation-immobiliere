@@ -19,6 +19,8 @@ Versionner le contrat API produit Phase D pour démarrer, suivre, streamer, reli
 | `GET` | `/sessions` | `limit` optionnel | `runtime_sessions_v1` | Nouveau Phase E |
 | `GET` | `/review/workbench` | `limit` optionnel | `review_workbench_summary_v1` | Nouveau Phase E |
 | `GET` | `/review/campaign` | `limit` optionnel | `review_campaign_v1` | Nouveau Phase E |
+| `GET` | `/review/package` | `session_id` | `session_package_v1` | Nouveau Phase E |
+| `POST` | `/review/package` | `session_id` | Paquet V1 de session | Nouveau Phase E |
 | `POST` | `/review` | `session_id`, `decision`, `reviewer`, `notes` | Review persistée | Nouveau Phase D |
 | `POST` | `/resume` | `session_id` | Résultat reprise + intégrité | Nouveau Phase D |
 
@@ -159,8 +161,33 @@ Champs principaux:
 - `validated_count`, `correction_count`, `rejected_count`;
 - `ready_for_package_count` pour les sessions `VALIDE` avec integrite OK et
   sans blocage runtime;
+- `package_generated_count` pour les sessions ayant deja un paquet local;
 - `rows[]` avec `session_id`, `dossier_id`, `decision`, `reviewer`,
   `integrity_ok`, compteurs de warnings/blocages et `next_action`.
+
+## Contrat `/review/package`
+Sortie: `session_package_v1`.
+
+`POST /review/package` genere un paquet V1 local sous
+`runtime_sessions/<session_id>/package_v1/`. Ce repertoire reste hors paquet
+versionne actif et ne doit pas contenir de donnees sensibles non anonymisees.
+
+Gates obligatoires avant generation:
+- session runtime existante;
+- `review.json` avec `decision=VALIDE`;
+- integrite session OK;
+- aucun blocage runtime;
+- artefacts sources resolus sous le repertoire de session.
+
+Le manifest expose explicitement:
+- `package_origin=validated_runtime_session`;
+- `field_validation=NON_REVENDIQUEE`;
+- `external_evaluator_responses_included=false`;
+- `sensitive_data_included=false`;
+- `internal_review_decision=VALIDE`.
+
+`GET /review/package?session_id=...` lit l'etat courant du paquet et retourne
+`status=ABSENT` si aucun paquet n'a encore ete genere.
 
 ## Contrat `/resume`
 La reprise produit `resume.json` et ne modifie pas le statut métier du runtime. Elle ajoute seulement un état technique:
