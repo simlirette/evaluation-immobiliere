@@ -1,26 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import RapportArtifact from '@/components/shared/RapportArtifact'
 import RapportDoc from '@/components/shared/RapportDoc'
 import ChatInput from '@/components/shared/ChatInput'
+import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
+import type { Adjustment } from '@/types'
 
-export default function RapportPanel() {
+interface Props {
+  dossierId: string | null
+  dossierAddress: string
+}
+
+export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [split, setSplit] = useState(false)
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([])
+
+  useEffect(() => {
+    if (!dossierId) return
+    fetchAdjustments(dossierId).then(setAdjustments)
+  }, [dossierId])
+
+  const adjustedValues = adjustments.map(a => a.adjusted).filter(v => v > 0).sort((a, b) => a - b)
+  const median = adjustedValues.length
+    ? adjustedValues[Math.floor(adjustedValues.length / 2)]
+    : null
+
+  const formatPrice = (n: number) =>
+    new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })
+      .format(n).replace('CA', '').trim()
 
   return (
     <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
       {/* Chat column */}
       <div className={`flex flex-col ${split ? 'flex-[0_0_380px] border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}>
         <div className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
-          <UserMessage>Génère le rapport OEAQ complet pour le 1842 Sherbrooke O.</UserMessage>
+          <UserMessage>Génère le rapport OEAQ complet pour {dossierAddress || 'ce dossier'}.</UserMessage>
           <AgentMessage agentName="Agent Rapport" last>
             Le rapport d'évaluation OEAQ a été rédigé et certifié.
             <RapportArtifact
               title="Rapport d'évaluation immobilière"
-              subtitle="Certifié OEAQ · 1842, rue Sherbrooke O."
+              subtitle={`Certifié OEAQ · ${dossierAddress || 'Dossier en cours'}`}
               label={split ? 'Fermer' : 'Ouvrir'}
               onClick={() => setSplit(s => !s)}
             />
@@ -32,7 +54,13 @@ export default function RapportPanel() {
       </div>
 
       {/* Document column */}
-      {split && <RapportDoc onClose={() => setSplit(false)} />}
+      {split && (
+        <RapportDoc
+          address={dossierAddress}
+          valeur={median ? formatPrice(median) : null}
+          onClose={() => setSplit(false)}
+        />
+      )}
     </div>
   )
 }

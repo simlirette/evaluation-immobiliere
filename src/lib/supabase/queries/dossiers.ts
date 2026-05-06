@@ -11,6 +11,15 @@ function formatUpdatedAt(iso: string): string {
   return `Il y a ${Math.floor(days / 7)} semaines`
 }
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 function toUiDossier(row: Record<string, unknown>, userId: string): Dossier {
   const pins = row.user_dossier_pins as Array<{ user_id: string }> | null
   return {
@@ -52,4 +61,46 @@ export async function fetchDossier(slug: string): Promise<Dossier | null> {
 
   if (error) return null
   return toUiDossier(data, user.id)
+}
+
+export interface CreateDossierInput {
+  address: string
+  property_type: string
+  neighborhood: string
+}
+
+export async function createDossier(input: CreateDossierInput): Promise<Dossier> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const baseSlug = slugify(input.address) || `dossier-${Date.now()}`
+  // append timestamp to ensure uniqueness
+  const slug = `${baseSlug}-${Date.now().toString(36)}`
+
+  const { data, error } = await supabase
+    .from('dossiers')
+    .insert({
+      slug,
+      address: input.address,
+      property_type: input.property_type,
+      neighborhood: input.neighborhood,
+      status: 'brouillon',
+      created_by: user.id,
+    })
+    .select('*, user_dossier_pins!left(user_id)')
+    .single()
+
+  if (error) throw error
+  return toUiDossier(data, user.id)
+}
+
+export async function deleteDossier(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('dossiers')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
 }

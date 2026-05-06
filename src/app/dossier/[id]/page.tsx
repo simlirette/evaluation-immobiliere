@@ -115,7 +115,7 @@ function DossierShellInner() {
             {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} />}
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} />}
             {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
-            {activeTab === 'rapport'  && <RapportPanel />}
+            {activeTab === 'rapport'  && <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />}
           </div>
         </div>
       </div>

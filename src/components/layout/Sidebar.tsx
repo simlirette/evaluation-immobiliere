@@ -7,7 +7,7 @@ import SidebarRecent from './SidebarRecent'
 import SidebarFooter from './SidebarFooter'
 import ContextMenu from './ContextMenu'
 import { useContextMenu } from '@/hooks/useContextMenu'
-import { fetchDossiers } from '@/lib/supabase/queries/dossiers'
+import { fetchDossiers, deleteDossier } from '@/lib/supabase/queries/dossiers'
 import { togglePin } from '@/lib/supabase/queries/pins'
 import type { Dossier, TabId } from '@/types'
 
@@ -45,7 +45,10 @@ export default function Sidebar({
   }
 
   function handleDelete(name: string) {
+    const dossier = dossiers.find(d => d.address === name)
+    if (!dossier) return
     setDossiers(prev => prev.filter(d => d.address !== name))
+    deleteDossier(dossier.id)
   }
 
   return (

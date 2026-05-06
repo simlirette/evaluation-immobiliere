@@ -3,10 +3,12 @@
 import { useState, useRef } from 'react'
 
 interface Props {
+  address?: string
+  valeur?: string | null
   onClose: () => void
 }
 
-export default function RapportDoc({ onClose }: Props) {
+export default function RapportDoc({ address, valeur, onClose }: Props) {
   const [editing, setEditing] = useState(false)
   const docRef = useRef<HTMLDivElement>(null)
 
@@ -73,7 +75,7 @@ export default function RapportDoc({ onClose }: Props) {
             1. MANDAT ET OBJET DE L'ÉVALUATION
           </h2>
           <p className="text-[#1a1916] font-light mb-2.5">
-            Le soussigné a reçu mandat afin de déterminer la <strong>valeur marchande</strong> de la propriété résidentielle sise au 1842, rue Sherbrooke Ouest, Westmount (Québec), en vue d'une décision de financement hypothécaire.
+            Le soussigné a reçu mandat afin de déterminer la <strong>valeur marchande</strong> de la propriété résidentielle sise au {address || '—'}, en vue d'une décision de financement hypothécaire.
           </p>
 
           <h2 className="text-[14px] font-medium text-[#1a1916] mt-4 mb-1.5 tracking-[.01em]"
@@ -86,7 +88,7 @@ export default function RapportDoc({ onClose }: Props) {
           >
             <div className="text-[10px] uppercase tracking-[.07em] text-[#b5b2ac] mb-1.5">Valeur marchande estimée</div>
             <div className="text-[22px] font-semibold tracking-[-.01em]" style={{ fontFamily: 'var(--font-serif)' }}>
-              1 290 000 $
+              {valeur ?? '—'}
             </div>
           </div>
         </div>
