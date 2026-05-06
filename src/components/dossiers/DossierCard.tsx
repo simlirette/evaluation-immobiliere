@@ -33,7 +33,7 @@ export default function DossierCard({ dossier, onClick }: Props) {
       >
         {dossier.address}
       </div>
-      <div className="text-xs text-[#8a8780] font-light mb-3.5">{dossier.meta}</div>
+      <div className="text-xs text-[#8a8780] font-light mb-3.5">{dossier.property_type} · {dossier.neighborhood}</div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-[#b5b2ac]">{dossier.updatedAt}</span>
         <span className={`text-[10px] font-medium px-[9px] py-[3px] rounded-full tracking-[.02em] ${statusStyles[dossier.status]}`}>

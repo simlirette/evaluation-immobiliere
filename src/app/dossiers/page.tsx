@@ -1,18 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import DossierCard from '@/components/dossiers/DossierCard'
 import ThemeToggle from '@/components/layout/ThemeToggle'
-import { MOCK_DOSSIERS } from '@/data/mock'
+import { fetchDossiers } from '@/lib/supabase/queries/dossiers'
+import type { Dossier } from '@/types'
 
 export default function MesDossiersPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [dossiers, setDossiers] = useState<Dossier[]>([])
 
-  const filtered = MOCK_DOSSIERS.filter(d =>
+  useEffect(() => {
+    fetchDossiers().then(setDossiers)
+  }, [])
+
+  const filtered = dossiers.filter(d =>
     d.address.toLowerCase().includes(search.toLowerCase()) ||
-    d.meta.toLowerCase().includes(search.toLowerCase())
+    `${d.property_type} ${d.neighborhood}`.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -67,7 +73,7 @@ export default function MesDossiersPage() {
             <DossierCard
               key={d.id}
               dossier={d}
-              onClick={() => router.push(`/dossier/${d.id}?tab=dossier`)}
+              onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
             />
           ))}
         </div>

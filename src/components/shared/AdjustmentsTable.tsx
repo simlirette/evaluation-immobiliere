@@ -1,14 +1,25 @@
 import type { Adjustment } from '@/types'
 
-function isPositive(v: string) { return v.startsWith('+') }
-function isNegative(v: string) { return v.startsWith('−') || v.startsWith('-') }
+function formatAdj(value: number): string {
+  if (value === 0) return '—'
+  const abs = new Intl.NumberFormat('fr-CA').format(Math.abs(value))
+  return value > 0 ? `+${abs}` : `−${abs}`
+}
 
-function AdjCell({ value }: { value: string }) {
+function formatPrice(value: number): string {
+  if (value === 0) return '—'
+  return new Intl.NumberFormat('fr-CA', {
+    style: 'currency', currency: 'CAD', maximumFractionDigits: 0,
+  }).format(value).replace('CA', '').trim()
+}
+
+function AdjCell({ value }: { value: number }) {
+  const str = formatAdj(value)
   return (
     <td className={`px-2.5 py-[9px] border-b border-black/[.04] text-right whitespace-nowrap ${
-      isPositive(value) ? 'text-[#228866]' : isNegative(value) ? 'text-[#c0392b]' : 'text-[#1a1916]'
+      value > 0 ? 'text-[#228866]' : value < 0 ? 'text-[#c0392b]' : 'text-[#1a1916]'
     }`}>
-      {value}
+      {str}
     </td>
   )
 }
@@ -30,13 +41,13 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
         <tbody>
           {rows.map((row, i) => (
             <tr key={i}>
-              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-[12px] text-[#8a8780] text-left">{row.comparable}</td>
-              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right">{row.salePrice}</td>
-              <AdjCell value={row.surface} />
-              <AdjCell value={row.year} />
-              <AdjCell value={row.condition} />
-              <AdjCell value={row.garage} />
-              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right font-medium">{row.adjusted}</td>
+              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-[12px] text-[#8a8780] text-left">{row.comparableLabel}</td>
+              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right">{formatPrice(row.salePrice)}</td>
+              <AdjCell value={row.surface_adj} />
+              <AdjCell value={row.year_adj} />
+              <AdjCell value={row.condition_adj} />
+              <AdjCell value={row.garage_adj} />
+              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right font-medium">{formatPrice(row.adjusted)}</td>
             </tr>
           ))}
         </tbody>
