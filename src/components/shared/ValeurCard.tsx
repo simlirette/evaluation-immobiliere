@@ -1,5 +1,5 @@
 interface Props {
-  range: string
+  range?: string
   median: string
 }
 
@@ -12,8 +12,8 @@ export default function ValeurCard({ range, median }: Props) {
       <span className="text-[11px] text-[#8a8780] uppercase tracking-[.07em] font-medium whitespace-nowrap">
         Valeur estimée
       </span>
-      <span className="text-2xl font-medium text-[#1a1916]">{range}</span>
-      <span className="text-[11px] text-[#8a8780] ml-auto whitespace-nowrap">{median}</span>
+      {range && <span className="text-2xl font-medium text-[#1a1916]">{range}</span>}
+      <span className={`text-[11px] text-[#8a8780] whitespace-nowrap ${range ? 'ml-auto' : ''}`}>{median}</span>
     </div>
   )
 }

@@ -4,16 +4,40 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import DossierCard from '@/components/dossiers/DossierCard'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import EmptyState from '@/components/shared/EmptyState'
 import { fetchDossiers } from '@/lib/supabase/queries/dossiers'
 import type { Dossier } from '@/types'
+
+function SkeletonCard() {
+  return (
+    <div
+      className="rounded-[18px] px-[22px] pt-[22px] pb-[18px] border border-white/[.72]"
+      style={{
+        background: 'linear-gradient(165deg, rgba(248,244,238,.96) 0%, rgba(238,232,223,.90) 100%)',
+        boxShadow: 'var(--shadow-card)',
+      }}
+    >
+      <div className="h-5 w-3/4 rounded-md bg-black/[.06] mb-2 animate-pulse" />
+      <div className="h-3 w-1/2 rounded-md bg-black/[.04] mb-5 animate-pulse" />
+      <div className="flex justify-between items-center">
+        <div className="h-3 w-20 rounded-md bg-black/[.04] animate-pulse" />
+        <div className="h-5 w-16 rounded-full bg-black/[.04] animate-pulse" />
+      </div>
+    </div>
+  )
+}
 
 export default function MesDossiersPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [dossiers, setDossiers] = useState<Dossier[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDossiers().then(setDossiers)
+    fetchDossiers().then(data => {
+      setDossiers(data)
+      setLoading(false)
+    })
   }, [])
 
   const filtered = dossiers.filter(d =>
@@ -68,15 +92,28 @@ export default function MesDossiersPage() {
         </div>
 
         {/* Grid */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-          {filtered.map(d => (
-            <DossierCard
-              key={d.id}
-              dossier={d}
-              onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
+        {loading ? (
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center mt-20">
+            <EmptyState
+              title={search ? 'Aucun résultat' : 'Aucun dossier'}
+              subtitle={search ? `Aucun dossier ne correspond à « ${search} »` : 'Créez votre premier dossier depuis la barre latérale.'}
             />
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            {filtered.map(d => (
+              <DossierCard
+                key={d.id}
+                dossier={d}
+                onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
+              />
+            ))}
+          </div>
+        )}
 
       </div>
     </div>

@@ -6,6 +6,7 @@ import UserMessage from '@/components/shared/UserMessage'
 import RapportArtifact from '@/components/shared/RapportArtifact'
 import RapportDoc from '@/components/shared/RapportDoc'
 import ChatInput from '@/components/shared/ChatInput'
+import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import type { Adjustment } from '@/types'
 
@@ -17,11 +18,18 @@ interface Props {
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [split, setSplit] = useState(false)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!dossierId) return
-    fetchAdjustments(dossierId).then(setAdjustments)
+    setLoading(true)
+    fetchAdjustments(dossierId).then(data => {
+      setAdjustments(data)
+      setLoading(false)
+    })
   }, [dossierId])
+
+  if (!dossierId || loading) return <PanelLoader />
 
   const adjustedValues = adjustments.map(a => a.adjusted).filter(v => v > 0).sort((a, b) => a - b)
   const median = adjustedValues.length

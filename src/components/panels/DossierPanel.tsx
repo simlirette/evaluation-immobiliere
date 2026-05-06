@@ -11,6 +11,7 @@ import DropZone from '@/components/shared/DropZone'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
+import PanelLoader from '@/components/shared/PanelLoader'
 import type { Document, FactChip } from '@/types'
 
 interface Props {
@@ -125,11 +126,19 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   const [chips, setChips] = useState<FactChip[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [showDropZone, setShowDropZone] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!dossierId) return
-    fetchDocuments(dossierId).then(setDocuments)
-    fetchPropertyFacts(dossierId).then(setChips)
+    setLoading(true)
+    Promise.all([
+      fetchDocuments(dossierId),
+      fetchPropertyFacts(dossierId),
+    ]).then(([docs, facts]) => {
+      setDocuments(docs)
+      setChips(facts)
+      setLoading(false)
+    })
   }, [dossierId])
 
   async function handleDrop(files: FileList) {
@@ -138,6 +147,9 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
     setDocuments(prev => [...prev, ...newDocs])
     setShowDropZone(false)
   }
+
+  // Loading existing dossier
+  if (!isNew && (!dossierId || loading)) return <PanelLoader />
 
   // Creating new dossier — show form
   if (isNew && !dossierId) {

@@ -5,6 +5,7 @@ import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import ComparableItem from '@/components/shared/ComparableItem'
 import ChatInput from '@/components/shared/ChatInput'
+import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
 import type { Comparable } from '@/types'
 
@@ -14,11 +15,18 @@ interface Props {
 
 export default function MarchePanel({ dossierId }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!dossierId) return
-    fetchComparables(dossierId).then(setComparables)
+    setLoading(true)
+    fetchComparables(dossierId).then(data => {
+      setComparables(data)
+      setLoading(false)
+    })
   }, [dossierId])
+
+  if (!dossierId || loading) return <PanelLoader />
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">

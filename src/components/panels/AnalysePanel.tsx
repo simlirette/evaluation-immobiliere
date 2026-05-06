@@ -6,6 +6,7 @@ import UserMessage from '@/components/shared/UserMessage'
 import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
 import ValeurCard from '@/components/shared/ValeurCard'
 import ChatInput from '@/components/shared/ChatInput'
+import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import type { Adjustment } from '@/types'
 
@@ -15,11 +16,18 @@ interface Props {
 
 export default function AnalysePanel({ dossierId }: Props) {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!dossierId) return
-    fetchAdjustments(dossierId).then(setAdjustments)
+    setLoading(true)
+    fetchAdjustments(dossierId).then(data => {
+      setAdjustments(data)
+      setLoading(false)
+    })
   }, [dossierId])
+
+  if (!dossierId || loading) return <PanelLoader />
 
   const adjustedValues = adjustments.map(a => a.adjusted).filter(v => v > 0).sort((a, b) => a - b)
   const median = adjustedValues.length
@@ -38,10 +46,7 @@ export default function AnalysePanel({ dossierId }: Props) {
           Voici le tableau d'ajustements :
           <AdjustmentsTable rows={adjustments} />
           {median && (
-            <ValeurCard
-              range=""
-              median={`Médiane ajustée : ${formatPrice(median)}`}
-            />
+            <ValeurCard median={`Médiane ajustée : ${formatPrice(median)}`} />
           )}
         </AgentMessage>
         {adjustments.length > 0 && (
