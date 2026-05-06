@@ -55,6 +55,40 @@ ROLE_PERMISSIONS = {
     "ops": {"runtime_read", "ops_read", "ops_write"},
     "supervisor": {"runtime_read", "runtime_write", "review_write", "ops_read", "ops_write"},
 }
+ASSISTANT_MESSAGES_FILENAME = "assistant_messages.jsonl"
+ASSISTANT_MAX_MESSAGE_CHARS = 4000
+ASSISTANT_AGENT_PROFILES = {
+    "superviseur-evaluateur-ai": {
+        "label": "Superviseur evaluateur AI",
+        "agent_config": "SUPERVISOR-ASTON-IMMOBILIER",
+        "focus": "orchestration, synthese dossier, prochaines actions",
+    },
+    "data-facts": {
+        "label": "Agent Dossier",
+        "agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml",
+        "focus": "faits, sources, documents, donnees extraites",
+    },
+    "comps-market": {
+        "label": "Agent Marche",
+        "agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml",
+        "focus": "comparables, marche, ventes, justification des comparables",
+    },
+    "valuation-draft": {
+        "label": "Agent Analyse",
+        "agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml",
+        "focus": "valeurs, approches, calculs, ajustements",
+    },
+    "compliance-qa": {
+        "label": "Agent Conformite",
+        "agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml",
+        "focus": "warnings, blocages, gates, limites, conformite",
+    },
+    "redaction": {
+        "label": "Agent Rapport",
+        "agent_config": "AGENTCONFIG-REDACTION-V0.yaml",
+        "focus": "rapport, synthese, formulation, annexes",
+    },
+}
 
 
 def create_session(strict_mode: bool = True) -> dict:
@@ -424,6 +458,7 @@ def product_summary() -> dict:
             "review_workbench": "/review/workbench",
             "review_campaign": "/review/campaign",
             "review_package": "/review/package",
+            "assistant_message": "/assistant/message",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
             "dossier_review": "/review/dossier",
@@ -1087,6 +1122,225 @@ def generate_v1_package_for_session(session_id: str) -> dict:
     }
 
 
+def assistant_message(body: dict) -> dict:
+    session = require_session(str(body.get("session_id", "")))
+    message = normalize_assistant_message(str(body.get("message") or ""))
+    requested_agent = str(body.get("agent") or "auto").strip() or "auto"
+    context = assistant_context(session)
+    agent = select_assistant_agent(message, requested_agent)
+    profile = assistant_agent_profile(agent)
+    response = {
+        "schema_version": "assistant_message_v1",
+        "message_id": uuid.uuid4().hex[:12],
+        "created_at_utc": utc_now_iso(),
+        "session_id": session["session_id"],
+        "run_id": session.get("run_id", ""),
+        "dossier_id": context["dossier_id"],
+        "requested_agent": requested_agent,
+        "agent": agent,
+        "agent_label": profile["label"],
+        "agent_config": profile["agent_config"],
+        "answer": render_assistant_answer(message, agent, context),
+        "context_summary": {
+            "runtime_status": context["runtime_status"],
+            "review_decision": context["review_decision"],
+            "package_status": context["package_status"],
+            "facts_count": context["facts_count"],
+            "comparables_count": context["comparables_count"],
+            "valuation_approaches_count": context["valuation_approaches_count"],
+            "warnings_count": len(context["warnings"]),
+            "blocking_failures_count": len(context["blocking_failures"]),
+            "artifacts_count": context["artifacts_count"],
+        },
+        "citations": assistant_citations(context),
+        "limits": {
+            "certification_automatic": False,
+            "external_evaluator_responses_included": False,
+            "requires_human_validation": True,
+        },
+    }
+    append_assistant_exchange(session, message, response)
+    return response
+
+
+def normalize_assistant_message(message: str) -> str:
+    value = message.strip()
+    if not value:
+        raise ValueError("message assistant requis")
+    if len(value) > ASSISTANT_MAX_MESSAGE_CHARS:
+        raise ValueError(f"message assistant trop long: max {ASSISTANT_MAX_MESSAGE_CHARS} caracteres")
+    return value
+
+
+def assistant_agent_profile(agent: str) -> dict:
+    return ASSISTANT_AGENT_PROFILES.get(agent, ASSISTANT_AGENT_PROFILES["superviseur-evaluateur-ai"])
+
+
+def assistant_context(session: dict) -> dict:
+    session_id = str(session["session_id"])
+    summary = session_summary(session_id)
+    dossier = dossier_review_summary(session_id)
+    package = session_package_summary(session_id)
+    steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
+    agent_configs = {
+        step.name: {
+            "agent_config": step.agent_config,
+            "skills_allowed": step.skills,
+            "reads": step.reads,
+            "writes": step.writes,
+        }
+        for step in steps
+    }
+    facts = dossier.get("facts", {}) if isinstance(dossier.get("facts"), dict) else {}
+    comparables = dossier.get("comparables", {}) if isinstance(dossier.get("comparables"), dict) else {}
+    valuation = dossier.get("valuation", {}) if isinstance(dossier.get("valuation"), dict) else {}
+    compliance = dossier.get("compliance", {}) if isinstance(dossier.get("compliance"), dict) else {}
+    artifacts = summary.get("artifacts", {}) if isinstance(summary.get("artifacts"), dict) else {}
+    review = summary.get("review", {}) if isinstance(summary.get("review"), dict) else {}
+    result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
+    return {
+        "session_id": session_id,
+        "run_id": session.get("run_id", ""),
+        "dossier_id": dossier.get("dossier_id") or result.get("dossier_id") or session.get("dossier_id", ""),
+        "runtime_status": result.get("status", session.get("status", "UNKNOWN")),
+        "review_decision": review.get("decision", session.get("review_decision", "A_SAISIR")),
+        "package_status": package.get("status", "ABSENT"),
+        "facts": facts,
+        "facts_count": len([key for key, value in facts.items() if value not in (None, "", [])]),
+        "comparables": comparables.get("items", []) if isinstance(comparables.get("items"), list) else [],
+        "comparables_count": int(comparables.get("count", 0) or 0),
+        "valuation_approaches": valuation.get("approaches", []) if isinstance(valuation.get("approaches"), list) else [],
+        "valuation_values": valuation.get("values", {}) if isinstance(valuation.get("values"), dict) else {},
+        "valuation_approaches_count": len(valuation.get("approaches", [])) if isinstance(valuation.get("approaches"), list) else 0,
+        "warnings": compliance.get("warnings", result.get("warnings", [])) if isinstance(compliance.get("warnings", []), list) else [],
+        "blocking_failures": compliance.get("blocking_failures", result.get("blocking_failures", [])) if isinstance(compliance.get("blocking_failures", []), list) else [],
+        "coverage": dossier.get("coverage", {}) if isinstance(dossier.get("coverage"), dict) else {},
+        "report": dossier.get("report", {}) if isinstance(dossier.get("report"), dict) else {},
+        "artifacts_count": int(artifacts.get("artifacts_count", 0) or 0),
+        "agent_configs": agent_configs,
+        "session_summary_url": f"/session/summary?session_id={session_id}",
+        "dossier_review_url": f"/review/dossier?session_id={session_id}",
+        "package_url": f"/review/package?session_id={session_id}",
+    }
+
+
+def select_assistant_agent(message: str, requested_agent: str) -> str:
+    if requested_agent in ASSISTANT_AGENT_PROFILES:
+        return requested_agent
+    if requested_agent != "auto":
+        return "superviseur-evaluateur-ai"
+    text = message.lower()
+    if any(token in text for token in ["comparable", "comparables", "marche", "vente", "prix"]):
+        return "comps-market"
+    if any(token in text for token in ["valeur", "evaluation", "approche", "calcul", "ajustement", "revenu", "cout"]):
+        return "valuation-draft"
+    if any(token in text for token in ["conformite", "blocage", "warning", "risque", "gate", "limite", "integrite"]):
+        return "compliance-qa"
+    if any(token in text for token in ["rapport", "redige", "redaction", "annexe", "synthese"]):
+        return "redaction"
+    if any(token in text for token in ["fait", "faits", "source", "document", "surface", "date", "dossier"]):
+        return "data-facts"
+    return "superviseur-evaluateur-ai"
+
+
+def render_assistant_answer(message: str, agent: str, context: dict) -> str:
+    profile = assistant_agent_profile(agent)
+    lines = [
+        f"{profile['label']} - lecture du dossier {context['dossier_id'] or '-'}",
+        f"Statut runtime: {context['runtime_status']} | revue interne: {context['review_decision']} | paquet: {context['package_status']}.",
+    ]
+    if agent == "data-facts":
+        facts = context["facts"]
+        lines.extend(
+            [
+                f"Faits disponibles: date_reference={facts.get('date_reference', '-')}, surface={facts.get('surface', '-')}, confiance={facts.get('confidence', '-')}.",
+                f"Sources referencees: {facts.get('source_ids_count', 0)}.",
+            ]
+        )
+    elif agent == "comps-market":
+        comparables = context["comparables"][:4]
+        lines.append(f"Comparables disponibles: {context['comparables_count']}.")
+        for item in comparables:
+            lines.append(
+                f"- {item.get('comparable_id', '-')}: prix={item.get('prix_vente', '-')}, score={item.get('score', '-')}, source={item.get('source_id', '-')}, date={item.get('date_vente', '-')}"
+            )
+    elif agent == "valuation-draft":
+        values = context["valuation_values"]
+        if values:
+            lines.append("Valeurs par approche: " + ", ".join(f"{key}={value}" for key, value in values.items()))
+        for approach in context["valuation_approaches"]:
+            lines.append(
+                f"- {approach.get('approach', '-')}: methode={approach.get('method', '-')}, valeur={approach.get('value', '-')}, inputs={approach.get('input_count', 0)}"
+            )
+    elif agent == "compliance-qa":
+        lines.extend(
+            [
+                f"Warnings: {len(context['warnings'])}; blocages: {len(context['blocking_failures'])}.",
+                "Blocages: " + (", ".join(context["blocking_failures"]) if context["blocking_failures"] else "aucun"),
+                "Warnings: " + (", ".join(context["warnings"]) if context["warnings"] else "aucun"),
+                f"Couverture artefacts: {context['coverage'].get('required_count', 0) - context['coverage'].get('missing_count', 0)} / {context['coverage'].get('required_count', 0)}.",
+            ]
+        )
+    elif agent == "redaction":
+        report = context["report"]
+        preview = str(report.get("preview") or "Rapport non disponible pour cette session.")
+        lines.extend(
+            [
+                f"Rapport disponible: {bool(report.get('available'))}.",
+                "Apercu rapport:",
+                preview[:1200],
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                f"J'ai acces a {context['artifacts_count']} artefacts, {context['comparables_count']} comparables et {context['valuation_approaches_count']} approches de valeur.",
+                f"Warnings: {len(context['warnings'])}; blocages: {len(context['blocking_failures'])}.",
+                "Je peux router la suite vers Agent Dossier, Agent Marche, Agent Analyse, Agent Conformite ou Agent Rapport selon ta question.",
+            ]
+        )
+    lines.extend(
+        [
+            f"Question recue: {message}",
+            "Limite: cette reponse est une assistance AI sourcee par les artefacts runtime; elle ne certifie pas la valeur et ne remplace pas la validation d'un evaluateur agree.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def assistant_citations(context: dict) -> list[dict]:
+    return [
+        {"label": "Session summary", "route": context["session_summary_url"]},
+        {"label": "Dossier review", "route": context["dossier_review_url"]},
+        {"label": "Package V1", "route": context["package_url"]},
+        {"label": "Agent configs", "source": "integration/AGENTCONFIG-*-V0.yaml"},
+    ]
+
+
+def append_assistant_exchange(session: dict, message: str, response: dict) -> None:
+    path = Path(str(session["session_dir"])) / ASSISTANT_MESSAGES_FILENAME
+    record = {
+        "schema_version": "assistant_exchange_v1",
+        "created_at_utc": response["created_at_utc"],
+        "session_id": session["session_id"],
+        "run_id": session.get("run_id", ""),
+        "user_message": message,
+        "assistant": {
+            "message_id": response["message_id"],
+            "agent": response["agent"],
+            "agent_label": response["agent_label"],
+            "answer": response["answer"],
+            "citations": response["citations"],
+            "limits": response["limits"],
+        },
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    session["assistant_messages_path"] = str(path)
+    session["assistant_messages_count"] = len(load_jsonl(path))
+    save_session(session)
+
+
 def validate_review_payload(session: dict, body: dict) -> dict:
     decision = str(body.get("decision") or "PENDING").strip()
     reviewer = str(body.get("reviewer") or "").strip()
@@ -1427,6 +1681,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("review_write"):
                     return
                 self._send_json(200, generate_v1_package_for_session(str(body.get("session_id", ""))))
+                return
+            if self.path == "/assistant/message":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, assistant_message(body))
                 return
             if self.path == "/ops/pre-response-run":
                 if not self._require_permission("ops_write"):

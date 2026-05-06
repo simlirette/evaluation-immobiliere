@@ -31,6 +31,8 @@ Endpoints:
 - `POST /start`
 - `GET /session/summary?session_id=<id>`
 - `GET /review/dossier?session_id=<id>`
+- `GET|POST /review/package?session_id=<id>`
+- `POST /assistant/message`
 - `GET /status?session_id=<id>`
 - `GET /artifacts?session_id=<id>`
 - `GET /artifact?session_id=<id>&event_id=<event_id>`
@@ -123,6 +125,20 @@ de lecture arbitraire du disque.
 
 `/review/dossier` transforme les artefacts runtime en synthese produit:
 faits, comparables, approches de valeur, conformite et apercu du rapport.
+
+## Assistant evaluateur AI
+
+```bash
+curl -X POST http://127.0.0.1:8787/assistant/message ^
+  -H "Content-Type: application/json" ^
+  -d "{\"session_id\":\"<id>\",\"agent\":\"auto\",\"message\":\"Explique la valeur et les risques du dossier.\"}"
+```
+
+L'assistant choisit un agent metier (`data-facts`, `comps-market`,
+`valuation-draft`, `compliance-qa`, `redaction`) ou respecte le choix explicite
+envoye par l'UI. La reponse cite les routes de session, dossier et paquet V1,
+mais ne certifie pas la valeur et ne fabrique pas de reponses d'evaluateur
+agree.
 
 ## Auth locale optionnelle
 
