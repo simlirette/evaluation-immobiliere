@@ -30,6 +30,37 @@
       border-bottom: 1px solid var(--line);
       background: var(--panel);
     }
+    .ops-head {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .top-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .top-nav a {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 0 10px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .top-nav a.active {
+      background: var(--text);
+      border-color: var(--text);
+      color: #ffffff;
+    }
     h1 {
       margin: 0;
       font-size: 22px;
@@ -126,6 +157,7 @@
     @media (max-width: 560px) {
       .grid { grid-template-columns: 1fr; }
       header { padding: 16px; }
+      .ops-head { align-items: flex-start; flex-direction: column; }
       main { padding: 14px 10px 24px; }
       button { width: 100%; }
     }
@@ -133,8 +165,18 @@
 </head>
 <body>
   <header>
-    <h1>Ops runtime immobilier</h1>
-    <div class="muted" id="updated">Chargement...</div>
+    <div class="ops-head">
+      <div>
+        <h1>Ops runtime immobilier</h1>
+        <div class="muted" id="updated">Chargement...</div>
+      </div>
+      <nav class="top-nav" aria-label="Navigation produit">
+        <a href="/product">Produit</a>
+        <a href="/ui">Runtime</a>
+        <a href="/review/ui">Revue</a>
+        <a class="active" href="/ops/ui">Ops</a>
+      </nav>
+    </div>
   </header>
   <main>
     <div class="toolbar">

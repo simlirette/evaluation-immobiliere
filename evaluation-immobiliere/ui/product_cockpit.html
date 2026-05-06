@@ -7,102 +7,350 @@
   <style>
     :root {
       color-scheme: light;
-      --bg: #f4f6f8;
-      --panel: #ffffff;
+      --bg: #eef1f5;
+      --surface: #ffffff;
+      --surface-soft: #f7f9fb;
+      --surface-alt: #edf7f4;
       --text: #17202b;
       --muted: #667085;
-      --line: #d7dde6;
-      --accent: #0f6f64;
-      --accent-dark: #0b554d;
+      --line: #d8dee8;
+      --accent: #0f766e;
+      --accent-strong: #0b5f59;
       --ok: #087443;
       --warn: #a15c00;
       --bad: #b42318;
-      --soft: #eef2f6;
+      --info: #265c8f;
+      --shadow: 0 14px 38px rgba(24, 32, 42, 0.08);
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       background: var(--bg);
       color: var(--text);
       font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
       line-height: 1.42;
       letter-spacing: 0;
     }
-    header {
-      background: var(--panel);
-      border-bottom: 1px solid var(--line);
-      padding: 14px 18px;
-    }
-    .topbar {
-      max-width: 1480px;
-      margin: 0 auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-    h1 {
-      margin: 0;
-      font-size: 20px;
-      line-height: 1.2;
-    }
-    nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    a, button, select, input {
+
+    button, select, input, textarea, a {
       font: inherit;
       border-radius: 6px;
     }
-    a, button {
-      min-height: 36px;
-      border: 1px solid var(--line);
-      background: var(--panel);
-      color: var(--text);
-      padding: 7px 12px;
-      cursor: pointer;
+
+    a {
+      color: inherit;
       text-decoration: none;
     }
+
+    button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      padding: 0 11px;
+      cursor: pointer;
+    }
+
     button.primary {
       background: var(--accent);
       border-color: var(--accent);
-      color: #fff;
+      color: #ffffff;
+      font-weight: 700;
     }
-    button.primary:hover { background: var(--accent-dark); }
+
+    button.primary:hover { background: var(--accent-strong); }
     button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    select, input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+    }
+
     select, input {
       min-height: 36px;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-      padding: 0 10px;
-      min-width: 220px;
+      padding: 0 9px;
     }
-    main {
-      max-width: 1480px;
+
+    textarea {
+      min-height: 104px;
+      padding: 9px;
+      resize: vertical;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 7px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    pre {
+      margin: 0;
+      max-height: 390px;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #111827;
+      color: #f9fafb;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .shell-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(16px);
+    }
+
+    .header-inner {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto minmax(260px, auto);
+      gap: 14px;
+      align-items: center;
+    }
+
+    .brand {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .eyebrow {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 2px;
+    }
+
+    .top-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .top-nav a {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      padding: 0 11px;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .top-nav a.active {
+      background: var(--text);
+      border-color: var(--text);
+      color: #ffffff;
+    }
+
+    .auth-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .auth-wrap select,
+    .auth-wrap input,
+    .auth-wrap button {
+      width: auto;
+      min-width: 0;
+    }
+
+    .layout {
+      max-width: 1600px;
       margin: 0 auto;
       padding: 14px 12px 28px;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 12px;
     }
+
+    .sidebar, .panel, .workflow, .notice {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar {
+      align-self: start;
+      position: sticky;
+      top: 74px;
+      max-height: calc(100vh - 88px);
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .workspace {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 9px;
+    }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 7px;
       align-items: center;
-      margin-bottom: 12px;
     }
+
+    .toolbar button { flex: 1 1 auto; }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin: 9px 0 4px;
+    }
+
+    .section-title {
+      margin: 0 0 9px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 12px 0;
+    }
+
+    .workflow {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .step {
+      min-width: 0;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      border-radius: 7px;
+      padding: 10px;
+    }
+
+    .step-number {
+      display: inline-flex;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      align-items: center;
+      justify-content: center;
+      background: #dfe5ee;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 7px;
+    }
+
+    .step-title {
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .step-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .step.ok .step-number { background: #d6f3e5; color: var(--ok); }
+    .step.warn .step-number { background: #fff1d6; color: var(--warn); }
+    .step.bad .step-number { background: #ffe0dd; color: var(--bad); }
+
+    .notice {
+      padding: 11px 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      background: #f9fbfd;
+    }
+
+    .notice strong { display: block; margin-bottom: 3px; }
+    .notice span { color: var(--muted); font-size: 13px; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tab {
+      min-height: 34px;
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .panel {
+      min-width: 0;
+      padding: 12px;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
-      gap: 12px;
+      gap: 10px;
     }
-    section {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      min-width: 0;
-    }
+
     .span3 { grid-column: span 3; }
     .span4 { grid-column: span 4; }
     .span5 { grid-column: span 5; }
@@ -110,265 +358,779 @@
     .span7 { grid-column: span 7; }
     .span8 { grid-column: span 8; }
     .full { grid-column: 1 / -1; }
-    h2 {
-      margin: 0 0 10px;
-      font-size: 13px;
-      color: var(--muted);
-      text-transform: uppercase;
+
+    .tile {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 11px;
+      background: var(--surface-soft);
+      min-width: 0;
+      min-height: 82px;
     }
+
+    .tile h3 {
+      margin: 0 0 7px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
     .metric {
-      font-size: 25px;
-      font-weight: 700;
+      font-size: 23px;
+      font-weight: 800;
       line-height: 1.12;
       overflow-wrap: anywhere;
     }
+
     .sub {
+      margin-top: 6px;
       color: var(--muted);
-      font-size: 13px;
-      margin-top: 8px;
+      font-size: 12px;
       overflow-wrap: anywhere;
     }
-    .pill {
+
+    .chip {
       display: inline-flex;
       align-items: center;
-      min-height: 26px;
-      border-radius: 999px;
-      padding: 0 9px;
-      background: var(--soft);
-      font-size: 12px;
-      font-weight: 700;
+      min-height: 24px;
       max-width: 100%;
+      border-radius: 999px;
+      padding: 0 8px;
+      background: #e7ebf0;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
       overflow-wrap: anywhere;
     }
+
+    .chip.ok { background: #d6f3e5; color: var(--ok); }
+    .chip.warn { background: #fff1d6; color: var(--warn); }
+    .chip.bad { background: #ffe0dd; color: var(--bad); }
+    .chip.info { background: #e3effb; color: var(--info); }
+
     .ok { color: var(--ok); }
     .warn { color: var(--warn); }
     .bad { color: var(--bad); }
-    table {
+    .info { color: var(--info); }
+    .muted { color: var(--muted); font-size: 13px; }
+
+    .session-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .session-item {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th, td {
-      border-bottom: 1px solid var(--line);
-      padding: 8px 6px;
       text-align: left;
-      vertical-align: top;
+      min-height: 0;
+      padding: 9px;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      display: grid;
+      gap: 4px;
+    }
+
+    .session-item.active {
+      border-color: var(--accent);
+      background: var(--surface-alt);
+    }
+
+    .session-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      font-weight: 800;
       overflow-wrap: anywhere;
     }
-    th {
+
+    .session-meta {
       color: var(--muted);
-      font-weight: 700;
-    }
-    pre {
-      margin: 0;
-      max-height: 300px;
-      overflow: auto;
-      background: #111827;
-      color: #f9fafb;
-      padding: 12px;
-      border-radius: 6px;
       font-size: 12px;
-      line-height: 1.45;
-      white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
-    @media (max-width: 1120px) {
-      .span3, .span4, .span5, .span6, .span7, .span8 { grid-column: span 6; }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+      gap: 10px;
     }
+
+    .form-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .artifact-row {
+      cursor: pointer;
+    }
+
+    .artifact-row:hover {
+      background: #f0f7f5;
+    }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 7px;
+      padding: 18px;
+      color: var(--muted);
+      background: #fbfcfd;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 1180px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar {
+        position: static;
+        max-height: none;
+      }
+      .workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .header-inner { grid-template-columns: 1fr; }
+      .auth-wrap { justify-content: flex-start; }
+      .span3, .span4, .span5, .span6, .span7, .span8 { grid-column: span 6; }
+      .split { grid-template-columns: 1fr; }
+    }
+
     @media (max-width: 760px) {
-      .topbar { align-items: flex-start; flex-direction: column; }
-      nav, .toolbar { width: 100%; }
-      nav a, .toolbar button, select { width: 100%; }
+      .layout { padding: 10px 8px 22px; }
+      .workflow { grid-template-columns: 1fr; }
       .span3, .span4, .span5, .span6, .span7, .span8 { grid-column: 1 / -1; }
+      .top-nav a, .toolbar button, .auth-wrap select, .auth-wrap input, .auth-wrap button { width: 100%; }
+      .notice { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="topbar">
-      <h1>Produit evaluation immobiliere</h1>
-      <nav>
-        <a href="/product">Produit</a>
+  <header class="shell-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div>
+          <span class="eyebrow">V1 produit pre-evaluateur</span>
+          <h1>Evaluation immobiliere</h1>
+        </div>
+        <span class="chip" id="productStatusChip">chargement</span>
+      </div>
+      <nav class="top-nav" aria-label="Navigation produit">
+        <a class="active" href="/product">Produit</a>
         <a href="/ui">Runtime</a>
-        <a href="/ops/ui">Ops</a>
         <a href="/review/ui">Revue</a>
+        <a href="/ops/ui">Ops</a>
       </nav>
+      <div class="auth-wrap" id="authPanel"></div>
     </div>
   </header>
-  <main>
-    <div class="toolbar">
-      <button class="primary" id="refresh">Actualiser</button>
-      <select id="fixture"></select>
-      <button id="demo">Lancer demo</button>
-      <button id="resume">Reprise session</button>
-      <button id="openReview" disabled>Ouvrir revue</button>
-      <button id="generatePackage" disabled>Paquet V1</button>
-      <div class="toolbar" id="authPanel"></div>
-    </div>
-    <div class="grid">
-      <section class="span6">
-        <h2>Decision produit</h2>
-        <div class="metric" id="status">-</div>
-        <div class="sub" id="target">-</div>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="stack">
+        <div>
+          <div class="section-title">Workflow</div>
+          <div class="toolbar">
+            <button class="primary" id="refresh">Actualiser</button>
+            <button id="openReview" disabled>Ouvrir revue</button>
+          </div>
+          <label for="fixture">Dossier synthetique</label>
+          <select id="fixture"></select>
+          <div class="toolbar" style="margin-top:8px">
+            <button class="primary" id="demo">Lancer dossier</button>
+            <button id="resume" disabled>Reprise</button>
+          </div>
+          <div class="toolbar" style="margin-top:8px">
+            <button id="generatePackage" disabled>Generer paquet V1</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div>
+          <div class="section-title">Session active</div>
+          <div class="tile">
+            <h3>Selection</h3>
+            <div class="metric" id="activeDossier">-</div>
+            <div class="sub" id="activeSession">Aucune session chargee</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">Sessions recentes</div>
+          <div class="session-list" id="sessions"></div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <div class="workflow" id="workflow"></div>
+
+      <div class="notice">
+        <div>
+          <strong>Limite produit V1</strong>
+          <span>La V1 finalise un dossier runtime synthetique, sa revue interne et son paquet de transmission. Elle ne contient aucune reponse d'evaluateur externe inventee.</span>
+        </div>
+        <span class="chip info" id="externalFlag">external_evaluator_responses_included=false</span>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Vues produit">
+        <button class="tab active" data-panel="overview">Produit</button>
+        <button class="tab" data-panel="dossier">Dossier</button>
+        <button class="tab" data-panel="package">Paquet V1</button>
+        <button class="tab" data-panel="raw">Contrats API</button>
+      </div>
+
+      <section class="panel" id="panel-overview">
+        <div class="grid">
+          <div class="tile span4">
+            <h3>Decision produit</h3>
+            <div class="metric" id="status">-</div>
+            <div class="sub" id="target">-</div>
+          </div>
+          <div class="tile span2">
+            <h3>Production</h3>
+            <div class="metric" id="production">-</div>
+            <div class="sub" id="phaseH">-</div>
+          </div>
+          <div class="tile span2">
+            <h3>Release</h3>
+            <div class="metric" id="release">-</div>
+            <div class="sub" id="homologation">-</div>
+          </div>
+          <div class="tile span2">
+            <h3>Runtime</h3>
+            <div class="metric" id="cases">-</div>
+            <div class="sub" id="caseBreakdown">-</div>
+          </div>
+          <div class="tile span2">
+            <h3>Paquet V1</h3>
+            <div class="metric" id="package">-</div>
+            <div class="sub" id="packageSub">-</div>
+          </div>
+
+          <div class="tile span3">
+            <h3>Fixtures</h3>
+            <div class="metric" id="fixturesCount">-</div>
+            <div class="sub">sources synthetiques disponibles</div>
+          </div>
+          <div class="tile span3">
+            <h3>Ops</h3>
+            <div class="metric" id="ops">-</div>
+            <div class="sub" id="opsSub">-</div>
+          </div>
+          <div class="tile span3">
+            <h3>Terrain Phase H</h3>
+            <div class="metric" id="terrain">-</div>
+            <div class="sub" id="terrainSub">-</div>
+          </div>
+          <div class="tile span3">
+            <h3>Campagne revue</h3>
+            <div class="metric" id="reviewCampaign">-</div>
+            <div class="sub" id="reviewCampaignSub">-</div>
+          </div>
+
+          <div class="tile span6">
+            <h3>Campagne interne</h3>
+            <table id="campaignTable"></table>
+          </div>
+          <div class="tile span6">
+            <h3>Observabilite ops</h3>
+            <table id="opsSnapshot"></table>
+          </div>
+          <div class="tile full">
+            <h3>Routes backend utilisees</h3>
+            <table id="routes"></table>
+          </div>
+        </div>
       </section>
-      <section class="span3">
-        <h2>Production</h2>
-        <div class="metric" id="production">-</div>
-        <div class="sub" id="phaseH">-</div>
+
+      <section class="panel hidden" id="panel-dossier">
+        <div id="dossierEmpty" class="empty">Lancez un dossier ou selectionnez une session recente pour inspecter les faits, comparables, valeurs, warnings, rapport et artefacts.</div>
+        <div id="dossierContent" class="hidden">
+          <div class="grid">
+            <div class="tile span3">
+              <h3>Dossier</h3>
+              <div class="metric" id="dossierId">-</div>
+              <div class="sub" id="sessionId">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Statut runtime</h3>
+              <div class="metric" id="runtimeStatus">-</div>
+              <div class="sub" id="runtimeSignals">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Integrite</h3>
+              <div class="metric" id="integrity">-</div>
+              <div class="sub" id="coverage">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Revue interne</h3>
+              <div class="metric" id="reviewDecision">-</div>
+              <div class="sub" id="nextAction">-</div>
+            </div>
+
+            <div class="tile span4">
+              <h3>Faits</h3>
+              <table id="facts"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Valeurs</h3>
+              <table id="valuation"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Blocages et warnings</h3>
+              <table id="signals"></table>
+            </div>
+            <div class="tile span7">
+              <h3>Comparables</h3>
+              <table id="comparables"></table>
+            </div>
+            <div class="tile span5">
+              <h3>Revue interne</h3>
+              <div class="form-grid">
+                <label for="decision">Decision</label>
+                <select id="decision">
+                  <option value="PRET_REVUE">PRET_REVUE</option>
+                  <option value="A_CORRIGER">A_CORRIGER</option>
+                  <option value="VALIDE">VALIDE</option>
+                  <option value="REJETE">REJETE</option>
+                </select>
+                <label for="reviewer">Relecteur interne</label>
+                <input id="reviewer" value="QA produit">
+                <label for="notes">Notes internes</label>
+                <textarea id="notes" placeholder="Notes requises pour VALIDE, A_CORRIGER ou REJETE. Ne pas saisir de reponse d'evaluateur externe ici."></textarea>
+                <div class="toolbar">
+                  <button class="primary" id="saveReview">Enregistrer revue</button>
+                  <button id="openReviewSecondary">Vue revue dediee</button>
+                </div>
+              </div>
+            </div>
+            <div class="tile span6">
+              <h3>Rapport</h3>
+              <pre id="reportPreview">-</pre>
+            </div>
+            <div class="tile span6">
+              <h3>Artefact ouvert</h3>
+              <pre id="artifactDetail">Selectionnez un artefact.</pre>
+            </div>
+            <div class="tile full">
+              <h3>Artefacts de session</h3>
+              <table id="artifacts"></table>
+            </div>
+          </div>
+        </div>
       </section>
-      <section class="span3">
-        <h2>Release</h2>
-        <div class="metric" id="release">-</div>
-        <div class="sub" id="homologation">-</div>
+
+      <section class="panel hidden" id="panel-package">
+        <div id="packageEmpty" class="empty">Aucune session active. Selectionnez un dossier pour voir le gate et generer le paquet V1.</div>
+        <div id="packageContent" class="hidden">
+          <div class="grid">
+            <div class="tile span3">
+              <h3>Statut</h3>
+              <div class="metric" id="packageStatus">-</div>
+              <div class="sub" id="packageDossier">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Gate source</h3>
+              <div class="metric" id="packageGate">-</div>
+              <div class="sub" id="packageGateSub">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Manifest</h3>
+              <div class="metric" id="manifestStatus">-</div>
+              <div class="sub" id="manifestPath">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Reponses externes</h3>
+              <div class="metric" id="externalResponses">false</div>
+              <div class="sub">aucune reponse evaluateur inventee</div>
+            </div>
+            <div class="tile span6">
+              <h3>Fichiers</h3>
+              <table id="packageFiles"></table>
+            </div>
+            <div class="tile span6">
+              <h3>Limites et blocages</h3>
+              <table id="packageLimits"></table>
+            </div>
+            <div class="tile full">
+              <h3>Manifest paquet</h3>
+              <pre id="packageManifest">{}</pre>
+            </div>
+          </div>
+        </div>
       </section>
-      <section class="span3">
-        <h2>Cas runtime</h2>
-        <div class="metric" id="cases">-</div>
-        <div class="sub" id="caseBreakdown">-</div>
+
+      <section class="panel hidden" id="panel-raw">
+        <div class="split">
+          <div>
+            <div class="section-title">Derniere reponse API</div>
+            <pre id="raw">{}</pre>
+          </div>
+          <div>
+            <div class="section-title">Contrats actifs</div>
+            <table id="contractSummary"></table>
+          </div>
+        </div>
       </section>
-      <section class="span3">
-        <h2>Fixtures</h2>
-        <div class="metric" id="fixturesCount">-</div>
-        <div class="sub">synthetiques</div>
-      </section>
-      <section class="span3">
-        <h2>Ops</h2>
-        <div class="metric" id="ops">-</div>
-        <div class="sub" id="opsSub">-</div>
-      </section>
-      <section class="span3">
-        <h2>Terrain Phase H</h2>
-        <div class="metric" id="terrain">-</div>
-        <div class="sub" id="terrainSub">-</div>
-      </section>
-      <section class="span3">
-        <h2>Campagne revue</h2>
-        <div class="metric" id="reviewCampaign">-</div>
-        <div class="sub" id="reviewCampaignSub">-</div>
-      </section>
-      <section class="span3">
-        <h2>Paquet V1</h2>
-        <div class="metric" id="package">-</div>
-        <div class="sub" id="packageSub">-</div>
-      </section>
-      <section class="span7">
-        <h2>Sessions</h2>
-        <table id="sessions"></table>
-      </section>
-      <section class="span5">
-        <h2>Demo active</h2>
-        <table id="demoTable"></table>
-      </section>
-      <section class="span6">
-        <h2>Statuts runtime</h2>
-        <table id="runtimeStatus"></table>
-      </section>
-      <section class="span6">
-        <h2>Routes backend</h2>
-        <table id="routes"></table>
-      </section>
-      <section class="span6">
-        <h2>Observabilite ops</h2>
-        <table id="opsSnapshot"></table>
-      </section>
-      <section class="full">
-        <h2>Reponse brute</h2>
-        <pre id="raw">{}</pre>
-      </section>
-    </div>
+    </section>
   </main>
+
   <script src="/auth/client.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
-    let summary = {};
-    let activeSessionId = "";
+    const state = {
+      summary: null,
+      sessions: [],
+      campaign: null,
+      opsSnapshot: null,
+      activeSessionId: "",
+      sessionSummary: null,
+      dossierReview: null,
+      packageSummary: null,
+      currentPanel: "overview"
+    };
 
     async function api(url, options = {}) {
       return RuntimeAuth.fetchJson(url, options);
     }
 
-    function cssFor(value) {
-      const text = String(value || "");
-      if (text.includes("PRET") || text === "OK" || text === "true") return "ok";
-      if (text.includes("BLOQUE") || text.includes("NO_GO") || text.includes("A_REVOIR")) return "bad";
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function pretty(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    }
+
+    function statusKind(value) {
+      const text = String(value ?? "");
+      if (!text || text === "-") return "";
+      if (text === "true" || text === "OK" || text.includes("PRET") || text.includes("VALIDE") || text.includes("STABLE")) return "ok";
+      if (text === "false" || text.includes("BLOQUE") || text.includes("NO_GO") || text.includes("REJETE") || text.includes("ABSENT") || text.includes("A_CORRIGER")) return "bad";
       return "warn";
     }
 
-    function metric(id, value) {
+    function chip(value) {
+      return `<span class="chip ${statusKind(value)}">${escapeHtml(pretty(value))}</span>`;
+    }
+
+    function setMetric(id, value) {
       const node = $(id);
-      node.textContent = value || "-";
-      node.className = `metric ${cssFor(value)}`;
+      node.textContent = pretty(value);
+      node.className = `metric ${statusKind(value)}`;
     }
 
-    function renderObjectTable(id, data) {
-      const rows = Object.entries(data || {});
+    function renderObjectTable(id, obj) {
+      const rows = Object.entries(obj || {});
       $(id).innerHTML = `<tbody>${rows.map(([key, value]) =>
-        `<tr><th>${key}</th><td>${JSON.stringify(value)}</td></tr>`).join("")}</tbody>`;
+        `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(pretty(value))}</td></tr>`
+      ).join("") || '<tr><td class="muted">Aucune donnee.</td></tr>'}</tbody>`;
     }
 
-    function renderSessions(items) {
-      const rows = (items || []).map((item) =>
-        `<tr data-session="${item.session_id || ""}"><td>${item.session_id || "-"}</td><td>${item.dossier_id || "-"}</td><td><span class="pill ${cssFor(item.status)}">${item.status || "-"}</span></td><td>${item.review_decision || "-"}</td><td>${item.package_status || "ABSENT"}</td></tr>`
-      ).join("");
-      $("sessions").innerHTML = `<thead><tr><th>Session</th><th>Dossier</th><th>Statut</th><th>Revue</th><th>Paquet</th></tr></thead><tbody>${rows}</tbody>`;
-      document.querySelectorAll("#sessions tbody tr").forEach((row) => {
-        row.addEventListener("click", () => {
-          activeSessionId = row.dataset.session || "";
-          loadSession(activeSessionId).catch((error) => $("raw").textContent = error.message);
-        });
+    function renderRows(id, headers, rows) {
+      const body = (rows || []).map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("");
+      $(id).innerHTML = `<thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${body || '<tr><td colspan="' + headers.length + '" class="muted">Aucune donnee.</td></tr>'}</tbody>`;
+    }
+
+    function setActivePanel(name) {
+      state.currentPanel = name;
+      document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.panel === name));
+      ["overview", "dossier", "package", "raw"].forEach((panel) => {
+        $(`panel-${panel}`).classList.toggle("hidden", panel !== name);
       });
     }
 
     function renderFixtures(items) {
       $("fixture").innerHTML = (items || []).map((item) =>
-        `<option value="${item.name}">${item.name} (${item.dossier_id || "-"})</option>`
+        `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)} (${escapeHtml(item.dossier_id || "sans dossier")})</option>`
       ).join("");
     }
 
-    function setActiveSession(sessionId) {
-      activeSessionId = sessionId || "";
-      $("openReview").disabled = !activeSessionId;
-      $("generatePackage").disabled = !activeSessionId;
+    function renderSessions() {
+      const rows = state.sessions || [];
+      $("sessions").innerHTML = rows.map((row) => `
+        <button class="session-item ${row.session_id === state.activeSessionId ? "active" : ""}" data-session-id="${escapeHtml(row.session_id || "")}">
+          <span class="session-main">
+            <span>${escapeHtml(row.dossier_id || "-")}</span>
+            ${chip(row.review_decision || row.status || "-")}
+          </span>
+          <span class="session-meta">${escapeHtml(row.session_id || "-")}</span>
+          <span class="session-meta">${escapeHtml(row.next_action || "-")} | paquet ${escapeHtml(row.package_status || "ABSENT")}</span>
+        </button>
+      `).join("") || '<div class="empty">Aucune session runtime.</div>';
+      document.querySelectorAll(".session-item").forEach((button) => {
+        button.addEventListener("click", () => loadSession(button.dataset.sessionId).catch(showError));
+      });
     }
 
-    function renderSummary(payload) {
-      summary = payload;
-      metric("status", payload.status);
-      $("target").textContent = payload.target || "-";
-      metric("production", payload.production_blocked ? "BLOQUEE" : "OUVERTE");
-      $("phaseH").textContent = payload.phase_h_decision || "-";
-      metric("release", payload.release_candidate_decision);
-      $("homologation").textContent = payload.homologation_decision || "-";
-      metric("cases", payload.runtime?.cases_count);
+    function renderWorkflow() {
+      const session = state.sessionSummary;
+      const dossier = state.dossierReview;
+      const pkg = state.packageSummary;
+      const reviewDecision = session?.review?.decision || "A_SAISIR";
+      const blocking = session?.result?.blocking_failures || [];
+      const warnings = session?.result?.warnings || [];
+      const integrityOk = Boolean(session?.integrity?.ok);
+      const coverageMissing = dossier?.coverage?.missing_count ?? null;
+      const packageStatus = pkg?.status || "ABSENT";
+      const steps = [
+        {
+          number: 1,
+          title: "Lancer dossier",
+          value: session?.result?.status || "A_LANCER",
+          kind: session ? statusKind(session.result?.status) : "warn"
+        },
+        {
+          number: 2,
+          title: "Inspecter",
+          value: session ? `${warnings.length} warnings | ${blocking.length} blocages | couverture ${coverageMissing ?? "-"}` : "AUCUNE_SESSION",
+          kind: !session ? "warn" : blocking.length || coverageMissing ? "bad" : "ok"
+        },
+        {
+          number: 3,
+          title: "Revue interne",
+          value: `${reviewDecision} | integrite ${integrityOk ? "OK" : "A_VERIFIER"}`,
+          kind: reviewDecision === "VALIDE" && integrityOk && !blocking.length ? "ok" : reviewDecision === "A_CORRIGER" || reviewDecision === "REJETE" ? "bad" : "warn"
+        },
+        {
+          number: 4,
+          title: "Paquet V1",
+          value: packageStatus,
+          kind: packageStatus === "PRET_REVUE_EVALUATEUR_AGREE" ? "ok" : pkg?.gate?.ok ? "warn" : "bad"
+        }
+      ];
+      $("workflow").innerHTML = steps.map((step) => `
+        <div class="step ${step.kind}">
+          <span class="step-number">${step.number}</span>
+          <div class="step-title">${escapeHtml(step.title)}</div>
+          <div class="step-sub">${escapeHtml(step.value)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderOverview() {
+      const payload = state.summary || {};
+      const campaign = state.campaign || payload.review_campaign || {};
+      const opsSnapshot = state.opsSnapshot || payload.ops_snapshot || {};
+      $("productStatusChip").textContent = pretty(payload.status || "charge");
+      $("productStatusChip").className = `chip ${statusKind(payload.status)}`;
+      setMetric("status", payload.status);
+      $("target").textContent = pretty(payload.target);
+      setMetric("production", payload.production_blocked ? "BLOQUEE" : "OUVERTE");
+      $("phaseH").textContent = pretty(payload.phase_h_decision);
+      setMetric("release", payload.release_candidate_decision);
+      $("homologation").textContent = pretty(payload.homologation_decision);
+      setMetric("cases", payload.runtime?.cases_count);
       $("caseBreakdown").textContent = `prets ${payload.runtime?.ready_cases || 0} | a revoir ${payload.runtime?.review_cases || 0} | brouillons ${payload.runtime?.draft_cases || 0}`;
-      metric("fixturesCount", payload.fixtures?.count);
-      metric("ops", payload.ops?.readiness_status);
+      setMetric("fixturesCount", payload.fixtures?.count);
+      setMetric("ops", payload.ops?.readiness_status);
       $("opsSub").textContent = `doctor ${payload.ops?.doctor_status || "-"} | file ${payload.ops?.review_queue_items ?? "-"}`;
-      metric("terrain", payload.terrain?.status || payload.ops?.phase_h_gate_status);
+      setMetric("terrain", payload.terrain?.status || payload.ops?.phase_h_gate_status);
       $("terrainSub").textContent = `${payload.terrain?.active_cases_count ?? 0} dossier(s) actifs | ${payload.terrain?.mode || "-"}`;
-      metric("reviewCampaign", `${payload.review_campaign?.validated_count ?? 0} / ${payload.review_campaign?.sessions_count ?? 0}`);
-      $("reviewCampaignSub").textContent = `revues ${payload.review_campaign?.reviews_count ?? 0} | bloques ${payload.review_campaign?.blocked_count ?? 0}`;
-      metric("package", payload.package?.status);
+      setMetric("reviewCampaign", `${campaign.validated_count ?? 0} / ${campaign.sessions_count ?? 0}`);
+      $("reviewCampaignSub").textContent = `revues ${campaign.reviews_count ?? 0} | prets paquet ${campaign.ready_for_package_count ?? 0} | bloques ${campaign.blocked_count ?? 0}`;
+      setMetric("package", payload.package?.status);
       $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts | sessions ${payload.package?.session_generated_count || 0}`;
-      renderSessions(payload.sessions?.recent || []);
-      renderFixtures(payload.fixtures?.items || []);
-      renderObjectTable("runtimeStatus", payload.runtime?.status_counts || {});
-      renderObjectTable("routes", payload.routes || {});
-      renderObjectTable("opsSnapshot", {
-        status: payload.ops_snapshot?.status,
-        present: `${payload.ops_snapshot?.present_reports_count || 0} / ${payload.ops_snapshot?.expected_reports_count || 0}`,
-        missing: payload.ops_snapshot?.missing_reports_count || 0,
-        last_run_ok: payload.ops_snapshot?.last_run?.ok ?? null,
-        lock: payload.ops_snapshot?.lock?.status || "-",
-        phase_h: payload.ops?.phase_h_gate_status || "-",
-        blocages: payload.terrain?.blocking_counts || {},
-        next_action: payload.ops_snapshot?.next_action || "-"
+
+      renderObjectTable("campaignTable", {
+        scope: campaign.scope || "REVUE_INTERNE_PRE_EVALUATEUR",
+        sessions: campaign.sessions_count ?? 0,
+        revues: campaign.reviews_count ?? 0,
+        validees: campaign.validated_count ?? 0,
+        pretes_paquet: campaign.ready_for_package_count ?? 0,
+        paquets_generes: campaign.package_generated_count ?? 0,
+        bloquees: campaign.blocked_count ?? 0,
+        external_evaluator_responses_included: campaign.external_evaluator_responses_included ?? false
       });
-      $("raw").textContent = JSON.stringify(payload, null, 2);
+      renderObjectTable("opsSnapshot", {
+        status: opsSnapshot.status,
+        present: `${opsSnapshot.present_reports_count || 0} / ${opsSnapshot.expected_reports_count || 0}`,
+        missing: opsSnapshot.missing_reports_count || 0,
+        last_run_ok: opsSnapshot.last_run?.ok ?? null,
+        lock: opsSnapshot.lock?.status || "-",
+        next_action: opsSnapshot.next_action || "-"
+      });
+      renderObjectTable("routes", payload.routes || {});
+      renderObjectTable("contractSummary", {
+        product_summary: "/product/summary",
+        product_demo: "/product/demo",
+        sessions: "/sessions",
+        session_summary: "/session/summary",
+        review_dossier: "/review/dossier",
+        review_save: "/review",
+        review_campaign: "/review/campaign",
+        review_package: "/review/package",
+        artifact: "/artifact",
+        ops_snapshot: "/ops/snapshot"
+      });
+    }
+
+    function renderDossier() {
+      const hasSession = Boolean(state.sessionSummary && state.dossierReview);
+      $("dossierEmpty").classList.toggle("hidden", hasSession);
+      $("dossierContent").classList.toggle("hidden", !hasSession);
+      $("resume").disabled = !state.activeSessionId;
+      $("openReview").disabled = !state.activeSessionId;
+      $("generatePackage").disabled = !state.activeSessionId;
+      if (!hasSession) return;
+
+      const session = state.sessionSummary;
+      const dossier = state.dossierReview;
+      const reviewDecision = session.review?.decision || "A_SAISIR";
+      $("activeDossier").textContent = dossier.dossier_id || session.result?.dossier_id || "-";
+      $("activeSession").textContent = state.activeSessionId || "-";
+      $("dossierId").textContent = dossier.dossier_id || "-";
+      $("sessionId").textContent = state.activeSessionId || "-";
+      setMetric("runtimeStatus", session.result?.status);
+      $("runtimeSignals").textContent = `${(session.result?.warnings || []).length} warnings | ${(session.result?.blocking_failures || []).length} blocages | ${session.result?.events_count || 0} evenements`;
+      setMetric("integrity", session.integrity?.ok ? "OK" : "A_VERIFIER");
+      $("coverage").textContent = `${(dossier.coverage?.required_count || 0) - (dossier.coverage?.missing_count || 0)} / ${dossier.coverage?.required_count || 0} artefacts requis`;
+      setMetric("reviewDecision", reviewDecision);
+      $("nextAction").textContent = selectedRecord()?.next_action || "-";
+      $("decision").value = ["PRET_REVUE", "A_CORRIGER", "VALIDE", "REJETE"].includes(reviewDecision) ? reviewDecision : "PRET_REVUE";
+      $("reviewer").value = session.review?.reviewer || $("reviewer").value || "QA produit";
+      $("notes").value = session.review?.notes || "";
+
+      renderObjectTable("facts", {
+        date_reference: dossier.facts?.date_reference,
+        surface: dossier.facts?.surface,
+        confidence: dossier.facts?.confidence,
+        source_ids_count: dossier.facts?.source_ids_count,
+        source_fixture: dossier.source_fixture
+      });
+      renderRows("valuation", ["Approche", "Methode", "Valeur", "Inputs"], (dossier.valuation?.approaches || []).map((row) => [
+        escapeHtml(row.approach || "-"),
+        escapeHtml(row.method || "-"),
+        escapeHtml(pretty(row.value)),
+        escapeHtml(pretty(row.input_count))
+      ]));
+      renderObjectTable("signals", {
+        compliance_status: dossier.compliance?.status,
+        blocking_failures: dossier.compliance?.blocking_failures || session.result?.blocking_failures || [],
+        warnings: dossier.compliance?.warnings || session.result?.warnings || [],
+        missing_required_artifacts: dossier.coverage?.missing || []
+      });
+      renderRows("comparables", ["ID", "Prix vente", "Score", "Source", "Date"], (dossier.comparables?.items || []).map((row) => [
+        escapeHtml(row.comparable_id || "-"),
+        escapeHtml(pretty(row.prix_vente)),
+        escapeHtml(pretty(row.score)),
+        escapeHtml(row.source_id || "-"),
+        escapeHtml(row.date_vente || "-")
+      ]));
+      $("reportPreview").textContent = dossier.report?.preview || "Rapport non disponible pour cette session.";
+      renderArtifacts(session.artifacts?.artifacts || []);
+    }
+
+    function renderArtifacts(items) {
+      const rows = (items || []).map((item) => `
+        <tr class="artifact-row" data-event-id="${escapeHtml(item.event_id || "")}">
+          <td>${escapeHtml(item.step || "-")}</td>
+          <td>${escapeHtml(item.artifact || "-")}</td>
+          <td>${escapeHtml(pretty(item.bytes))}</td>
+          <td>${escapeHtml(String(item.sha256 || "").slice(0, 16))}</td>
+        </tr>
+      `).join("");
+      $("artifacts").innerHTML = `<thead><tr><th>Step</th><th>Artefact</th><th>Bytes</th><th>SHA-256</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">Aucun artefact.</td></tr>'}</tbody>`;
+      document.querySelectorAll(".artifact-row").forEach((row) => {
+        row.addEventListener("click", () => openArtifact(row.dataset.eventId).catch(showError));
+      });
+    }
+
+    function renderPackage() {
+      const hasSession = Boolean(state.activeSessionId && state.packageSummary);
+      $("packageEmpty").classList.toggle("hidden", hasSession);
+      $("packageContent").classList.toggle("hidden", !hasSession);
+      if (!hasSession) return;
+      const payload = state.packageSummary;
+      const gate = payload.gate || {};
+      setMetric("packageStatus", payload.status || "ABSENT");
+      $("packageDossier").textContent = `${payload.dossier_id || "-"} | ${payload.session_id || "-"}`;
+      setMetric("packageGate", gate.ok ? "OK" : "BLOQUE");
+      $("packageGateSub").textContent = `${gate.blocking_errors_count || 0} blocage(s) | decision ${gate.actual_review_decision || "-"}`;
+      setMetric("manifestStatus", payload.manifest && Object.keys(payload.manifest).length ? "PRESENT" : "ABSENT");
+      $("manifestPath").textContent = payload.manifest_path || "-";
+      $("externalResponses").textContent = String(payload.external_evaluator_responses_included === true);
+      $("externalResponses").className = `metric ${payload.external_evaluator_responses_included ? "bad" : "ok"}`;
+
+      const files = Object.entries(payload.files || {}).map(([name, file]) => [
+        escapeHtml(name),
+        escapeHtml(file.path || file),
+        file.exists === undefined ? "-" : chip(file.exists ? "OK" : "ABSENT")
+      ]);
+      renderRows("packageFiles", ["Fichier", "Chemin", "Statut"], files);
+      renderObjectTable("packageLimits", {
+        required_review_decision: gate.required_review_decision,
+        actual_review_decision: gate.actual_review_decision,
+        integrity_ok: gate.integrity_ok,
+        blocking_failures_count: gate.blocking_failures_count,
+        blocking_errors: gate.blocking_errors || [],
+        artifact_dir: gate.artifact_dir || "",
+        external_evaluator_responses_included: payload.external_evaluator_responses_included ?? false
+      });
+      $("packageManifest").textContent = JSON.stringify(payload.manifest || {}, null, 2);
+    }
+
+    function selectedRecord() {
+      return (state.sessions || []).find((row) => row.session_id === state.activeSessionId) || {};
+    }
+
+    function renderAll() {
+      renderFixtures(state.summary?.fixtures?.items || []);
+      renderSessions();
+      renderWorkflow();
+      renderOverview();
+      renderDossier();
+      renderPackage();
     }
 
     async function refresh() {
-      renderSummary(await api("/product/summary"));
+      const [summary, sessions, campaign, opsSnapshot] = await Promise.all([
+        api("/product/summary"),
+        api("/sessions?limit=30"),
+        api("/review/campaign"),
+        api("/ops/snapshot")
+      ]);
+      state.summary = summary;
+      state.sessions = sessions.sessions || summary.sessions?.recent || [];
+      state.campaign = campaign;
+      state.opsSnapshot = opsSnapshot;
+      if (!state.activeSessionId && state.sessions.length) {
+        state.activeSessionId = summary.package?.latest_session_id || state.sessions[0].session_id || "";
+      }
+      $("raw").textContent = JSON.stringify({ summary, sessions, campaign, opsSnapshot }, null, 2);
+      if (state.activeSessionId) {
+        await loadSession(state.activeSessionId, { skipRefresh: true, skipPanel: true });
+      } else {
+        renderAll();
+      }
+    }
+
+    async function loadSession(sessionId, options = {}) {
+      if (!sessionId) return;
+      state.activeSessionId = sessionId;
+      const [sessionSummary, dossierReview, packageSummary] = await Promise.all([
+        api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`),
+        api(`/review/dossier?session_id=${encodeURIComponent(sessionId)}`),
+        api(`/review/package?session_id=${encodeURIComponent(sessionId)}`)
+      ]);
+      state.sessionSummary = sessionSummary;
+      state.dossierReview = dossierReview;
+      state.packageSummary = packageSummary;
+      $("raw").textContent = JSON.stringify({ sessionSummary, dossierReview, packageSummary }, null, 2);
+      renderAll();
+      if (!options.skipPanel) setActivePanel(state.currentPanel === "overview" ? "dossier" : state.currentPanel);
+      if (!options.skipRefresh && state.summary) {
+        const sessions = await api("/sessions?limit=30");
+        state.sessions = sessions.sessions || [];
+        renderSessions();
+      }
     }
 
     async function launchDemo() {
@@ -377,62 +1139,82 @@
         method: "POST",
         body: JSON.stringify({ fixture })
       });
-      setActiveSession(payload.session.session_id);
-      $("demoTable").innerHTML = `<tbody>
-        <tr><th>Session</th><td>${payload.session.session_id}</td></tr>
-        <tr><th>Dossier</th><td>${payload.result.dossier_id}</td></tr>
-        <tr><th>Statut</th><td><span class="pill ${cssFor(payload.result.status)}">${payload.result.status}</span></td></tr>
-        <tr><th>Artefacts</th><td>${payload.result.artifact_dir}</td></tr>
-      </tbody>`;
+      state.activeSessionId = payload.session.session_id;
       $("raw").textContent = JSON.stringify(payload, null, 2);
       await refresh();
-    }
-
-    async function loadSession(sessionId) {
-      if (!sessionId) return;
-      setActiveSession(sessionId);
-      const summary = await api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`);
-      $("demoTable").innerHTML = `<tbody>
-        <tr><th>Session</th><td>${summary.session.session_id}</td></tr>
-        <tr><th>Dossier</th><td>${summary.result.dossier_id || "-"}</td></tr>
-        <tr><th>Statut</th><td><span class="pill ${cssFor(summary.result.status)}">${summary.result.status || "-"}</span></td></tr>
-        <tr><th>Integrite</th><td>${summary.integrity.ok ? "OK" : "A verifier"}</td></tr>
-        <tr><th>Artefacts</th><td>${summary.artifacts.artifacts_count || 0}</td></tr>
-      </tbody>`;
-      $("raw").textContent = JSON.stringify(summary, null, 2);
+      setActivePanel("dossier");
     }
 
     async function resumeSession() {
-      if (!activeSessionId) throw new Error("session absente");
-      $("raw").textContent = JSON.stringify(await api("/resume", {
+      if (!state.activeSessionId) throw new Error("session absente");
+      const payload = await api("/resume", {
         method: "POST",
-        body: JSON.stringify({ session_id: activeSessionId })
-      }), null, 2);
-      await refresh();
+        body: JSON.stringify({ session_id: state.activeSessionId })
+      });
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      await loadSession(state.activeSessionId);
     }
 
-    function openReview() {
-      if (!activeSessionId) return;
-      window.location.href = `/review/ui?session_id=${encodeURIComponent(activeSessionId)}`;
-    }
-
-    async function generatePackage() {
-      if (!activeSessionId) throw new Error("session absente");
-      const payload = await api("/review/package", {
+    async function saveReview() {
+      if (!state.activeSessionId) throw new Error("aucune session active");
+      const payload = await api("/review", {
         method: "POST",
-        body: JSON.stringify({ session_id: activeSessionId })
+        body: JSON.stringify({
+          session_id: state.activeSessionId,
+          decision: $("decision").value,
+          reviewer: $("reviewer").value.trim(),
+          notes: $("notes").value.trim()
+        })
       });
       $("raw").textContent = JSON.stringify(payload, null, 2);
       await refresh();
+      await loadSession(state.activeSessionId, { skipRefresh: true, skipPanel: true });
+      setActivePanel("package");
     }
 
-    $("refresh").addEventListener("click", () => refresh().catch((error) => $("raw").textContent = error.message));
-    $("demo").addEventListener("click", () => launchDemo().catch((error) => $("raw").textContent = error.message));
-    $("resume").addEventListener("click", () => resumeSession().catch((error) => $("raw").textContent = error.message));
+    async function generatePackage() {
+      if (!state.activeSessionId) throw new Error("aucune session active");
+      const payload = await api("/review/package", {
+        method: "POST",
+        body: JSON.stringify({ session_id: state.activeSessionId })
+      });
+      state.packageSummary = payload;
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      await refresh();
+      setActivePanel("package");
+    }
+
+    async function openArtifact(eventId) {
+      if (!state.activeSessionId) throw new Error("aucune session active");
+      if (!eventId) throw new Error("event_id manquant");
+      const params = new URLSearchParams({ session_id: state.activeSessionId, event_id: eventId });
+      const payload = await api(`/artifact?${params.toString()}`);
+      const body = payload.json ? JSON.stringify(payload.json, null, 2) : payload.text;
+      $("artifactDetail").textContent = `${payload.artifact.step}.${payload.artifact.artifact}\n${payload.bytes} bytes${payload.truncated ? " - tronque" : ""}\n\n${body}`;
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+    }
+
+    function openReview() {
+      if (!state.activeSessionId) return;
+      window.location.href = `/review/ui?session_id=${encodeURIComponent(state.activeSessionId)}`;
+    }
+
+    function showError(error) {
+      $("raw").textContent = error.message || String(error);
+      setActivePanel("raw");
+    }
+
+    $("refresh").addEventListener("click", () => refresh().catch(showError));
+    $("demo").addEventListener("click", () => launchDemo().catch(showError));
+    $("resume").addEventListener("click", () => resumeSession().catch(showError));
+    $("saveReview").addEventListener("click", () => saveReview().catch(showError));
+    $("generatePackage").addEventListener("click", () => generatePackage().catch(showError));
     $("openReview").addEventListener("click", openReview);
-    $("generatePackage").addEventListener("click", () => generatePackage().catch((error) => $("raw").textContent = error.message));
+    $("openReviewSecondary").addEventListener("click", openReview);
+    document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setActivePanel(tab.dataset.panel)));
+
     RuntimeAuth.mount("authPanel");
-    refresh().catch((error) => $("raw").textContent = error.message);
+    refresh().catch(showError);
   </script>
 </body>
 </html>
