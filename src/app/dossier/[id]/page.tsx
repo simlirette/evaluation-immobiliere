@@ -9,6 +9,7 @@ import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
+import { createClient } from '@/lib/supabase/client'
 import { MOCK_DOSSIERS } from '@/data/mock'
 import type { TabId } from '@/types'
 
@@ -81,7 +82,11 @@ function DossierShellInner() {
         onDossierSelect={handleDossierSelect}
         onNewDossier={handleNewDossier}
         onMesDossiers={handleMesDossiers}
-        onSignOut={() => router.push('/login')}
+        onSignOut={async () => {
+          const supabase = createClient()
+          await supabase.auth.signOut()
+          router.push('/login')
+        }}
       />
 
       <div className="absolute inset-0 flex flex-col" style={{ paddingLeft: '224px' }}>
