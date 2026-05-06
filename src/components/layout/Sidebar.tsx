@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import SidebarWordmark from './SidebarWordmark'
 import SidebarNav from './SidebarNav'
 import SidebarRecent from './SidebarRecent'
 import SidebarFooter from './SidebarFooter'
 import ContextMenu from './ContextMenu'
 import { useContextMenu } from '@/hooks/useContextMenu'
-import { MOCK_DOSSIERS } from '@/data/mock'
-import type { TabId } from '@/types'
+import { fetchDossiers } from '@/lib/supabase/queries/dossiers'
+import { togglePin } from '@/lib/supabase/queries/pins'
+import type { Dossier, TabId } from '@/types'
 
 interface Props {
   activeDossierId: string | null
@@ -27,13 +28,20 @@ export default function Sidebar({
   currentDossierName, onTabChange, onDossierSelect,
   onNewDossier, onMesDossiers, onSignOut,
 }: Props) {
-  const [dossiers, setDossiers] = useState(MOCK_DOSSIERS)
+  const [dossiers, setDossiers] = useState<Dossier[]>([])
   const ctx = useContextMenu()
 
+  useEffect(() => {
+    fetchDossiers().then(setDossiers)
+  }, [])
+
   function handlePin(name: string, pinned: boolean) {
+    const dossier = dossiers.find(d => d.address === name)
+    if (!dossier) return
     setDossiers(prev => prev.map(d =>
       d.address === name ? { ...d, pinned: !pinned } : d
     ))
+    togglePin(dossier.id, pinned)
   }
 
   function handleDelete(name: string) {

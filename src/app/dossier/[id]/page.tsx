@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import TabBar from '@/components/layout/TabBar'
@@ -10,7 +10,7 @@ import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
 import { createClient } from '@/lib/supabase/client'
-import { MOCK_DOSSIERS } from '@/data/mock'
+import { fetchDossier } from '@/lib/supabase/queries/dossiers'
 import type { TabId } from '@/types'
 
 const VALID_TABS: TabId[] = ['dossier', 'marche', 'analyse', 'rapport']
@@ -24,13 +24,21 @@ function DossierShellInner() {
   const activeTab: TabId = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'dossier'
 
   const [activeDossierId, setActiveDossierId] = useState(params.id)
-  const [currentDossierName, setCurrentDossierName] = useState(() => {
-    const found = MOCK_DOSSIERS.find(d => d.id === params.id)
-    return found?.address ?? params.id
-  })
+  const [currentDossierName, setCurrentDossierName] = useState(params.id)
+  const [dossierId, setDossierId] = useState<string | null>(null)
   const [showMesDossiers, setShowMesDossiers] = useState(false)
   const [isNew, setIsNew] = useState(params.id === 'nouveau')
   const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    if (params.id === 'nouveau') return
+    fetchDossier(params.id).then(d => {
+      if (d) {
+        setCurrentDossierName(d.address)
+        setDossierId(d.id)
+      }
+    })
+  }, [params.id])
 
   function setTab(tab: TabId) {
     setShowMesDossiers(false)
@@ -104,9 +112,9 @@ function DossierShellInner() {
           }}
         >
           <div className="absolute inset-0 flex">
-            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} />}
-            {activeTab === 'marche'   && <MarchePanel />}
-            {activeTab === 'analyse'  && <AnalysePanel />}
+            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} />}
+            {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} />}
+            {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
             {activeTab === 'rapport'  && <RapportPanel />}
           </div>
         </div>
