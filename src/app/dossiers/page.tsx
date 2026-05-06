@@ -12,7 +12,7 @@ export default function MesDossiersPage() {
 
   const filtered = MOCK_DOSSIERS.filter(d =>
     d.address.toLowerCase().includes(search.toLowerCase()) ||
-    d.meta.toLowerCase().includes(search.toLowerCase())
+    `${d.property_type} ${d.neighborhood}`.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
