@@ -48,6 +48,39 @@
         gap: 16px;
       }
 
+      .heading {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .top-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .top-nav a {
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--muted);
+        border-radius: 6px;
+        padding: 0 10px;
+        text-decoration: none;
+        font-weight: 650;
+        font-size: 13px;
+      }
+
+      .top-nav a.active {
+        background: var(--text);
+        border-color: var(--text);
+        color: #ffffff;
+      }
+
       h1 {
         margin: 0;
         font-size: 20px;
@@ -232,6 +265,11 @@
       }
 
       @media (max-width: 860px) {
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
         main {
           grid-template-columns: 1fr;
         }
@@ -249,7 +287,15 @@
   <body>
     <header>
       <div class="wrap topbar">
-        <h1>Runtime evaluation immobiliere</h1>
+        <div class="heading">
+          <h1>Runtime evaluation immobiliere</h1>
+          <nav class="top-nav" aria-label="Navigation produit">
+            <a href="/product">Produit</a>
+            <a class="active" href="/ui">Runtime</a>
+            <a href="/review/ui">Revue</a>
+            <a href="/ops/ui">Ops</a>
+          </nav>
+        </div>
         <div class="actions" id="authPanel"></div>
         <span class="muted" id="health">API: verification...</span>
       </div>
