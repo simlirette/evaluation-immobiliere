@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
+/* ── DARK MODE: data-theme="dark" on <html> ── */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ── DESIGN TOKENS ── */
+@theme {
+  --font-serif: var(--font-cormorant), Georgia, serif;
+  --font-sans: var(--font-inter), -apple-system, sans-serif;
+
+  --color-text: #1a1916;
+  --color-text-muted: #8a8780;
+  --color-text-dim: #b5b2ac;
+  --color-accent: #334155;
+  --color-bg: #e6e0d7;
+
+  --shadow-glass:
+    0 1px 1px rgba(0,0,0,.03),
+    0 4px 16px rgba(0,0,0,.07),
+    0 20px 56px rgba(0,0,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.72),
+    inset 0 -1px 0 rgba(0,0,0,.03);
+
+  --shadow-card:
+    0 1px 1px rgba(0,0,0,.03),
+    0 4px 16px rgba(0,0,0,.07),
+    0 16px 40px rgba(0,0,0,.05),
+    inset 0 1px 0 rgba(255,255,255,.90),
+    inset 0 -1px 0 rgba(0,0,0,.025);
+
+  --shadow-pill:
+    0 2px 8px rgba(0,0,0,.08),
+    inset 0 1px 0 rgba(255,255,255,.9);
+
+  --radius-glass: 18px;
+}
+
+/* ── LIGHT THEME CSS VARIABLES ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --glass-bg:     rgba(232,226,216,.68);
+  --glass-border: rgba(255,255,255,.42);
+  --glass-blur:   blur(48px) saturate(180%) brightness(1.01);
+  --input-bg:     rgba(240,236,229,.62);
+  --input-border: rgba(255,255,255,.50);
+  --tab-active-bg:     rgba(255,255,255,.62);
+  --tab-active-border: rgba(255,255,255,.72);
+  --send-idle:    rgba(0,0,0,.18);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── DARK THEME CSS VARIABLES ── */
+[data-theme="dark"] {
+  --glass-bg:     rgba(32,28,24,.62);
+  --glass-border: rgba(255,255,255,.11);
+  --glass-blur:   blur(52px) saturate(180%) brightness(.98);
+  --input-bg:     rgba(0,0,0,.32);
+  --input-border: rgba(255,255,255,.10);
+  --tab-active-bg:     rgba(255,255,255,.11);
+  --tab-active-border: rgba(255,255,255,.17);
+  --send-idle:    rgba(255,255,255,.14);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── BASE RESET ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter, -apple-system, sans-serif);
+  font-size: 14px;
+  color: #1a1916;
+  background:
+    radial-gradient(ellipse 75% 50% at 20% 10%, rgba(245,238,226,.70) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 60% at 80% 88%, rgba(218,212,202,.50) 0%, transparent 52%),
+    #e6e0d7;
+  transition: background .3s, color .3s;
+}
+
+[data-theme="dark"] body {
+  color: #e8e5e0;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 10%, rgba(60,45,30,.55) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 65% at 85% 85%, rgba(20,40,50,.45) 0%, transparent 50%),
+    #141210;
+}
+
+/* ── CUSTOM SCROLLBAR ── */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,.16); border-radius: 999px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); }
+
+/* ── SCROLL FADE MASK ── */
+.scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom,
+    transparent 0px, black 28px,
+    black calc(100% - 52px), transparent 100%);
+  mask-image: linear-gradient(to bottom,
+    transparent 0px, black 28px,
+    black calc(100% - 52px), transparent 100%);
 }
