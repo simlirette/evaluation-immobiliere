@@ -105,9 +105,16 @@ Endpoints:
 - `POST /start`
 - `GET /session/summary?session_id=<id>`
 - `GET /review/dossier?session_id=<id>`
+- `GET|POST /review/package?session_id=<id>`
+- `POST /assistant/message`
 - `GET /stream?session_id=<id>`
 - `GET /artifact?session_id=<id>&event_id=<event_id>`
 - `GET /health`
+
+`POST /assistant/message` permet de questionner le dossier actif depuis le
+cockpit produit. La reponse est sourcee par les artefacts runtime et inclut des
+limites explicites: aucune certification automatique et aucune reponse
+d'evaluateur agree inventee.
 
 Demo depuis un autre terminal:
 

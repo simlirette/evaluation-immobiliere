@@ -23,6 +23,7 @@ from api import (
     PRODUCT_UI_PATH,
     UI_PATH,
     RuntimeApiHandler,
+    assistant_message,
     dossier_review_summary,
     list_session_records,
     list_fixtures,
@@ -90,6 +91,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["review_workbench"], "/review/workbench")
         self.assertEqual(summary["routes"]["review_campaign"], "/review/campaign")
         self.assertEqual(summary["routes"]["review_package"], "/review/package")
+        self.assertEqual(summary["routes"]["assistant_message"], "/assistant/message")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
         self.assertEqual(summary["review_campaign"]["schema_version"], "review_campaign_v1")
         self.assertEqual(summary["session_packages"]["schema_version"], "session_packages_summary_v1")
@@ -391,6 +393,9 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("RuntimeAuth.mount", product_ui)
         self.assertIn("openReview", product_ui)
         self.assertIn("external_evaluator_responses_included=false", product_ui)
+        self.assertIn("Evaluateur AI", product_ui)
+        self.assertIn("askAssistant", product_ui)
+        self.assertIn("/assistant/message", product_ui)
         self.assertIn("/ops/snapshot", product_ui)
         self.assertIn("RuntimeAuth.mount", evaluator_ui)
         self.assertIn("RuntimeAuth.mount", ops_ui)
@@ -427,6 +432,42 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(dossier_review["schema_version"], "dossier_review_summary_v1")
         self.assertEqual(dossier_review["comparables"]["count"], 1)
         self.assertEqual(dossier_review["coverage"]["missing_count"], 0)
+
+    def test_assistant_message_answers_from_session_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                started = start_runtime({"fixture": "case_nominal.json"})
+                session_id = started["session"]["session_id"]
+                answer = assistant_message(
+                    {
+                        "session_id": session_id,
+                        "agent": "auto",
+                        "message": "Explique la valeur et les comparables du dossier.",
+                    }
+                )
+                supervisor = assistant_message(
+                    {
+                        "session_id": session_id,
+                        "agent": "superviseur-evaluateur-ai",
+                        "message": "Donne la synthese globale.",
+                    }
+                )
+                session = api.load_session(session_id)
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(answer["schema_version"], "assistant_message_v1")
+        self.assertEqual(answer["session_id"], session_id)
+        self.assertIn(answer["agent"], {"comps-market", "valuation-draft"})
+        self.assertFalse(answer["limits"]["external_evaluator_responses_included"])
+        self.assertTrue(answer["limits"]["requires_human_validation"])
+        self.assertIn("D-001", answer["answer"])
+        self.assertGreaterEqual(answer["context_summary"]["artifacts_count"], 1)
+        self.assertGreaterEqual(len(answer["citations"]), 3)
+        self.assertEqual(session["assistant_messages_count"], 2)
+        self.assertEqual(supervisor["agent"], "superviseur-evaluateur-ai")
 
     def test_review_workbench_lists_persisted_sessions_and_decisions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -543,6 +584,17 @@ class TestApiV0(unittest.TestCase):
                 )
                 package = self.http_json("POST", host, port, "/review/package", {"session_id": session_id})
                 package_get = self.http_json("GET", host, port, f"/review/package?session_id={session_id}")
+                assistant = self.http_json(
+                    "POST",
+                    host,
+                    port,
+                    "/assistant/message",
+                    {
+                        "session_id": session_id,
+                        "agent": "valuation-draft",
+                        "message": "Explique la valeur proposee.",
+                    },
+                )
                 sessions_payload = self.http_json("GET", host, port, "/sessions?limit=10")
                 workbench_payload = self.http_json("GET", host, port, "/review/workbench")
                 campaign_payload = self.http_json("GET", host, port, "/review/campaign")
@@ -563,6 +615,10 @@ class TestApiV0(unittest.TestCase):
         self.assertTrue(package["gate"]["ok"])
         self.assertEqual(package_get["status"], "PRET_REVUE_EVALUATEUR_AGREE")
         self.assertFalse(package_get["external_evaluator_responses_included"])
+        self.assertEqual(assistant["schema_version"], "assistant_message_v1")
+        self.assertEqual(assistant["agent"], "valuation-draft")
+        self.assertIn("510000", assistant["answer"])
+        self.assertFalse(assistant["limits"]["certification_automatic"])
         self.assertEqual(sessions_payload["schema_version"], "runtime_sessions_v1")
         self.assertEqual(sessions_payload["sessions_count"], 1)
         self.assertEqual(sessions_payload["sessions"][0]["review_decision"], "VALIDE")

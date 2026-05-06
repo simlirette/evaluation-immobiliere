@@ -478,6 +478,53 @@
       background: #fbfcfd;
     }
 
+    .assistant-chat {
+      min-height: 360px;
+      max-height: 520px;
+      overflow: auto;
+      display: grid;
+      align-content: start;
+      gap: 9px;
+      padding-right: 4px;
+    }
+
+    .message {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #ffffff;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .message.user {
+      background: #edf7f4;
+      border-color: #c6e4dc;
+    }
+
+    .message.assistant {
+      background: #fbfcfd;
+    }
+
+    .message-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .assistant-input {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+
     .hidden { display: none !important; }
 
     @media (max-width: 1180px) {
@@ -491,6 +538,7 @@
       .auth-wrap { justify-content: flex-start; }
       .span3, .span4, .span5, .span6, .span7, .span8 { grid-column: span 6; }
       .split { grid-template-columns: 1fr; }
+      .assistant-input { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 760px) {
@@ -574,6 +622,7 @@
       <div class="tabs" role="tablist" aria-label="Vues produit">
         <button class="tab active" data-panel="overview">Produit</button>
         <button class="tab" data-panel="dossier">Dossier</button>
+        <button class="tab" data-panel="assistant">Evaluateur AI</button>
         <button class="tab" data-panel="package">Paquet V1</button>
         <button class="tab" data-panel="raw">Contrats API</button>
       </div>
@@ -759,6 +808,44 @@
         </div>
       </section>
 
+      <section class="panel hidden" id="panel-assistant">
+        <div id="assistantEmpty" class="empty">Lancez un dossier ou selectionnez une session recente pour utiliser l'evaluateur immobilier AI sur un contexte source.</div>
+        <div id="assistantContent" class="hidden">
+          <div class="grid">
+            <div class="tile span8">
+              <h3>Conversation evaluateur AI</h3>
+              <div class="assistant-chat" id="assistantMessages"></div>
+            </div>
+            <div class="tile span4">
+              <h3>Agents disponibles</h3>
+              <table id="assistantAgents"></table>
+            </div>
+            <div class="tile full">
+              <h3>Question au dossier actif</h3>
+              <div class="assistant-input">
+                <div>
+                  <label for="assistantAgent">Agent</label>
+                  <select id="assistantAgent">
+                    <option value="auto">auto</option>
+                    <option value="superviseur-evaluateur-ai">Superviseur</option>
+                    <option value="data-facts">Dossier</option>
+                    <option value="comps-market">Marche</option>
+                    <option value="valuation-draft">Analyse</option>
+                    <option value="compliance-qa">Conformite</option>
+                    <option value="redaction">Rapport</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="assistantInput">Message</label>
+                  <textarea id="assistantInput" placeholder="Ex: Explique la valeur proposee et les risques a valider avant signature."></textarea>
+                </div>
+                <button class="primary" id="askAssistant">Envoyer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel hidden" id="panel-raw">
         <div class="split">
           <div>
@@ -786,6 +873,7 @@
       sessionSummary: null,
       dossierReview: null,
       packageSummary: null,
+      assistantMessages: [],
       currentPanel: "overview"
     };
 
@@ -842,7 +930,7 @@
     function setActivePanel(name) {
       state.currentPanel = name;
       document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.panel === name));
-      ["overview", "dossier", "package", "raw"].forEach((panel) => {
+      ["overview", "dossier", "assistant", "package", "raw"].forEach((panel) => {
         $(`panel-${panel}`).classList.toggle("hidden", panel !== name);
       });
     }
@@ -967,6 +1055,7 @@
         review_save: "/review",
         review_campaign: "/review/campaign",
         review_package: "/review/package",
+        assistant_message: "/assistant/message",
         artifact: "/artifact",
         ops_snapshot: "/ops/snapshot"
       });
@@ -1077,8 +1166,37 @@
       $("packageManifest").textContent = JSON.stringify(payload.manifest || {}, null, 2);
     }
 
+    function renderAssistant() {
+      const hasSession = Boolean(state.activeSessionId);
+      $("assistantEmpty").classList.toggle("hidden", hasSession);
+      $("assistantContent").classList.toggle("hidden", !hasSession);
+      if (!hasSession) return;
+      renderObjectTable("assistantAgents", {
+        superviseur: "orchestration et synthese",
+        dossier: "faits, sources, documents",
+        marche: "comparables et prix",
+        analyse: "valeurs et approches",
+        conformite: "warnings, blocages, limites",
+        rapport: "redaction et synthese"
+      });
+      $("assistantMessages").innerHTML = state.assistantMessages.map((item) => {
+        if (item.role === "user") {
+          return `<div class="message user"><div class="message-head"><span>Utilisateur</span><span>${escapeHtml(item.time || "")}</span></div>${escapeHtml(item.text)}</div>`;
+        }
+        return `<div class="message assistant"><div class="message-head"><span>${escapeHtml(item.agent_label || "Evaluateur AI")}</span><span>${escapeHtml(item.time || "")}</span></div>${escapeHtml(item.text)}</div>`;
+      }).join("") || '<div class="empty">Posez une question sur les faits, les comparables, la valeur, les risques ou le rapport.</div>';
+      $("assistantMessages").scrollTop = $("assistantMessages").scrollHeight;
+    }
+
     function selectedRecord() {
       return (state.sessions || []).find((row) => row.session_id === state.activeSessionId) || {};
+    }
+
+    function setActiveSession(sessionId) {
+      if (state.activeSessionId !== sessionId) {
+        state.activeSessionId = sessionId;
+        state.assistantMessages = [];
+      }
     }
 
     function renderAll() {
@@ -1088,6 +1206,7 @@
       renderOverview();
       renderDossier();
       renderPackage();
+      renderAssistant();
     }
 
     async function refresh() {
@@ -1102,7 +1221,7 @@
       state.campaign = campaign;
       state.opsSnapshot = opsSnapshot;
       if (!state.activeSessionId && state.sessions.length) {
-        state.activeSessionId = summary.package?.latest_session_id || state.sessions[0].session_id || "";
+        setActiveSession(summary.package?.latest_session_id || state.sessions[0].session_id || "");
       }
       $("raw").textContent = JSON.stringify({ summary, sessions, campaign, opsSnapshot }, null, 2);
       if (state.activeSessionId) {
@@ -1114,7 +1233,7 @@
 
     async function loadSession(sessionId, options = {}) {
       if (!sessionId) return;
-      state.activeSessionId = sessionId;
+      setActiveSession(sessionId);
       const [sessionSummary, dossierReview, packageSummary] = await Promise.all([
         api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`),
         api(`/review/dossier?session_id=${encodeURIComponent(sessionId)}`),
@@ -1139,7 +1258,7 @@
         method: "POST",
         body: JSON.stringify({ fixture })
       });
-      state.activeSessionId = payload.session.session_id;
+      setActiveSession(payload.session.session_id);
       $("raw").textContent = JSON.stringify(payload, null, 2);
       await refresh();
       setActivePanel("dossier");
@@ -1194,6 +1313,32 @@
       $("raw").textContent = JSON.stringify(payload, null, 2);
     }
 
+    async function askAssistant() {
+      if (!state.activeSessionId) throw new Error("aucune session active");
+      const message = $("assistantInput").value.trim();
+      if (!message) throw new Error("message assistant requis");
+      const now = new Date().toLocaleTimeString();
+      state.assistantMessages.push({ role: "user", text: message, time: now });
+      $("assistantInput").value = "";
+      renderAssistant();
+      const payload = await api("/assistant/message", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: state.activeSessionId,
+          agent: $("assistantAgent").value,
+          message
+        })
+      });
+      state.assistantMessages.push({
+        role: "assistant",
+        agent_label: payload.agent_label,
+        text: payload.answer,
+        time: new Date(payload.created_at_utc).toLocaleTimeString()
+      });
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      renderAssistant();
+    }
+
     function openReview() {
       if (!state.activeSessionId) return;
       window.location.href = `/review/ui?session_id=${encodeURIComponent(state.activeSessionId)}`;
@@ -1209,6 +1354,7 @@
     $("resume").addEventListener("click", () => resumeSession().catch(showError));
     $("saveReview").addEventListener("click", () => saveReview().catch(showError));
     $("generatePackage").addEventListener("click", () => generatePackage().catch(showError));
+    $("askAssistant").addEventListener("click", () => askAssistant().catch(showError));
     $("openReview").addEventListener("click", openReview);
     $("openReviewSecondary").addEventListener("click", openReview);
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setActivePanel(tab.dataset.panel)));
