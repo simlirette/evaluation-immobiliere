@@ -4,6 +4,9 @@
   "artifact": "fiche_bien.json",
   "date_reference": "2026-04-28",
   "surface": null,
+  "type_bien": null,
+  "zone": null,
+  "adresse_anonymisee": "NON_FOURNIE",
   "confidence": 0.9,
   "source_ids": [
     "SRC-1"
