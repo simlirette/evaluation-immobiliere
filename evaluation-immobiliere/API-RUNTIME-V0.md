@@ -32,6 +32,7 @@ Endpoints:
 - `GET /session/summary?session_id=<id>`
 - `GET /review/dossier?session_id=<id>`
 - `GET|POST /review/package?session_id=<id>`
+- `GET /assistant/workbench?session_id=<id>`
 - `POST /assistant/message`
 - `GET /status?session_id=<id>`
 - `GET /artifacts?session_id=<id>`
@@ -129,10 +130,16 @@ faits, comparables, approches de valeur, conformite et apercu du rapport.
 ## Assistant evaluateur AI
 
 ```bash
+curl http://127.0.0.1:8787/assistant/workbench?session_id=<id>
+
 curl -X POST http://127.0.0.1:8787/assistant/message ^
   -H "Content-Type: application/json" ^
   -d "{\"session_id\":\"<id>\",\"agent\":\"auto\",\"message\":\"Explique la valeur et les risques du dossier.\"}"
 ```
+
+`/assistant/workbench` rend visible l'orchestration Aston adaptee au dossier:
+superviseur, cinq agents metier, artefacts produits/manquants, transcript et
+prochaines actions avant revue interne ou paquet V1.
 
 L'assistant choisit un agent metier (`data-facts`, `comps-market`,
 `valuation-draft`, `compliance-qa`, `redaction`) ou respecte le choix explicite

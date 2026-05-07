@@ -106,14 +106,17 @@ Endpoints:
 - `GET /session/summary?session_id=<id>`
 - `GET /review/dossier?session_id=<id>`
 - `GET|POST /review/package?session_id=<id>`
+- `GET /assistant/workbench?session_id=<id>`
 - `POST /assistant/message`
 - `GET /stream?session_id=<id>`
 - `GET /artifact?session_id=<id>&event_id=<event_id>`
 - `GET /health`
 
+`GET /assistant/workbench` expose le plan multi-agents Aston de la session:
+etat des agents, artefacts produits/manquants, transcript et prochaines actions.
 `POST /assistant/message` permet de questionner le dossier actif depuis le
-cockpit produit. La reponse est sourcee par les artefacts runtime et inclut des
-limites explicites: aucune certification automatique et aucune reponse
+cockpit produit. Les reponses sont sourcees par les artefacts runtime et incluent
+des limites explicites: aucune certification automatique et aucune reponse
 d'evaluateur agree inventee.
 
 Demo depuis un autre terminal:

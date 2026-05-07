@@ -458,6 +458,7 @@ def product_summary() -> dict:
             "review_workbench": "/review/workbench",
             "review_campaign": "/review/campaign",
             "review_package": "/review/package",
+            "assistant_workbench": "/assistant/workbench",
             "assistant_message": "/assistant/message",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
@@ -1145,6 +1146,7 @@ def assistant_message(body: dict) -> dict:
             "runtime_status": context["runtime_status"],
             "review_decision": context["review_decision"],
             "package_status": context["package_status"],
+            "integrity_ok": context["integrity_ok"],
             "facts_count": context["facts_count"],
             "comparables_count": context["comparables_count"],
             "valuation_approaches_count": context["valuation_approaches_count"],
@@ -1161,6 +1163,48 @@ def assistant_message(body: dict) -> dict:
     }
     append_assistant_exchange(session, message, response)
     return response
+
+
+def assistant_workbench(session_id: str) -> dict:
+    session = require_session(session_id)
+    context = assistant_context(session)
+    transcript = assistant_transcript_summary(session)
+    agents = assistant_agent_workbench_items(context)
+    next_actions = assistant_next_actions(context, agents, transcript)
+    return {
+        "schema_version": "assistant_workbench_v1",
+        "session_id": context["session_id"],
+        "run_id": context["run_id"],
+        "dossier_id": context["dossier_id"],
+        "status": assistant_workbench_status(context),
+        "runtime_status": context["runtime_status"],
+        "review_decision": context["review_decision"],
+        "package_status": context["package_status"],
+        "integrity_ok": context["integrity_ok"],
+        "supervisor": {
+            "agent": "superviseur-evaluateur-ai",
+            "label": ASSISTANT_AGENT_PROFILES["superviseur-evaluateur-ai"]["label"],
+            "agent_config": ASSISTANT_AGENT_PROFILES["superviseur-evaluateur-ai"]["agent_config"],
+            "mode": "orchestration_session_runtime",
+        },
+        "agents_count": len(agents),
+        "agents": agents,
+        "next_actions_count": len(next_actions),
+        "next_actions": next_actions,
+        "transcript": transcript,
+        "routes": {
+            "assistant_message": "/assistant/message",
+            "session_summary": context["session_summary_url"],
+            "dossier_review": context["dossier_review_url"],
+            "package": context["package_url"],
+        },
+        "limits": {
+            "certification_automatic": False,
+            "external_evaluator_responses_included": False,
+            "requires_human_validation": True,
+            "llm_native_agent_loop_connected": False,
+        },
+    }
 
 
 def normalize_assistant_message(message: str) -> str:
@@ -1198,6 +1242,7 @@ def assistant_context(session: dict) -> dict:
     artifacts = summary.get("artifacts", {}) if isinstance(summary.get("artifacts"), dict) else {}
     review = summary.get("review", {}) if isinstance(summary.get("review"), dict) else {}
     result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
+    integrity = summary.get("integrity", {}) if isinstance(summary.get("integrity"), dict) else {}
     return {
         "session_id": session_id,
         "run_id": session.get("run_id", ""),
@@ -1205,6 +1250,8 @@ def assistant_context(session: dict) -> dict:
         "runtime_status": result.get("status", session.get("status", "UNKNOWN")),
         "review_decision": review.get("decision", session.get("review_decision", "A_SAISIR")),
         "package_status": package.get("status", "ABSENT"),
+        "integrity_ok": bool(integrity.get("ok")),
+        "integrity_errors": integrity.get("errors", []) if isinstance(integrity.get("errors"), list) else [],
         "facts": facts,
         "facts_count": len([key for key, value in facts.items() if value not in (None, "", [])]),
         "comparables": comparables.get("items", []) if isinstance(comparables.get("items"), list) else [],
@@ -1222,6 +1269,162 @@ def assistant_context(session: dict) -> dict:
         "dossier_review_url": f"/review/dossier?session_id={session_id}",
         "package_url": f"/review/package?session_id={session_id}",
     }
+
+
+def assistant_transcript_summary(session: dict) -> dict:
+    path = Path(str(session["session_dir"])) / ASSISTANT_MESSAGES_FILENAME
+    messages = load_jsonl(path)
+    latest = messages[-1] if messages else {}
+    assistant = latest.get("assistant", {}) if isinstance(latest.get("assistant"), dict) else {}
+    return {
+        "schema_version": "assistant_transcript_summary_v1",
+        "messages_count": len(messages),
+        "path": str(path) if path.exists() else "",
+        "latest_at_utc": latest.get("created_at_utc", ""),
+        "latest_agent": assistant.get("agent", ""),
+        "latest_agent_label": assistant.get("agent_label", ""),
+    }
+
+
+def assistant_agent_workbench_items(context: dict) -> list[dict]:
+    artifact_index = session_artifacts(context["session_id"])
+    artifacts = artifact_index.get("artifacts", []) if isinstance(artifact_index, dict) else []
+    artifacts_by_step: dict[str, list[dict]] = {}
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        artifacts_by_step.setdefault(str(artifact.get("step") or ""), []).append(artifact)
+
+    items: list[dict] = []
+    for order, step in enumerate(load_steps_from_pipeline_yaml(PIPELINE_PATH), start=1):
+        profile = assistant_agent_profile(step.name)
+        produced = sorted({str(item.get("artifact") or "") for item in artifacts_by_step.get(step.name, []) if item.get("artifact")})
+        missing = [artifact for artifact in step.writes if artifact not in produced]
+        if not produced:
+            status = "A_EXECUTER"
+        elif missing:
+            status = "PARTIEL"
+        else:
+            status = "TERMINE"
+        gate_status = assistant_agent_gate_status(step.name, status, context)
+        items.append(
+            {
+                "order": order,
+                "agent": step.name,
+                "label": profile["label"],
+                "agent_config": profile["agent_config"],
+                "focus": profile["focus"],
+                "status": status,
+                "gate_status": gate_status,
+                "reads": step.reads,
+                "writes": step.writes,
+                "skills_allowed": step.skills,
+                "artifacts_count": len(produced),
+                "produced_artifacts": produced,
+                "missing_artifacts": missing,
+            }
+        )
+    return items
+
+
+def assistant_agent_gate_status(agent: str, status: str, context: dict) -> str:
+    if status in {"A_EXECUTER", "PARTIEL"}:
+        return "ARTEFACTS_INCOMPLETS"
+    if agent == "compliance-qa" and context["blocking_failures"]:
+        return "BLOCAGE_RUNTIME"
+    if agent == "redaction" and context["review_decision"] not in {"PRET_REVUE", "VALIDE"}:
+        return "REVUE_INTERNE_A_SAISIR"
+    return "OK"
+
+
+def assistant_workbench_status(context: dict) -> str:
+    if not context["integrity_ok"]:
+        return "INTEGRITE_A_VERIFIER"
+    if context["blocking_failures"]:
+        return "BLOCAGE_RUNTIME"
+    if context["package_status"] == "PRET_REVUE_EVALUATEUR_AGREE":
+        return "PRET_REVUE_EVALUATEUR_AGREE"
+    if context["review_decision"] == "VALIDE":
+        return "PRET_PAQUET_V1"
+    return "ASSISTANCE_DOSSIER_ACTIVE"
+
+
+def assistant_next_actions(context: dict, agents: list[dict], transcript: dict) -> list[dict]:
+    actions: list[dict] = []
+    if not context["integrity_ok"]:
+        actions.append(
+            {
+                "priority": "P0",
+                "agent": "compliance-qa",
+                "action": "VERIFIER_INTEGRITE_SESSION",
+                "reason": "; ".join(context["integrity_errors"]) or "integrite session non confirmee",
+                "route": context["session_summary_url"],
+            }
+        )
+    if context["blocking_failures"]:
+        actions.append(
+            {
+                "priority": "P0",
+                "agent": "compliance-qa",
+                "action": "TRAITER_BLOCAGES_RUNTIME",
+                "reason": ", ".join(context["blocking_failures"]),
+                "route": context["dossier_review_url"],
+            }
+        )
+    if int(transcript.get("messages_count", 0) or 0) == 0:
+        actions.append(
+            {
+                "priority": "P1",
+                "agent": "superviseur-evaluateur-ai",
+                "action": "QUESTIONNER_DOSSIER",
+                "reason": "aucune conversation assistant sur cette session",
+                "route": "/assistant/message",
+            }
+        )
+    incomplete_agents = [item for item in agents if item["status"] != "TERMINE"]
+    if incomplete_agents:
+        first = incomplete_agents[0]
+        actions.append(
+            {
+                "priority": "P1",
+                "agent": first["agent"],
+                "action": "COMPLETER_ARTEFACTS_AGENT",
+                "reason": ", ".join(first["missing_artifacts"][:4]),
+                "route": context["session_summary_url"],
+            }
+        )
+    if context["integrity_ok"] and not context["blocking_failures"]:
+        if context["review_decision"] == "A_SAISIR":
+            actions.append(
+                {
+                    "priority": "P1",
+                    "agent": "superviseur-evaluateur-ai",
+                    "action": "SAISIR_REVUE_INTERNE",
+                    "reason": "la revue interne est requise avant le paquet V1",
+                    "route": context["dossier_review_url"],
+                }
+            )
+        elif context["review_decision"] == "VALIDE" and context["package_status"] != "PRET_REVUE_EVALUATEUR_AGREE":
+            actions.append(
+                {
+                    "priority": "P1",
+                    "agent": "redaction",
+                    "action": "GENERER_PAQUET_V1",
+                    "reason": "revue interne validee et paquet absent",
+                    "route": context["package_url"],
+                }
+            )
+        elif context["package_status"] == "PRET_REVUE_EVALUATEUR_AGREE":
+            actions.append(
+                {
+                    "priority": "P2",
+                    "agent": "superviseur-evaluateur-ai",
+                    "action": "PREPARER_REVUE_EVALUATEUR_AGREE",
+                    "reason": "paquet V1 pret sans reponses externes inventees",
+                    "route": context["package_url"],
+                }
+            )
+    return actions
 
 
 def select_assistant_agent(message: str, requested_agent: str) -> str:
@@ -1616,6 +1819,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, session_package_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/assistant/workbench":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, assistant_workbench(parse_qs(parsed.query).get("session_id", [""])[0]))
             return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):
