@@ -24,6 +24,7 @@ from api import (
     UI_PATH,
     RuntimeApiHandler,
     assistant_message,
+    assistant_workbench,
     dossier_review_summary,
     list_session_records,
     list_fixtures,
@@ -91,6 +92,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["review_workbench"], "/review/workbench")
         self.assertEqual(summary["routes"]["review_campaign"], "/review/campaign")
         self.assertEqual(summary["routes"]["review_package"], "/review/package")
+        self.assertEqual(summary["routes"]["assistant_workbench"], "/assistant/workbench")
         self.assertEqual(summary["routes"]["assistant_message"], "/assistant/message")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
         self.assertEqual(summary["review_campaign"]["schema_version"], "review_campaign_v1")
@@ -395,6 +397,8 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("external_evaluator_responses_included=false", product_ui)
         self.assertIn("Evaluateur AI", product_ui)
         self.assertIn("askAssistant", product_ui)
+        self.assertIn("assistantWorkbench", product_ui)
+        self.assertIn("/assistant/workbench", product_ui)
         self.assertIn("/assistant/message", product_ui)
         self.assertIn("/ops/snapshot", product_ui)
         self.assertIn("RuntimeAuth.mount", evaluator_ui)
@@ -468,6 +472,36 @@ class TestApiV0(unittest.TestCase):
         self.assertGreaterEqual(len(answer["citations"]), 3)
         self.assertEqual(session["assistant_messages_count"], 2)
         self.assertEqual(supervisor["agent"], "superviseur-evaluateur-ai")
+
+    def test_assistant_workbench_exposes_agent_orchestration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                started = start_runtime({"fixture": "case_nominal.json"})
+                session_id = started["session"]["session_id"]
+                before = assistant_workbench(session_id)
+                assistant_message(
+                    {
+                        "session_id": session_id,
+                        "agent": "compliance-qa",
+                        "message": "Quels gates doivent etre valides avant le paquet?",
+                    }
+                )
+                after = assistant_workbench(session_id)
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(before["schema_version"], "assistant_workbench_v1")
+        self.assertEqual(before["session_id"], session_id)
+        self.assertEqual(before["agents_count"], 5)
+        self.assertEqual(before["supervisor"]["agent"], "superviseur-evaluateur-ai")
+        self.assertFalse(before["limits"]["external_evaluator_responses_included"])
+        self.assertFalse(before["limits"]["llm_native_agent_loop_connected"])
+        self.assertIn("SAISIR_REVUE_INTERNE", {item["action"] for item in before["next_actions"]})
+        self.assertTrue(all(item["agent_config"].endswith(".yaml") for item in before["agents"]))
+        self.assertEqual(after["transcript"]["messages_count"], 1)
+        self.assertEqual(after["transcript"]["latest_agent"], "compliance-qa")
 
     def test_review_workbench_lists_persisted_sessions_and_decisions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -595,6 +629,7 @@ class TestApiV0(unittest.TestCase):
                         "message": "Explique la valeur proposee.",
                     },
                 )
+                assistant_workbench_payload = self.http_json("GET", host, port, f"/assistant/workbench?session_id={session_id}")
                 sessions_payload = self.http_json("GET", host, port, "/sessions?limit=10")
                 workbench_payload = self.http_json("GET", host, port, "/review/workbench")
                 campaign_payload = self.http_json("GET", host, port, "/review/campaign")
@@ -619,6 +654,10 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(assistant["agent"], "valuation-draft")
         self.assertIn("510000", assistant["answer"])
         self.assertFalse(assistant["limits"]["certification_automatic"])
+        self.assertEqual(assistant_workbench_payload["schema_version"], "assistant_workbench_v1")
+        self.assertEqual(assistant_workbench_payload["status"], "PRET_REVUE_EVALUATEUR_AGREE")
+        self.assertEqual(assistant_workbench_payload["transcript"]["messages_count"], 1)
+        self.assertIn("PREPARER_REVUE_EVALUATEUR_AGREE", {item["action"] for item in assistant_workbench_payload["next_actions"]})
         self.assertEqual(sessions_payload["schema_version"], "runtime_sessions_v1")
         self.assertEqual(sessions_payload["sessions_count"], 1)
         self.assertEqual(sessions_payload["sessions"][0]["review_decision"], "VALIDE")

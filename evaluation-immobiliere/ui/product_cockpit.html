@@ -812,6 +812,34 @@
         <div id="assistantEmpty" class="empty">Lancez un dossier ou selectionnez une session recente pour utiliser l'evaluateur immobilier AI sur un contexte source.</div>
         <div id="assistantContent" class="hidden">
           <div class="grid">
+            <div class="tile span3">
+              <h3>Orchestration Aston</h3>
+              <div class="metric" id="assistantStatus">-</div>
+              <div class="sub" id="assistantDossier">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Transcript</h3>
+              <div class="metric" id="assistantTranscript">0</div>
+              <div class="sub" id="assistantLatest">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Agents</h3>
+              <div class="metric" id="assistantAgentsCount">0</div>
+              <div class="sub">pipeline immobilier Aston</div>
+            </div>
+            <div class="tile span3">
+              <h3>Limites</h3>
+              <div class="metric" id="assistantLimits">source</div>
+              <div class="sub">validation humaine requise</div>
+            </div>
+            <div class="tile span7">
+              <h3>Plan multi-agents</h3>
+              <table id="assistantPlan"></table>
+            </div>
+            <div class="tile span5">
+              <h3>Prochaines actions</h3>
+              <table id="assistantActions"></table>
+            </div>
             <div class="tile span8">
               <h3>Conversation evaluateur AI</h3>
               <div class="assistant-chat" id="assistantMessages"></div>
@@ -873,6 +901,7 @@
       sessionSummary: null,
       dossierReview: null,
       packageSummary: null,
+      assistantWorkbench: null,
       assistantMessages: [],
       currentPanel: "overview"
     };
@@ -901,7 +930,8 @@
       const text = String(value ?? "");
       if (!text || text === "-") return "";
       if (text === "true" || text === "OK" || text.includes("PRET") || text.includes("VALIDE") || text.includes("STABLE")) return "ok";
-      if (text === "false" || text.includes("BLOQUE") || text.includes("NO_GO") || text.includes("REJETE") || text.includes("ABSENT") || text.includes("A_CORRIGER")) return "bad";
+      if (text.includes("TERMINE") || text.includes("ASSISTANCE")) return "ok";
+      if (text === "false" || text.includes("BLOQUE") || text.includes("BLOCAGE") || text.includes("NO_GO") || text.includes("REJETE") || text.includes("ABSENT") || text.includes("A_CORRIGER")) return "bad";
       return "warn";
     }
 
@@ -1055,6 +1085,7 @@
         review_save: "/review",
         review_campaign: "/review/campaign",
         review_package: "/review/package",
+        assistant_workbench: "/assistant/workbench",
         assistant_message: "/assistant/message",
         artifact: "/artifact",
         ops_snapshot: "/ops/snapshot"
@@ -1171,14 +1202,32 @@
       $("assistantEmpty").classList.toggle("hidden", hasSession);
       $("assistantContent").classList.toggle("hidden", !hasSession);
       if (!hasSession) return;
-      renderObjectTable("assistantAgents", {
-        superviseur: "orchestration et synthese",
-        dossier: "faits, sources, documents",
-        marche: "comparables et prix",
-        analyse: "valeurs et approches",
-        conformite: "warnings, blocages, limites",
-        rapport: "redaction et synthese"
-      });
+      const workbench = state.assistantWorkbench || {};
+      const transcript = workbench.transcript || {};
+      const agents = workbench.agents || [];
+      const actions = workbench.next_actions || [];
+      setMetric("assistantStatus", workbench.status || "-");
+      $("assistantDossier").textContent = `${workbench.dossier_id || "-"} | ${workbench.session_id || state.activeSessionId}`;
+      setMetric("assistantTranscript", transcript.messages_count ?? 0);
+      $("assistantLatest").textContent = transcript.latest_agent_label || transcript.latest_at_utc || "-";
+      setMetric("assistantAgentsCount", workbench.agents_count ?? agents.length);
+      $("assistantLimits").textContent = workbench.limits?.external_evaluator_responses_included === false ? "source" : "a verifier";
+
+      renderRows("assistantPlan", ["Agent", "Etat", "Gate", "Artefacts"], agents.map((agent) => [
+        `<strong>${escapeHtml(agent.label || agent.agent || "-")}</strong><div class="muted">${escapeHtml(agent.agent_config || "")}</div>`,
+        chip(agent.status || "-"),
+        chip(agent.gate_status || "-"),
+        `${escapeHtml(agent.artifacts_count ?? 0)} / ${escapeHtml((agent.writes || []).length)}`
+      ]));
+      renderRows("assistantActions", ["Priorite", "Action", "Agent"], actions.map((action) => [
+        chip(action.priority || "-"),
+        `<strong>${escapeHtml(action.action || "-")}</strong><div class="muted">${escapeHtml(action.reason || "")}</div>`,
+        escapeHtml(action.agent || "-")
+      ]));
+      renderObjectTable("assistantAgents", Object.fromEntries(agents.map((agent) => [
+        agent.agent || agent.label || "-",
+        `${agent.focus || "-"} | skills ${(agent.skills_allowed || []).length}`
+      ])));
       $("assistantMessages").innerHTML = state.assistantMessages.map((item) => {
         if (item.role === "user") {
           return `<div class="message user"><div class="message-head"><span>Utilisateur</span><span>${escapeHtml(item.time || "")}</span></div>${escapeHtml(item.text)}</div>`;
@@ -1195,6 +1244,7 @@
     function setActiveSession(sessionId) {
       if (state.activeSessionId !== sessionId) {
         state.activeSessionId = sessionId;
+        state.assistantWorkbench = null;
         state.assistantMessages = [];
       }
     }
@@ -1231,18 +1281,27 @@
       }
     }
 
+    async function loadAssistantWorkbench(sessionId) {
+      if (!sessionId) return null;
+      const payload = await api(`/assistant/workbench?session_id=${encodeURIComponent(sessionId)}`);
+      state.assistantWorkbench = payload;
+      return payload;
+    }
+
     async function loadSession(sessionId, options = {}) {
       if (!sessionId) return;
       setActiveSession(sessionId);
-      const [sessionSummary, dossierReview, packageSummary] = await Promise.all([
+      const [sessionSummary, dossierReview, packageSummary, assistantWorkbench] = await Promise.all([
         api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`),
         api(`/review/dossier?session_id=${encodeURIComponent(sessionId)}`),
-        api(`/review/package?session_id=${encodeURIComponent(sessionId)}`)
+        api(`/review/package?session_id=${encodeURIComponent(sessionId)}`),
+        api(`/assistant/workbench?session_id=${encodeURIComponent(sessionId)}`)
       ]);
       state.sessionSummary = sessionSummary;
       state.dossierReview = dossierReview;
       state.packageSummary = packageSummary;
-      $("raw").textContent = JSON.stringify({ sessionSummary, dossierReview, packageSummary }, null, 2);
+      state.assistantWorkbench = assistantWorkbench;
+      $("raw").textContent = JSON.stringify({ sessionSummary, dossierReview, packageSummary, assistantWorkbench }, null, 2);
       renderAll();
       if (!options.skipPanel) setActivePanel(state.currentPanel === "overview" ? "dossier" : state.currentPanel);
       if (!options.skipRefresh && state.summary) {
@@ -1335,6 +1394,7 @@
         text: payload.answer,
         time: new Date(payload.created_at_utc).toLocaleTimeString()
       });
+      await loadAssistantWorkbench(state.activeSessionId);
       $("raw").textContent = JSON.stringify(payload, null, 2);
       renderAssistant();
     }
