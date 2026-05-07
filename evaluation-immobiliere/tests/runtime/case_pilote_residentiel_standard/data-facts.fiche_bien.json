@@ -7,6 +7,9 @@
     "value": 1460,
     "unit": "pi2"
   },
+  "type_bien": "residentiel_unifamilial",
+  "zone": "SECTEUR-ANONYMISE-A",
+  "adresse_anonymisee": "NON_FOURNIE",
   "confidence": 0.88,
   "source_ids": [
     "SRC-VENTE-001",

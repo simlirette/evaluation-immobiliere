@@ -7,6 +7,9 @@
     "value": 1200,
     "unit": "pi2"
   },
+  "type_bien": null,
+  "zone": null,
+  "adresse_anonymisee": "NON_FOURNIE",
   "confidence": 0.8,
   "source_ids": [
     "SRC-1"

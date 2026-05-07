@@ -32,6 +32,7 @@ Endpoints:
 - `GET /session/summary?session_id=<id>`
 - `GET /review/dossier?session_id=<id>`
 - `GET|POST /review/package?session_id=<id>`
+- `GET /knowledge/immobilier?session_id=<id>`
 - `GET /assistant/workbench?session_id=<id>`
 - `POST /assistant/message`
 - `GET /status?session_id=<id>`
@@ -117,6 +118,7 @@ Evenements exposes:
 ```bash
 curl http://127.0.0.1:8787/session/summary?session_id=<id>
 curl http://127.0.0.1:8787/review/dossier?session_id=<id>
+curl http://127.0.0.1:8787/knowledge/immobilier?session_id=<id>
 curl http://127.0.0.1:8787/artifact?session_id=<id>^&event_id=<event_id>
 ```
 
@@ -126,6 +128,11 @@ de lecture arbitraire du disque.
 
 `/review/dossier` transforme les artefacts runtime en synthese produit:
 faits, comparables, approches de valeur, conformite et apercu du rapport.
+
+`/knowledge/immobilier` reconstruit le futur equivalent Aston `knowledge.json`
+pour le domaine immobilier: mandat, bien sujet, sources, preuves marche,
+valuation, reconciliation, conformite, redaction, revue humaine et audit. Ce
+snapshot reste non certifiant et exige une validation humaine.
 
 ## Assistant evaluateur AI
 

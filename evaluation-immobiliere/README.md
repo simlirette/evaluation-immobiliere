@@ -106,12 +106,16 @@ Endpoints:
 - `GET /session/summary?session_id=<id>`
 - `GET /review/dossier?session_id=<id>`
 - `GET|POST /review/package?session_id=<id>`
+- `GET /knowledge/immobilier?session_id=<id>`
 - `GET /assistant/workbench?session_id=<id>`
 - `POST /assistant/message`
 - `GET /stream?session_id=<id>`
 - `GET /artifact?session_id=<id>&event_id=<event_id>`
 - `GET /health`
 
+`GET /knowledge/immobilier` expose le snapshot metier structure de la session:
+mandat, bien sujet, sources, preuves marche, valeurs, reconciliation,
+conformite, redaction, revue humaine et audit.
 `GET /assistant/workbench` expose le plan multi-agents Aston de la session:
 etat des agents, artefacts produits/manquants, transcript et prochaines actions.
 `POST /assistant/message` permet de questionner le dossier actif depuis le
