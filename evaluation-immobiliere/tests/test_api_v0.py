@@ -34,6 +34,7 @@ from api import (
     ops_summary,
     product_summary,
     generate_v1_package_for_session,
+    knowledge_immobilier_summary,
     review_campaign_summary,
     review_workbench_summary,
     resume_session,
@@ -92,6 +93,7 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["review_workbench"], "/review/workbench")
         self.assertEqual(summary["routes"]["review_campaign"], "/review/campaign")
         self.assertEqual(summary["routes"]["review_package"], "/review/package")
+        self.assertEqual(summary["routes"]["knowledge_immobilier"], "/knowledge/immobilier")
         self.assertEqual(summary["routes"]["assistant_workbench"], "/assistant/workbench")
         self.assertEqual(summary["routes"]["assistant_message"], "/assistant/message")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
@@ -205,6 +207,7 @@ class TestApiV0(unittest.TestCase):
                 result = payload["result"]
                 status = session_status(session["session_id"])
                 artifacts = session_artifacts(session["session_id"])
+                knowledge = knowledge_immobilier_summary(session["session_id"])
                 resume = resume_session(session["session_id"])
                 artifact_index_exists = Path(session["artifact_index_path"]).exists()
                 knowledge_snapshot_exists = Path(session["knowledge_snapshot_path"]).exists()
@@ -219,6 +222,9 @@ class TestApiV0(unittest.TestCase):
         self.assertTrue(knowledge_snapshot_exists)
         self.assertTrue(status["integrity"]["ok"])
         self.assertGreater(artifacts["artifacts_count"], 0)
+        self.assertEqual(knowledge["schema_version"], "knowledge_immobilier_session_v1")
+        self.assertEqual(knowledge["mandate"]["dossier_id"], "D-001")
+        self.assertFalse(knowledge["limits"]["external_evaluator_responses_included"])
         self.assertEqual(resume["resume"]["status"], "RESUME_READY")
 
     def test_session_http_status_artifacts_review_and_resume_endpoints(self) -> None:
@@ -395,6 +401,9 @@ class TestApiV0(unittest.TestCase):
         self.assertIn("RuntimeAuth.mount", product_ui)
         self.assertIn("openReview", product_ui)
         self.assertIn("external_evaluator_responses_included=false", product_ui)
+        self.assertIn("Knowledge", product_ui)
+        self.assertIn("knowledgeSnapshot", product_ui)
+        self.assertIn("/knowledge/immobilier", product_ui)
         self.assertIn("Evaluateur AI", product_ui)
         self.assertIn("askAssistant", product_ui)
         self.assertIn("assistantWorkbench", product_ui)
@@ -436,6 +445,30 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(dossier_review["schema_version"], "dossier_review_summary_v1")
         self.assertEqual(dossier_review["comparables"]["count"], 1)
         self.assertEqual(dossier_review["coverage"]["missing_count"], 0)
+
+    def test_knowledge_immobilier_summary_maps_runtime_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                started = start_runtime({"fixture": "case_pilote_residentiel_standard.json"})
+                session_id = started["session"]["session_id"]
+                knowledge = knowledge_immobilier_summary(session_id)
+                summary = session_summary(session_id)
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(knowledge["schema_version"], "knowledge_immobilier_session_v1")
+        self.assertEqual(summary["knowledge"]["schema_version"], "knowledge_immobilier_session_v1")
+        self.assertEqual(knowledge["subject_property"]["type_bien"], "residentiel_unifamilial")
+        self.assertEqual(knowledge["subject_property"]["zone"], "SECTEUR-ANONYMISE-A")
+        self.assertEqual(knowledge["sources"]["coverage_status"], "OK")
+        self.assertGreaterEqual(knowledge["sources"]["count"], 5)
+        self.assertEqual(knowledge["market_evidence"]["comparables_count"], 3)
+        self.assertGreater(knowledge["reconciliation"]["conclusion_proposee"]["value"], 0)
+        self.assertEqual(knowledge["quality"]["status"], "PRET_ASSISTANCE")
+        self.assertTrue(knowledge["human_review"]["required"])
+        self.assertFalse(knowledge["human_review"]["external_evaluator_responses_included"])
 
     def test_assistant_message_answers_from_session_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -618,6 +651,7 @@ class TestApiV0(unittest.TestCase):
                 )
                 package = self.http_json("POST", host, port, "/review/package", {"session_id": session_id})
                 package_get = self.http_json("GET", host, port, f"/review/package?session_id={session_id}")
+                knowledge_http = self.http_json("GET", host, port, f"/knowledge/immobilier?session_id={session_id}")
                 assistant = self.http_json(
                     "POST",
                     host,
@@ -650,6 +684,9 @@ class TestApiV0(unittest.TestCase):
         self.assertTrue(package["gate"]["ok"])
         self.assertEqual(package_get["status"], "PRET_REVUE_EVALUATEUR_AGREE")
         self.assertFalse(package_get["external_evaluator_responses_included"])
+        self.assertEqual(knowledge_http["schema_version"], "knowledge_immobilier_session_v1")
+        self.assertEqual(knowledge_http["reconciliation"]["conclusion_proposee"]["status"], "A_VALIDER_PAR_EVALUATEUR_AGREE")
+        self.assertFalse(knowledge_http["limits"]["certification_automatic"])
         self.assertEqual(assistant["schema_version"], "assistant_message_v1")
         self.assertEqual(assistant["agent"], "valuation-draft")
         self.assertIn("510000", assistant["answer"])

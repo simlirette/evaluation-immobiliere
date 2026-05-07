@@ -25,6 +25,8 @@ OPS_UI_PATH = ROOT / "ui" / "ops_cockpit.html"
 EVALUATOR_UI_PATH = ROOT / "ui" / "evaluateur_review.html"
 AUTH_CLIENT_PATH = ROOT / "ui" / "auth_client.js"
 OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
+KNOWLEDGE_CONTRACT_PATH = ROOT / "mvp" / "KNOWLEDGE-SCHEMA-IMMOBILIER-V0.yaml"
+KNOWLEDGE_API_SCHEMA_PATH = ROOT / "schemas" / "knowledge_immobilier_session_v1.schema.json"
 OPS_JSON_REPORTS = {
     "readiness": "readiness_pre_reponses.json",
     "quality": "quality_report.json",
@@ -458,6 +460,7 @@ def product_summary() -> dict:
             "review_workbench": "/review/workbench",
             "review_campaign": "/review/campaign",
             "review_package": "/review/package",
+            "knowledge_immobilier": "/knowledge/immobilier",
             "assistant_workbench": "/assistant/workbench",
             "assistant_message": "/assistant/message",
             "session_summary": "/session/summary",
@@ -737,18 +740,278 @@ def build_artifact_index(events: list[dict]) -> dict:
 
 
 def build_knowledge_snapshot(session: dict, result: dict, artifact_index: dict) -> dict:
+    facts = read_artifact_json_from_index(session, artifact_index, "data-facts", "fiche_bien.json")
+    timeline = read_artifact_json_from_index(session, artifact_index, "data-facts", "timeline_faits.json")
+    comparables_payload = read_artifact_json_from_index(session, artifact_index, "comps-market", "comparables_proposes.json")
+    justifications_payload = read_artifact_json_from_index(session, artifact_index, "comps-market", "justifications_comparables.json")
+    comparative = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "calculs_approche_comparative.json")
+    cost = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "calculs_approche_cout.json")
+    income = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "calculs_approche_revenu.json")
+    hypotheses = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "hypotheses_explicites.json")
+    non_conformites = read_artifact_json_from_index(session, artifact_index, "compliance-qa", "rapport_non_conformites.json")
+    compliance = read_artifact_json_from_index(session, artifact_index, "compliance-qa", "statut_sortie.json")
+    recommendations = read_artifact_text_from_index(session, artifact_index, "compliance-qa", "recommandations_corrections.md")
+    report = read_artifact_text_from_index(session, artifact_index, "redaction", "brouillon_rapport.md")
+    annexe = read_artifact_text_from_index(session, artifact_index, "redaction", "annexe_sources.md")
+
+    comparables = comparables_payload.get("comparables", []) if isinstance(comparables_payload.get("comparables"), list) else []
+    justifications = justifications_payload.get("justifications", []) if isinstance(justifications_payload.get("justifications"), list) else []
+    values = compliance.get("valuation_values", {}) if isinstance(compliance.get("valuation_values"), dict) else {}
+    source_items = knowledge_source_items(session, artifact_index)
+    source_ids = {str(item.get("source_id") or "") for item in source_items if item.get("source_id")}
+    expected_source_ids = {str(item) for item in facts.get("source_ids", []) if item} if isinstance(facts.get("source_ids"), list) else set()
+    missing_source_ids = sorted(expected_source_ids - source_ids)
+    blocking = compliance.get("blocking_failures", result.get("blocking_failures", []))
+    warnings = compliance.get("warnings", result.get("warnings", []))
+    if not isinstance(blocking, list):
+        blocking = []
+    if not isinstance(warnings, list):
+        warnings = []
+    valuation_approaches = {
+        "approche_comparative": comparative,
+        "approche_cout": cost,
+        "approche_revenu": income,
+    }
+    valuation_values = {key: value.get("value") for key, value in valuation_approaches.items() if isinstance(value.get("value"), (int, float))}
+    if not values:
+        values = valuation_values
+    quality = knowledge_quality(
+        facts=facts,
+        comparables=comparables,
+        values=values,
+        blocking=blocking,
+        missing_source_ids=missing_source_ids,
+        report=report,
+    )
     return {
-        "schema_version": "session_knowledge_snapshot_v1",
+        "schema_version": "knowledge_immobilier_session_v1",
+        "contract": {
+            "source": "mvp/KNOWLEDGE-SCHEMA-IMMOBILIER-V0.yaml",
+            "api_schema": "schemas/knowledge_immobilier_session_v1.schema.json",
+        },
         "session_id": session["session_id"],
         "run_id": session["run_id"],
         "dossier_id": result.get("dossier_id", ""),
         "status": result.get("status", "UNKNOWN"),
-        "blocking_failures": result.get("blocking_failures", []),
-        "warnings": result.get("warnings", []),
-        "events_count": len(result.get("events", [])),
-        "artifacts_count": artifact_index.get("artifacts_count", 0),
-        "latest_event_id": result.get("events", [{}])[-1].get("event_id", "") if result.get("events") else "",
+        "mandate": {
+            "dossier_id": result.get("dossier_id", ""),
+            "type_rapport": "evaluation_residentielle_v0",
+            "date_reference": facts.get("date_reference", ""),
+            "droits_evalues": "valeur marchande",
+            "finalite": "assistance pre-revue evaluateur agree",
+            "portee": "runtime local source par artefacts de session",
+            "limites": [
+                "aucune certification automatique",
+                "aucune reponse evaluateur agree inventee",
+                "dossiers reels et donnees sensibles exclus du runtime demo",
+            ],
+        },
+        "subject_property": {
+            "type_bien": facts.get("type_bien", ""),
+            "zone": facts.get("zone", ""),
+            "adresse_anonymisee": facts.get("adresse_anonymisee", "NON_FOURNIE"),
+            "surface": facts.get("surface"),
+            "confidence": facts.get("confidence"),
+            "source_ids": sorted(expected_source_ids),
+            "timeline": timeline.get("events", []) if isinstance(timeline.get("events"), list) else [],
+        },
+        "sources": {
+            "count": len(source_items),
+            "items": source_items,
+            "missing_source_ids": missing_source_ids,
+            "coverage_status": "OK" if not missing_source_ids else "A_COMPLETER",
+        },
+        "market_evidence": {
+            "comparables_count": len(comparables),
+            "comparables": comparables,
+            "justifications": justifications,
+        },
+        "valuation": {
+            "approaches": valuation_approaches,
+            "values": values,
+            "hypotheses": hypotheses.get("hypotheses", []) if isinstance(hypotheses.get("hypotheses"), list) else [],
+        },
+        "reconciliation": build_knowledge_reconciliation(values),
+        "compliance": {
+            "status": compliance.get("status", result.get("status", "UNKNOWN")),
+            "blocking_failures": blocking,
+            "warnings": warnings,
+            "non_conformites": non_conformites,
+            "recommendations": recommendations,
+        },
+        "redaction": {
+            "brouillon_rapport_available": bool(report),
+            "annexe_sources_available": bool(annexe),
+            "sections_manquantes": [] if report and annexe else [name for name, available in {"brouillon_rapport": bool(report), "annexe_sources": bool(annexe)}.items() if not available],
+            "brouillon_rapport_preview": report[:1200],
+        },
+        "human_review": {
+            "required": True,
+            "decision_source": "review interne + evaluateur agree",
+            "external_evaluator_responses_included": False,
+        },
+        "audit": {
+            "events_count": len(result.get("events", [])),
+            "artifacts_count": artifact_index.get("artifacts_count", 0),
+            "latest_event_id": result.get("events", [{}])[-1].get("event_id", "") if result.get("events") else "",
+            "audit_log": result.get("audit_log", ""),
+            "artifact_dir": result.get("artifact_dir", ""),
+            "source_artifacts": knowledge_source_artifacts(artifact_index),
+        },
+        "quality": quality,
+        "limits": {
+            "certification_automatic": False,
+            "external_evaluator_responses_included": False,
+            "requires_human_validation": True,
+        },
     }
+
+
+def knowledge_immobilier_summary(session_id: str) -> dict:
+    session = require_session(session_id)
+    snapshot = read_json_dict(Path(str(session.get("knowledge_snapshot_path") or "")))
+    if snapshot.get("schema_version") == "knowledge_immobilier_session_v1":
+        return snapshot
+    result = read_json_dict(Path(str(session.get("result_path") or "")))
+    artifact_index = session_artifacts(session_id)
+    return build_knowledge_snapshot(session, result, artifact_index)
+
+
+def artifact_records_from_index(artifact_index: dict, step: str = "", artifact: str = "") -> list[dict]:
+    records = artifact_index.get("artifacts", []) if isinstance(artifact_index, dict) else []
+    result: list[dict] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        if step and record.get("step") != step:
+            continue
+        if artifact and record.get("artifact") != artifact:
+            continue
+        result.append(record)
+    return result
+
+
+def resolve_index_artifact_path(session: dict, record: dict) -> Path | None:
+    raw = Path(str(record.get("path") or ""))
+    if not raw:
+        return None
+    try:
+        resolved = raw.resolve()
+        resolved.relative_to(Path(str(session["session_dir"])).resolve())
+    except (OSError, ValueError):
+        return None
+    return resolved if resolved.exists() and resolved.is_file() else None
+
+
+def read_artifact_json_from_index(session: dict, artifact_index: dict, step: str, artifact: str) -> dict:
+    for record in artifact_records_from_index(artifact_index, step, artifact):
+        path = resolve_index_artifact_path(session, record)
+        if not path:
+            continue
+        return read_json_dict(path)
+    return {}
+
+
+def read_artifact_text_from_index(session: dict, artifact_index: dict, step: str, artifact: str, limit: int = 16 * 1024) -> str:
+    for record in artifact_records_from_index(artifact_index, step, artifact):
+        path = resolve_index_artifact_path(session, record)
+        if not path:
+            continue
+        return path.read_text(encoding="utf-8")[:limit]
+    return ""
+
+
+def knowledge_source_items(session: dict, artifact_index: dict) -> list[dict]:
+    dedup: dict[str, dict] = {}
+    for record in artifact_records_from_index(artifact_index, artifact="source_index.json"):
+        path = resolve_index_artifact_path(session, record)
+        payload = read_json_dict(path) if path else {}
+        for source in payload.get("sources", []):
+            if not isinstance(source, dict):
+                continue
+            source_id = str(source.get("source_id") or "")
+            if not source_id:
+                continue
+            item = dedup.setdefault(
+                source_id,
+                {
+                    "source_id": source_id,
+                    "source_type": source.get("source_type", "runtime_fixture"),
+                    "reliability_level": source.get("reliability_level", "A_VALIDER"),
+                    "producer_steps": [],
+                },
+            )
+            step = str(record.get("step") or "")
+            if step and step not in item["producer_steps"]:
+                item["producer_steps"].append(step)
+    return sorted(dedup.values(), key=lambda item: item["source_id"])
+
+
+def build_knowledge_reconciliation(values: dict) -> dict:
+    numeric_values = {key: float(value) for key, value in values.items() if isinstance(value, (int, float))}
+    if numeric_values:
+        spread = round(max(numeric_values.values()) - min(numeric_values.values()), 2)
+        proposed = numeric_values.get("approche_comparative", next(iter(numeric_values.values())))
+    else:
+        spread = 0.0
+        proposed = None
+    return {
+        "valeurs_par_approche": numeric_values,
+        "ecart_inter_approches": spread,
+        "poids_recommandes": {
+            "approche_comparative": 1.0 if "approche_comparative" in numeric_values else 0.0,
+            "approche_cout": 0.0,
+            "approche_revenu": 0.0,
+        },
+        "conclusion_proposee": {
+            "value": proposed,
+            "status": "A_VALIDER_PAR_EVALUATEUR_AGREE" if proposed is not None else "ABSENTE",
+            "policy": "proxy_v0_non_certifiant",
+        },
+        "points_validation_humaine": [
+            "confirmer les sources et les comparables retenus",
+            "valider les ajustements sensibles",
+            "signer la conclusion de valeur hors systeme automatique",
+        ],
+    }
+
+
+def knowledge_quality(*, facts: dict, comparables: list, values: dict, blocking: list, missing_source_ids: list, report: str) -> dict:
+    missing_sections = []
+    if not facts:
+        missing_sections.append("subject_property")
+    if not comparables:
+        missing_sections.append("market_evidence")
+    if not values:
+        missing_sections.append("valuation")
+    if not report:
+        missing_sections.append("redaction")
+    if blocking:
+        status = "BLOQUE"
+    elif missing_source_ids or missing_sections:
+        status = "A_COMPLETER"
+    else:
+        status = "PRET_ASSISTANCE"
+    return {
+        "status": status,
+        "missing_sections": missing_sections,
+        "missing_source_ids_count": len(missing_source_ids),
+        "blocking_failures_count": len(blocking),
+        "knowledge_ready": status == "PRET_ASSISTANCE",
+    }
+
+
+def knowledge_source_artifacts(artifact_index: dict) -> list[dict]:
+    return [
+        {
+            "step": record.get("step", ""),
+            "artifact": record.get("artifact", ""),
+            "event_id": record.get("event_id", ""),
+            "sha256": record.get("sha256", ""),
+        }
+        for record in artifact_index.get("artifacts", [])
+        if isinstance(record, dict)
+    ]
 
 
 def session_status(session_id: str) -> dict:
@@ -1819,6 +2082,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, session_package_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/knowledge/immobilier":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, knowledge_immobilier_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
             return
         if parsed.path == "/assistant/workbench":
             if not self._require_permission("runtime_read"):

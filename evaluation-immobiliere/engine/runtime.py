@@ -246,6 +246,9 @@ class RuntimeEngine:
                 {
                     "date_reference": case.get("date_reference"),
                     "surface": case.get("surface"),
+                    "type_bien": case.get("type_bien"),
+                    "zone": case.get("zone"),
+                    "adresse_anonymisee": case.get("adresse_anonymisee", "NON_FOURNIE"),
                     "confidence": case.get("confidence"),
                     "source_ids": collect_source_ids(case),
                 }

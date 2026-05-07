@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "knowledge_immobilier_session_v1.schema.json",
+  "title": "Knowledge immobilier session v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "session_id",
+    "run_id",
+    "dossier_id",
+    "mandate",
+    "subject_property",
+    "sources",
+    "market_evidence",
+    "valuation",
+    "reconciliation",
+    "compliance",
+    "redaction",
+    "human_review",
+    "audit",
+    "quality",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": { "const": "knowledge_immobilier_session_v1" },
+    "session_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "dossier_id": { "type": "string" },
+    "mandate": { "type": "object" },
+    "subject_property": { "type": "object" },
+    "sources": { "type": "object" },
+    "market_evidence": { "type": "object" },
+    "valuation": { "type": "object" },
+    "reconciliation": { "type": "object" },
+    "compliance": { "type": "object" },
+    "redaction": { "type": "object" },
+    "human_review": { "type": "object" },
+    "audit": { "type": "object" },
+    "quality": { "type": "object" },
+    "limits": {
+      "type": "object",
+      "required": [
+        "certification_automatic",
+        "external_evaluator_responses_included",
+        "requires_human_validation"
+      ]
+    }
+  }
+}

@@ -622,6 +622,7 @@
       <div class="tabs" role="tablist" aria-label="Vues produit">
         <button class="tab active" data-panel="overview">Produit</button>
         <button class="tab" data-panel="dossier">Dossier</button>
+        <button class="tab" data-panel="knowledge">Knowledge</button>
         <button class="tab" data-panel="assistant">Evaluateur AI</button>
         <button class="tab" data-panel="package">Paquet V1</button>
         <button class="tab" data-panel="raw">Contrats API</button>
@@ -808,6 +809,54 @@
         </div>
       </section>
 
+      <section class="panel hidden" id="panel-knowledge">
+        <div id="knowledgeEmpty" class="empty">Lancez un dossier ou selectionnez une session recente pour construire le knowledge immobilier.</div>
+        <div id="knowledgeContent" class="hidden">
+          <div class="grid">
+            <div class="tile span3">
+              <h3>Knowledge</h3>
+              <div class="metric" id="knowledgeStatus">-</div>
+              <div class="sub" id="knowledgeSchema">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Sources</h3>
+              <div class="metric" id="knowledgeSources">0</div>
+              <div class="sub" id="knowledgeSourceCoverage">-</div>
+            </div>
+            <div class="tile span3">
+              <h3>Conclusion</h3>
+              <div class="metric" id="knowledgeConclusion">-</div>
+              <div class="sub" id="knowledgeConclusionSub">validation humaine</div>
+            </div>
+            <div class="tile span3">
+              <h3>Conformite</h3>
+              <div class="metric" id="knowledgeCompliance">-</div>
+              <div class="sub" id="knowledgeComplianceSub">-</div>
+            </div>
+            <div class="tile span6">
+              <h3>Mandat et bien sujet</h3>
+              <table id="knowledgeMandate"></table>
+            </div>
+            <div class="tile span6">
+              <h3>Preuves marche</h3>
+              <table id="knowledgeMarket"></table>
+            </div>
+            <div class="tile span6">
+              <h3>Valeurs et reconciliation</h3>
+              <table id="knowledgeValuation"></table>
+            </div>
+            <div class="tile span6">
+              <h3>Tracabilite</h3>
+              <table id="knowledgeTrace"></table>
+            </div>
+            <div class="tile full">
+              <h3>Snapshot knowledge</h3>
+              <pre id="knowledgeRaw">{}</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel hidden" id="panel-assistant">
         <div id="assistantEmpty" class="empty">Lancez un dossier ou selectionnez une session recente pour utiliser l'evaluateur immobilier AI sur un contexte source.</div>
         <div id="assistantContent" class="hidden">
@@ -901,6 +950,7 @@
       sessionSummary: null,
       dossierReview: null,
       packageSummary: null,
+      knowledgeSnapshot: null,
       assistantWorkbench: null,
       assistantMessages: [],
       currentPanel: "overview"
@@ -960,7 +1010,7 @@
     function setActivePanel(name) {
       state.currentPanel = name;
       document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.panel === name));
-      ["overview", "dossier", "assistant", "package", "raw"].forEach((panel) => {
+      ["overview", "dossier", "knowledge", "assistant", "package", "raw"].forEach((panel) => {
         $(`panel-${panel}`).classList.toggle("hidden", panel !== name);
       });
     }
@@ -1085,6 +1135,7 @@
         review_save: "/review",
         review_campaign: "/review/campaign",
         review_package: "/review/package",
+        knowledge_immobilier: "/knowledge/immobilier",
         assistant_workbench: "/assistant/workbench",
         assistant_message: "/assistant/message",
         artifact: "/artifact",
@@ -1197,6 +1248,58 @@
       $("packageManifest").textContent = JSON.stringify(payload.manifest || {}, null, 2);
     }
 
+    function renderKnowledge() {
+      const hasKnowledge = Boolean(state.activeSessionId && state.knowledgeSnapshot);
+      $("knowledgeEmpty").classList.toggle("hidden", hasKnowledge);
+      $("knowledgeContent").classList.toggle("hidden", !hasKnowledge);
+      if (!hasKnowledge) return;
+      const payload = state.knowledgeSnapshot;
+      const quality = payload.quality || {};
+      const sources = payload.sources || {};
+      const reconciliation = payload.reconciliation || {};
+      const conclusion = reconciliation.conclusion_proposee || {};
+      const compliance = payload.compliance || {};
+      setMetric("knowledgeStatus", quality.status || payload.status || "-");
+      $("knowledgeSchema").textContent = payload.schema_version || "-";
+      setMetric("knowledgeSources", sources.count ?? 0);
+      $("knowledgeSourceCoverage").textContent = `${sources.coverage_status || "-"} | manquantes ${sources.missing_source_ids?.length || 0}`;
+      setMetric("knowledgeConclusion", conclusion.value ?? "-");
+      $("knowledgeConclusionSub").textContent = conclusion.status || "validation humaine";
+      setMetric("knowledgeCompliance", compliance.status || "-");
+      $("knowledgeComplianceSub").textContent = `${(compliance.blocking_failures || []).length} blocages | ${(compliance.warnings || []).length} warnings`;
+      renderObjectTable("knowledgeMandate", {
+        dossier_id: payload.mandate?.dossier_id,
+        date_reference: payload.mandate?.date_reference,
+        type_rapport: payload.mandate?.type_rapport,
+        droits_evalues: payload.mandate?.droits_evalues,
+        type_bien: payload.subject_property?.type_bien,
+        zone: payload.subject_property?.zone,
+        surface: payload.subject_property?.surface,
+        confidence: payload.subject_property?.confidence
+      });
+      renderRows("knowledgeMarket", ["Comparable", "Prix", "Score", "Source"], (payload.market_evidence?.comparables || []).map((item) => [
+        escapeHtml(item.comparable_id || "-"),
+        escapeHtml(item.prix_vente ?? "-"),
+        escapeHtml(item.score ?? "-"),
+        escapeHtml(item.source_id || "-")
+      ]));
+      renderObjectTable("knowledgeValuation", {
+        valeurs_par_approche: reconciliation.valeurs_par_approche || {},
+        ecart_inter_approches: reconciliation.ecart_inter_approches,
+        poids_recommandes: reconciliation.poids_recommandes || {},
+        conclusion_status: conclusion.status,
+        points_validation_humaine: reconciliation.points_validation_humaine || []
+      });
+      renderRows("knowledgeTrace", ["Section", "Valeur"], [
+        ["artefacts", escapeHtml(payload.audit?.artifacts_count ?? 0)],
+        ["events", escapeHtml(payload.audit?.events_count ?? 0)],
+        ["source_artifacts", escapeHtml((payload.audit?.source_artifacts || []).length)],
+        ["human_review_required", escapeHtml(payload.human_review?.required ?? true)],
+        ["external_responses", escapeHtml(payload.human_review?.external_evaluator_responses_included ?? false)]
+      ]);
+      $("knowledgeRaw").textContent = JSON.stringify(payload, null, 2);
+    }
+
     function renderAssistant() {
       const hasSession = Boolean(state.activeSessionId);
       $("assistantEmpty").classList.toggle("hidden", hasSession);
@@ -1244,6 +1347,7 @@
     function setActiveSession(sessionId) {
       if (state.activeSessionId !== sessionId) {
         state.activeSessionId = sessionId;
+        state.knowledgeSnapshot = null;
         state.assistantWorkbench = null;
         state.assistantMessages = [];
       }
@@ -1255,6 +1359,7 @@
       renderWorkflow();
       renderOverview();
       renderDossier();
+      renderKnowledge();
       renderPackage();
       renderAssistant();
     }
@@ -1291,17 +1396,19 @@
     async function loadSession(sessionId, options = {}) {
       if (!sessionId) return;
       setActiveSession(sessionId);
-      const [sessionSummary, dossierReview, packageSummary, assistantWorkbench] = await Promise.all([
+      const [sessionSummary, dossierReview, packageSummary, knowledgeSnapshot, assistantWorkbench] = await Promise.all([
         api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`),
         api(`/review/dossier?session_id=${encodeURIComponent(sessionId)}`),
         api(`/review/package?session_id=${encodeURIComponent(sessionId)}`),
+        api(`/knowledge/immobilier?session_id=${encodeURIComponent(sessionId)}`),
         api(`/assistant/workbench?session_id=${encodeURIComponent(sessionId)}`)
       ]);
       state.sessionSummary = sessionSummary;
       state.dossierReview = dossierReview;
       state.packageSummary = packageSummary;
+      state.knowledgeSnapshot = knowledgeSnapshot;
       state.assistantWorkbench = assistantWorkbench;
-      $("raw").textContent = JSON.stringify({ sessionSummary, dossierReview, packageSummary, assistantWorkbench }, null, 2);
+      $("raw").textContent = JSON.stringify({ sessionSummary, dossierReview, packageSummary, knowledgeSnapshot, assistantWorkbench }, null, 2);
       renderAll();
       if (!options.skipPanel) setActivePanel(state.currentPanel === "overview" ? "dossier" : state.currentPanel);
       if (!options.skipRefresh && state.summary) {
