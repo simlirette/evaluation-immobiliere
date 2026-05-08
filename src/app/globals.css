@@ -124,7 +124,6 @@
 /* Base glass (applies on mobile + desktop) */
 .sidebar {
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow), var(--glass-inset);
   transition: background 0.3s;
