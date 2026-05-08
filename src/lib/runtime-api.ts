@@ -1,9 +1,6 @@
 import type { Adjustment, Comparable, Document, Dossier, FactChip } from '@/types'
 
-const DEFAULT_RUNTIME_API = 'http://127.0.0.1:8796'
-
-export const RUNTIME_API_URL =
-  (process.env.NEXT_PUBLIC_RUNTIME_API_URL || DEFAULT_RUNTIME_API).replace(/\/$/, '')
+const BFF_BASE = '/api/runtime'
 
 export interface AppState {
   schema_version: string
@@ -67,7 +64,7 @@ interface RuntimeMessageResponse {
 }
 
 async function runtimeJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${RUNTIME_API_URL}${path}`, {
+  const response = await fetch(`${BFF_BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

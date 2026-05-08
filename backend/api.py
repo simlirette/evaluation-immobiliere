@@ -2619,7 +2619,8 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def _send_cors_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        allowed = os.environ.get("EVAL_RUNTIME_ALLOWED_ORIGIN", "*")
+        self.send_header("Access-Control-Allow-Origin", allowed)
 
     def _auth_context(self) -> dict[str, object]:
         expected = os.environ.get("EVAL_RUNTIME_API_TOKEN", "")
