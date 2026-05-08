@@ -23,6 +23,9 @@ from api import (
     PRODUCT_UI_PATH,
     UI_PATH,
     RuntimeApiHandler,
+    app_state,
+    app_start_demo,
+    app_validate_review,
     assistant_message,
     assistant_workbench,
     dossier_review_summary,
@@ -96,12 +99,41 @@ class TestApiV0(unittest.TestCase):
         self.assertEqual(summary["routes"]["knowledge_immobilier"], "/knowledge/immobilier")
         self.assertEqual(summary["routes"]["assistant_workbench"], "/assistant/workbench")
         self.assertEqual(summary["routes"]["assistant_message"], "/assistant/message")
+        self.assertEqual(summary["routes"]["app_state"], "/app/state")
+        self.assertEqual(summary["routes"]["app_demo"], "/app/demo")
+        self.assertEqual(summary["routes"]["app_message"], "/app/message")
+        self.assertEqual(summary["routes"]["app_validate_review"], "/app/review/validate")
+        self.assertEqual(summary["routes"]["app_package"], "/app/package")
         self.assertEqual(summary["ops_snapshot"]["schema_version"], "ops_observability_snapshot_v1")
         self.assertEqual(summary["review_campaign"]["schema_version"], "review_campaign_v1")
         self.assertEqual(summary["session_packages"]["schema_version"], "session_packages_summary_v1")
         self.assertIn("terrain", summary)
         self.assertIn("phase_h_gate_status", summary["ops"])
         self.assertIn("release_candidate_decision", summary)
+
+    def test_app_state_exposes_frontend_ready_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_sessions_dir = api.SESSIONS_DIR
+            api.SESSIONS_DIR = Path(tmp)
+            try:
+                started = app_start_demo({"fixture": "case_pilote_residentiel_standard.json"})
+                session_id = started["state"]["active_session_id"]
+                state = app_state(session_id)
+                validated = app_validate_review({"session_id": session_id})
+                refreshed = validated["state"]
+            finally:
+                api.SESSIONS_DIR = previous_sessions_dir
+
+        self.assertEqual(state["schema_version"], "evaluateur_ai_app_state_v1")
+        self.assertEqual(state["status"], "PRET_APP_PRODUIT")
+        self.assertEqual(state["active"]["dossier"]["id"], session_id)
+        self.assertGreaterEqual(len(state["active"]["documents"]), 1)
+        self.assertGreaterEqual(len(state["active"]["fact_chips"]), 4)
+        self.assertEqual(len(state["active"]["comparables"]), 3)
+        self.assertEqual(len(state["active"]["adjustments"]), 3)
+        self.assertEqual(state["active"]["valuation"]["status"], "A_VALIDER_PAR_EVALUATEUR_AGREE")
+        self.assertFalse(state["limits"]["external_evaluator_responses_included"])
+        self.assertTrue(refreshed["active"]["workflow"]["can_generate_package"])
 
     def test_ops_summary_reads_generated_reports_from_runtime_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -59,6 +59,7 @@ ROLE_PERMISSIONS = {
 }
 ASSISTANT_MESSAGES_FILENAME = "assistant_messages.jsonl"
 ASSISTANT_MAX_MESSAGE_CHARS = 4000
+APP_DEFAULT_FIXTURE = "case_pilote_residentiel_standard.json"
 ASSISTANT_AGENT_PROFILES = {
     "superviseur-evaluateur-ai": {
         "label": "Superviseur evaluateur AI",
@@ -260,6 +261,9 @@ def session_workbench_record(session: dict) -> dict:
         "package_origin": package.get("package_origin", ""),
         "package_generated": bool(package),
         "package_url": f"/review/package?session_id={session_id}",
+        "app_display_name": session.get("app_display_name", ""),
+        "app_property_type": session.get("app_property_type", ""),
+        "app_neighborhood": session.get("app_neighborhood", ""),
     }
 
 
@@ -463,11 +467,389 @@ def product_summary() -> dict:
             "knowledge_immobilier": "/knowledge/immobilier",
             "assistant_workbench": "/assistant/workbench",
             "assistant_message": "/assistant/message",
+            "app_state": "/app/state",
+            "app_demo": "/app/demo",
+            "app_message": "/app/message",
+            "app_validate_review": "/app/review/validate",
+            "app_package": "/app/package",
             "session_summary": "/session/summary",
             "artifact_content": "/artifact",
             "dossier_review": "/review/dossier",
             "ops_snapshot": "/ops/snapshot",
         },
+    }
+
+
+def app_money(value: object) -> str:
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return f"{amount:,.0f} $".replace(",", " ")
+
+
+def app_date_label(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    return parsed.date().isoformat()
+
+
+def app_surface_label(surface: object) -> str:
+    if not isinstance(surface, dict):
+        return "-"
+    value = surface.get("value")
+    unit = surface.get("unit") or ""
+    if value in (None, ""):
+        return "-"
+    return f"{value} {unit}".strip()
+
+
+def app_title_from_session(session_id: str, dossier: dict, knowledge: dict) -> str:
+    subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
+    address = str(subject.get("adresse_anonymisee") or "").strip()
+    if address and address != "NON_FOURNIE":
+        return address
+    dossier_id = str(knowledge.get("dossier_id") or dossier.get("dossier_id") or session_id)
+    return f"Dossier {dossier_id}"
+
+
+def app_property_type_label(raw: object) -> str:
+    value = str(raw or "").strip()
+    labels = {
+        "residentiel_unifamilial": "Residentiel unifamilial",
+        "residentiel": "Residentiel",
+        "commercial": "Commercial",
+        "multilogement": "Multilogement",
+    }
+    return labels.get(value, value.replace("_", " ").title() if value else "Type a confirmer")
+
+
+def app_status_label(record: dict) -> str:
+    if record.get("package_status") == "PRET_REVUE_EVALUATEUR_AGREE":
+        return "complet"
+    status = str(record.get("status") or "")
+    if status in {"PRET_REVISION_FINALE", "A_REVOIR"}:
+        return "en-cours"
+    return "brouillon"
+
+
+def app_dossier_card_from_record(record: dict) -> dict:
+    session_id = str(record.get("session_id") or "")
+    title = str(record.get("app_display_name") or f"Dossier {record.get('dossier_id') or session_id}")
+    return {
+        "id": session_id,
+        "slug": session_id,
+        "session_id": session_id,
+        "address": title,
+        "property_type": str(record.get("app_property_type") or "Runtime immobilier"),
+        "neighborhood": str(record.get("app_neighborhood") or record.get("status") or "Session"),
+        "status": app_status_label(record),
+        "updatedAt": app_date_label(record.get("updated_at_utc")) or "Session locale",
+        "pinned": record.get("package_status") == "PRET_REVUE_EVALUATEUR_AGREE",
+        "runtime_status": record.get("status", "UNKNOWN"),
+        "review_decision": record.get("review_decision", "A_SAISIR"),
+        "package_status": record.get("package_status", "ABSENT"),
+        "next_action": record.get("next_action", ""),
+    }
+
+
+def app_source_documents(knowledge: dict) -> list[dict]:
+    sources = knowledge.get("sources", {}) if isinstance(knowledge.get("sources"), dict) else {}
+    items = sources.get("items", []) if isinstance(sources.get("items"), list) else []
+    documents: list[dict] = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            continue
+        source_id = str(item.get("source_id") or f"SRC-{index}")
+        documents.append(
+            {
+                "id": source_id,
+                "name": f"Source {source_id}",
+                "filename": str(item.get("source_type") or "runtime_fixture"),
+                "sizeLabel": str(item.get("reliability_level") or "A_VALIDER"),
+                "producer_steps": item.get("producer_steps", []),
+            }
+        )
+    return documents
+
+
+def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
+    subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
+    mandate = knowledge.get("mandate", {}) if isinstance(knowledge.get("mandate"), dict) else {}
+    facts = dossier.get("facts", {}) if isinstance(dossier.get("facts"), dict) else {}
+    chips = [
+        {"label": f"Type: {app_property_type_label(subject.get('type_bien'))}", "highlight": True},
+        {"label": f"Surface: {app_surface_label(subject.get('surface') or facts.get('surface'))}", "highlight": True},
+        {"label": f"Zone: {subject.get('zone') or 'A confirmer'}", "highlight": True},
+        {"label": f"Date: {mandate.get('date_reference') or facts.get('date_reference') or '-'}", "highlight": True},
+        {"label": f"Confiance: {subject.get('confidence') or facts.get('confidence') or '-'}", "highlight": False},
+        {"label": f"Sources: {len(subject.get('source_ids', [])) if isinstance(subject.get('source_ids'), list) else facts.get('source_ids_count', 0)}", "highlight": False},
+    ]
+    return [chip for chip in chips if not chip["label"].endswith(": -")]
+
+
+def app_comparable_rows(knowledge: dict) -> list[dict]:
+    market = knowledge.get("market_evidence", {}) if isinstance(knowledge.get("market_evidence"), dict) else {}
+    comparables = market.get("comparables", []) if isinstance(market.get("comparables"), list) else []
+    rows: list[dict] = []
+    for index, item in enumerate(comparables, start=1):
+        if not isinstance(item, dict):
+            continue
+        price = float(item.get("prix_vente") or 0)
+        score = item.get("score")
+        source_id = str(item.get("source_id") or "")
+        score_label = f"score {score}" if score not in (None, "") else "score a confirmer"
+        rows.append(
+            {
+                "id": str(item.get("comparable_id") or f"C{index}"),
+                "rank": f"C{index}",
+                "address": str(item.get("comparable_id") or f"Comparable {index}"),
+                "hab_m2": None,
+                "terrain_m2": None,
+                "year_built": None,
+                "renovated_year": None,
+                "garage_type": None,
+                "sale_price": price,
+                "sale_date": str(item.get("date_vente") or ""),
+                "meta": " | ".join(part for part in [source_id, score_label] if part),
+                "price": app_money(price),
+                "date": app_date_label(item.get("date_vente")),
+                "score": score,
+                "source_id": source_id,
+            }
+        )
+    return rows
+
+
+def app_fixture_adjustments(source_fixture: str) -> list[dict]:
+    if not source_fixture or Path(source_fixture).name != source_fixture:
+        return []
+    payload = read_json_dict(FIXTURES_DIR / source_fixture)
+    adjustments = payload.get("ajustements", []) if isinstance(payload.get("ajustements"), list) else []
+    return [item for item in adjustments if isinstance(item, dict)]
+
+
+def app_adjustment_rows(knowledge: dict, dossier: dict) -> list[dict]:
+    comparables = app_comparable_rows(knowledge)
+    fixture_adjustments = app_fixture_adjustments(str(dossier.get("source_fixture") or ""))
+    source_ids = {str(row.get("source_id") or "") for row in comparables}
+    global_amount = sum(
+        float(item.get("montant") or 0)
+        for item in fixture_adjustments
+        if str(item.get("source_id") or "") not in source_ids and item.get("validation_humaine") is True
+    )
+    global_share = round(global_amount / len(comparables), 2) if comparables else 0
+    rows: list[dict] = []
+    for row in comparables:
+        source_id = str(row.get("source_id") or "")
+        direct = sum(
+            float(item.get("montant") or 0)
+            for item in fixture_adjustments
+            if str(item.get("source_id") or "") == source_id and item.get("validation_humaine") is True
+        )
+        sale_price = float(row.get("sale_price") or 0)
+        adjusted = sale_price + direct + global_share
+        rows.append(
+            {
+                "id": f"adj-{row['id']}",
+                "comparable_id": row["id"],
+                "comparableLabel": f"{row['rank']} - {row['address']}",
+                "salePrice": sale_price,
+                "surface_adj": direct,
+                "year_adj": 0,
+                "condition_adj": global_share,
+                "garage_adj": 0,
+                "adjusted": adjusted,
+                "source_id": source_id,
+                "basis": "ajustements valides de la fixture runtime; non certifiant",
+            }
+        )
+    return rows
+
+
+def app_workflow(summary: dict, dossier: dict, package: dict, assistant: dict) -> dict:
+    result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
+    review = summary.get("review", {}) if isinstance(summary.get("review"), dict) else {}
+    integrity = summary.get("integrity", {}) if isinstance(summary.get("integrity"), dict) else {}
+    blocking = result.get("blocking_failures", []) if isinstance(result.get("blocking_failures"), list) else []
+    review_decision = str(review.get("decision") or "A_SAISIR")
+    package_status = str(package.get("status") or "ABSENT")
+    steps = [
+        {
+            "id": "runtime",
+            "label": "Lancer dossier",
+            "status": result.get("status", "UNKNOWN"),
+            "complete": bool(result) and bool(integrity.get("ok")) and not blocking,
+        },
+        {
+            "id": "inspect",
+            "label": "Inspecter",
+            "status": "PRET" if dossier.get("coverage", {}).get("missing_count", 1) == 0 else "A_COMPLETER",
+            "complete": dossier.get("coverage", {}).get("missing_count", 1) == 0,
+        },
+        {
+            "id": "review",
+            "label": "Revue interne",
+            "status": review_decision,
+            "complete": review_decision == "VALIDE",
+        },
+        {
+            "id": "package",
+            "label": "Paquet V1",
+            "status": package_status,
+            "complete": package_status == "PRET_REVUE_EVALUATEUR_AGREE",
+        },
+    ]
+    return {
+        "status": assistant.get("status", "ASSISTANCE_DOSSIER_ACTIVE"),
+        "steps": steps,
+        "next_actions": assistant.get("next_actions", []),
+        "can_validate_review": bool(integrity.get("ok")) and not blocking,
+        "can_generate_package": review_decision == "VALIDE",
+        "limits": {
+            "certification_automatic": False,
+            "external_evaluator_responses_included": False,
+            "requires_human_validation": True,
+        },
+    }
+
+
+def app_session_view(session_id: str) -> dict:
+    summary = session_summary(session_id)
+    dossier = dossier_review_summary(session_id)
+    knowledge = knowledge_immobilier_summary(session_id)
+    assistant = assistant_workbench(session_id)
+    package = session_package_summary(session_id)
+    session = summary.get("session", {}) if isinstance(summary.get("session"), dict) else {}
+    subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
+    reconciliation = knowledge.get("reconciliation", {}) if isinstance(knowledge.get("reconciliation"), dict) else {}
+    conclusion = reconciliation.get("conclusion_proposee", {}) if isinstance(reconciliation.get("conclusion_proposee"), dict) else {}
+    title = app_title_from_session(session_id, dossier, knowledge)
+    card = {
+        "id": session_id,
+        "slug": session_id,
+        "session_id": session_id,
+        "address": str(session.get("app_display_name") or title),
+        "property_type": str(session.get("app_property_type") or app_property_type_label(subject.get("type_bien"))),
+        "neighborhood": str(session.get("app_neighborhood") or subject.get("zone") or "Zone anonymisee"),
+        "status": app_status_label(
+            {
+                "status": dossier.get("status"),
+                "package_status": package.get("status", "ABSENT"),
+            }
+        ),
+        "updatedAt": app_date_label(session.get("updated_at_utc")) or "Session locale",
+        "pinned": package.get("status") == "PRET_REVUE_EVALUATEUR_AGREE",
+        "runtime_status": dossier.get("status", "UNKNOWN"),
+        "review_decision": summary.get("review", {}).get("decision", "A_SAISIR") if isinstance(summary.get("review"), dict) else "A_SAISIR",
+        "package_status": package.get("status", "ABSENT"),
+    }
+    return {
+        "session": session,
+        "dossier": card,
+        "documents": app_source_documents(knowledge),
+        "fact_chips": app_fact_chips(knowledge, dossier),
+        "comparables": app_comparable_rows(knowledge),
+        "adjustments": app_adjustment_rows(knowledge, dossier),
+        "valuation": {
+            "values": dossier.get("valuation", {}).get("values", {}) if isinstance(dossier.get("valuation"), dict) else {},
+            "conclusion": conclusion,
+            "conclusion_label": app_money(conclusion.get("value")),
+            "status": conclusion.get("status", "A_VALIDER_PAR_EVALUATEUR_AGREE"),
+        },
+        "compliance": dossier.get("compliance", {}),
+        "report": {
+            "available": dossier.get("report", {}).get("available", False) if isinstance(dossier.get("report"), dict) else False,
+            "preview": dossier.get("report", {}).get("preview", "") if isinstance(dossier.get("report"), dict) else "",
+            "title": "Brouillon de rapport",
+            "subtitle": "Non certifie - validation evaluateur agree requise",
+        },
+        "knowledge": knowledge,
+        "assistant": assistant,
+        "package": package,
+        "workflow": app_workflow(summary, dossier, package, assistant),
+    }
+
+
+def app_state(session_id: str = "") -> dict:
+    product = product_summary()
+    session_records = list_session_records(limit=50)
+    active_session_id = safe_path_id(session_id) if session_id else ""
+    if not active_session_id and session_records:
+        active_session_id = str(session_records[0].get("session_id") or "")
+    active = app_session_view(active_session_id) if active_session_id else None
+    dossiers = [app_dossier_card_from_record(record) for record in session_records]
+    if active and isinstance(active, dict):
+        active_card = active.get("dossier", {})
+        for index, item in enumerate(dossiers):
+            if item.get("session_id") == active_session_id:
+                dossiers[index] = {**item, **active_card}
+                break
+    return {
+        "schema_version": "evaluateur_ai_app_state_v1",
+        "status": "PRET_APP_PRODUIT" if active else "AUCUNE_SESSION",
+        "active_session_id": active_session_id,
+        "dossiers_count": len(dossiers),
+        "dossiers": dossiers,
+        "active": active,
+        "product": product,
+        "routes": {
+            "state": "/app/state",
+            "demo": "/app/demo",
+            "message": "/app/message",
+            "validate_review": "/app/review/validate",
+            "package": "/app/package",
+        },
+        "limits": {
+            "certification_automatic": False,
+            "external_evaluator_responses_included": False,
+            "requires_human_validation": True,
+        },
+    }
+
+
+def app_start_demo(body: dict) -> dict:
+    fixture = str(body.get("fixture") or APP_DEFAULT_FIXTURE)
+    started = start_runtime({"fixture": fixture, "strict_mode": True})
+    session_id = str(started.get("session", {}).get("session_id") or "")
+    if session_id and any(body.get(key) for key in ("display_name", "property_type", "neighborhood")):
+        session = require_session(session_id)
+        session["app_display_name"] = str(body.get("display_name") or "").strip()
+        session["app_property_type"] = str(body.get("property_type") or "").strip()
+        session["app_neighborhood"] = str(body.get("neighborhood") or "").strip()
+        save_session(session)
+    state = app_state(session_id)
+    return {"schema_version": "evaluateur_ai_app_demo_v1", "started": started, "state": state}
+
+
+def app_validate_review(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    reviewer = str(body.get("reviewer") or "Revue interne locale")
+    notes = str(
+        body.get("notes")
+        or "Validation interne locale pour generer le paquet V1. Valeur non certifiee; validation d'un evaluateur agree requise."
+    )
+    review = save_review({"session_id": session_id, "decision": "VALIDE", "reviewer": reviewer, "notes": notes})
+    return {"schema_version": "evaluateur_ai_app_review_v1", "review": review, "state": app_state(session_id)}
+
+
+def app_generate_package(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    package = generate_v1_package_for_session(session_id)
+    return {"schema_version": "evaluateur_ai_app_package_v1", "package": package, "state": app_state(session_id)}
+
+
+def app_send_message(body: dict) -> dict:
+    response = assistant_message(body)
+    return {
+        "schema_version": "evaluateur_ai_app_message_v1",
+        "message": response,
+        "state": app_state(str(body.get("session_id") or "")),
     }
 
 
@@ -1988,6 +2370,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, product_summary())
             return
+        if parsed.path == "/app/state":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, app_state(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
         if parsed.path in {"/ops/ui", "/ops/cockpit"}:
             self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
             return
@@ -2143,6 +2530,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 fixture = str(body.get("fixture") or "case_nominal.json")
                 self._send_json(200, start_runtime({"fixture": fixture, "strict_mode": True}))
                 return
+            if self.path == "/app/demo":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_start_demo(body))
+                return
             if self.path == "/resume":
                 if not self._require_permission("runtime_write"):
                     return
@@ -2158,10 +2550,25 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(200, generate_v1_package_for_session(str(body.get("session_id", ""))))
                 return
+            if self.path == "/app/review/validate":
+                if not self._require_permission("review_write"):
+                    return
+                self._send_json(200, app_validate_review(body))
+                return
+            if self.path == "/app/package":
+                if not self._require_permission("review_write"):
+                    return
+                self._send_json(200, app_generate_package(body))
+                return
             if self.path == "/assistant/message":
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, assistant_message(body))
+                return
+            if self.path == "/app/message":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_send_message(body))
                 return
             if self.path == "/ops/pre-response-run":
                 if not self._require_permission("ops_write"):
