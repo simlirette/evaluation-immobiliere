@@ -1,15 +1,17 @@
 import type { Adjustment } from '@/types'
 
 function formatAdj(value: number): string {
-  if (value === 0) return '—'
+  if (value === 0) return '-'
   const abs = new Intl.NumberFormat('fr-CA').format(Math.abs(value))
-  return value > 0 ? `+${abs}` : `−${abs}`
+  return value > 0 ? `+${abs}` : `-${abs}`
 }
 
 function formatPrice(value: number): string {
-  if (value === 0) return '—'
+  if (value === 0) return '-'
   return new Intl.NumberFormat('fr-CA', {
-    style: 'currency', currency: 'CAD', maximumFractionDigits: 0,
+    style: 'currency',
+    currency: 'CAD',
+    maximumFractionDigits: 0,
   }).format(value).replace('CA', '').trim()
 }
 
@@ -30,7 +32,7 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr>
-            {['Comparable','Prix vente','Surface','Année','Condition','Garage','Prix ajusté'].map(h => (
+            {['Comparable', 'Prix vente', 'Source', 'Temps', 'Condition', 'Garage', 'Prix ajuste'].map(h => (
               <th key={h}
                 className={`px-2.5 py-[7px] text-[10px] font-medium text-[#b5b2ac] uppercase tracking-[.06em] border-b border-black/[.07] ${h === 'Comparable' ? 'text-left' : 'text-right'}`}>
                 {h}

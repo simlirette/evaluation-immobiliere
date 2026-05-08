@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { FormEvent } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import Chip from '@/components/shared/Chip'
 import DocItem from '@/components/shared/DocItem'
 import ChatInput from '@/components/shared/ChatInput'
 import DropZone from '@/components/shared/DropZone'
+import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
-import PanelLoader from '@/components/shared/PanelLoader'
+import { sendRuntimeMessage } from '@/lib/runtime-api'
 import type { Document, FactChip } from '@/types'
 
 interface Props {
@@ -19,15 +21,21 @@ interface Props {
   dossierId: string | null
 }
 
+interface AssistantReply {
+  id: string
+  agent: string
+  answer: string
+}
+
 function NewDossierForm() {
   const router = useRouter()
-  const [address, setAddress] = useState('')
-  const [propertyType, setPropertyType] = useState('')
-  const [neighborhood, setNeighborhood] = useState('')
+  const [address, setAddress] = useState('Dossier pilote residentiel')
+  const [propertyType, setPropertyType] = useState('Residentiel unifamilial')
+  const [neighborhood, setNeighborhood] = useState('Zone anonymisee')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!address.trim() || !propertyType.trim() || !neighborhood.trim()) return
     setLoading(true)
@@ -39,19 +47,19 @@ function NewDossierForm() {
         neighborhood: neighborhood.trim(),
       })
       router.push(`/dossier/${dossier.slug}?tab=dossier`)
-    } catch {
-      setError('Erreur lors de la création du dossier.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la creation du dossier.')
       setLoading(false)
     }
   }
 
-  const inputStyle: React.CSSProperties = {
+  const inputStyle = {
     background: 'var(--input-bg)',
     border: '1px solid var(--input-border)',
   }
 
   return (
-    <div className="w-full max-w-[480px] flex flex-col gap-6 pb-9">
+    <div className="w-full max-w-[520px] flex flex-col gap-6 pb-9">
       <div className="text-center">
         <div
           className="text-[20px] font-medium text-[#1a1916] tracking-[-.01em]"
@@ -59,7 +67,9 @@ function NewDossierForm() {
         >
           Nouveau dossier
         </div>
-        <p className="mt-1 text-[13px] text-[#8a8780]">Renseignez les informations de base de la propriété</p>
+        <p className="mt-1 text-[13px] text-[#8a8780]">
+          Lance un dossier pilote dans le backend runtime et ouvre les agents AI.
+        </p>
       </div>
 
       {error && (
@@ -70,13 +80,12 @@ function NewDossierForm() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] text-[#8a8780] font-medium">Adresse</label>
+          <label className="text-[12px] text-[#8a8780] font-medium">Nom du dossier</label>
           <input
             type="text"
             required
             value={address}
             onChange={e => setAddress(e.target.value)}
-            placeholder="1842, rue Sherbrooke O."
             className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
             style={inputStyle}
           />
@@ -84,25 +93,23 @@ function NewDossierForm() {
 
         <div className="flex gap-3">
           <div className="flex flex-col gap-1.5 flex-1">
-            <label className="text-[12px] text-[#8a8780] font-medium">Type de propriété</label>
+            <label className="text-[12px] text-[#8a8780] font-medium">Type</label>
             <input
               type="text"
               required
               value={propertyType}
               onChange={e => setPropertyType(e.target.value)}
-              placeholder="Unifamiliale"
               className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
               style={inputStyle}
             />
           </div>
           <div className="flex flex-col gap-1.5 flex-1">
-            <label className="text-[12px] text-[#8a8780] font-medium">Quartier</label>
+            <label className="text-[12px] text-[#8a8780] font-medium">Secteur</label>
             <input
               type="text"
               required
               value={neighborhood}
               onChange={e => setNeighborhood(e.target.value)}
-              placeholder="Westmount"
               className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
               style={inputStyle}
             />
@@ -115,7 +122,7 @@ function NewDossierForm() {
           className="mt-1 w-full rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
           style={{ background: '#334155' }}
         >
-          {loading ? 'Création…' : 'Créer le dossier'}
+          {loading ? 'Lancement...' : 'Lancer le dossier pilote'}
         </button>
       </form>
     </div>
@@ -127,6 +134,7 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [showDropZone, setShowDropZone] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [replies, setReplies] = useState<AssistantReply[]>([])
 
   useEffect(() => {
     if (!dossierId) return
@@ -148,10 +156,21 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
     setShowDropZone(false)
   }
 
-  // Loading existing dossier
+  async function handleAsk(value: string) {
+    if (!dossierId) return
+    const response = await sendRuntimeMessage(dossierId, value, 'data-facts')
+    setReplies(prev => [
+      ...prev,
+      {
+        id: `${Date.now()}`,
+        agent: response.message.agent_label,
+        answer: response.message.answer,
+      },
+    ])
+  }
+
   if (!isNew && (!dossierId || loading)) return <PanelLoader />
 
-  // Creating new dossier — show form
   if (isNew && !dossierId) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 px-6 pb-9">
@@ -160,7 +179,6 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
     )
   }
 
-  // Existing dossier — show drop zone or chat
   if (showDropZone) {
     return (
       <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -174,19 +192,17 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         {chips.length > 0 && (
           <AgentMessage agentName="Agent Dossier">
-            J'ai analysé les <strong>{documents.length} documents</strong> soumis pour ce dossier. Voici les faits extraits :
+            J'ai charge les faits produits par le backend runtime.
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {chips.map((c, i) => <Chip key={i} label={c.label} highlight={c.highlight} />)}
             </div>
           </AgentMessage>
         )}
-        {documents.length > 0 && (
-          <UserMessage>Voici les documents du dossier</UserMessage>
-        )}
-        <AgentMessage agentName="Agent Dossier" last>
+        {documents.length > 0 && <UserMessage>Sources rattachees au dossier</UserMessage>}
+        <AgentMessage agentName="Agent Dossier" last={replies.length === 0}>
           {documents.length === 0
-            ? "Joignez les documents du dossier pour commencer l\u2019extraction des faits."
-            : "Vous pouvez ajouter d\u2019autres documents ou poser des questions sur ce dossier."}
+            ? "Aucune source runtime n'est encore rattachee."
+            : "Ces sources viennent des artefacts runtime. Elles restent a valider avant toute conclusion professionnelle."}
           {documents.length > 0 && (
             <div className="flex flex-col gap-1.5 mt-2.5">
               {documents.map(doc => <DocItem key={doc.id} doc={doc} />)}
@@ -196,11 +212,16 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
             onClick={() => setShowDropZone(true)}
             className="mt-3 text-[12px] text-[#8a8780] hover:text-[#1a1916] underline underline-offset-2 bg-transparent border-none cursor-pointer font-sans"
           >
-            + Ajouter des documents
+            + Ajouter un fichier local
           </button>
         </AgentMessage>
+        {replies.map((reply, index) => (
+          <AgentMessage key={reply.id} agentName={reply.agent} last={index === replies.length - 1}>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply.answer}</pre>
+          </AgentMessage>
+        ))}
       </div>
-      <ChatInput placeholder="Écrivez ou collez vos notes ici..." />
+      <ChatInput placeholder="Questionner l'Agent Dossier..." onSend={handleAsk} />
     </div>
   )
 }

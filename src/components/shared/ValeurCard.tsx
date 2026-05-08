@@ -10,10 +10,10 @@ export default function ValeurCard({ range, median }: Props) {
       style={{ background: 'rgba(51,65,85,.07)' }}
     >
       <span className="text-[11px] text-[#8a8780] uppercase tracking-[.07em] font-medium whitespace-nowrap">
-        Valeur estimée
+        Valeur
       </span>
-      {range && <span className="text-2xl font-medium text-[#1a1916]">{range}</span>}
-      <span className={`text-[11px] text-[#8a8780] whitespace-nowrap ${range ? 'ml-auto' : ''}`}>{median}</span>
+      {range && <span className="text-[12px] font-medium text-[#1a1916]">{range}</span>}
+      <span className={`text-[13px] text-[#1a1916] whitespace-nowrap ${range ? 'ml-auto' : ''}`}>{median}</span>
     </div>
   )
 }

@@ -32,7 +32,7 @@ export default function Sidebar({
   const ctx = useContextMenu()
 
   useEffect(() => {
-    fetchDossiers().then(setDossiers)
+    fetchDossiers().then(setDossiers).catch(() => setDossiers([]))
   }, [])
 
   function handlePin(name: string, pinned: boolean) {

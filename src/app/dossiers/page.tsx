@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DossierCard from '@/components/dossiers/DossierCard'
 import ThemeToggle from '@/components/layout/ThemeToggle'
@@ -34,10 +34,9 @@ export default function MesDossiersPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDossiers().then(data => {
-      setDossiers(data)
-      setLoading(false)
-    })
+    fetchDossiers()
+      .then(data => setDossiers(data))
+      .finally(() => setLoading(false))
   }, [])
 
   const filtered = dossiers.filter(d =>
@@ -49,8 +48,6 @@ export default function MesDossiersPage() {
     <div className="relative min-h-screen overflow-y-auto">
       <ThemeToggle />
       <div className="flex flex-col px-10 py-7 pb-9 max-w-[1100px] mx-auto">
-
-        {/* Search bar */}
         <div className="flex justify-center mb-7">
           <div className="flex items-center gap-2.5">
             <div
@@ -83,6 +80,7 @@ export default function MesDossiersPage() {
                 border: '1px solid rgba(255,255,255,.55)',
                 boxShadow: 'var(--shadow-glass)',
               }}
+              title="Filtrer"
             >
               <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 12h10M11 20h2"/>
@@ -91,7 +89,6 @@ export default function MesDossiersPage() {
           </div>
         </div>
 
-        {/* Grid */}
         {loading ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
             {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
@@ -99,9 +96,17 @@ export default function MesDossiersPage() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center mt-20">
             <EmptyState
-              title={search ? 'Aucun résultat' : 'Aucun dossier'}
-              subtitle={search ? `Aucun dossier ne correspond à « ${search} »` : 'Créez votre premier dossier depuis la barre latérale.'}
+              title={search ? 'Aucun resultat' : 'Aucun dossier'}
+              subtitle={search ? `Aucun dossier ne correspond a "${search}"` : 'Creez un dossier pilote pour lancer les agents.'}
             />
+            {!search && (
+              <button
+                onClick={() => router.push('/dossier/nouveau?tab=dossier')}
+                className="mt-5 rounded-full px-5 py-2.5 text-[13px] text-white bg-[#334155] hover:opacity-90 transition-opacity"
+              >
+                Nouveau dossier
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
@@ -114,7 +119,6 @@ export default function MesDossiersPage() {
             ))}
           </div>
         )}
-
       </div>
     </div>
   )

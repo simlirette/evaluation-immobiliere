@@ -1,71 +1,145 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import RapportArtifact from '@/components/shared/RapportArtifact'
 import RapportDoc from '@/components/shared/RapportDoc'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
-import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
-import type { Adjustment } from '@/types'
+import {
+  fetchAppState,
+  generateRuntimePackage,
+  sendRuntimeMessage,
+  validateRuntimeReview,
+} from '@/lib/runtime-api'
 
 interface Props {
   dossierId: string | null
   dossierAddress: string
 }
 
+interface RapportState {
+  preview: string
+  conclusion: string | null
+  workflowStatus: string
+  canValidate: boolean
+  canPackage: boolean
+  packageStatus: string
+  steps: Array<{ id: string; label: string; status: string; complete: boolean }>
+}
+
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [split, setSplit] = useState(false)
-  const [adjustments, setAdjustments] = useState<Adjustment[]>([])
+  const [state, setState] = useState<RapportState | null>(null)
+  const [reply, setReply] = useState('')
+  const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  async function reload() {
     if (!dossierId) return
-    setLoading(true)
-    fetchAdjustments(dossierId).then(data => {
-      setAdjustments(data)
-      setLoading(false)
+    const app = await fetchAppState(dossierId)
+    setState({
+      preview: app.active?.report.preview ?? '',
+      conclusion: app.active?.valuation.conclusion_label ?? null,
+      workflowStatus: app.active?.workflow.status ?? 'ASSISTANCE_DOSSIER_ACTIVE',
+      canValidate: Boolean(app.active?.workflow.can_validate_review),
+      canPackage: Boolean(app.active?.workflow.can_generate_package),
+      packageStatus: app.active?.package.status ?? 'ABSENT',
+      steps: app.active?.workflow.steps ?? [],
     })
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    reload()
   }, [dossierId])
 
-  if (!dossierId || loading) return <PanelLoader />
+  async function handleAsk(value: string) {
+    if (!dossierId) return
+    const response = await sendRuntimeMessage(dossierId, value, 'redaction')
+    setReply(response.message.answer)
+  }
 
-  const adjustedValues = adjustments.map(a => a.adjusted).filter(v => v > 0).sort((a, b) => a - b)
-  const median = adjustedValues.length
-    ? adjustedValues[Math.floor(adjustedValues.length / 2)]
-    : null
+  async function handleValidate() {
+    if (!dossierId) return
+    setBusy('review')
+    try {
+      await validateRuntimeReview(dossierId)
+      await reload()
+    } finally {
+      setBusy('')
+    }
+  }
 
-  const formatPrice = (n: number) =>
-    new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })
-      .format(n).replace('CA', '').trim()
+  async function handlePackage() {
+    if (!dossierId) return
+    setBusy('package')
+    try {
+      await generateRuntimePackage(dossierId)
+      await reload()
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (!dossierId || loading || !state) return <PanelLoader />
 
   return (
     <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
-      {/* Chat column */}
-      <div className={`flex flex-col ${split ? 'flex-[0_0_380px] border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}>
+      <div className={`flex flex-col ${split ? 'flex-[0_0_400px] border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}>
         <div className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
-          <UserMessage>Génère le rapport OEAQ complet pour {dossierAddress || 'ce dossier'}.</UserMessage>
-          <AgentMessage agentName="Agent Rapport" last>
-            Le rapport d'évaluation OEAQ a été rédigé et certifié.
+          <UserMessage>Preparer la revue interne et le paquet V1 sans inventer de certification.</UserMessage>
+          <AgentMessage agentName="Agent Rapport">
+            Brouillon runtime charge. Statut workflow : <strong>{state.workflowStatus}</strong>.
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              {state.steps.map(step => (
+                <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
+                  <div className="text-[#1a1916]">{step.label}</div>
+                  <div className="text-[11px] text-[#8a8780]">{step.status}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={handleValidate}
+                disabled={!state.canValidate || busy !== ''}
+                className="rounded-full px-3.5 py-2 text-[12px] bg-[#334155] text-white disabled:opacity-40"
+              >
+                {busy === 'review' ? 'Validation...' : 'Valider revue interne'}
+              </button>
+              <button
+                onClick={handlePackage}
+                disabled={!state.canPackage || busy !== ''}
+                className="rounded-full px-3.5 py-2 text-[12px] bg-[#1f7a5c] text-white disabled:opacity-40"
+              >
+                {busy === 'package' ? 'Generation...' : 'Generer paquet V1'}
+              </button>
+            </div>
             <RapportArtifact
-              title="Rapport d'évaluation immobilière"
-              subtitle={`Certifié OEAQ · ${dossierAddress || 'Dossier en cours'}`}
+              title="Brouillon de rapport"
+              subtitle={`Non certifie - paquet: ${state.packageStatus}`}
               label={split ? 'Fermer' : 'Ouvrir'}
               onClick={() => setSplit(s => !s)}
             />
           </AgentMessage>
+          {reply && (
+            <AgentMessage agentName="Agent Rapport" last>
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
+            </AgentMessage>
+          )}
         </div>
         <div className={`${split ? 'px-4 pb-5' : 'px-6 pb-9 w-full flex justify-center'}`}>
-          <ChatInput placeholder="Modifier ou compléter le rapport..." />
+          <ChatInput placeholder="Questionner l'Agent Rapport..." onSend={handleAsk} />
         </div>
       </div>
 
-      {/* Document column */}
       {split && (
         <RapportDoc
           address={dossierAddress}
-          valeur={median ? formatPrice(median) : null}
+          valeur={state.conclusion}
+          content={state.preview}
           onClose={() => setSplit(false)}
         />
       )}

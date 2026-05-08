@@ -9,7 +9,6 @@ import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
-import { createClient } from '@/lib/supabase/client'
 import { fetchDossier } from '@/lib/supabase/queries/dossiers'
 import type { TabId } from '@/types'
 
@@ -32,12 +31,16 @@ function DossierShellInner() {
 
   useEffect(() => {
     if (params.id === 'nouveau') return
-    fetchDossier(params.id).then(d => {
-      if (d) {
-        setCurrentDossierName(d.address)
-        setDossierId(d.id)
-      }
-    })
+    fetchDossier(params.id)
+      .then(d => {
+        if (d) {
+          setCurrentDossierName(d.address)
+          setDossierId(d.id)
+        } else {
+          router.push('/dossiers')
+        }
+      })
+      .catch(() => router.push('/dossiers'))
   }, [params.id])
 
   function setTab(tab: TabId) {
@@ -90,11 +93,7 @@ function DossierShellInner() {
         onDossierSelect={handleDossierSelect}
         onNewDossier={handleNewDossier}
         onMesDossiers={handleMesDossiers}
-        onSignOut={async () => {
-          const supabase = createClient()
-          await supabase.auth.signOut()
-          router.push('/login')
-        }}
+        onSignOut={() => router.push('/dossiers')}
       />
 
       <div className="absolute inset-0 flex flex-col" style={{ paddingLeft: '224px' }}>

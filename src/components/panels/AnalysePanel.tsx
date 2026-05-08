@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
@@ -8,54 +8,71 @@ import ValeurCard from '@/components/shared/ValeurCard'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
+import { fetchAppState, sendRuntimeMessage } from '@/lib/runtime-api'
 import type { Adjustment } from '@/types'
 
 interface Props {
   dossierId: string | null
 }
 
+function formatPrice(n: number) {
+  return new Intl.NumberFormat('fr-CA', {
+    style: 'currency',
+    currency: 'CAD',
+    maximumFractionDigits: 0,
+  }).format(n).replace('CA', '').trim()
+}
+
 export default function AnalysePanel({ dossierId }: Props) {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
+  const [conclusion, setConclusion] = useState<number | null>(null)
+  const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
+  const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
-    fetchAdjustments(dossierId).then(data => {
-      setAdjustments(data)
+    Promise.all([fetchAdjustments(dossierId), fetchAppState(dossierId)]).then(([rows, state]) => {
+      setAdjustments(rows)
+      setConclusion(state.active?.valuation.conclusion.value ?? null)
+      setStatus(state.active?.valuation.status ?? 'A_VALIDER_PAR_EVALUATEUR_AGREE')
       setLoading(false)
     })
   }, [dossierId])
 
+  async function handleAsk(value: string) {
+    if (!dossierId) return
+    const response = await sendRuntimeMessage(dossierId, value, 'valuation-draft')
+    setReply(response.message.answer)
+  }
+
   if (!dossierId || loading) return <PanelLoader />
-
-  const adjustedValues = adjustments.map(a => a.adjusted).filter(v => v > 0).sort((a, b) => a - b)
-  const median = adjustedValues.length
-    ? adjustedValues[Math.floor(adjustedValues.length / 2)]
-    : null
-
-  const formatPrice = (n: number) =>
-    new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })
-      .format(n).replace('CA', '').trim()
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
-        <UserMessage>Applique un ajustement +5% pour la rénovation 2019 et tiens compte du garage double</UserMessage>
+        <UserMessage>Afficher la valeur proposee et la trace d'ajustements.</UserMessage>
         <AgentMessage agentName="Agent Analyse">
-          Voici le tableau d'ajustements :
+          Voici la trace d'analyse issue du runtime. Elle n'est pas une certification.
           <AdjustmentsTable rows={adjustments} />
-          {median && (
-            <ValeurCard median={`Médiane ajustée : ${formatPrice(median)}`} />
+          {conclusion !== null && (
+            <ValeurCard
+              median={`Conclusion proposee : ${formatPrice(conclusion)}`}
+              range={status}
+            />
           )}
         </AgentMessage>
-        {adjustments.length > 0 && (
+        <AgentMessage agentName="Agent Analyse" last={!reply}>
+          Statut de la conclusion : <strong>{status}</strong>. La validation d'un evaluateur agree reste obligatoire.
+        </AgentMessage>
+        {reply && (
           <AgentMessage agentName="Agent Analyse" last>
-            Médiane ajustée : <strong>{median ? formatPrice(median) : '—'}</strong>.
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
           </AgentMessage>
         )}
       </div>
-      <ChatInput placeholder="Modifier les ajustements..." />
+      <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={handleAsk} />
     </div>
   )
 }

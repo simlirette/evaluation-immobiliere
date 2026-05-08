@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import ComparableItem from '@/components/shared/ComparableItem'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
+import { sendRuntimeMessage } from '@/lib/runtime-api'
 import type { Comparable } from '@/types'
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 
 export default function MarchePanel({ dossierId }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
+  const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,25 +28,36 @@ export default function MarchePanel({ dossierId }: Props) {
     })
   }, [dossierId])
 
+  async function handleAsk(value: string) {
+    if (!dossierId) return
+    const response = await sendRuntimeMessage(dossierId, value, 'comps-market')
+    setReply(response.message.answer)
+  }
+
   if (!dossierId || loading) return <PanelLoader />
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
-        <UserMessage>Unifamiliales R-2, rayon 1 km, vendues dans les 18 derniers mois</UserMessage>
-        <AgentMessage agentName="Agent Marché">
-          J'ai identifié <strong>{comparables.length} comparables</strong> correspondant aux critères.
+        <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
+        <AgentMessage agentName="Agent Marche">
+          J'ai charge <strong>{comparables.length} comparables</strong> depuis les artefacts du backend.
           <div className="flex flex-col gap-2 mt-2.5">
             {comparables.map(c => <ComparableItem key={c.id} comp={c} />)}
           </div>
         </AgentMessage>
         {comparables.length > 0 && (
-          <AgentMessage agentName="Agent Marché" last>
-            Prix médian des comparables : <strong>{comparables[Math.floor(comparables.length / 2)]?.price}</strong>.
+          <AgentMessage agentName="Agent Marche" last={!reply}>
+            Les comparables sont retenus par score, source et recence. Les sources restent a valider avant signature.
+          </AgentMessage>
+        )}
+        {reply && (
+          <AgentMessage agentName="Agent Marche" last>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
           </AgentMessage>
         )}
       </div>
-      <ChatInput placeholder="Affiner les critères de recherche..." />
+      <ChatInput placeholder="Questionner l'Agent Marche..." onSend={handleAsk} />
     </div>
   )
 }
