@@ -114,7 +114,7 @@ export default function MesDossiersPage() {
 
           {/* Grid */}
           {loading ? (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="dossier-grid grid gap-4 grid-cols-1">
               {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
             </div>
           ) : filtered.length === 0 ? (
@@ -135,7 +135,7 @@ export default function MesDossiersPage() {
               )}
             </div>
           ) : (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="dossier-grid grid gap-4 grid-cols-1">
               {filtered.map(d => (
                 <DossierCard
                   key={d.id}
