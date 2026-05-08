@@ -21,7 +21,9 @@ export default function TabBar({ activeTab, onTabChange, hidden }: Props) {
     >
       <div
         ref={groupRef}
-        className="inline-flex relative rounded-full p-1 gap-0.5"
+        className="inline-flex relative rounded-full p-1 gap-0.5 max-w-full overflow-x-auto"
+        role="tablist"
+        aria-label="Onglets du dossier"
         style={{
           background: 'linear-gradient(180deg, rgba(230,224,214,.80) 0%, rgba(218,211,200,.70) 100%)',
           backdropFilter: 'var(--glass-blur)',
@@ -43,16 +45,18 @@ export default function TabBar({ activeTab, onTabChange, hidden }: Props) {
           }}
         />
         {TABS.map(tab => (
-          <div
+          <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             data-active={activeTab === tab.id}
-            className={`relative z-[1] px-[22px] py-[7px] rounded-full text-[13px] cursor-pointer whitespace-nowrap transition-colors duration-200 select-none ${
+            className={`relative z-[1] px-[14px] sm:px-[22px] py-[7px] rounded-full text-[13px] cursor-pointer whitespace-nowrap transition-colors duration-200 select-none bg-transparent border-none font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155] focus-visible:ring-offset-1 ${
               activeTab === tab.id ? 'text-[#1a1916] font-medium' : 'text-[#8a8780] hover:text-[#1a1916]'
             }`}
             onClick={() => onTabChange(tab.id)}
           >
             {tab.label}
-          </div>
+          </button>
         ))}
       </div>
     </div>

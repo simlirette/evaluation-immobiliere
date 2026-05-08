@@ -20,8 +20,12 @@ interface Props {
 export default function DossierCard({ dossier, onClick }: Props) {
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="rounded-[18px] px-[22px] pt-[22px] pb-[18px] cursor-pointer transition-[transform,box-shadow] duration-200 hover:-translate-y-[3px] border border-white/[.72]"
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
+      aria-label={`Ouvrir le dossier ${dossier.address}`}
+      className="rounded-[18px] px-[22px] pt-[22px] pb-[18px] cursor-pointer transition-[transform,box-shadow] duration-200 hover:-translate-y-[3px] border border-white/[.72] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]"
       style={{
         background: 'linear-gradient(165deg, rgba(248,244,238,.96) 0%, rgba(238,232,223,.90) 100%)',
         boxShadow: 'var(--shadow-card)',

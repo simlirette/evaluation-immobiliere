@@ -29,7 +29,7 @@ export default function ChatInput({ placeholder, onSend }: Props) {
           boxShadow: 'var(--shadow-glass)',
         }}
       >
-        <button className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-[#b5b2ac] hover:text-[#8a8780] transition-colors">
+        <button aria-label="Joindre un fichier" className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-[#b5b2ac] hover:text-[#8a8780] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
@@ -44,7 +44,8 @@ export default function ChatInput({ placeholder, onSend }: Props) {
         />
         <button
           onClick={handleSend}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border-none cursor-pointer transition-[background,transform] duration-200 hover:scale-[1.06]"
+          aria-label="Envoyer"
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border-none cursor-pointer transition-[background,transform] duration-200 hover:scale-[1.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]"
           style={{ background: ready ? '#334155' : 'var(--send-idle)' }}
         >
           <svg width="16" height="16" fill="none" stroke="white" viewBox="0 0 24 24">

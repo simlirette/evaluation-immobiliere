@@ -9,6 +9,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
+      aria-label={theme === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'}
       className="fixed top-4 right-5 z-[100] w-[34px] h-[34px] rounded-full flex items-center justify-center cursor-pointer transition-[color,transform] duration-150 hover:scale-[1.08]"
       style={{
         background: 'var(--glass-bg)',

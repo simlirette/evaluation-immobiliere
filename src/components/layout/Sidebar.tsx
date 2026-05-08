@@ -29,10 +29,18 @@ export default function Sidebar({
   onNewDossier, onMesDossiers, onSignOut,
 }: Props) {
   const [dossiers, setDossiers] = useState<Dossier[]>([])
+  const [mobileOpen, setMobileOpen] = useState(false)
   const ctx = useContextMenu()
 
   useEffect(() => {
     fetchDossiers().then(setDossiers).catch(() => setDossiers([]))
+  }, [])
+
+  // Close drawer when viewport reaches desktop width
+  useEffect(() => {
+    function onResize() { if (window.innerWidth >= 768) setMobileOpen(false) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   function handlePin(name: string, pinned: boolean) {
@@ -51,22 +59,69 @@ export default function Sidebar({
     deleteDossier(dossier.id)
   }
 
+  const glassStyle = {
+    backdropFilter: 'var(--glass-blur)',
+    WebkitBackdropFilter: 'var(--glass-blur)',
+    border: '1px solid var(--glass-border)',
+    boxShadow: 'var(--shadow-glass)',
+  }
+
   return (
     <>
-      <aside
-        className="sidebar-glass absolute left-3 top-3 bottom-3 w-[200px] z-20 flex flex-col pt-7 pb-5 rounded-[18px] transition-[background] duration-300"
-        style={{
-          backdropFilter: 'var(--glass-blur)',
-          WebkitBackdropFilter: 'var(--glass-blur)',
-          border: '1px solid var(--glass-border)',
-          boxShadow: 'var(--shadow-glass)',
-        }}
+      {/* Hamburger button — mobile only, hidden when drawer is open */}
+      <button
+        className={`md:hidden fixed top-4 left-4 z-[210] w-9 h-9 rounded-full flex items-center justify-center sidebar-glass text-[#8a8780] cursor-pointer transition-colors hover:text-[#1a1916] border-none ${mobileOpen ? 'hidden' : ''}`}
+        style={glassStyle}
+        onClick={() => setMobileOpen(true)}
+        aria-label="Ouvrir la navigation"
       >
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+
+      {/* Backdrop — mobile only */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/40 z-[199]"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`sidebar-glass
+          fixed md:absolute
+          left-0 md:left-3 top-0 md:top-3 bottom-0 md:bottom-3
+          w-[240px] md:w-[200px]
+          z-[200] md:z-20
+          flex flex-col pt-12 md:pt-7 pb-5
+          rounded-r-[18px] md:rounded-[18px]
+          transition-transform md:transition-none duration-300
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+        style={glassStyle}
+        aria-label="Navigation principale"
+      >
+        {/* Close button — mobile only */}
+        <button
+          className="md:hidden absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-[#8a8780] hover:text-[#1a1916] bg-transparent border-none cursor-pointer rounded-[6px] hover:bg-black/[.05] transition-colors"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Fermer la navigation"
+        >
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+
         <SidebarWordmark />
 
         <div
-          className="mx-3 mb-0 px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] text-[#8a8780] cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors"
-          onClick={onNewDossier}
+          role="button"
+          tabIndex={0}
+          className="mx-3 mb-0 px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] text-[#8a8780] cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]"
+          onClick={() => { onNewDossier(); setMobileOpen(false) }}
+          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (onNewDossier(), setMobileOpen(false))}
         >
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
@@ -75,8 +130,11 @@ export default function Sidebar({
         </div>
 
         <div
-          className={`mx-3 mb-[18px] px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors ${showMesDossiers ? 'text-[#1a1916] dark:text-[#e8e5e0] bg-black/[.05] dark:bg-white/[.05]' : 'text-[#8a8780]'}`}
-          onClick={onMesDossiers}
+          role="button"
+          tabIndex={0}
+          className={`mx-3 mb-[18px] px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155] ${showMesDossiers ? 'text-[#1a1916] dark:text-[#e8e5e0] bg-black/[.05] dark:bg-white/[.05]' : 'text-[#8a8780]'}`}
+          onClick={() => { onMesDossiers(); setMobileOpen(false) }}
+          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (onMesDossiers(), setMobileOpen(false))}
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -96,13 +154,13 @@ export default function Sidebar({
         <SidebarNav
           activeTab={activeTab}
           showMesDossiers={showMesDossiers}
-          onTabChange={onTabChange}
+          onTabChange={tab => { onTabChange(tab); setMobileOpen(false) }}
         />
 
         <SidebarRecent
           dossiers={dossiers}
           activeDossierId={activeDossierId}
-          onSelect={onDossierSelect}
+          onSelect={(id, name) => { onDossierSelect(id, name); setMobileOpen(false) }}
           onContextMenu={(e, name, pinned) => ctx.open(e, name, pinned)}
         />
 

@@ -68,7 +68,7 @@ export default function MesDossiersPage() {
         onSignOut={handleSignOut}
       />
 
-      <div className="absolute inset-0 flex flex-col overflow-y-auto" style={{ paddingLeft: '224px' }}>
+      <div className="absolute inset-0 flex flex-col overflow-y-auto md:pl-[224px]">
         <div className="flex flex-col px-10 pt-7 pb-9 flex-1">
           {/* Search + filter row */}
           <div className="flex justify-center mb-7 flex-shrink-0">
@@ -114,7 +114,7 @@ export default function MesDossiersPage() {
 
           {/* Grid */}
           {loading ? (
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
             </div>
           ) : filtered.length === 0 ? (
@@ -135,7 +135,7 @@ export default function MesDossiersPage() {
               )}
             </div>
           ) : (
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map(d => (
                 <DossierCard
                   key={d.id}
