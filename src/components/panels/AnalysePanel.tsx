@@ -67,7 +67,7 @@ export default function AnalysePanel({ dossierId }: Props) {
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
-          Voici la trace d'analyse issue du runtime. Elle n'est pas une certification.
+          {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
           <AdjustmentsTable rows={adjustments} />
           {conclusion !== null && (
             <ValeurCard

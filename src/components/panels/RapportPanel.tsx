@@ -56,6 +56,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   useEffect(() => {
     setLoading(true)
     reload()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId])
 
   async function handleAsk(value: string) {

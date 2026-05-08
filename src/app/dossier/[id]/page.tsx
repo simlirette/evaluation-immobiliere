@@ -45,6 +45,7 @@ function DossierShellInner() {
         }
       })
       .catch(() => router.push('/dossiers'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
   function setTab(tab: TabId) {
