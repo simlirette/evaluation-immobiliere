@@ -90,14 +90,8 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`sidebar sidebar-glass
-          fixed left-0 top-0 bottom-0
-          w-[240px] z-[200]
-          flex flex-col pt-12 pb-5
-          rounded-r-[18px]
-          transition-transform duration-300
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}
+        className="sidebar sidebar-glass fixed top-0 bottom-0 w-[240px] z-[200] flex flex-col pt-12 pb-5 rounded-r-[18px]"
+        style={{ left: mobileOpen ? '0' : '-240px', transition: 'left 300ms cubic-bezier(0.4,0,0.2,1)' }}
         aria-label="Navigation principale"
       >
         {/* Close button — mobile only */}
