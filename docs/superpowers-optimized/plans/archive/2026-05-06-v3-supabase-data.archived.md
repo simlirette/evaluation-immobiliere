@@ -1,4 +1,6 @@
-# V3 — Real Supabase Data
+# Archived - V3 Real Supabase Data
+
+> Archived on 2026-05-08 during the full project audit. This plan no longer matches the current code path: `src/lib/supabase/queries/*` now delegates to `src/lib/runtime-api.ts`, and the active product direction is a runtime-backed agent workbench. Keep this file as a record of the older Supabase-direct direction only.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-optimized:subagent-driven-development (recommended) or superpowers-optimized:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

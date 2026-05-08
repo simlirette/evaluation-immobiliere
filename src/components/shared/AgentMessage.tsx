@@ -6,12 +6,12 @@ interface Props {
 
 export default function AgentMessage({ agentName, children, last }: Props) {
   return (
-    <div className={`py-4 ${last ? '' : 'border-b border-black/[.06]'}`}>
+    <div className={`py-4 ${last ? '' : 'border-b border-black/[.06] dark:border-white/[.05]'}`}>
       <div className="flex items-center gap-1.5 mb-2 text-[11px] font-medium text-[#b5b2ac] uppercase tracking-[.06em]">
         <div className="w-1.5 h-1.5 rounded-full bg-[#334155]" />
         {agentName}
       </div>
-      <div className="text-sm font-light text-[#1a1916] leading-[1.65]">
+      <div className="text-sm font-light text-[#1a1916] dark:text-[#e8e5e0] leading-[1.65]">
         {children}
       </div>
     </div>

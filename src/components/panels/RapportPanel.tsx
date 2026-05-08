@@ -90,9 +90,9 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
       <div className={`flex flex-col ${split ? 'flex-[0_0_400px] border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}>
         <div className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
-          <UserMessage>Preparer la revue interne et le paquet V1 sans inventer de certification.</UserMessage>
+          <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
-            Brouillon runtime charge. Statut workflow : <strong>{state.workflowStatus}</strong>.
+            {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}
             <div className="grid grid-cols-2 gap-2 mt-3">
               {state.steps.map(step => (
                 <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
@@ -114,12 +114,12 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 disabled={!state.canPackage || busy !== ''}
                 className="rounded-full px-3.5 py-2 text-[12px] bg-[#1f7a5c] text-white disabled:opacity-40"
               >
-                {busy === 'package' ? 'Generation...' : 'Generer paquet V1'}
+                {busy === 'package' ? 'G\u00e9n\u00e9ration...' : 'G\u00e9n\u00e9rer paquet V1'}
               </button>
             </div>
             <RapportArtifact
               title="Brouillon de rapport"
-              subtitle={`Non certifie - paquet: ${state.packageStatus}`}
+              subtitle={`Non certifi\u00e9 \u2014 paquet\u00a0: ${state.packageStatus}`}
               label={split ? 'Fermer' : 'Ouvrir'}
               onClick={() => setSplit(s => !s)}
             />

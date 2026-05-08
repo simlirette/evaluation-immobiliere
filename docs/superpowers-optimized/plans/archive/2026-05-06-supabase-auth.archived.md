@@ -1,4 +1,6 @@
-# Supabase Auth (V2) Implementation Plan
+# Archived - Supabase Auth (V2) Implementation Plan
+
+> Archived on 2026-05-08 during the full project audit. This plan was mostly executed, then superseded by the runtime-backed V1 architecture where `middleware.ts` is intentionally disabled and business data is read from the Python runtime API. Keep it as historical context only; do not use it as the active implementation plan.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-optimized:subagent-driven-development (recommended) or superpowers-optimized:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

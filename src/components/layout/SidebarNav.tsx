@@ -17,8 +17,8 @@ export default function SidebarNav({ activeTab, onTabChange, showMesDossiers }: 
           key={tab.id}
           className={`px-3 py-[7px] text-[13px] rounded-[6px] cursor-pointer transition-[color,background] duration-200 ${
             !showMesDossiers && activeTab === tab.id
-              ? 'text-[#1a1916] bg-black/[.05]'
-              : 'text-[#8a8780] hover:text-[#1a1916] hover:bg-black/[.03]'
+              ? 'text-[#1a1916] dark:text-[#e8e5e0] bg-black/[.05] dark:bg-white/[.05]'
+              : 'text-[#8a8780] hover:text-[#1a1916] dark:hover:text-[#e8e5e0] hover:bg-black/[.03] dark:hover:bg-white/[.03]'
           }`}
           onClick={() => onTabChange(tab.id)}
         >

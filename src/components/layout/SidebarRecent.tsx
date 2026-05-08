@@ -23,7 +23,7 @@ export default function SidebarRecent({ dossiers, activeDossierId, onSelect, onC
     <div className="px-3 flex-1 overflow-y-auto scroll-fade">
       {pinned.length > 0 && (
         <>
-          <div className="text-[10px] text-[#b5b2ac] uppercase tracking-[.07em] font-medium px-3 pb-1.5">Prets</div>
+          <div className="text-[10px] text-[#b5b2ac] uppercase tracking-[.07em] font-medium px-3 pb-1.5">{'\u00c9pingl\u00e9s'}</div>
           {pinned.map(d => (
             <DossierListItem
               key={d.id}
@@ -35,7 +35,7 @@ export default function SidebarRecent({ dossiers, activeDossierId, onSelect, onC
           ))}
         </>
       )}
-      <div className="text-[10px] text-[#b5b2ac] uppercase tracking-[.07em] font-medium px-3 pb-1.5 mt-2.5">Recents</div>
+      <div className="text-[10px] text-[#b5b2ac] uppercase tracking-[.07em] font-medium px-3 pb-1.5 mt-2.5">{'R\u00e9cents'}</div>
       {visible.map(d => (
         <DossierListItem
           key={d.id}

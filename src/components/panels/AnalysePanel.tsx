@@ -52,19 +52,19 @@ export default function AnalysePanel({ dossierId }: Props) {
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
-        <UserMessage>Afficher la valeur proposee et la trace d'ajustements.</UserMessage>
+        <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           Voici la trace d'analyse issue du runtime. Elle n'est pas une certification.
           <AdjustmentsTable rows={adjustments} />
           {conclusion !== null && (
             <ValeurCard
-              median={`Conclusion proposee : ${formatPrice(conclusion)}`}
+              median={`Conclusion propos\u00e9e\u00a0: ${formatPrice(conclusion)}`}
               range={status}
             />
           )}
         </AgentMessage>
         <AgentMessage agentName="Agent Analyse" last={!reply}>
-          Statut de la conclusion : <strong>{status}</strong>. La validation d'un evaluateur agree reste obligatoire.
+          {'Statut de la conclusion\u00a0: '}<strong>{status}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire.'}
         </AgentMessage>
         {reply && (
           <AgentMessage agentName="Agent Analyse" last>

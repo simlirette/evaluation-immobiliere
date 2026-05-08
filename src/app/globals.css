@@ -96,6 +96,14 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.16); border-radius: 999px; }
 [data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); }
 
+/* ── SIDEBAR GLASS BACKGROUND (theme-aware) ── */
+.sidebar-glass {
+  background: linear-gradient(165deg, rgba(238,232,222,.75) 0%, rgba(228,222,212,.65) 55%, rgba(218,212,200,.60) 100%);
+}
+[data-theme="dark"] .sidebar-glass {
+  background: linear-gradient(165deg, rgba(52,46,40,.68) 0%, rgba(32,28,24,.60) 55%, rgba(24,20,16,.55) 100%);
+}
+
 /* ── SCROLL FADE MASK ── */
 .scroll-fade {
   -webkit-mask-image: linear-gradient(to bottom,

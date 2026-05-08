@@ -54,9 +54,8 @@ export default function Sidebar({
   return (
     <>
       <aside
-        className="absolute left-3 top-3 bottom-3 w-[200px] z-20 flex flex-col pt-7 pb-5 rounded-[18px] border transition-[background] duration-300"
+        className="sidebar-glass absolute left-3 top-3 bottom-3 w-[200px] z-20 flex flex-col pt-7 pb-5 rounded-[18px] transition-[background] duration-300"
         style={{
-          background: 'linear-gradient(165deg, rgba(238,232,222,.75) 0%, rgba(228,222,212,.65) 55%, rgba(218,212,200,.60) 100%)',
           backdropFilter: 'var(--glass-blur)',
           WebkitBackdropFilter: 'var(--glass-blur)',
           border: '1px solid var(--glass-border)',
@@ -66,7 +65,7 @@ export default function Sidebar({
         <SidebarWordmark />
 
         <div
-          className="mx-3 mb-0 px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] text-[#8a8780] cursor-pointer hover:bg-black/[.03] transition-colors"
+          className="mx-3 mb-0 px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] text-[#8a8780] cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors"
           onClick={onNewDossier}
         >
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,7 +75,7 @@ export default function Sidebar({
         </div>
 
         <div
-          className={`mx-3 mb-[18px] px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] cursor-pointer hover:bg-black/[.03] transition-colors ${showMesDossiers ? 'text-[#1a1916] bg-black/[.05]' : 'text-[#8a8780]'}`}
+          className={`mx-3 mb-[18px] px-3 py-2 rounded-lg flex items-center gap-2 text-[13px] cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors ${showMesDossiers ? 'text-[#1a1916] dark:text-[#e8e5e0] bg-black/[.05] dark:bg-white/[.05]' : 'text-[#8a8780]'}`}
           onClick={onMesDossiers}
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">

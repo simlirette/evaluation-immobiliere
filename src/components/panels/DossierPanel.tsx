@@ -192,17 +192,17 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         {chips.length > 0 && (
           <AgentMessage agentName="Agent Dossier">
-            J'ai charge les faits produits par le backend runtime.
+            {'J\u2019ai charg\u00e9 les faits produits par le backend runtime.'}
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {chips.map((c, i) => <Chip key={i} label={c.label} highlight={c.highlight} />)}
             </div>
           </AgentMessage>
         )}
-        {documents.length > 0 && <UserMessage>Sources rattachees au dossier</UserMessage>}
+        {documents.length > 0 && <UserMessage>{'Sources rattach\u00e9es au dossier'}</UserMessage>}
         <AgentMessage agentName="Agent Dossier" last={replies.length === 0}>
           {documents.length === 0
-            ? "Aucune source runtime n'est encore rattachee."
-            : "Ces sources viennent des artefacts runtime. Elles restent a valider avant toute conclusion professionnelle."}
+            ? "Aucune source runtime n\u2019est encore rattach\u00e9e."
+            : "Ces sources viennent des art\u00e9facts runtime. Elles restent \u00e0 valider avant toute conclusion professionnelle."}
           {documents.length > 0 && (
             <div className="flex flex-col gap-1.5 mt-2.5">
               {documents.map(doc => <DocItem key={doc.id} doc={doc} />)}

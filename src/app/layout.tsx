@@ -17,7 +17,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Eval Immo',
+  title: '\u00c9val Immo',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
