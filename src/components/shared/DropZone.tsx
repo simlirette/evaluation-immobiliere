@@ -9,9 +9,18 @@ interface Props {
 export default function DropZone({ onDrop }: Props) {
   const [over, setOver] = useState(false)
   const counter = useRef(0)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center mb-6">
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        multiple
+        className="hidden"
+        onChange={e => { if (e.target.files?.length) onDrop(e.target.files) }}
+      />
       <div
         className={`w-full max-w-[460px] text-center rounded-[22px] py-[52px] px-8 transition-[border-color,background] duration-150 border-[1.5px] border-dashed ${
           over ? 'border-[#334155] bg-[rgba(51,65,85,.04)]' : 'border-black/[.15]'
@@ -29,13 +38,16 @@ export default function DropZone({ onDrop }: Props) {
         </div>
         <div className="text-[20px] font-medium text-[#1a1916] mb-1.5 tracking-[.01em]"
           style={{ fontFamily: 'var(--font-serif)' }}>
-          Déposez les documents du dossier
+          {'\u00c9'}deposez les documents du dossier
         </div>
         <div className="text-[13px] text-[#8a8780] font-light leading-relaxed">
-          Certificat de localisation, titre de propriété,<br/>photos, plans — PDF, JPG, PNG
+          Certificat de localisation, titre de propri{'\u00e9'}t{'\u00e9'},<br/>photos, plans {'\u2014'} PDF, JPG, PNG
         </div>
         <div className="text-[11px] text-[#b5b2ac] my-4 uppercase tracking-[.06em]">ou</div>
-        <button className="px-[22px] py-2 bg-[#334155] text-white border-none rounded-full text-[13px] cursor-pointer hover:opacity-85 transition-opacity">
+        <button
+          onClick={() => inputRef.current?.click()}
+          className="px-[22px] py-2 bg-[#334155] text-white border-none rounded-full text-[13px] cursor-pointer hover:opacity-85 transition-opacity"
+        >
           Parcourir les fichiers
         </button>
       </div>

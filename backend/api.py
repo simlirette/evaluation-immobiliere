@@ -3,6 +3,7 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+import base64
 import csv
 from datetime import datetime, timezone
 import hashlib
@@ -558,7 +559,7 @@ def app_dossier_card_from_record(record: dict) -> dict:
     }
 
 
-def app_source_documents(knowledge: dict) -> list[dict]:
+def app_source_documents(knowledge: dict, session: dict | None = None) -> list[dict]:
     sources = knowledge.get("sources", {}) if isinstance(knowledge.get("sources"), dict) else {}
     items = sources.get("items", []) if isinstance(sources.get("items"), list) else []
     documents: list[dict] = []
@@ -575,7 +576,79 @@ def app_source_documents(knowledge: dict) -> list[dict]:
                 "producer_steps": item.get("producer_steps", []),
             }
         )
+    # Merge user-uploaded documents stored in session
+    for doc in (session or {}).get("uploaded_documents", []):
+        if not isinstance(doc, dict):
+            continue
+        size_bytes = doc.get("size_bytes", 0)
+        size_label = f"{max(1, size_bytes // 1024)} Ko" if size_bytes else "Importé"
+        documents.append({
+            "id": str(doc.get("id", "")),
+            "name": str(doc.get("name", "Document")),
+            "filename": str(doc.get("filename", "")),
+            "sizeLabel": size_label,
+        })
     return documents
+
+
+_ALLOWED_UPLOAD_MIME = {"application/pdf", "image/jpeg", "image/png"}
+_UPLOAD_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def app_upload_document(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    filename = str(body.get("filename") or "document")
+    mime_type = str(body.get("mime_type") or "")
+    content_b64 = str(body.get("content_b64") or "")
+
+    if mime_type not in _ALLOWED_UPLOAD_MIME:
+        raise ValueError("Type de fichier non autorisé. PDF, JPG ou PNG uniquement.")
+
+    try:
+        file_bytes = base64.b64decode(content_b64)
+    except Exception as exc:
+        raise ValueError(f"Contenu base64 invalide: {exc}") from exc
+
+    if len(file_bytes) > _UPLOAD_MAX_BYTES:
+        raise ValueError("Fichier trop volumineux (maximum 10 Mo).")
+
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise FileNotFoundError(f"Session introuvable: {session_id}")
+
+    session_dir = Path(session["session_dir"])
+    uploads_dir = session_dir / "uploads"
+    uploads_dir.mkdir(exist_ok=True)
+
+    stem = safe_path_id(Path(filename).stem) or "document"
+    ext = Path(filename).suffix.lower() or ".bin"
+    target = uploads_dir / f"{stem}{ext}"
+    counter = 0
+    while target.exists():
+        counter += 1
+        target = uploads_dir / f"{stem}_{counter}{ext}"
+
+    target.write_bytes(file_bytes)
+
+    doc_id = f"upload-{uuid.uuid4().hex[:8]}"
+    size_bytes = len(file_bytes)
+    doc_meta = {
+        "id": doc_id,
+        "name": filename,
+        "filename": target.name,
+        "size_bytes": size_bytes,
+        "mime_type": mime_type,
+        "uploaded_at": utc_now_iso(),
+    }
+    session.setdefault("uploaded_documents", []).append(doc_meta)
+    save_session(session)
+
+    return {
+        "id": doc_id,
+        "name": filename,
+        "filename": target.name,
+        "sizeLabel": f"{max(1, size_bytes // 1024)} Ko",
+    }
 
 
 def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
@@ -752,7 +825,7 @@ def app_session_view(session_id: str) -> dict:
     return {
         "session": session,
         "dossier": card,
-        "documents": app_source_documents(knowledge),
+        "documents": app_source_documents(knowledge, session),
         "fact_chips": app_fact_chips(knowledge, dossier),
         "comparables": app_comparable_rows(knowledge),
         "adjustments": app_adjustment_rows(knowledge, dossier),
@@ -2569,6 +2642,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_send_message(body))
+                return
+            if self.path == "/app/upload":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_upload_document(body))
                 return
             if self.path == "/ops/pre-response-run":
                 if not self._require_permission("ops_write"):

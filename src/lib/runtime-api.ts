@@ -161,13 +161,36 @@ export async function fetchRuntimeDocuments(sessionId: string): Promise<Document
   return state.active?.documents ?? []
 }
 
-export async function uploadRuntimeDocument(_sessionId: string, file: File): Promise<Document> {
-  return {
-    id: `local-${Date.now()}`,
-    name: file.name,
-    filename: file.name,
-    sizeLabel: file.size ? `${Math.max(1, Math.round(file.size / 1024))} KB` : '',
+const UPLOAD_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+const UPLOAD_ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+
+export async function uploadRuntimeDocument(sessionId: string, file: File): Promise<Document> {
+  if (!UPLOAD_ALLOWED_TYPES.has(file.type)) {
+    throw new Error('Type non autorisé. PDF, JPG ou PNG uniquement.')
   }
+  if (file.size > UPLOAD_MAX_BYTES) {
+    throw new Error('Fichier trop volumineux (maximum 10 Mo).')
+  }
+
+  const content_b64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1]) // strip data URL prefix
+    }
+    reader.onerror = () => reject(new Error('Lecture du fichier échouée.'))
+    reader.readAsDataURL(file)
+  })
+
+  return runtimeJson<Document>('/app/upload', {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: sessionId,
+      filename: file.name,
+      mime_type: file.type,
+      content_b64,
+    }),
+  })
 }
 
 export async function fetchRuntimeFacts(sessionId: string): Promise<FactChip[]> {

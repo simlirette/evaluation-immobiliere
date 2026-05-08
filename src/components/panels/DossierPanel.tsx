@@ -27,6 +27,12 @@ interface AssistantReply {
   answer: string
 }
 
+interface UploadStatus {
+  name: string
+  state: 'uploading' | 'error'
+  error?: string
+}
+
 function NewDossierForm() {
   const router = useRouter()
   const [address, setAddress] = useState('Dossier pilote residentiel')
@@ -135,6 +141,7 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   const [showDropZone, setShowDropZone] = useState(false)
   const [loading, setLoading] = useState(true)
   const [replies, setReplies] = useState<AssistantReply[]>([])
+  const [uploads, setUploads] = useState<UploadStatus[]>([])
 
   useEffect(() => {
     if (!dossierId) return
@@ -151,9 +158,24 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
 
   async function handleDrop(files: FileList) {
     if (!dossierId) return
-    const newDocs = await Promise.all(Array.from(files).map(f => uploadDocument(dossierId, f)))
-    setDocuments(prev => [...prev, ...newDocs])
+    const fileArray = Array.from(files)
+    setUploads(fileArray.map(f => ({ name: f.name, state: 'uploading' as const })))
     setShowDropZone(false)
+
+    const results = await Promise.allSettled(fileArray.map(f => uploadDocument(dossierId, f)))
+
+    const newDocs: Document[] = []
+    const errors: UploadStatus[] = []
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        newDocs.push(r.value)
+      } else {
+        errors.push({ name: fileArray[i].name, state: 'error', error: r.reason?.message ?? 'Erreur inconnue' })
+      }
+    })
+
+    setDocuments(prev => [...prev, ...newDocs])
+    setUploads(errors)
   }
 
   async function handleAsk(value: string) {
@@ -215,6 +237,17 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
             + Ajouter un fichier local
           </button>
         </AgentMessage>
+        {uploads.map((u, i) => (
+          u.state === 'uploading' ? (
+            <div key={i} className="text-[12px] text-[#8a8780] px-1 py-0.5 animate-pulse">
+              {'\u2026 '}{u.name}
+            </div>
+          ) : (
+            <div key={i} className="rounded-[8px] px-3 py-2 text-[12px] text-red-700 bg-red-50/80 border border-red-200/60">
+              {u.name}{' — '}{u.error}
+            </div>
+          )
+        ))}
         {replies.map((reply, index) => (
           <AgentMessage key={reply.id} agentName={reply.agent} last={index === replies.length - 1}>
             <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply.answer}</pre>
