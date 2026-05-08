@@ -4,6 +4,15 @@ import { createClient } from '@/lib/supabase/server'
 const RUNTIME_URL = (process.env.RUNTIME_API_URL || 'http://127.0.0.1:8796').replace(/\/$/, '')
 const RUNTIME_TOKEN = process.env.RUNTIME_API_TOKEN || ''
 const TIMEOUT_MS = 30_000
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+// Catch misconfigured deployments before they silently fail
+if (IS_PROD && RUNTIME_URL.includes('127.0.0.1')) {
+  console.error('[BFF] RUNTIME_API_URL pointe vers localhost en production — configurer la variable Railway.')
+}
+if (IS_PROD && !RUNTIME_TOKEN) {
+  console.warn('[BFF] RUNTIME_API_TOKEN absent en production — les requêtes runtime ne seront pas authentifiées.')
+}
 
 type Ctx = { params: Promise<{ path: string[] }> }
 

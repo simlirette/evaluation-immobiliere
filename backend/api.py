@@ -17,7 +17,8 @@ from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml, safe_pa
 ROOT = Path(__file__).resolve().parent
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
-SESSIONS_DIR = ROOT / "runtime_sessions"
+# SESSIONS_DIR can be overridden via env var for persistent volume mounts (e.g. Railway volume)
+SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "")) if os.environ.get("SESSIONS_DIR") else ROOT / "runtime_sessions"
 ATELIER_DIR = ROOT / "atelier"
 RUNTIME_DIR = ROOT / "tests" / "runtime"
 UI_PATH = ROOT / "ui" / "pilote_api.html"
