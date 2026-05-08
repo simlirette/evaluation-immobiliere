@@ -142,6 +142,13 @@ body {
   }
 }
 
+/* ── MAIN CONTENT LEFT OFFSET (desktop, clears the floating sidebar) ── */
+@media (min-width: 768px) {
+  .main-content {
+    padding-left: 224px;
+  }
+}
+
 /* ── SCROLL FADE MASK ── */
 .scroll-fade {
   -webkit-mask-image: linear-gradient(to bottom,

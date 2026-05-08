@@ -68,7 +68,7 @@ export default function MesDossiersPage() {
         onSignOut={handleSignOut}
       />
 
-      <div className="absolute inset-0 flex flex-col overflow-y-auto md:pl-[224px]">
+      <div className="main-content absolute inset-0 flex flex-col overflow-y-auto">
         <div className="flex flex-col px-10 pt-7 pb-9 flex-1">
           {/* Search + filter row */}
           <div className="flex justify-center mb-7 flex-shrink-0">

@@ -107,7 +107,7 @@ function DossierShellInner() {
         onSignOut={handleSignOut}
       />
 
-      <div className="absolute inset-0 flex flex-col md:pl-[224px]">
+      <div className="main-content absolute inset-0 flex flex-col">
         <TabBar
           activeTab={activeTab}
           onTabChange={setTab}
