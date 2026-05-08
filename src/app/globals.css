@@ -40,6 +40,13 @@
   --glass-bg:     rgba(232,226,216,.68);
   --glass-border: rgba(255,255,255,.42);
   --glass-blur:   blur(48px) saturate(180%) brightness(1.01);
+  --glass-shadow:
+    0 1px 1px  rgba(0,0,0,.03),
+    0 4px 16px rgba(0,0,0,.07),
+    0 20px 56px rgba(0,0,0,.06);
+  --glass-inset:
+    inset 0 1px 0 rgba(255,255,255,.72),
+    inset 0 -1px 0 rgba(0,0,0,.03);
   --input-bg:     rgba(240,236,229,.62);
   --input-border: rgba(255,255,255,.50);
   --tab-active-bg:     rgba(255,255,255,.62);
@@ -52,6 +59,13 @@
   --glass-bg:     rgba(32,28,24,.62);
   --glass-border: rgba(255,255,255,.11);
   --glass-blur:   blur(52px) saturate(180%) brightness(.98);
+  --glass-shadow:
+    0 1px 1px  rgba(0,0,0,.15),
+    0 4px 16px rgba(0,0,0,.28),
+    0 20px 56px rgba(0,0,0,.22);
+  --glass-inset:
+    inset 0 1px 0 rgba(255,255,255,.09),
+    inset 0 -1px 0 rgba(0,0,0,.18);
   --input-bg:     rgba(0,0,0,.32);
   --input-border: rgba(255,255,255,.10);
   --tab-active-bg:     rgba(255,255,255,.11);
@@ -102,6 +116,30 @@ body {
 }
 [data-theme="dark"] .sidebar-glass {
   background: linear-gradient(165deg, rgba(52,46,40,.68) 0%, rgba(32,28,24,.60) 55%, rgba(24,20,16,.55) 100%);
+}
+
+/* ── SIDEBAR POSITIONING & GLASS EFFECT ── */
+/* Base glass (applies on mobile + desktop) */
+.sidebar {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  transition: background 0.3s;
+}
+/* Desktop: floating card with 12px margin on all sides */
+@media (min-width: 768px) {
+  .sidebar {
+    position: absolute !important;
+    left: 12px !important;
+    top: 12px !important;
+    bottom: 12px !important;
+    width: 200px !important;
+    padding-top: 28px !important;
+    border-radius: 18px !important;
+    transform: translateX(0) !important;
+    z-index: 20 !important;
+  }
 }
 
 /* ── SCROLL FADE MASK ── */

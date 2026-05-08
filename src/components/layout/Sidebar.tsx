@@ -63,7 +63,7 @@ export default function Sidebar({
     backdropFilter: 'var(--glass-blur)',
     WebkitBackdropFilter: 'var(--glass-blur)',
     border: '1px solid var(--glass-border)',
-    boxShadow: 'var(--shadow-glass)',
+    boxShadow: 'var(--glass-shadow), var(--glass-inset)',
   }
 
   return (
@@ -90,17 +90,14 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`sidebar-glass
-          fixed md:absolute
-          left-0 md:left-3 top-0 md:top-3 bottom-0 md:bottom-3
-          w-[240px] md:w-[200px]
-          z-[200] md:z-20
-          flex flex-col pt-12 md:pt-7 pb-5
-          rounded-r-[18px] md:rounded-[18px]
-          transition-transform md:transition-none duration-300
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        className={`sidebar sidebar-glass
+          fixed left-0 top-0 bottom-0
+          w-[240px] z-[200]
+          flex flex-col pt-12 pb-5
+          rounded-r-[18px]
+          transition-transform duration-300
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
-        style={glassStyle}
         aria-label="Navigation principale"
       >
         {/* Close button — mobile only */}
