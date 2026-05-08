@@ -139,7 +139,8 @@
     width: 200px !important;
     padding-top: 28px !important;
     border-radius: 18px !important;
-    transform: translateX(0) !important;
+    transform: none !important;
+    translate: none !important;
     z-index: 20 !important;
   }
 }
