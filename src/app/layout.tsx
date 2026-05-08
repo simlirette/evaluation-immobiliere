@@ -17,7 +17,9 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: '\u00c9val Immo',
+  title: 'Éval Immo',
+  description: 'Espace de travail pour évaluateurs agréés — pipeline d\u2019évaluation immobilière assisté par IA.',
+  robots: { index: false, follow: false },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
