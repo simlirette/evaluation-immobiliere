@@ -73,42 +73,44 @@
   --send-idle:    rgba(255,255,255,.14);
 }
 
-/* ── BASE RESET ── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ── BASE RESET (inside @layer base so Tailwind utilities override it) ── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
-}
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
 
-body {
-  font-family: var(--font-inter, -apple-system, sans-serif);
-  font-size: 14px;
-  color: #1a1916;
-  background:
-    radial-gradient(ellipse 75% 50% at 20% 10%, rgba(245,238,226,.70) 0%, transparent 55%),
-    radial-gradient(ellipse 55% 60% at 80% 88%, rgba(218,212,202,.50) 0%, transparent 52%),
-    #e6e0d7;
-  transition: background .3s, color .3s;
-}
+  body {
+    font-family: var(--font-inter, -apple-system, sans-serif);
+    font-size: 14px;
+    color: #1a1916;
+    background:
+      radial-gradient(ellipse 75% 50% at 20% 10%, rgba(245,238,226,.70) 0%, transparent 55%),
+      radial-gradient(ellipse 55% 60% at 80% 88%, rgba(218,212,202,.50) 0%, transparent 52%),
+      #e6e0d7;
+    transition: background .3s, color .3s;
+  }
 
-[data-theme="dark"] body {
-  color: #e8e5e0;
-  background:
-    radial-gradient(ellipse 70% 50% at 15% 10%, rgba(60,45,30,.55) 0%, transparent 55%),
-    radial-gradient(ellipse 55% 65% at 85% 85%, rgba(20,40,50,.45) 0%, transparent 50%),
-    #141210;
-}
+  [data-theme="dark"] body {
+    color: #e8e5e0;
+    background:
+      radial-gradient(ellipse 70% 50% at 15% 10%, rgba(60,45,30,.55) 0%, transparent 55%),
+      radial-gradient(ellipse 55% 65% at 85% 85%, rgba(20,40,50,.45) 0%, transparent 50%),
+      #141210;
+  }
 
-/* ── CUSTOM SCROLLBAR ── */
-::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,.16); border-radius: 999px; }
-[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); }
+  /* ── CUSTOM SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.16); border-radius: 999px; }
+  [data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); }
+}
 
 /* ── SIDEBAR GLASS BACKGROUND (theme-aware) ── */
 .sidebar-glass {
