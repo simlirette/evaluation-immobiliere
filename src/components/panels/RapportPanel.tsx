@@ -27,6 +27,7 @@ interface RapportState {
   canPackage: boolean
   packageStatus: string
   steps: Array<{ id: string; label: string; status: string; complete: boolean }>
+  blockingFailures: string[]
 }
 
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
@@ -47,6 +48,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       canPackage: Boolean(app.active?.workflow.can_generate_package),
       packageStatus: app.active?.package.status ?? 'ABSENT',
       steps: app.active?.workflow.steps ?? [],
+      blockingFailures: (app.active?.compliance as { blocking_failures?: string[] } | null)?.blocking_failures ?? [],
     })
     setLoading(false)
   }
@@ -101,6 +103,16 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 </div>
               ))}
             </div>
+            {state.blockingFailures.length > 0 && (
+              <div className="mt-3 rounded-[9px] bg-red-50/80 border border-red-200/60 px-3 py-2">
+                <div className="text-[11px] font-medium text-red-700 mb-1">
+                  {state.blockingFailures.length} blocage{state.blockingFailures.length > 1 ? 's' : ''} — revue impossible
+                </div>
+                <ul className="text-[11px] text-red-600 list-disc list-inside space-y-0.5">
+                  {state.blockingFailures.slice(0, 5).map((f, i) => <li key={i}>{f}</li>)}
+                </ul>
+              </div>
+            )}
             <div className="flex gap-2 mt-3">
               <button
                 onClick={handleValidate}

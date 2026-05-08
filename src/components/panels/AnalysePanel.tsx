@@ -15,6 +15,19 @@ interface Props {
   dossierId: string | null
 }
 
+const VALUATION_STATUS_LABELS: Record<string, string> = {
+  A_VALIDER_PAR_EVALUATEUR_AGREE: 'À valider — évaluateur agréé requis',
+  VALIDE: 'Validé en revue interne',
+  A_CORRIGER: 'À corriger',
+  PRET_REVUE: 'Prêt pour revue',
+  ASSISTANCE_DOSSIER_ACTIVE: 'Assistance active',
+  UNKNOWN: 'Statut inconnu',
+}
+
+function statusLabel(raw: string): string {
+  return VALUATION_STATUS_LABELS[raw] ?? raw.replace(/_/g, ' ')
+}
+
 function formatPrice(n: number) {
   return new Intl.NumberFormat('fr-CA', {
     style: 'currency',
@@ -59,12 +72,11 @@ export default function AnalysePanel({ dossierId }: Props) {
           {conclusion !== null && (
             <ValeurCard
               median={`Conclusion propos\u00e9e\u00a0: ${formatPrice(conclusion)}`}
-              range={status}
             />
           )}
         </AgentMessage>
         <AgentMessage agentName="Agent Analyse" last={!reply}>
-          {'Statut de la conclusion\u00a0: '}<strong>{status}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire.'}
+          {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
         </AgentMessage>
         {reply && (
           <AgentMessage agentName="Agent Analyse" last>

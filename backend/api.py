@@ -902,10 +902,24 @@ def app_start_demo(body: dict) -> dict:
 
 def app_validate_review(body: dict) -> dict:
     session_id = str(body.get("session_id") or "")
+    # Gate: no blocking compliance failures may exist before internal review
+    summary = session_summary(session_id)
+    result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
+    integrity = summary.get("integrity", {}) if isinstance(summary.get("integrity"), dict) else {}
+    blocking = result.get("blocking_failures", []) if isinstance(result.get("blocking_failures"), list) else []
+    if blocking or not integrity.get("ok"):
+        count = len(blocking)
+        sample = "; ".join(str(b) for b in blocking[:3])
+        detail = f": {sample}" if sample else ""
+        raise ValueError(
+            f"Revue bloquee par {count} echec(s) de conformite{detail}. "
+            "Corriger les blocages avant de valider."
+        )
     reviewer = str(body.get("reviewer") or "Revue interne locale")
     notes = str(
         body.get("notes")
-        or "Validation interne locale pour generer le paquet V1. Valeur non certifiee; validation d'un evaluateur agree requise."
+        or "Validation interne locale pour generer le paquet V1. "
+        "Valeur non certifiee; signature d'un evaluateur agree hors systeme requise."
     )
     review = save_review({"session_id": session_id, "decision": "VALIDE", "reviewer": reviewer, "notes": notes})
     return {"schema_version": "evaluateur_ai_app_review_v1", "review": review, "state": app_state(session_id)}
@@ -913,6 +927,14 @@ def app_validate_review(body: dict) -> dict:
 
 def app_generate_package(body: dict) -> dict:
     session_id = str(body.get("session_id") or "")
+    # Gate: internal review must be VALIDE before package generation
+    summary = session_summary(session_id)
+    review = summary.get("review", {}) if isinstance(summary.get("review"), dict) else {}
+    if review.get("decision") != "VALIDE":
+        raise ValueError(
+            "La revue interne doit etre validee avant de generer le paquet V1. "
+            "Valider la revue interne d'abord."
+        )
     package = generate_v1_package_for_session(session_id)
     return {"schema_version": "evaluateur_ai_app_package_v1", "package": package, "state": app_state(session_id)}
 
