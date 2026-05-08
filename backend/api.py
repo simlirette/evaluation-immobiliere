@@ -1928,7 +1928,7 @@ def assistant_workbench(session_id: str) -> dict:
             "certification_automatic": False,
             "external_evaluator_responses_included": False,
             "requires_human_validation": True,
-            "llm_native_agent_loop_connected": bool(os.environ.get("ANTHROPIC_API_KEY")),
+            "llm_native_agent_loop_connected": bool(os.environ.get("OPENAI_API_KEY")),
         },
     }
 
@@ -2172,7 +2172,7 @@ def select_assistant_agent(message: str, requested_agent: str) -> str:
     return "superviseur-evaluateur-ai"
 
 
-_ANTHROPIC_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
+_OPENAI_MODEL_DEFAULT = "gpt-4o-mini"
 _LLM_MAX_TOKENS = 800
 _AGENT_SYSTEM_PROMPTS: dict[str, str] = {
     "data-facts": (
@@ -2213,13 +2213,13 @@ _AGENT_SYSTEM_LIMITS = (
 
 
 def _llm_client():
-    """Retourne un client Anthropic si ANTHROPIC_API_KEY est défini, sinon None."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    """Retourne un client OpenAI si OPENAI_API_KEY est défini, sinon None."""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         return None
     try:
-        import anthropic  # type: ignore
-        return anthropic.Anthropic(api_key=api_key)
+        import openai  # type: ignore
+        return openai.OpenAI(api_key=api_key)
     except ImportError:
         return None
 
@@ -2292,11 +2292,11 @@ def _build_llm_context_block(agent: str, context: dict) -> str:
 
 
 def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, dict]:
-    """Appelle Claude pour générer une réponse d'agent. Retourne (réponse, métadonnées).
+    """Appelle GPT pour générer une réponse d'agent. Retourne (réponse, métadonnées).
     Lève RuntimeError si le client LLM n'est pas disponible."""
     client = _llm_client()
     if not client:
-        raise RuntimeError("ANTHROPIC_API_KEY non configuré — mode déterministe actif")
+        raise RuntimeError("OPENAI_API_KEY non configuré — mode déterministe actif")
 
     base_prompt = _AGENT_SYSTEM_PROMPTS.get(agent, (
         "Tu es un assistant IA pour évaluateurs immobiliers agréés.\n"
@@ -2305,21 +2305,22 @@ def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, 
     context_block = _build_llm_context_block(agent, context)
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
-    model = os.environ.get("ANTHROPIC_MODEL", _ANTHROPIC_MODEL_DEFAULT)
-    import anthropic as _anthropic  # type: ignore
-    response = _anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"]).messages.create(
+    model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    response = client.chat.completions.create(
         model=model,
         max_tokens=_LLM_MAX_TOKENS,
-        system=system_prompt,
-        messages=[{"role": "user", "content": f"Question de l'évaluateur : {message}"}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Question de l'évaluateur : {message}"},
+        ],
     )
-    answer = response.content[0].text if response.content else "(réponse vide)"
+    answer = response.choices[0].message.content or "(réponse vide)"
     metadata = {
         "llm": True,
         "model": model,
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
-        "stop_reason": response.stop_reason,
+        "input_tokens": response.usage.prompt_tokens if response.usage else 0,
+        "output_tokens": response.usage.completion_tokens if response.usage else 0,
+        "stop_reason": response.choices[0].finish_reason,
     }
     return answer, metadata
 
