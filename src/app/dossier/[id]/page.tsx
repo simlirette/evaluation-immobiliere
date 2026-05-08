@@ -10,6 +10,7 @@ import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
 import { fetchDossier } from '@/lib/supabase/queries/dossiers'
+import { createClient } from '@/lib/supabase/client'
 import type { TabId } from '@/types'
 
 const VALID_TABS: TabId[] = ['dossier', 'marche', 'analyse', 'rapport']
@@ -80,6 +81,12 @@ function DossierShellInner() {
     router.push('/dossiers')
   }
 
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       <ThemeToggle />
@@ -93,7 +100,7 @@ function DossierShellInner() {
         onDossierSelect={handleDossierSelect}
         onNewDossier={handleNewDossier}
         onMesDossiers={handleMesDossiers}
-        onSignOut={() => router.push('/dossiers')}
+        onSignOut={handleSignOut}
       />
 
       <div className="absolute inset-0 flex flex-col" style={{ paddingLeft: '224px' }}>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 const RUNTIME_URL = (process.env.RUNTIME_API_URL || 'http://127.0.0.1:8796').replace(/\/$/, '')
 const RUNTIME_TOKEN = process.env.RUNTIME_API_TOKEN || ''
@@ -13,6 +14,15 @@ async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promis
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (RUNTIME_TOKEN) headers['Authorization'] = `Bearer ${RUNTIME_TOKEN}`
+
+  // Forward authenticated user identity to runtime for audit logging
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) headers['X-Evaluator-Id'] = user.id
+  } catch {
+    // Supabase not configured — local dev, skip
+  }
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)

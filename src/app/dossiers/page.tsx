@@ -7,6 +7,7 @@ import ThemeToggle from '@/components/layout/ThemeToggle'
 import DossierCard from '@/components/dossiers/DossierCard'
 import EmptyState from '@/components/shared/EmptyState'
 import { fetchDossiers } from '@/lib/supabase/queries/dossiers'
+import { createClient } from '@/lib/supabase/client'
 import type { Dossier, TabId } from '@/types'
 
 function SkeletonCard() {
@@ -40,6 +41,12 @@ export default function MesDossiersPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   const filtered = dossiers.filter(d =>
     d.address.toLowerCase().includes(search.toLowerCase()) ||
     `${d.property_type} ${d.neighborhood}`.toLowerCase().includes(search.toLowerCase())
@@ -58,7 +65,7 @@ export default function MesDossiersPage() {
         onDossierSelect={(id: string) => router.push(`/dossier/${id}?tab=dossier`)}
         onNewDossier={() => router.push('/dossier/nouveau?tab=dossier')}
         onMesDossiers={() => {}}
-        onSignOut={() => {}}
+        onSignOut={handleSignOut}
       />
 
       <div className="absolute inset-0 flex flex-col overflow-y-auto" style={{ paddingLeft: '224px' }}>
