@@ -1848,6 +1848,12 @@ def assistant_message(body: dict) -> dict:
     context = assistant_context(session)
     agent = select_assistant_agent(message, requested_agent)
     profile = assistant_agent_profile(agent)
+    llm_meta: dict = {}
+    try:
+        answer, llm_meta = llm_assistant_answer(message, agent, context)
+    except Exception:
+        answer = render_assistant_answer(message, agent, context)
+
     response = {
         "schema_version": "assistant_message_v1",
         "message_id": uuid.uuid4().hex[:12],
@@ -1859,7 +1865,7 @@ def assistant_message(body: dict) -> dict:
         "agent": agent,
         "agent_label": profile["label"],
         "agent_config": profile["agent_config"],
-        "answer": render_assistant_answer(message, agent, context),
+        "answer": answer,
         "context_summary": {
             "runtime_status": context["runtime_status"],
             "review_decision": context["review_decision"],
@@ -1877,7 +1883,9 @@ def assistant_message(body: dict) -> dict:
             "certification_automatic": False,
             "external_evaluator_responses_included": False,
             "requires_human_validation": True,
+            "llm_native_agent_loop_connected": bool(llm_meta),
         },
+        "llm_metadata": llm_meta,
     }
     append_assistant_exchange(session, message, response)
     return response
@@ -1920,7 +1928,7 @@ def assistant_workbench(session_id: str) -> dict:
             "certification_automatic": False,
             "external_evaluator_responses_included": False,
             "requires_human_validation": True,
-            "llm_native_agent_loop_connected": False,
+            "llm_native_agent_loop_connected": bool(os.environ.get("ANTHROPIC_API_KEY")),
         },
     }
 
@@ -2162,6 +2170,158 @@ def select_assistant_agent(message: str, requested_agent: str) -> str:
     if any(token in text for token in ["fait", "faits", "source", "document", "surface", "date", "dossier"]):
         return "data-facts"
     return "superviseur-evaluateur-ai"
+
+
+_ANTHROPIC_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
+_LLM_MAX_TOKENS = 800
+_AGENT_SYSTEM_PROMPTS: dict[str, str] = {
+    "data-facts": (
+        "Tu es l'Agent Dossier, assistant IA spécialisé pour évaluateurs immobiliers agréés.\n"
+        "RÔLE : Analyser les faits extraits du dossier, les sources, les données brutes et les documents rattachés.\n"
+        "Répondre avec précision à partir des données ci-dessous uniquement."
+    ),
+    "comps-market": (
+        "Tu es l'Agent Marché, assistant IA spécialisé pour évaluateurs immobiliers agréés.\n"
+        "RÔLE : Analyser les comparables retenus, le marché, les ventes et justifier leur pertinence.\n"
+        "Répondre avec précision à partir des données ci-dessous uniquement."
+    ),
+    "valuation-draft": (
+        "Tu es l'Agent Analyse, assistant IA spécialisé pour évaluateurs immobiliers agréés.\n"
+        "RÔLE : Analyser les approches de valeur, les calculs d'ajustements et la réconciliation.\n"
+        "Répondre avec précision à partir des données ci-dessous uniquement."
+    ),
+    "compliance-qa": (
+        "Tu es l'Agent Conformité, assistant IA spécialisé pour évaluateurs immobiliers agréés.\n"
+        "RÔLE : Analyser la conformité du dossier, les avertissements et les blocages.\n"
+        "Répondre avec précision à partir des données ci-dessous uniquement."
+    ),
+    "redaction": (
+        "Tu es l'Agent Rapport, assistant IA spécialisé pour évaluateurs immobiliers agréés.\n"
+        "RÔLE : Analyser le brouillon de rapport, sa structure et sa conformité rédactionnelle.\n"
+        "Répondre avec précision à partir des données ci-dessous uniquement."
+    ),
+}
+_AGENT_SYSTEM_LIMITS = (
+    "\n\nLIMITES ABSOLUES — NE JAMAIS ENFREINDRE :\n"
+    "- Ne jamais certifier une valeur. Toute valeur est un brouillon soumis à validation.\n"
+    "- Ne jamais remplacer la validation d'un évaluateur agréé OEAQ ou équivalent.\n"
+    "- Citer uniquement les artefacts et faits présents dans les données fournies.\n"
+    "- Ne jamais inventer de données de marché, de ventes comparables ou de faits.\n"
+    "- Répondre en français. Être concis, factuel et professionnel.\n"
+    "- Si une information est absente des données, l'indiquer explicitement."
+)
+
+
+def _llm_client():
+    """Retourne un client Anthropic si ANTHROPIC_API_KEY est défini, sinon None."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return None
+    try:
+        import anthropic  # type: ignore
+        return anthropic.Anthropic(api_key=api_key)
+    except ImportError:
+        return None
+
+
+def _build_llm_context_block(agent: str, context: dict) -> str:
+    """Formate le contexte session en bloc de données pour le prompt système."""
+    lines = [
+        "DONNÉES DU DOSSIER :",
+        f"- Session : {context.get('session_id', '-')}",
+        f"- Statut runtime : {context.get('runtime_status', '-')}",
+        f"- Revue interne : {context.get('review_decision', '-')}",
+        f"- Paquet : {context.get('package_status', '-')}",
+        f"- Artefacts disponibles : {context.get('artifacts_count', 0)}",
+        f"- Avertissements : {len(context.get('warnings', []))}",
+        f"- Blocages : {len(context.get('blocking_failures', []))}",
+    ]
+    if agent == "data-facts":
+        facts = context.get("facts", {})
+        lines += [
+            "",
+            "FAITS EXTRAITS :",
+            f"- Date de référence : {facts.get('date_reference', '-')}",
+            f"- Surface : {facts.get('surface', '-')}",
+            f"- Confiance : {facts.get('confidence', '-')}",
+            f"- Sources référencées : {facts.get('source_ids_count', 0)}",
+        ]
+    elif agent == "comps-market":
+        comps = context.get("comparables", [])[:6]
+        lines += ["", f"COMPARABLES ({context.get('comparables_count', 0)} au total) :"]
+        for c in comps:
+            lines.append(
+                f"- {c.get('comparable_id', '-')} : prix={c.get('prix_vente', '-')},"
+                f" score={c.get('score', '-')}, source={c.get('source_id', '-')},"
+                f" date={c.get('date_vente', '-')}"
+            )
+    elif agent == "valuation-draft":
+        values = context.get("valuation_values", {})
+        approaches = context.get("valuation_approaches", [])
+        lines += ["", "APPROCHES DE VALEUR :"]
+        for approach in approaches:
+            lines.append(
+                f"- {approach.get('approach', '-')} : méthode={approach.get('method', '-')},"
+                f" valeur={approach.get('value', '-')}, n_inputs={approach.get('input_count', 0)}"
+            )
+        if values:
+            lines.append("Valeurs synthèse : " + ", ".join(f"{k}={v}" for k, v in values.items()))
+    elif agent == "compliance-qa":
+        warnings = context.get("warnings", [])
+        blocking = context.get("blocking_failures", [])
+        coverage = context.get("coverage", {})
+        lines += [
+            "",
+            "CONFORMITÉ :",
+            f"- Blocages ({len(blocking)}) : {', '.join(blocking) if blocking else 'aucun'}",
+            f"- Avertissements ({len(warnings)}) : {', '.join(warnings[:8]) if warnings else 'aucun'}",
+            f"- Couverture artefacts : {coverage.get('required_count', 0) - coverage.get('missing_count', 0)}"
+            f" / {coverage.get('required_count', 0)}",
+        ]
+    elif agent == "redaction":
+        report = context.get("report", {})
+        preview = str(report.get("preview") or "Non disponible.")[:1500]
+        lines += [
+            "",
+            f"RAPPORT (disponible: {bool(report.get('available'))}) :",
+            "--- aperçu ---",
+            preview,
+            "--- fin aperçu ---",
+        ]
+    return "\n".join(lines)
+
+
+def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, dict]:
+    """Appelle Claude pour générer une réponse d'agent. Retourne (réponse, métadonnées).
+    Lève RuntimeError si le client LLM n'est pas disponible."""
+    client = _llm_client()
+    if not client:
+        raise RuntimeError("ANTHROPIC_API_KEY non configuré — mode déterministe actif")
+
+    base_prompt = _AGENT_SYSTEM_PROMPTS.get(agent, (
+        "Tu es un assistant IA pour évaluateurs immobiliers agréés.\n"
+        "Répondre avec précision à partir des données fournies uniquement."
+    ))
+    context_block = _build_llm_context_block(agent, context)
+    system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
+
+    model = os.environ.get("ANTHROPIC_MODEL", _ANTHROPIC_MODEL_DEFAULT)
+    import anthropic as _anthropic  # type: ignore
+    response = _anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"]).messages.create(
+        model=model,
+        max_tokens=_LLM_MAX_TOKENS,
+        system=system_prompt,
+        messages=[{"role": "user", "content": f"Question de l'évaluateur : {message}"}],
+    )
+    answer = response.content[0].text if response.content else "(réponse vide)"
+    metadata = {
+        "llm": True,
+        "model": model,
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens,
+        "stop_reason": response.stop_reason,
+    }
+    return answer, metadata
 
 
 def render_assistant_answer(message: str, agent: str, context: dict) -> str:
