@@ -1,0 +1,6 @@
+runtime_sessions/
+runtime_pilotes_reels/
+__pycache__/
+*.pyc
+*.pyo
+.env
