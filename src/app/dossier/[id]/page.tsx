@@ -32,6 +32,9 @@ function DossierShellInner() {
 
   useEffect(() => {
     if (params.id === 'nouveau') return
+    // Sync active ID with URL immediately so tab changes use the correct slug
+    setActiveDossierId(params.id)
+    setIsNew(false)
     fetchDossier(params.id)
       .then(d => {
         if (d) {
