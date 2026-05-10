@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+# Load .env file if present (local dev only — Railway injects env vars directly)
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv()
+except ImportError:
+    pass
+
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
