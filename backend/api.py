@@ -568,12 +568,23 @@ def app_source_documents(knowledge: dict, session: dict | None = None) -> list[d
         if not isinstance(item, dict):
             continue
         source_id = str(item.get("source_id") or f"SRC-{index}")
+        raw_level = str(item.get("reliability_level") or "")
+        _LEVEL_LABELS = {"A_VALIDER": "À valider", "VALIDE": "Validé", "FIABLE": "Fiable", "INCERTAIN": "Incertain"}
+        size_label = _LEVEL_LABELS.get(raw_level, raw_level or "")
+        source_type = str(item.get("source_type") or "runtime_fixture")
+        source_name_map = {
+            "runtime_fixture": "Données terrain",
+            "market_data": "Données marché",
+            "municipal_registry": "Rôle municipal",
+            "notarial_deed": "Acte notarié",
+            "land_registry": "Registre foncier",
+        }
         documents.append(
             {
                 "id": source_id,
-                "name": f"Source {source_id}",
-                "filename": str(item.get("source_type") or "runtime_fixture"),
-                "sizeLabel": str(item.get("reliability_level") or "A_VALIDER"),
+                "name": source_name_map.get(source_type, f"Source {source_id}"),
+                "filename": source_type,
+                "sizeLabel": size_label,
                 "producer_steps": item.get("producer_steps", []),
             }
         )
