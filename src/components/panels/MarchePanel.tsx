@@ -40,24 +40,24 @@ export default function MarchePanel({ dossierId }: Props) {
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
-        <AgentMessage agentName="Agent March\u00e9">
+        <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparables</strong>{' depuis les art\u00e9facts du backend.'}
           <div className="flex flex-col gap-2 mt-2.5">
             {comparables.map(c => <ComparableItem key={c.id} comp={c} />)}
           </div>
         </AgentMessage>
         {comparables.length > 0 && (
-          <AgentMessage agentName="Agent March\u00e9" last={!reply}>
+          <AgentMessage agentName="Agent Marché" last={!reply}>
             {'Les comparables sont retenus par score, source et r\u00e9cence. Les sources restent \u00e0 valider avant signature.'}
           </AgentMessage>
         )}
         {reply && (
-          <AgentMessage agentName="Agent March\u00e9" last>
+          <AgentMessage agentName="Agent Marché" last>
             <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
           </AgentMessage>
         )}
       </div>
-      <ChatInput placeholder="Questionner l'Agent March\u00e9..." onSend={handleAsk} />
+      <ChatInput placeholder="Questionner l'Agent Marché..." onSend={handleAsk} />
     </div>
   )
 }
