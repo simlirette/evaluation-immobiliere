@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
@@ -33,19 +33,41 @@ interface UploadStatus {
   error?: string
 }
 
+const LAUNCH_STEPS = [
+  { label: 'Création du dossier…', delay: 0 },
+  { label: 'Initialisation du runtime…', delay: 3000 },
+  { label: 'Collecte des données marché…', delay: 7000 },
+  { label: 'Analyse des comparables…', delay: 11000 },
+  { label: 'Génération du rapport…', delay: 14000 },
+]
+
 function NewDossierForm() {
   const router = useRouter()
   const [address, setAddress] = useState('Dossier pilote residentiel')
   const [propertyType, setPropertyType] = useState('Residentiel unifamilial')
   const [neighborhood, setNeighborhood] = useState('Zone anonymisee')
   const [loading, setLoading] = useState(false)
+  const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    return () => timersRef.current.forEach(clearTimeout)
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!address.trim() || !propertyType.trim() || !neighborhood.trim()) return
     setLoading(true)
+    setStepIndex(0)
     setError('')
+
+    LAUNCH_STEPS.forEach((step, i) => {
+      if (i === 0) return
+      const t = setTimeout(() => setStepIndex(i), step.delay)
+      timersRef.current.push(t)
+    })
+
     try {
       const dossier = await createDossier({
         address: address.trim(),
@@ -54,6 +76,8 @@ function NewDossierForm() {
       })
       router.push(`/dossier/${dossier.slug}?tab=dossier`)
     } catch (err) {
+      timersRef.current.forEach(clearTimeout)
+      timersRef.current = []
       setError(err instanceof Error ? err.message : 'Erreur lors de la creation du dossier.')
       setLoading(false)
     }
@@ -84,53 +108,84 @@ function NewDossierForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] text-[#8a8780] font-medium">Nom du dossier</label>
-          <input
-            type="text"
-            required
-            value={address}
-            onChange={e => setAddress(e.target.value)}
-            className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
-            style={inputStyle}
-          />
+      {loading ? (
+        <div className="flex flex-col gap-3 py-2">
+          {/* Progress bar */}
+          <div className="w-full h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--input-bg)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{
+                background: '#334155',
+                width: `${Math.round(((stepIndex + 1) / LAUNCH_STEPS.length) * 100)}%`,
+              }}
+            />
+          </div>
+          {/* Step list */}
+          <div className="flex flex-col gap-1.5">
+            {LAUNCH_STEPS.map((step, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 text-[13px] transition-opacity duration-300"
+                style={{ opacity: i <= stepIndex ? 1 : 0.28 }}
+              >
+                <span style={{ color: i < stepIndex ? '#334155' : i === stepIndex ? '#334155' : '#b5b2ac' }}>
+                  {i < stepIndex ? '✓' : i === stepIndex ? '›' : '·'}
+                </span>
+                <span style={{ color: i === stepIndex ? '#1a1916' : i < stepIndex ? '#8a8780' : '#b5b2ac' }}>
+                  {step.label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-
-        <div className="flex gap-3">
-          <div className="flex flex-col gap-1.5 flex-1">
-            <label className="text-[12px] text-[#8a8780] font-medium">Type</label>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] text-[#8a8780] font-medium">Nom du dossier</label>
             <input
               type="text"
               required
-              value={propertyType}
-              onChange={e => setPropertyType(e.target.value)}
+              value={address}
+              onChange={e => setAddress(e.target.value)}
               className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
               style={inputStyle}
             />
           </div>
-          <div className="flex flex-col gap-1.5 flex-1">
-            <label className="text-[12px] text-[#8a8780] font-medium">Secteur</label>
-            <input
-              type="text"
-              required
-              value={neighborhood}
-              onChange={e => setNeighborhood(e.target.value)}
-              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
-              style={inputStyle}
-            />
-          </div>
-        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="mt-1 w-full rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
-          style={{ background: '#334155' }}
-        >
-          {loading ? 'Lancement...' : 'Lancer le dossier pilote'}
-        </button>
-      </form>
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Type</label>
+              <input
+                type="text"
+                required
+                value={propertyType}
+                onChange={e => setPropertyType(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Secteur</label>
+              <input
+                type="text"
+                required
+                value={neighborhood}
+                onChange={e => setNeighborhood(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="mt-1 w-full rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+            style={{ background: '#334155' }}
+          >
+            Lancer le dossier pilote
+          </button>
+        </form>
+      )}
     </div>
   )
 }
