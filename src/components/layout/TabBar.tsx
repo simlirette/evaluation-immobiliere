@@ -15,7 +15,7 @@ export default function TabBar({ activeTab, onTabChange, hidden }: Props) {
 
   return (
     <div
-      className={`flex justify-center px-6 pt-[22px] flex-shrink-0 relative z-10 transition-[opacity,height,padding] duration-300 ${
+      className={`flex justify-center pl-[52px] pr-[52px] sm:px-6 pt-[22px] flex-shrink-0 relative z-10 transition-[opacity,height,padding] duration-300 ${
         hidden ? 'opacity-0 pointer-events-none h-0 pt-0 overflow-hidden' : ''
       }`}
     >
@@ -50,7 +50,7 @@ export default function TabBar({ activeTab, onTabChange, hidden }: Props) {
             role="tab"
             aria-selected={activeTab === tab.id}
             data-active={activeTab === tab.id}
-            className={`relative z-[1] px-[14px] sm:px-[22px] py-[7px] rounded-full text-[13px] cursor-pointer whitespace-nowrap transition-colors duration-200 select-none bg-transparent border-none font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155] focus-visible:ring-offset-1 ${
+            className={`relative z-[1] px-[8px] sm:px-[22px] py-[7px] rounded-full text-[12px] sm:text-[13px] cursor-pointer whitespace-nowrap transition-colors duration-200 select-none bg-transparent border-none font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155] focus-visible:ring-offset-1 ${
               activeTab === tab.id ? 'text-[#1a1916] font-medium' : 'text-[#8a8780] hover:text-[#1a1916]'
             }`}
             onClick={() => onTabChange(tab.id)}
