@@ -1,82 +1,159 @@
 ---
 name: analyse-selection-comparables
 description: >
-  Sélectionner les comparables les plus pertinents pour une évaluation donnée
-  en appliquant des critères rigoureux de similarité, proximité et récence.
+  Selection, scoring et justification des comparables pour la methode de
+  comparaison. Utiliser ce skill pour filtrer, classer et documenter les
+  ventes comparables selon les criteres MEFQ, CUSPAP/NPP et IAAO.
 type: analyse
 agents:
   - comps-market
 sources:
-  - dlc_donnees_marche
-  - centris_mls
-  - gestim_plus
-  - registre_foncier
+  - 01-mefq-manuel
+  - 15-methodes-internationaux
+  - 00-cuspap
+  - 04-oeaq-normes
 ---
 
-## Objectif
+# Skill : Analyse — Sélection des comparables
 
-Constituer un corpus de comparables de qualité qui supportera les conclusions de valeur de l'évaluateur.
+## 1. Rôle et contexte
 
-## Critères de sélection — Hiérarchie
+Ce skill encode le processus complet de sélection, scoring et justification des comparables pour la méthode de comparaison directe. Il est utilisé par l'agent comps-market pour constituer l'ensemble des ventes comparables qui alimenteront l'analyse de valeur.
 
-### Niveau 1 — Critères éliminatoires (un seul critère défaillant = exclusion)
+---
 
-1. **Type de bien identique** : unifamiliale avec unifamiliale, condo avec condo, etc.
-   - Exception : conversion ou démolition-reconstruction possible si AMU le justifie
-2. **Conditions de vente normales** : pas de vente de liquidation, pas de succession forcée, pas de lien de dépendance confirmé
-3. **Source vérifiable** : chaque comparable doit avoir un source_id traçable (acte de vente au Registre foncier ou source commerciale reconnue)
+## 2. Connaissances encodées
 
-### Niveau 2 — Critères de pondération
+### 2.1 Stratification MEFQ — 5 niveaux
 
-| Critère | Score optimal | Pénalité |
-|---------|------------|---------|
-| Superficie ±10% | 1.0 | -0.1 par tranche de 5% supplémentaire |
-| Âge ±5 ans | 1.0 | -0.05 par an supplémentaire |
-| Distance < 1 km | 1.0 | -0.05 par km supplémentaire |
-| Vente < 6 mois | 1.0 | -0.1 par 3 mois supplémentaires |
-| Même quartier | 1.0 | -0.2 si secteur différent |
+| Niveau | Filtre |
+|--------|--------|
+| 1. Parc sous étude | Totalité des immeubles |
+| 2. Parc cible | Même type/usage (CUBF) |
+| 3. Territoire d'observation | Zone géographique homogène |
+| 4. Segment | Sous-ensemble homogène |
+| 5. Immeuble type | Référence de comparaison |
 
-Score de similarité global = moyenne pondérée des critères (0.0 à 1.0).
+**Seuils minimaux** : 15 % des immeubles du segment vendus OU 30 observations minimum.
 
-**Seuil de rétention :** score ≥ 0.55 pour être retenu comme comparable.
+### 2.2 Critères de sélection (par priorité)
 
-### Niveau 3 — Jugement professionnel
+1. **Localisation** — facteur le plus déterminant (éliminatoire)
+2. **Type d'usage** — CUBF compatible (éliminatoire)
+3. **Date de vente** — < 1 an préféré, < 3 ans acceptable (éliminatoire)
+4. **Superficie** — terrain et bâtiment comparables
+5. **Âge et état** — époque et entretien similaires
+6. **Qualité construction** — classe A-E similaire
+7. **Nombre d'unités** — pour immeubles à revenus
+8. **Caractéristiques physiques** — configuration, services, dépendances
 
-Même avec un bon score, l'évaluateur peut :
-- Exclure un comparable pour une raison documentée (micromarché différent, condition atypique non apparente dans les données)
-- Retenir un comparable de score plus faible si aucune meilleure vente disponible, avec justification écrite
+### 2.3 Ventes à exclure
 
-## Procédure d'analyse
+| Vente | Disposition |
+|-------|-----------|
+| Forcée par ordonnance judiciaire | **TOUJOURS exclure** |
+| Entre personnes liées | Exclure sauf marché ouvert + prix typique |
+| Gouvernementale | Exclure sauf recherche approfondie |
+| Institution financière (vendeur) | Exclure sauf > 20 % du marché |
+| Succession | Exclure sauf exposition marché normale |
+| Organisme caritatif/religieux/éducatif | Exclure |
+| Titre douteux | Exclure |
+| Biens meubles > 10 % (résidentiel) | Exclure |
+| Biens meubles > 25 % (commercial) | Exclure |
 
-### Étape 1 — Recherche initiale large
+### 2.4 Ordre des ajustements
 
-Critères de recherche :
-```
-type_bien = sujet
-rayon = 2 km (élargir si < 5 résultats)
-période = 24 mois (élargir à 36 si nécessaire)
-superficie_min = sujet × 0.70
-superficie_max = sujet × 1.30
-```
+1. **Transactionnels** (financement, frais clôture, taxes impayées)
+2. **Condition du bien** (biens meubles, baux, réparations)
+3. **Temporels** (date de vente → date d'évaluation)
+4. **Localisation** (différences géographiques)
+5. **Caractéristiques physiques** (terrain, bâtiment, aménagements)
 
-### Étape 2 — Filtrage et scoring
+### 2.5 Limites des ajustements
 
-Pour chaque candidat :
-1. Calculer score de similarité
-2. Vérifier conditions de vente (recherche Registre foncier si doute)
-3. Identifier les ventes entre parties liées (mêmes noms, prix aberrant)
-4. Documenter la décision : retenu / rejeté + raison
+- Total des ajustements : ne devrait pas excéder 25-30 % du prix
+- Ajustement individuel majeur (> 15 %) : justification documentée requise
+- Plus d'ajustements = moins de fiabilité du comparable
 
-### Étape 3 — Contrôle final
+### 2.6 Indicateurs IAAO
 
-- Minimum 3 comparables retenus (résidentiel)
-- Si corpus < 3 : élargir le rayon géographique ou la fenêtre temporelle ET documenter
-- Les 3 comparables retenus ne doivent pas tous dater de la même période (éviter le biais temporel)
-- Vérifier que les comparables couvrent différents niveaux de prix (pour évaluer la fourchette)
+| Indicateur | Seuil |
+|-----------|-------|
+| COD | ≤ 15 % résidentiel, ≤ 20 % commercial |
+| PRD | 0,98 à 1,03 |
+| Proportion médiane | 0,95 à 1,05 |
 
-## Signaux d'alerte
+---
 
-- **Prix aberrant** (> 2 écarts-types de la moyenne du secteur) : vérifier l'acte au Registre foncier
-- **Vente très rapide** (DOM < 10 jours) : possible vente forcée ou entre parties liées
-- **Prix significativement supérieur au rôle** (> 150%) : vérifier si rénovations majeures
-- **Multiple ventes du même bien** en < 12 mois : flip, possible problème de qualité ou de titre
+## 3. Méthodologie de sélection
+
+### Étape 1 — Filtrage par catégorie
+
+1. Identifier le CUBF du sujet
+2. Filtrer les ventes avec CUBF identique ou compatible
+3. Exclure les catégories incompatibles
+
+### Étape 2 — Filtrage géographique
+
+1. Définir le territoire d'observation (marché homogène)
+2. Si insuffisant, élargir progressivement
+3. Documenter le territoire retenu et sa justification
+
+### Étape 3 — Filtrage temporel
+
+1. Priorité : ventes < 1 an
+2. Acceptable : ventes < 3 ans avec ajustement temporel
+3. CUSPAP exige l'analyse de toute vente du sujet dans les 3 dernières années
+
+### Étape 4 — Scoring de similarité
+
+Pour chaque vente restante, scorer selon :
+- Proximité géographique (poids élevé)
+- Similarité de superficie (poids moyen-élevé)
+- Similarité d'âge et d'état (poids moyen)
+- Similarité de qualité de construction (poids moyen)
+- Similarité de caractéristiques spéciales (poids faible-moyen)
+
+### Étape 5 — Vérification
+
+1. Vérifier les conditions de transaction de chaque comparable retenu
+2. Identifier les ventes nécessitant des ajustements
+3. Exclure les ventes échouant aux tests de validité (avec code de raison)
+
+### Étape 6 — Sélection finale et documentation
+
+1. Retenir les N meilleurs comparables
+2. Documenter pour chaque comparable : identification, source, conditions vérifiées, score, ajustements, indicateur de valeur
+3. Justifier le choix dans le rapport
+
+---
+
+## 4. Règles critiques
+
+1. **TOUJOURS** vérifier les conditions de transaction avant d'utiliser un comparable
+2. **TOUJOURS** documenter les raisons d'exclusion des ventes écartées
+3. **TOUJOURS** justifier le choix des comparables dans le rapport
+4. **JAMAIS** sélectionner uniquement par proximité géographique
+5. **JAMAIS** utiliser une vente forcée comme comparable
+6. **JAMAIS** appliquer des ajustements arbitraires non dérivés du marché
+7. **JAMAIS** ignorer les ventes antérieures du sujet (< 3 ans — CUSPAP)
+8. Les ajustements doivent être dans l'ordre prescrit (transactionnel → temporel → localisation → physique)
+9. Si seuils minimaux non atteints (15 % ou 30 obs.), élargir le segment avant de conclure
+10. Le biais de sélection (retenir seulement les comparables confirmant une valeur préconçue) est une faute professionnelle
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Le CUBF du sujet est identifié et les comparables sont de catégorie compatible
+- [ ] Le territoire d'observation est défini et justifié
+- [ ] Les seuils minimaux de représentativité sont atteints (15 % ou 30 obs.)
+- [ ] Les conditions de transaction de chaque comparable sont vérifiées
+- [ ] Les ventes invalides sont exclues avec code de raison documenté
+- [ ] Les ajustements sont appliqués dans l'ordre prescrit
+- [ ] Le total des ajustements ne dépasse pas 25-30 % du prix par comparable
+- [ ] Les ventes antérieures du sujet (< 3 ans) sont analysées
+- [ ] Les indicateurs de valeur sont calculés et réconciliés
+- [ ] La documentation est complète (identification, source, conditions, score, ajustements)
+- [ ] La justification du choix est incluse dans le rapport
+- [ ] Le dossier est structuré pour conservation (7 ans CUSPAP)

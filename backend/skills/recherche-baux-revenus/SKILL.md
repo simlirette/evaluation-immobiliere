@@ -1,94 +1,132 @@
 ---
 name: recherche-baux-revenus
 description: >
-  Analyser les baux en place, les revenus locatifs et les dépenses d'exploitation
-  pour préparer l'approche par le revenu (capitalisation directe ou FTA/DCF).
+  Recherche sur le cadre juridique des baux residentiels au Quebec, les
+  criteres de fixation de loyer du TAL, et les donnees locatives necessaires
+  a l'approche par le revenu. Utiliser ce skill pour les questions sur les
+  baux, loyers, fixation de loyer et donnees de revenus locatifs.
 type: recherche
 agents:
-  - data-facts
   - valuation-draft
+  - data-facts
 sources:
-  - baux_locatifs
-  - declarations_proprietaire
-  - etats_financiers
+  - 23-baux-logement-revenu
 ---
 
-## Objectif
+# Skill : Recherche baux et revenus
 
-Constituer le tableau de revenus et dépenses d'exploitation normalisés (état proforma) pour le bien évalué.
+## 1. Rôle et contexte
 
-## Procédure
+Ce skill encode le cadre juridique des baux résidentiels (TAL), les critères de fixation de loyer, et les données locatives nécessaires à l'approche par le revenu en évaluation immobilière. Utilisé par l'agent valuation-draft (méthode du revenu) et data-facts (collecte de données locatives).
 
-### 1. Inventaire des baux
+---
 
-Pour chaque bail en place :
-- Locataire (anonymisé si résidentiel — « Locataire A »)
-- Surface louée (m²) et numéro d'unité
-- Loyer mensuel brut ($ / mois)
-- Loyer annuel brut ($ / an)
-- Date de début et date d'expiration du bail
-- Type de bail : brut / net / double net / triple net (NNN)
-- Clauses d'escalade (indexation annuelle, révision aux 5 ans)
-- Droit de renouvellement et conditions
-- Baux hors marché : loyer actuel vs loyer de marché → indiquer la différence
+## 2. Connaissances encodées
 
-### 2. Calcul du revenu brut potentiel (RBP)
+### 2.1 Critères de fixation du loyer — TAL (art. 3, Règlement T-15.01, r. 2)
 
-```
-RBP = Σ (loyer annuel × superficie) pour toutes les unités
-    + Revenus accessoires (stationnement, entreposage, antennes)
-    + Revenus de services (buanderie, vending)
-```
+Six critères :
+1. **Pourcentage de base** : formule IPC sur 3 périodes — [(A−B)/B + (B−C)/C + (C−D)/D] / 3
+2. **Variation taxes foncières municipales et de services**
+3. **Variation taxes foncières scolaires**
+4. **Variation assurances incendie et responsabilité**
+5. **5 % des dépenses d'immobilisation** de la période de référence
+6. **Dépenses pour nouveau service/accessoire** (annualisées)
 
-**Distinctions importantes :**
-- Loyer économique (bail en vigueur) vs loyer de marché (taux courant pour unités similaires)
-- Si bail hors marché (< 85% ou > 115% du marché), ajustement requis pour l'approche revenu
+**Part attribuable** = loyer au terme / revenus totaux de l'immeuble.
 
-### 3. Taux d'inoccupation et créances irrécouvrables
+### 2.2 Définitions clés
 
-- Taux d'inoccupation stabilisé (TIS) : taux marché selon secteur et type de bien
-  - Résidentiel Montréal 2025 : 2–4%
-  - Bureau centre-ville : 15–25%
-  - Commercial de quartier : 6–10%
-  - Industriel : 3–6%
-- Créances irrécouvrables : généralement 0,5–1% du RBP résidentiel
+| Terme | Définition |
+|-------|-----------|
+| Loyer de faveur | Inférieur au marché (parent, allié, employé, succession, gouvernement) |
+| Loyer estimé | Évalué pour logement inoccupé/occupé par locateur/utilisé pour exploitation |
+| Logement comparable | Même immeuble ou équivalent, services/accessoires/environnement comparables |
+| Période de référence | Baux 1er avril-31 déc : année civile pr��cédente. Baux 1er janv-31 mars : avant-dernière année |
+| Revenus | Loyers × 12 + autres revenus d'exploitation |
 
-```
-REP (revenu effectif potentiel) = RBP × (1 - TIS) - créances
-```
+### 2.3 Dépenses d'immobilisation (Annexe 1)
 
-### 4. Charges d'exploitation (dépenses normalisées)
+Trois catégories :
+1. **Maintien intégrité physique** : fondations, toiture, maçonnerie, menuiseries, drainage, sécurité
+2. **Amélioration/modernisation** : cuisine, SdB, revêtements, électricité, insonorisation, agréments
+3. **Impact énergétique** : isolation, chauffage, énergie renouvelable, adaptation climatique
 
-| Poste | Résidentiel | Commercial |
-|-------|------------|-----------|
-| Taxes foncières | ✓ | ✓ (sauf NNN) |
-| Assurances | ✓ | ✓ (sauf NNN) |
-| Entretien et réparations | 5–8% du RBP | 3–5% du RBP |
-| Gestion immobilière | 5–8% du REP | 3–5% du REP |
-| Services publics (espaces communs) | ✓ | selon bail |
-| Réserve pour remplacement (CapEx) | 1–2% du RBP | 1–2% du RBP |
+### 2.4 Données locatives pour l'évaluation
 
-### 5. Revenu net d'exploitation (RNE)
+| Donnée | Source |
+|--------|--------|
+| Loyers réels | Baux, propriétaire |
+| Loyers du marché | Comparables, TAL, SCHL |
+| Taux d'inoccupation | SCHL, marché local |
+| Dépenses exploitation | Propriétaire, comptabilité |
+| Taxes foncières | Rôle municipal |
+| Assurances | Propriétaire |
+| Pourcentages TAL annuels | Publication ministérielle |
 
-```
-RNE = REP - Dépenses d'exploitation normalisées
-    (AVANT service de la dette — le financement n'affecte pas la valeur)
-```
+### 2.5 Normalisation
 
-### 6. Taux global d'actualisation (TGA)
+**Loyers** : ajuster loyers de faveur, estimés, services inclus/exclus au loyer du marché comparable.
 
-Le TGA doit être extrait du marché (analyse de ventes avec revenus vérifiés) :
-```
-TGA = RNE d'une vente comparable / prix de vente de cette transaction
-```
+**Dépenses** — Inclure : taxes, assurances, entretien, administration, services publics, réserve remplacement. **Exclure** : capital, amortissement hypothécaire, impôts sur le revenu.
 
-- Valeur = RNE / TGA
+### 2.6 Indicateurs locatifs
 
-**Sources TGA :** GESTIM Plus, CBRE, Altus, JLL (rapports marchés), transactions DLC avec revenus.
+RBP (loyers marché × 12) → RBE (RBP − inoccupation) → RNE (RBE − frais exploitation normalisés)
 
-## Signaux d'alerte
+---
 
-- Loyers significativement inférieurs au marché → baux protégés, locataires de longue date
-- Rotation élevée des locataires → risque opérationnel
-- Dépenses réelles < 25% du RBP pour immeuble résidentiel → données incomplètes
-- TGA < 3% ou > 8% pour multirésidentiel Montréal → vérifier la cohérence
+## 3. Méthodologie de recherche
+
+### Étape 1 — Collecte des baux et loyers
+
+1. Obtenir les baux en cours (loyers, durée, conditions, services inclus)
+2. Identifier les loyers de faveur et estimés
+3. Collecter les loyers du marché (comparables locatifs, données SCHL, TAL)
+
+### Étape 2 — Collecte des dépenses
+
+1. Obtenir les dépenses d'exploitation réelles du propriétaire
+2. Identifier les dépenses de capital déguisées en entretien
+3. Collecter les dépenses normalisées du marché
+
+### Étape 3 — Normalisation
+
+1. Normaliser les loyers au marché (ajuster faveur, services, ancienneté)
+2. Normaliser les dépenses (exclure capital, amortissement, impôts)
+3. Calculer RBP → RBE → RNE
+
+### Étape 4 — Validation
+
+1. Comparer loyers normalisés avec données TAL/SCHL
+2. Vérifier cohérence dépenses avec le marché
+3. Documenter sources et limites
+
+---
+
+## 4. Règles critiques
+
+1. **TOUJOURS** normaliser les loyers avant d'utiliser dans l'approche revenu
+2. **TOUJOURS** exclure les dépenses de capital, l'amortissement hypothécaire et les impôts sur le revenu
+3. **TOUJOURS** distinguer loyer contractuel et loyer du marché
+4. **JAMAIS** utiliser les dépenses réelles sans normalisation
+5. **JAMAIS** ignorer les services inclus dans le loyer
+6. Le TAL fixe les loyers résidentiels uniquement — les loyers commerciaux sont libres
+7. Les pourcentages TAL sont des maximums en l'absence d'entente
+8. La formule IPC (moyenne mobile 3 ans) ne reflète pas l'inflation immédiate
+9. Le taux d'inoccupation SCHL est régional — peut ne pas refléter le marché local
+10. Les dépenses d'immobilisation n'augmentent le loyer que de 5 % — récupération lente
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Les baux en cours sont collectés avec loyers, durée et conditions
+- [ ] Les loyers de faveur et estimés sont identifiés
+- [ ] Les loyers sont normalisés au marché
+- [ ] Les dépenses sont normalisées (excluant capital, hypothèque, impôts)
+- [ ] Les services inclus/exclus sont documentés
+- [ ] Le taux d'inoccupation est documenté avec source
+- [ ] Les indicateurs RBP → RBE → RNE sont calculés
+- [ ] Les sources sont citées (TAL, SCHL, comparables, propriétaire)
+- [ ] Les limites des données sont documentées

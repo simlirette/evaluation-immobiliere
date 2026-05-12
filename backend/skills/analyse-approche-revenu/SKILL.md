@@ -1,125 +1,133 @@
 ---
 name: analyse-approche-revenu
 description: >
-  Appliquer l'approche par le revenu (capitalisation directe et DCF) pour
-  les immeubles à revenus : multi-logements, commercial, industriel.
+  Methodologie complete de l'approche par le revenu pour l'evaluation
+  immobiliere. Utiliser ce skill pour appliquer le MRB, la capitalisation
+  directe, les flux monetaires actualises ou la technique residuelle.
 type: analyse
 agents:
   - valuation-draft
 sources:
-  - revenus_depenses
-  - baux_locatifs
-  - donnees_marche
-  - mefq_manuel
+  - 01-mefq-manuel
+  - 23-baux-logement-revenu
+  - 00-cuspap
+  - 04-oeaq-normes
 ---
 
-## Objectif
+# Skill : Analyse — Approche par le revenu
 
-Calculer la valeur d'un immeuble à revenus selon l'approche par le revenu (capitalisation directe ou FTA/DCF) conformément aux normes OEAQ.
+## 1. Rôle et contexte
 
-## Méthode 1 — Capitalisation directe
+Ce skill encode la méthodologie de la méthode du revenu. Utilisé par l'agent valuation-draft pour les immeubles à revenus. Quatre techniques : MRB, capitalisation directe (TGA), flux monétaires actualisés, technique résiduelle.
 
-### Formule
+---
 
-```
-Valeur = RNE / TGA
+## 2. Connaissances encodées
 
-RNE = Revenu net d'exploitation
-TGA = Taux global d'actualisation (extrait du marché)
-```
+### 2.1 Quatre techniques
 
-### Calcul du RNE
+| Technique | Formule | Usage |
+|-----------|---------|-------|
+| MRB | Valeur = RBP × MRB | Estimation rapide, petits immeubles |
+| Capitalisation directe | Valeur = RNE / TGA | Standard, immeubles stabilisés |
+| Flux monétaires actualisés | VA des RNE + réversion | Complexe, baux long terme, transition |
+| Résiduelle | Isole terrain ou bâtiment | Analyse composante |
 
-```
-Revenu brut potentiel (RBP)
-  = Σ loyers annuels de marché × superficie
-  + Revenus accessoires (stationnement, entreposage)
+### 2.2 Processus capitalisation directe
 
-(-) Inoccupation et créances
-  = RBP × Taux d'inoccupation stabilisé (TIS)
-  (résidentiel Mtl 2025 : 2–4% ; commercial : 6–12%)
+RBP (loyers marché × 12) → − provision inoccupation → RBE → − frais exploitation normalisés → RNE → / TGA → **Valeur**
 
-= Revenu effectif brut (REB)
+### 2.3 Normalisation obligatoire
 
-(-) Dépenses d'exploitation normalisées
-  - Taxes foncières
-  - Assurances bâtiment
-  - Entretien et réparations (5–8% RBP résidentiel)
-  - Gestion (5–8% REB si gestion externe)
-  - Déneigement / aménagement paysager
-  - Services publics (espaces communs)
-  - Réserve pour remplacement (1–2% RBP)
+**Revenus** : loyers du marché (pas contractuels), ajuster faveur/estimés, inclure autres revenus.
 
-= Revenu net d'exploitation (RNE)
-```
+**Dépenses** — Inclure : taxes, assurances, entretien, administration, services publics, réserve remplacement. **Exclure** : capital, amortissement hypothécaire, impôts sur le revenu.
 
-**Important :** Le RNE est calculé AVANT le service de la dette. Le financement n'affecte pas la valeur marchande.
+### 2.4 TGA — Dérivation du marché
 
-### Extraction du TGA
+TGA = RNE comparable / Prix de vente comparable. Facteurs : risque, qualité, localisation, financement, âge, baux.
 
-Le TGA doit être tiré du marché, pas établi arbitrairement :
+**Relation MRB/TGA** : MRB ≈ 1 / (TGA × (1 − ratio dépenses) × (1 − taux inoccupation))
 
-```
-TGA = RNE vérifié d'une transaction comparable / Prix de vente de cette transaction
-```
+### 2.5 Baux commerciaux
 
-**Sources TGA Québec 2025 :**
+| Type | Dépenses payées par |
+|------|-------------------|
+| Brut | Locateur |
+| Net | Locataire (certaines) |
+| Triple net | Locataire (taxes, assurances, entretien) |
+| Pourcentage | Base + % chiffre d'affaires |
 
-| Segment | TGA typique | Source |
-|---------|------------|--------|
-| Multi 5–12 log. Montréal | 3.5–4.5% | GESTIM / CBRE |
-| Multi 5–12 log. régions | 4.5–5.5% | GESTIM |
-| Multi 13+ log. Montréal | 3.0–4.0% | CBRE / JLL |
-| Commercial de quartier | 5.0–6.5% | GESTIM |
-| Bureau classe B | 6.0–8.0% | CBRE |
-| Industriel léger | 4.0–5.5% | JLL / Colliers |
+### 2.6 Ratios typiques dépenses/RBE
 
-**Minimum 3 transactions pour établir le TGA de marché.** Si données insuffisantes : indiquer W005 (TGA non extrait du marché).
+- Multirés. petit (6-12 log.) : 35-45 %
+- Multirés. moyen (12-50 log.) : 40-50 %
+- Commercial : variable selon bail
 
-### Baux hors marché
+---
 
-Si le loyer en vigueur ≠ loyer de marché :
-- **Loyer sous le marché** : Calculer la valeur avec loyers actuels (valeur continuation) ET avec loyers de marché (valeur stabilisée). La valeur est entre les deux selon le terme résiduel des baux.
-- **Loyer sur le marché** : Idem — valeur favorable temporaire, ajustement si renouvellement incertain.
+## 3. Méthodologie d'application
 
-## Méthode 2 — Flux de trésorerie actualisés (FTA/DCF)
+### Étape 1 — Collecte des données locatives
 
-### Quand utiliser le DCF
+Recevoir les données de l'agent data-facts / recherche-baux-revenus :
+- Baux, loyers, services, taux d'inoccupation, dépenses
 
-- Flux de revenus irréguliers ou en période de stabilisation
-- Immeubles commerciaux avec baux à terme fixe (clauses d'escalade)
-- Hôtels, RPA (flux complexes)
-- Projets de développement (pré-construction)
+### Étape 2 — Normalisation
 
-### Structure du DCF
+1. Normaliser les loyers au marché
+2. Calculer RBP (tous logements au loyer du marché × 12)
+3. Appliquer provision inoccupation/mauvaises créances (taux marché)
+4. Calculer RBE
+5. Normaliser les dépenses (exclure capital, hypothèque, impôts)
+6. Calculer RNE
 
-```
-Période de projection : 10 ans standard
-Taux d'actualisation (r) : TGA + prime de risque
-  (résidentiel stable : r ≈ TGA + 0.5–1.5%)
+### Étape 3 — Sélection de la technique
 
-Valeur terminale (année 11) :
-  = RNE année 11 / Taux de capitalisation sortant (exit cap rate)
-  (exit cap rate ≥ TGA d'entrée — marché plus mature)
+| Situation | Technique recommandée |
+|-----------|---------------------|
+| Petit multirés., données limitées | MRB |
+| Immeuble stabilisé, données suffisantes | Capitalisation directe (TGA) |
+| Baux long terme, propriété en transition | Flux monétaires actualisés |
+| Analyse composante (terrain ou bâtiment) | Résiduelle |
 
-Valeur actuelle = Σ (CF_t / (1+r)^t) + Valeur terminale / (1+r)^10
-```
+### Étape 4 — Application
 
-### Analyse de sensibilité
+**MRB** : dériver le MRB des comparables → Valeur = RBP × MRB
+**TGA** : dériver le TGA des comparables → Valeur = RNE / TGA
+**FMA** : projeter RNE sur 5-10 ans → actualiser + réversion
+**Résiduelle** : attribuer rendement à composante connue → capitaliser résidu
 
-Toujours produire une analyse de sensibilité sur :
-- Taux d'inoccupation ± 2%
-- TGA ± 25 points de base
-- Taux d'actualisation ± 50 points de base
+### Étape 5 — Documentation
 
-## Applicabilité
+Rédiger la section revenu du rapport avec calculs détaillés, sources des données, justification des taux.
 
-**Capitalisation directe appropriée si :**
-- Revenus stables et prévisibles
-- TGA extrait du marché disponible
-- Multi-logements résidentiel standard
+---
 
-**DCF préférable si :**
-- Flux variables (construction, rénovation majeure)
-- Baux commerciaux avec escalades connues
-- Immeuble en période de stabilisation (< 90% d'occupation)
+## 4. Règles critiques
+
+1. **TOUJOURS** normaliser loyers ET dépenses avant application
+2. **TOUJOURS** exclure dépenses de capital, amortissement hypothécaire et impôts sur le revenu
+3. **TOUJOURS** dériver TGA et MRB du marché (pas d'hypothèses arbitraires)
+4. **JAMAIS** confondre loyer contractuel et loyer du marché
+5. **JAMAIS** utiliser le taux d'inoccupation historique de l'immeuble comme taux du marché
+6. Un petit changement de TGA produit un grand changement de valeur — justifier soigneusement
+7. Le ratio dépenses/RBE doit être vérifié par rapport au marché du segment
+8. Les baux commerciaux (net vs brut) affectent directement le calcul — ajuster
+9. La réserve de remplacement est obligatoire même si non documentée par le propriétaire
+10. Le niveau de confiance (A/B/C) doit être indiqué pour cette approche
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Les loyers sont normalisés au marché (pas contractuels)
+- [ ] La provision inoccupation utilise le taux du marché local
+- [ ] Les dépenses sont normalisées (excluant capital, hypothèque, impôts)
+- [ ] La réserve de remplacement est incluse
+- [ ] Le TGA ou MRB est dérivé de comparables du marché
+- [ ] La technique est appropriée à la situation (MRB, TGA, FMA, résiduelle)
+- [ ] Les calculs sont détaillés et documentés
+- [ ] Les sources des données locatives sont citées
+- [ ] Le ratio dépenses/RBE est cohérent avec le marché
+- [ ] Le niveau de confiance (A/B/C) est indiqué

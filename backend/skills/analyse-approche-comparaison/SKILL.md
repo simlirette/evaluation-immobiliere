@@ -1,94 +1,134 @@
 ---
 name: analyse-approche-comparaison
 description: >
-  Appliquer l'approche par comparaison directe : ajustements par paires,
-  grille d'ajustements, indicateurs de valeur et pondération finale.
+  Methodologie complete de l'approche par comparaison directe pour
+  l'evaluation immobiliere. Utiliser ce skill pour appliquer la technique
+  des prix de vente rajustes ou la modelisation statistique.
 type: analyse
 agents:
   - valuation-draft
 sources:
-  - comparables_proposes
-  - donnees_marche
-  - mefq_manuel
+  - 01-mefq-manuel
+  - 00-cuspap
+  - 04-oeaq-normes
+  - 15-methodes-internationaux
 ---
 
-## Objectif
+# Skill : Analyse — Approche par comparaison
 
-Produire une conclusion de valeur par l'approche comparative avec une grille d'ajustements documentée, sourcée et conforme aux normes OEAQ.
+## 1. Rôle et contexte
 
-## Procédure
+Ce skill encode la méthodologie complète de la méthode de comparaison directe. Utilisé par l'agent valuation-draft pour développer l'indication de valeur par comparaison. La comparaison est la méthode **prioritaire** — écartée uniquement si données insuffisantes ou immeuble trop atypique.
 
-### 1. Vérification du corpus de comparables
+---
 
-Avant de commencer les ajustements :
-- Confirmer que chaque comparable a un `source_id` valide
-- Vérifier que les dates de vente sont antérieures à la date de référence
-- Confirmer les unités (m², pas pi²)
-- Identifier si des ajustements de conditions de vente sont requis
+## 2. Connaissances encodées
 
-### 2. Grille d'ajustements (par comparable)
+### 2.1 Méthodologie en 10 étapes MEFQ
 
-**Séquence d'application des ajustements** (ordre obligatoire) :
+1. Définir le parc sous étude
+2. Délimiter le parc cible (CUBF)
+3. Délimiter le territoire d'observation (marché homogène)
+4. Constituer le segment (sous-ensemble homogène)
+5. Sélectionner les ventes comparables
+6. Vérifier et analyser les ventes
+7. Ajuster les prix de vente
+8. Calculer les indicateurs de valeur
+9. Réconcilier les indicateurs
+10. Conclure à la valeur
 
-1. **Conditions de vente** — Ajustement si vente non libre (ex : -15% si vente de liquidation)
-2. **Conditions de financement** — Ajustement si financement à des conditions hors marché
-3. **Ajustement temporel** — Correction pour l'évolution du marché entre date comparable et date référence
-4. **Ajustements de localisation** — Rue, secteur, vue, bruit, accès
-5. **Ajustements physiques** — Superficie terrain, superficie bâtie, âge, état, équipements
+### 2.2 Deux techniques
 
-**Format de la grille :**
+| Technique | Application | Avantages |
+|-----------|-------------|-----------|
+| Prix de vente rajustés | Évaluation unitaire, petits échantillons | Preuve directe, transparence |
+| Régression multiple | Évaluation de masse, grands échantillons | Traitement simultané variables, mesure fiabilité |
 
-```
-Comparable 1 — [Adresse] — Prix de vente : 450 000 $
+### 2.3 Ordre des ajustements
 
-Éléments de comparaison          Sujet      Comp.1      Ajustement ($)
-─────────────────────────────────────────────────────────────────────
-Prix de vente brut                —          450 000 $       —
-Conditions de vente               normales   normales        0 $
-Conditions de financement         marché     marché          0 $
-Ajustement temporel (+1.5%/3m)   2024-09    2024-03     +6 750 $
-─────────────────────────────────────────────────────────────────────
-Prix ajusté (conditions/temps)                           456 750 $
-─────────────────────────────────────────────────────────────────────
-Localisation                      secteur A  secteur B   -9 135 $
-Superficie terrain                350 m²     320 m²      +4 500 $
-Superficie habitable              130 m²     145 m²      -8 700 $
-Âge effectif                      10 ans     15 ans      +3 200 $
-État général                      bon        bon              0 $
-Garage attaché                    oui        non        +15 000 $
-─────────────────────────────────────────────────────────────────────
-Total ajustements physiques                             +4 865 $
-─────────────────────────────────────────────────────────────────────
-Prix ajusté net                                         461 615 $
-```
+1. **Transactionnels** (financement, frais clôture, taxes)
+2. **Condition du bien** (meubles, baux, réparations)
+3. **Temporels** (date vente → date évaluation)
+4. **Localisation** (différences géographiques)
+5. **Caractéristiques physiques** (terrain, bâtiment)
 
-### 3. Indicateurs de valeur
+### 2.4 Limites des ajustements
 
-Après ajustement de tous les comparables :
-- Calculer la plage : min ajusté à max ajusté
-- Calculer la médiane des prix ajustés
-- Calculer la moyenne (si distribution symétrique)
-- Identifier les comparables les plus similaires pour leur accorder plus de poids
+- Total : ≤ 25-30 % du prix du comparable
+- Individuel majeur (> 15 %) : justification documentée
+- Ajustements dérivés du marché, pas subjectifs
 
-**Pondération :**
-```
-Comparables avec score similarité ≥ 0.85 → poids élevé (35–40%)
-Comparables avec score 0.70–0.85 → poids moyen (25–30%)
-Comparables avec score 0.55–0.70 → poids faible (15–20%)
-```
+### 2.5 Réconciliation
 
-### 4. Conclusion par l'approche comparative
+- Pondérer selon fiabilité et similarité (pas une moyenne arithmétique)
+- Le comparable le plus similaire reçoit le poids le plus élevé
+- Niveaux de confiance MEFQ : A (données abondantes), B (suffisantes), C (limitées)
 
-```
-Indicateur de valeur — Approche comparative : [X $]
-Plage : [X $ à X $]
-Nombre de comparables : [N]
-Comparable dominant : [adresse + raison]
-```
+---
 
-## Contrôles de qualité
+## 3. Méthodologie d'application
 
-- Somme des ajustements bruts ≤ 30% du prix comparable (règle MEFQ)
-- Aucun ajustement unique > 20% du prix comparable sans justification narrative
-- Les ajustements de localisation doivent être supportés par des données de marché (pas par opinion seule)
-- Tout ajustement ≥ 25 000 $ → `validation_humaine: true` dans le JSON
+### Étape 1 — Réception des comparables
+
+Recevoir les comparables sélectionnés et vérifiés par l'agent comps-market. Vérifier que :
+- Les conditions de transaction sont documentées
+- Les ajustements transactionnels sont déjà appliqués
+- Les fiches comparables sont complètes
+
+### Étape 2 — Ajustements de comparaison
+
+Pour chaque comparable, ajuster séquentiellement :
+1. Temporel : facteur de marché entre date de vente et date d'évaluation
+2. Localisation : différences de quartier, voisinage, accès, nuisances
+3. Physiques : superficie, âge, qualité, état, aménagements, dépendances
+
+### Étape 3 — Calcul des indicateurs
+
+Calculer les unités de comparaison pertinentes :
+- Résidentiel : $/pi² bâtiment, prix ajusté global
+- Multirésidentiel : $/porte, MRB
+- Commercial : $/pi² bâtiment, TGA
+- Terrain : $/pi² terrain
+
+### Étape 4 — Réconciliation
+
+1. Analyser la dispersion des indicateurs
+2. Identifier les aberrations et les expliquer
+3. Pondérer selon similarité et fiabilité
+4. Conclure à la valeur — opinion motivée
+
+### Étape 5 — Documentation
+
+Rédiger la section de comparaison du rapport :
+- Description de chaque comparable
+- Grille d'ajustements avec justification
+- Indicateurs de valeur
+- Réconciliation et conclusion
+
+---
+
+## 4. Règles critiques
+
+1. La comparaison est la méthode **prioritaire** sauf données insuffisantes ou immeuble atypique
+2. Les ajustements suivent l'ordre prescrit (transactionnel → condition → temporel → localisation → physique)
+3. La réconciliation est une **pondération raisonnée**, jamais une moyenne arithmétique
+4. Chaque ajustement doit être dérivé du marché et documenté
+5. Les ventes antérieures du sujet (< 3 ans) doivent être analysées (CUSPAP)
+6. Le biais de confirmation est une faute — ne pas retenir seulement les comparables qui confirment
+7. Les seuils d'ajustement (25-30 % total, 15 % individuel) sont des guides de fiabilité
+8. Le niveau de confiance (A/B/C) doit être indiqué pour cette approche
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Les comparables reçus sont vérifiés et documentés
+- [ ] Les ajustements sont appliqués dans l'ordre prescrit
+- [ ] Chaque ajustement est justifié et dérivé du marché
+- [ ] Le total des ajustements par comparable est raisonnable (≤ 25-30 %)
+- [ ] Les indicateurs de valeur sont calculés et cohérents
+- [ ] La réconciliation est une pondération raisonnée (pas une moyenne)
+- [ ] Les ventes antérieures du sujet (< 3 ans) sont analysées
+- [ ] Le niveau de confiance (A/B/C) est indiqué
+- [ ] La section du rapport est complète (comparables, grille, réconciliation)
+- [ ] Aucun biais de confirmation dans la sélection

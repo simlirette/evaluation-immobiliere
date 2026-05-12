@@ -1,83 +1,125 @@
 ---
 name: recherche-jurisprudence-discipline
 description: >
-  Identifier la jurisprudence pertinente et les décisions disciplinaires OEAQ
-  applicables à un dossier d'évaluation immobilière au Québec.
+  Decisions disciplinaires de l'OEAQ, infractions sanctionnees et signaux
+  de risque pour la conformite en evaluation immobiliere. Utiliser ce skill
+  pour identifier les erreurs professionnelles a eviter et les regles de
+  prevention derivees de la jurisprudence.
 type: recherche
 agents:
   - compliance-qa
 sources:
-  - decisions_taq
-  - jurisprudence_oeaq
-  - decisions_cour_superieure
+  - 09-jurisprudence-discipline
 ---
 
-## Objectif
+# Skill : Recherche jurisprudence disciplinaire
 
-S'assurer que les méthodes et conclusions sont conformes à la jurisprudence établie et éviter les motifs de sanction disciplinaire.
+## 1. Rôle et contexte
 
-## Sources de jurisprudence pertinentes
+Ce skill encode les décisions disciplinaires de l'OEAQ et les signaux de risque pour la conformité. Utilisé par l'agent compliance-qa pour identifier les erreurs à prévenir et valider la conformité des rapports.
 
-### Tribunaux administratifs
+---
 
-**Tribunal administratif du Québec (TAQ) — Chambre de l'expropriation**
-- Décisions sur l'indemnité juste et raisonnable (Loi sur l'expropriation)
-- Jurisprudence sur la méthode avant-après
-- Précédents sur les préjudices accessoires (relocalisation, goodwill)
+## 2. Connaissances encodées
 
-**TAQ — Chambre de l'évaluation foncière**
-- Décisions sur la valeur réelle LFM
-- Corrections de rôle municipal après contestation
-- Jurisprudence sur les dates de référence triennales
+### 2.1 Typologie des infractions sanctionnées
 
-### Jurisprudence fiscale
+| Catégorie | Infractions | Sanction typique |
+|-----------|------------|-----------------|
+| **Méthodologique** | Erreur méthode coût/comparaison, omission UMPP, omission justifier rejet méthode, analyse marché incomplète | 4 500 $/chef |
+| **Rapport** | Format inapproprié, informations essentielles manquantes, omission options client | 4 500 $ ou réprimande |
+| **Indépendance** | Signature rapport tiers, évaluations contradictoires, tiers définit mandat, non-visite après 7 ans | 10 000 $ + limitation |
+| **Entrave syndic** | Défaut répondre dans les plus brefs délais | Variable |
 
-**Cour canadienne de l'impôt**
-- Définition opérationnelle de la JVM (LIR art. 69)
-- Henderson Estate v. MNR — principe de l'acheteur hypothétique
-- Succession cases — JVM au décès
+### 2.2 Signaux de risque — 10 règles de prévention
 
-**Agence du revenu du Canada (ARC)**
-- Bulletins d'interprétation IT-349R2 — JVM des biens immobiliers
-- Politique administrative sur les dons de bienfaisance
+1. Appliquer les 3 méthodes ou **justifier explicitement le rejet**
+2. **Toujours analyser l'UMPP** — indiquer usage actuel vs UMPP
+3. Choisir le **format de rapport approprié** (pas toujours abrégé)
+4. Procéder à une **visite récente** (7 ans = insuffisant)
+5. **Signer uniquement ses propres rapports**
+6. Maintenir **l'indépendance** — pas d'évaluations contradictoires sans justification
+7. **Répondre au syndic rapidement**
+8. **Documenter complètement** les informations essentielles
+9. **Convenir soi-même du mandat** — pas de délégation à un tiers
+10. **Connaissance complète des faits** avant de conclure
 
-### Décisions disciplinaires OEAQ
+### 2.3 Dispositions clés
 
-**Conseil de discipline de l'OEAQ — Décisions publiques**
+| Article | Source | Infraction |
+|---------|--------|-----------|
+| Art. 4 | Code déontologie | Non-conformité normes de pratique |
+| Art. 9 | Code déontologie | Indépendance professionnelle |
+| Art. 17(1)(2)(3) | Code déontologie | Conflits d'intérêts, indépendance |
+| Art. 40-41 | Code déontologie | Connaissance des faits, signature |
+| Art. 69 | Code déontologie | Répondre au syndic |
+| Art. 59.2 | C. prof. | Indépendance professionnelle |
 
-Principaux motifs de sanction historiques :
-1. **Rapport biaisé** — Valeur influencée par l'objectif du client (B007 / C-26 r. 123)
-2. **Données inventées** — Faits non vérifiés présentés comme certains
-3. **Compétence dépassée** — Évaluation hors de la spécialisation déclarée
-4. **Conflit d'intérêts non déclaré** — Intérêt financier dans le bien
-5. **Rapport signé sans revue** — Cosignature d'un rapport préparé par un stagiaire sans supervision adéquate
+### 2.4 Décisions de référence
 
-## Précédents clés à connaître
+- **Arès (2024-2025)** : erreurs méthodologiques + rapport → 2 × 4 500 $
+- **Poulin (2024)** : signature rapport tiers + non-visite → 10 000 $ + réprimande + limitation 12 mois
+- **Turgeon (2025)** : évaluations contradictoires (210k vs 240k, 6 mois, 0 modification) → indépendance
 
-### Valeur marchande vs valeur de remplacement (expropriation)
+### 2.5 Objectifs de la sanction (*Pigeon c. Daigneault*)
 
-> *"L'indemnité d'expropriation doit indemniser le propriétaire de la valeur marchande de son bien, non de la valeur sentimentale ou du coût de remplacement subjectif."*
-> — TAQ, principe général
+1. Protection du public (prioritaire)
+2. Dissuasion de récidiver
+3. Exemplarité
+4. Droit d'exercer
 
-### JVM — Définition de l'acheteur hypothétique
+---
 
-> *"La juste valeur marchande est déterminée par référence à un acheteur hypothétique qui est bien informé, qui agit de façon prudente et sans contrainte."*
-> — Henderson Estate v. MNR, confirmé CCI
+## 3. Méthodologie de vérification
 
-### Comparables sélectionnés
+### Étape 1 — Identification des risques
 
-> *"L'évaluateur doit choisir les comparables les plus similaires disponibles, et non ceux qui appuient le mieux sa conclusion préconçue."*
-> — Principe déontologique OEAQ, C-26 r. 123, art. 3
+Scanner le dossier d'évaluation pour les signaux de risque :
+- Méthode rejetée sans justification ?
+- UMPP non analysé ?
+- Format de rapport approprié au mandat ?
+- Visite récente effectuée ?
+- Indépendance documentée ?
 
-### Condition limitée (as-is) vs condition hypothétique (as-if)
+### Étape 2 — Validation contre la jurisprudence
 
-> *"Si le rapport est préparé sous une hypothèse extraordinaire, celle-ci doit être clairement indiquée en page de garde et ne doit pas induire l'utilisateur en erreur sur la valeur dans des conditions normales."*
-> — NPP OEAQ 2025
+Comparer les pratiques observées avec les infractions sanctionnées :
+- Les erreurs méthodologiques identifiées dans les décisions sont-elles présentes ?
+- Les exigences de rapport sont-elles respectées ?
+- L'indépendance est-elle préservée ?
 
-## Signaux de risque disciplinaire
+### Étape 3 — Documentation des risques
 
-- Honoraires conditionnels à la valeur obtenue → **interdit** (C-26 r. 123 art. 18)
-- Rapport modifié après coup sans mention de révision → **interdit**
-- Conclusion de valeur modifiée sur pression du client sans données nouvelles → **interdit**
-- Évaluation pour les deux parties d'une même transaction → **interdit** sauf consentement écrit
-- Délégation à un non-membre sans supervision → **interdit**
+Documenter tout signal de risque identifié avec :
+- Description du risque
+- Référence à la décision disciplinaire pertinente
+- Recommandation corrective
+
+---
+
+## 4. Règles critiques
+
+1. **TOUJOURS** vérifier que le rejet d'une méthode est justifié dans le rapport
+2. **TOUJOURS** vérifier que l'UMPP est analysé et documenté
+3. **TOUJOURS** vérifier que le format de rapport est approprié au mandat
+4. **TOUJOURS** vérifier qu'une visite récente a été effectuée
+5. **JAMAIS** ignorer un signal de contradiction (évaluations divergentes sans justification)
+6. **JAMAIS** accepter un rapport signé par un non-préparateur
+7. La jurisprudence est spécifique au contexte — ne pas généraliser sans nuance
+8. Les facteurs atténuants (plaidoyer, absence antécédents, expérience) réduisent la sanction
+9. Les sanctions augmentent avec la répétition et l'atteinte à l'indépendance
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Les trois méthodes sont appliquées ou leur rejet est justifié
+- [ ] L'UMPP est analysé et documenté
+- [ ] Le format de rapport est approprié au mandat
+- [ ] Une visite récente est documentée
+- [ ] L'indépendance est préservée et documentée
+- [ ] Le mandat est convenu directement avec le client
+- [ ] Les informations essentielles sont dans le rapport
+- [ ] Aucune contradiction non justifiée avec des évaluations antérieures
+- [ ] Le rapport est signé par son préparateur
+- [ ] Les signaux de risque disciplinaire sont documentés

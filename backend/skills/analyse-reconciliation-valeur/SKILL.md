@@ -1,97 +1,120 @@
 ---
 name: analyse-reconciliation-valeur
 description: >
-  Effectuer la réconciliation des indicateurs de valeur des trois approches
-  et formuler la conclusion de valeur finale motivée.
+  Reconciliation des indications de valeur des trois approches d'evaluation
+  (comparaison, cout, revenu). Utiliser ce skill pour ponderer les resultats,
+  attribuer les niveaux de confiance et conclure a la valeur finale.
 type: analyse
 agents:
   - valuation-draft
 sources:
-  - calculs_approche_comparative
-  - calculs_approche_cout
-  - calculs_approche_revenu
-  - normes_oeaq
+  - 01-mefq-manuel
+  - 00-cuspap
+  - 04-oeaq-normes
 ---
 
-## Objectif
+# Skill : Analyse — Réconciliation des valeurs
 
-Produire une conclusion de valeur unique et motivée à partir des indicateurs des différentes approches, en respectant les principes OEAQ.
+## 1. Rôle et contexte
 
-## Principe fondamental
+Ce skill encode le processus de réconciliation des indications de valeur des trois approches. Utilisé par l'agent valuation-draft pour conclure à une valeur finale unique et motivée. La réconciliation n'est **pas une moyenne** — c'est une pondération raisonnée.
 
-**La réconciliation n'est pas une moyenne arithmétique.** C'est un jugement professionnel motivé qui tient compte de :
-- La qualité et la quantité des données soutenant chaque approche
-- La pertinence de chaque approche pour le type de bien et le mandat
-- La cohérence interne de chaque indicateur
-- Le type de valeur recherché (marchande, JVM, réelle LFM)
+---
 
-## Processus de réconciliation
+## 2. Connaissances encodées
 
-### 1. Inventaire des indicateurs
+### 2.1 Trois étapes MEFQ
 
-```
-Approche comparative : [X $]   — [N] comparables, confiance [haute/moyenne/faible]
-Approche par le coût : [X $]   — dépréciation [N]%, confiance [haute/moyenne/faible]
-Approche par le revenu : [X $] — TGA [N]%, RNE [X $], confiance [haute/moyenne/faible]
-```
+1. Vérifier conformité des résultats avec données du marché
+2. Revoir le processus d'évaluation de chaque méthode
+3. Déterminer la valeur la plus pertinente
 
-### 2. Cohérence inter-approches
+### 2.2 Niveaux de confiance
 
-Calculer l'écart entre les indicateurs :
-```
-Écart maximal = (valeur_max - valeur_min) / valeur_min × 100%
+| Niveau | Données | Méthode | Poids |
+|--------|---------|---------|-------|
+| A | Abondantes et fiables | Bien adaptée | Élevé |
+| B | Suffisantes avec limites | Adaptée avec réserves | Modéré |
+| C | Limitées | Peu adaptée | Faible |
 
-Écart ≤ 10% → indicateurs cohérents, réconciliation facile
-Écart 10–35% → expliquer la divergence, justifier le poids accordé
-Écart > 35% → identifier la cause (données faibles ?), signal CONF007
-```
+### 2.3 Pondération par type d'immeuble
 
-### 3. Pondération par type de bien
+| Type | Comparaison | Revenu | Coût |
+|------|-------------|--------|------|
+| Résidentiel unifamilial | A (prioritaire) | N/A | B (vérification) |
+| Multirésidentiel 6+ | A-B | A-B | C |
+| Commercial/industriel | B | A (prioritaire) | C |
+| Immeuble spécial | C | N/A | A (seule méthode) |
+| Terrain vacant | A (prioritaire) | C (résiduelle) | N/A |
 
-**Principes directeurs MEFQ :**
+### 2.4 Hiérarchie
 
-| Type de bien | Approche dominante | Approche secondaire | Approche tertiaire |
-|---|---|---|---|
-| Résidentiel (occupant) | Comparaison (60–80%) | Coût (20–40%) | Revenu (0–10%) |
-| Condo résidentiel | Comparaison (70–90%) | Coût (10–20%) | — |
-| Multi-logements | Revenu (50–70%) | Comparaison (30–50%) | Coût (0–10%) |
-| Commercial locatif | Revenu (60–80%) | Comparaison (20–30%) | Coût (0–10%) |
-| Bâtiment spécialisé | Coût (60–80%) | Comparaison (20–30%) | — |
-| Terrain vacant | Comparaison (80–100%) | — | — |
-| Hôtel | Revenu / DCF (70–90%) | Coût (10–20%) | — |
+Comparaison = preuve directe, méthode **prioritaire**. Écartée seulement si données insuffisantes ou immeuble atypique.
 
-**Justifications possibles pour modifier le poids standard :**
-- Données de comparaison insuffisantes → augmenter poids coût ou revenu
-- Données de revenus non fiables → augmenter poids comparaison
-- Bien unique sans comparables → coût prime
+---
 
-### 4. Formulation de la conclusion
+## 3. Méthodologie
 
-```markdown
-## Réconciliation et conclusion de valeur
+### Étape 1 — Réception des indications
 
-Les trois approches indiquent les valeurs suivantes :
-- Approche comparative : [X $] (poids retenu : [N]%)
-- Approche par le coût : [X $] (poids retenu : [N]%)
-- Approche par le revenu : [X $] (poids retenu : [N]%)
+Recevoir les indications de valeur de chaque approche avec :
+- Valeur indiquée
+- Données utilisées (quantité, qualité)
+- Ajustements appliqués
+- Limites identifiées
 
-L'approche [comparative / par le revenu / par le coût] reçoit le poids dominant
-parce que [justification : marché actif avec nombreuses ventes / bien à revenus
-stabilisés / absence de comparables pertinents / etc.].
+### Étape 2 — Vérification de conformité
 
-**Conclusion de valeur marchande à la date de référence [date] :**
-**[X $] (arrondis à la tranche de X 000 $)**
-```
+Pour chaque approche :
+- Résultats cohérents avec le marché ?
+- Indicateurs dans les fourchettes normales ?
+- Anomalies ou résultats contre-intuitifs ?
 
-### 5. Arrondissement de la valeur
+### Étape 3 — Attribution des niveaux de confiance
 
-- Valeur < 100 000 $ → arrondir à la tranche de 1 000 $
-- Valeur 100 000–500 000 $ → arrondir à la tranche de 5 000 $
-- Valeur 500 000–1 000 000 $ → arrondir à la tranche de 10 000 $
-- Valeur > 1 000 000 $ → arrondir à la tranche de 25 000 $
+Pour chaque approche, évaluer :
+- Quantité et qualité des données
+- Adéquation de la méthode au type d'immeuble
+- Ampleur des ajustements
+- Cohérence interne
 
-## Interdictions déontologiques
+### Étape 4 — Analyse convergence/divergence
 
-- Ne jamais choisir la valeur qui convient le mieux au client comme conclusion finale
-- Ne jamais appliquer une "fourchette de valeur" sans conclure à une valeur unique
-- La valeur finale doit être défendable sur la base des données, pas des préférences
+- **Convergence** : résultats se renforcent → conclusion robuste
+- **Divergence > 10-15 %** : expliquer pourquoi, justifier pondération
+- Valeur finale dans la fourchette des indications (sauf justification exceptionnelle)
+
+### Étape 5 — Conclusion motivée
+
+- Valeur unique arrondie
+- Pondération justifiée
+- Divergences expliquées
+- Approches non utilisées justifiées
+
+---
+
+## 4. Règles critiques
+
+1. **JAMAIS** moyenner les indications — toujours pondérer selon fiabilité
+2. **TOUJOURS** justifier la pondération retenue dans le rapport
+3. **TOUJOURS** expliquer les divergences entre approches (> 10-15 %)
+4. **TOUJOURS** justifier pourquoi une approche est écartée
+5. La comparaison est prioritaire sauf données insuffisantes ou immeuble atypique
+6. Le niveau de confiance (A/B/C) doit être attribué à chaque approche
+7. La convergence renforce la conclusion — la documenter
+8. La valeur finale doit être dans la fourchette des indications (sauf justification)
+9. Le niveau de détail de la réconciliation dépend du type de rapport (complet/abrégé/MAJ)
+10. Les indicateurs IAAO (COD, PRD, proportion médiane) sont consultatifs, pas contraignants
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Chaque approche a un niveau de confiance attribué (A/B/C)
+- [ ] La pondération est justifiée et documentée
+- [ ] Les divergences entre approches sont expliquées
+- [ ] Les approches non utilisées sont justifiées
+- [ ] La valeur finale est dans la fourchette des indications
+- [ ] Le processus de réconciliation est décrit selon le type de rapport
+- [ ] La conclusion est une opinion motivée, pas une moyenne
+- [ ] Le dossier de travail contient le raisonnement complet

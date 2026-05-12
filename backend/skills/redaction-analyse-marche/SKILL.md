@@ -1,83 +1,117 @@
 ---
 name: redaction-analyse-marche
 description: >
-  Rédiger la section d'analyse de marché d'un rapport d'évaluation immobilière :
-  contexte macro, tendances sectorielles, analyse des ventes récentes.
+  Redaction des sections d'analyse de marche dans le rapport d'evaluation
+  immobiliere. Utiliser ce skill pour generer les descriptions de secteur,
+  les etudes de marche et les donnees municipales contextuelles.
 type: redaction
 agents:
   - redaction
 sources:
-  - donnees_marche
-  - comparables_proposes
-  - justifications_comparables
+  - 01-mefq-manuel
+  - 10-rapports-precedents-firme
+  - 12-fournisseurs-donnees
 ---
 
-## Objectif
+# Skill : Rédaction — Analyse de marché
 
-Produire une section d'analyse de marché professionnelle qui contextualise les conclusions de valeur et démontre la maîtrise du marché local par l'évaluateur.
+## 1. Rôle et contexte
 
-## Structure de la section d'analyse de marché
+Ce skill encode la structure et les règles de rédaction des sections d'analyse de marché dans le rapport d'évaluation. L'analyse de marché contextualise la propriété évaluée et justifie les paramètres retenus dans les méthodes d'évaluation (ajustements, TGA, UMPP).
 
-```markdown
-## [N]. Analyse de marché
+---
 
-### [N].1 Contexte macroéconomique
+## 2. Connaissances encodées
 
-[1 paragraphe : taux d'intérêt, inflation, conjoncture économique Québec,
-impact sur le marché immobilier. Données SCHL, BdC, ISQ.]
+### 2.1 Composantes de l'analyse de marché
 
-### [N].2 Marché immobilier — [Secteur géographique]
+| Composante | Contenu |
+|-----------|---------|
+| **Description ville** | Population, économie, services, positionnement régional, attraits, qualité de vie |
+| **Secteur immédiat** | Localisation, âge quartier, type dominant, tendance, offre/demande, conformité, services |
+| **Marché local** | Délai vente, type marché (acheteurs/vendeurs), variation prix (terrain, loyer, construction, taux), tendances court/moyen terme |
+| **Données municipales** | Matricule, rôle triennal, date marché, évaluation (terrain/bâtisse), taxes, proportion médiane, zonage |
+| **Infrastructures** | Services publics (aqueduc, égout, gaz), rues (asphalte, trottoirs) |
 
-**Période analysée :** [date début] au [date de référence]
+### 2.2 Sources de données
 
-**Activité du marché résidentiel :**
-- Nombre de ventes : [N] transactions enregistrées
-- Prix médian : [X $], variation de [±N%] sur 12 mois
-- Délai de vente médian : [N] jours sur le marché
-- Ratio offre/demande : [marché vendeur / équilibré / acheteur]
-- Source : [CIGM / DLC / Chambre immobilière Québec]
+| Source | Données |
+|--------|---------|
+| Rôle d'évaluation | Valeurs, mutations, caractéristiques |
+| BPD / JLR | Transactions, prix déclarés |
+| MLS / Centris | Inscriptions, prix demandés, délais |
+| ISQ | Démographie, emploi, IPC |
+| SCHL | Mises en chantier, taux vacance, loyers |
+| Municipalité | Zonage, permis, urbanisme |
 
-**Tendance des prix :**
-[1–2 phrases sur la direction et la stabilité des prix dans le secteur précis.
-Ex : "Le secteur [nom] a enregistré une stabilisation des prix au cours des
-12 derniers mois après la correction de 2023, soutenue par la reprise de la
-demande et une offre limitée."]
+### 2.3 Indicateurs par segment
 
-### [N].3 Analyse des ventes comparables retenues
+**Résidentiel** : ventes, prix médian, délai vente, ratio prix/demandé, vacance, loyers, mises en chantier
 
-[Tableau synthèse des comparables avec prix, date, superficie, $/m²]
+**Commercial/bureaux** : inventaire pi², taux inoccupation (classe A/B/C), loyer brut/net, absorption, TGA
 
-| # | Adresse | Vente | Prix | Superficie | $/m² | Score |
-|---|---------|-------|------|-----------|------|-------|
-| 1 | [addr] | [date] | [X $] | [X m²] | [X] | [0.xx] |
-| 2 | ... | ... | ... | ... | ... | ... |
+**Industriel** : inventaire pi², inoccupation, loyer $/pi², ventes $/pi²
 
-**Observations :**
-[1–2 paragraphes : cohérence du corpus, fourchette de prix, particularités notables]
+**Terrain** : prix $/m², volume transactions, tendance, disponibilité
 
-### [N].4 Conclusion sur la représentativité du marché
+### 2.4 Note sur les données municipales
 
-[1 paragraphe : Les ventes retenues sont-elles représentatives du marché actif
-à la date de référence ? Limitations éventuelles (peu de ventes, secteur atypique).]
-```
+Le rôle d'évaluation foncière sert à la taxation. Valeurs établies au 1er juillet de l'année précédant le dépôt du rôle. Triennal. L'évaluateur municipal inclut l'ensemble des droits (faisceau). La proportion médiane mesure l'écart entre prix courants et valeurs au rôle — pas un facteur d'ajustement direct.
 
-## Données de marché Québec 2025–2026 à intégrer si pertinent
+---
 
-| Région | Segment | Indicateur | Valeur |
-|--------|---------|-----------|-------|
-| Grand Montréal | Unifamiliale | Prix médian | ~575 000 $ |
-| Grand Montréal | Condo | Prix médian | ~415 000 $ |
-| Ville de Québec | Unifamiliale | Prix médian | ~430 000 $ |
-| Laval | Unifamiliale | Prix médian | ~530 000 $ |
-| Grand Montréal | Plex (2-5) | TGA | 3.5–4.5% |
-| Grand Montréal | Bureau | Taux inoccupation | 18–22% |
-| Grand Montréal | Industriel | Taux inoccupation | 2–4% |
+## 3. Méthodologie de rédaction
 
-*Sources : CIGM, SCHL, CBRE Québec, JLL Montréal (2025)*
+### Étape 1 — Collecter les données
 
-## Règles de rédaction
+Rassembler données municipales, transactions récentes, statistiques marché, descriptions secteur.
 
-- Citer toujours la source et la période couverte par les données
-- Ne pas extrapoler les tendances au-delà des données disponibles
-- Si les données sont limitées (< 5 ventes dans le secteur), le signaler explicitement
-- Distinguer l'analyse macro (province / région) de l'analyse micro (secteur immédiat du sujet)
+### Étape 2 — Rédiger la description de la ville
+
+Portrait factuel centré sur les éléments pertinents à la valeur immobilière.
+
+### Étape 3 — Rédiger la description du secteur
+
+Localisation, caractéristiques du quartier, facteurs favorables/défavorables, proximité services.
+
+### Étape 4 — Rédiger l'analyse du marché local
+
+Indicateurs de marché, offre/demande, tendances des prix, délais de vente.
+
+### Étape 5 — Documenter les données municipales
+
+Rôle d'évaluation, taxes, zonage, proportion médiane, avec note explicative.
+
+### Étape 6 — Lier l'analyse aux méthodes
+
+S'assurer que l'analyse alimente directement l'UMPP, les ajustements, le TGA et la réconciliation.
+
+---
+
+## 4. Règles critiques
+
+1. **Factuel et vérifiable** — sources identifiées, données datées
+2. **Pertinent au segment** — indicateurs adaptés au type de propriété
+3. **Échelle appropriée** — quartier pour le secteur, ville/région pour les tendances
+4. **Données actuelles** — moins de 12 mois pour les indicateurs de marché
+5. **Distinction faits/opinions** — qualifier les prévisions comme estimations
+6. **Données municipales ≠ valeur marchande** — toujours le mentionner
+7. **La proportion médiane n'est pas un facteur d'ajustement direct**
+8. **L'analyse doit servir les méthodes** — pas de données décoratives
+9. **Tableaux pour les comparatifs** — structurer les données
+10. **Sources en note** — identification de la provenance des données
+
+---
+
+## 5. Checklist de qualité
+
+- [ ] Description de la ville pertinente et factuelle
+- [ ] Secteur immédiat décrit (localisation, type, tendance, services)
+- [ ] Marché local documenté (offre/demande, délais, tendances)
+- [ ] Données municipales complètes (rôle, taxes, zonage, médiane)
+- [ ] Note explicative sur le rôle d'évaluation incluse
+- [ ] Sources de données identifiées
+- [ ] Indicateurs adaptés au segment de propriété
+- [ ] Données de moins de 12 mois
+- [ ] Analyse liée aux méthodes d'évaluation (UMPP, ajustements, TGA)
+- [ ] Pas de confusion données municipales / valeur marchande
