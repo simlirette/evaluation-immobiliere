@@ -19,6 +19,7 @@ import os
 import uuid
 
 from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml, safe_path_id
+from engine.orchestrator import PlanOrchestrator, classify_dossier, load_plan_for_mandat
 
 
 ROOT = Path(__file__).resolve().parent
@@ -1149,6 +1150,13 @@ def start_runtime(body: dict) -> dict:
         session = create_session(strict_mode=bool(body.get("strict_mode", True)))
 
     case, source_fixture = load_case_from_body(body)
+    # Enrichissement non-bloquant : injecter mandat_type / format_rapport / methodes_requises
+    try:
+        _mandat_type = classify_dossier(case)
+        _plan = load_plan_for_mandat(_mandat_type)
+        case = PlanOrchestrator().enrich_case(case, _plan)
+    except Exception:
+        pass  # classification facultative — jamais bloquante
     session_dir = Path(session["session_dir"])
     case_key = safe_path_id(str(case.get("dossier_id") or source_fixture.replace(".json", "")))
     case_input_path = session_dir / f"{case_key}.input.json"
