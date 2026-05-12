@@ -28,9 +28,19 @@ sequence:
       - source_index.json
 
   - step: 2
+    agent_config: AGENTCONFIG-AMU-ANALYST-V0.yaml
+    reads:
+      - fiche_bien.json
+      - source_index.json
+    writes:
+      - umpp_conclusion.json
+      - amu_analyse.md
+
+  - step: 3
     agent_config: AGENTCONFIG-COMPS-MARKET-V0.yaml
     reads:
       - fiche_bien.json
+      - umpp_conclusion.json
       - source_index.json
       - market_data_sources
     writes:
@@ -38,7 +48,7 @@ sequence:
       - justifications_comparables.json
       - source_index.json
 
-  - step: 3
+  - step: 4
     agent_config: AGENTCONFIG-VALUATION-DRAFT-V0.yaml
     reads:
       - comparables_proposes.json
@@ -52,7 +62,7 @@ sequence:
       - hypotheses_explicites.json
       - brouillon_valeur.md
 
-  - step: 4
+  - step: 5
     agent_config: AGENTCONFIG-COMPLIANCE-QA-V0.yaml
     reads:
       - calculs_approche_comparative.json
@@ -65,11 +75,12 @@ sequence:
       - statut_sortie.json
       - recommandations_corrections.md
 
-  - step: 5
+  - step: 6
     agent_config: AGENTCONFIG-REDACTION-V0.yaml
     reads:
       - statut_sortie.json
       - recommandations_corrections.md
+      - amu_analyse.md
       - source_index.json
     writes:
       - brouillon_rapport.md
