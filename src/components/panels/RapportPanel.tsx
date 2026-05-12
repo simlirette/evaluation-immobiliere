@@ -13,6 +13,7 @@ import {
   sendRuntimeMessage,
   validateRuntimeReview,
 } from '@/lib/runtime-api'
+import type { Comparable, Adjustment, FactChip } from '@/types'
 
 interface Props {
   dossierId: string | null
@@ -20,7 +21,6 @@ interface Props {
 }
 
 interface RapportState {
-  preview: string
   conclusion: string | null
   workflowStatus: string
   canValidate: boolean
@@ -28,6 +28,12 @@ interface RapportState {
   packageStatus: string
   steps: Array<{ id: string; label: string; status: string; complete: boolean }>
   blockingFailures: string[]
+  warnings: string[]
+  comparables: Comparable[]
+  adjustments: Adjustment[]
+  factChips: FactChip[]
+  valuationValues: Record<string, number>
+  complianceStatus: string
 }
 
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
@@ -40,15 +46,21 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   async function reload() {
     if (!dossierId) return
     const app = await fetchAppState(dossierId)
+    const compliance = app.active?.compliance as { blocking_failures?: string[]; warnings?: string[]; status?: string } | null
     setState({
-      preview: app.active?.report.preview ?? '',
       conclusion: app.active?.valuation.conclusion_label ?? null,
       workflowStatus: app.active?.workflow.status ?? 'ASSISTANCE_DOSSIER_ACTIVE',
       canValidate: Boolean(app.active?.workflow.can_validate_review),
       canPackage: Boolean(app.active?.workflow.can_generate_package),
       packageStatus: app.active?.package.status ?? 'ABSENT',
       steps: app.active?.workflow.steps ?? [],
-      blockingFailures: (app.active?.compliance as { blocking_failures?: string[] } | null)?.blocking_failures ?? [],
+      blockingFailures: compliance?.blocking_failures ?? [],
+      warnings: compliance?.warnings ?? [],
+      comparables: app.active?.comparables ?? [],
+      adjustments: app.active?.adjustments ?? [],
+      factChips: app.active?.fact_chips ?? [],
+      valuationValues: app.active?.valuation.values ?? {},
+      complianceStatus: compliance?.status ?? '',
     })
     setLoading(false)
   }
@@ -152,7 +164,13 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
         <RapportDoc
           address={dossierAddress}
           valeur={state.conclusion}
-          content={state.preview}
+          comparables={state.comparables}
+          adjustments={state.adjustments}
+          factChips={state.factChips}
+          valuationValues={state.valuationValues}
+          complianceStatus={state.complianceStatus}
+          blockingFailures={state.blockingFailures}
+          warnings={state.warnings}
           onClose={() => setSplit(false)}
         />
       )}

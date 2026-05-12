@@ -327,10 +327,12 @@ class RuntimeEngine:
             payload["recommendations"] = build_recommendations(blocking, warnings)
 
         if step == "redaction" and artifact == "brouillon_rapport.md":
+            rapport_md = generate_brouillon_rapport(case, valuation_values or {}, status, blocking, warnings)
+            payload["_raw_md"] = rapport_md
             payload["sections"] = {
                 "dossier": case.get("dossier_id"),
                 "statut": status,
-                "resume": "Brouillon genere par le runtime v0 a partir des artefacts valides.",
+                "resume": rapport_md[:300].replace("\n", " ").strip(),
             }
 
         if step == "redaction" and artifact == "annexe_sources.md":
@@ -658,10 +660,220 @@ def validate_contract_rules(artifact: str, payload: dict) -> list[str]:
     return failures
 
 
+_RAPPORT_MAX_TOKENS = 2000
+
+_RAPPORT_SYSTEM_PROMPT = (
+    "Tu es un assistant spécialisé en rédaction de rapports d'évaluation immobilière au Canada.\n"
+    "Génère un brouillon de rapport structuré et professionnel en français canadien.\n\n"
+    "RÈGLES ABSOLUES :\n"
+    "- N'invente aucune donnée non fournie dans le prompt\n"
+    "- Ne prétends jamais que le rapport est certifié ou signé\n"
+    "- Indique clairement le statut BROUILLON NON CERTIFIÉ\n"
+    "- Utilise uniquement les valeurs et comparables fournis\n"
+    "- Format Markdown structuré avec sections numérotées\n\n"
+    "STRUCTURE REQUISE :\n"
+    "1. Identification du bien\n"
+    "2. Conclusion de valeur marchande proposée\n"
+    "3. Réconciliation des approches (tableau)\n"
+    "4. Soutien du marché — comparables retenus\n"
+    "5. Hypothèses et conditions limitatives\n"
+    "6. Mention légale (brouillon IA, validation évaluateur agréé requise)\n"
+)
+
+
+def _fmt_cad(value: float) -> str:
+    """Formate un montant en dollars canadiens."""
+    return f"{round(value):,}".replace(",", "\u00a0") + " $"
+
+
+def _build_rapport_prompt(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
+    surface = case.get("surface", {})
+    surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+    comp_lines = []
+    for i, c in enumerate(case.get("comparables", [])[:5], 1):
+        price = c.get("prix_vente") or c.get("sale_price")
+        price_str = _fmt_cad(float(price)) if price else "—"
+        comp_lines.append(
+            f"  Comparable {i}: prix={price_str}, date={c.get('date_vente', '—')}, "
+            f"source={c.get('source_id', '—')}, score={c.get('score', '—')}"
+        )
+    approach_lines = [
+        f"  - Approche comparative : {_fmt_cad(valuation_values['approche_comparative'])}"
+        if "approche_comparative" in valuation_values else "",
+        f"  - Approche par le coût : {_fmt_cad(valuation_values['approche_cout'])}"
+        if "approche_cout" in valuation_values else "",
+        f"  - Approche par le revenu : {_fmt_cad(valuation_values['approche_revenu'])}"
+        if "approche_revenu" in valuation_values else "",
+    ]
+    lines = [
+        f"DOSSIER : {case.get('dossier_id', '—')}",
+        f"DATE DE RÉFÉRENCE : {case.get('date_reference', '—')}",
+        f"TYPE DE BIEN : {case.get('type_bien', '—')}",
+        f"ZONE : {case.get('zone', '—')}",
+        f"SURFACE : {surface_str}",
+        f"STATUT CONFORMITÉ : {status}",
+        "",
+        "APPROCHES DE VALEUR :",
+        *[l for l in approach_lines if l],
+        "",
+        f"COMPARABLES RETENUS ({len(case.get('comparables', []))}) :",
+        *comp_lines,
+    ]
+    if blocking:
+        lines += ["", f"BLOCAGES ({len(blocking)}) : " + "; ".join(blocking[:3])]
+    if warnings:
+        lines += [f"AVERTISSEMENTS : " + "; ".join(warnings[:3])]
+    return "\n".join(lines)
+
+
+def _generate_rapport_llm(prompt: str) -> str | None:
+    """Appelle OpenAI pour générer le rapport. Retourne None si indisponible."""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        return None
+    try:
+        import openai as _openai  # type: ignore
+        client = _openai.OpenAI(api_key=api_key)
+        resp = client.chat.completions.create(
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            max_tokens=_RAPPORT_MAX_TOKENS,
+            messages=[
+                {"role": "system", "content": _RAPPORT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        return resp.choices[0].message.content or None
+    except Exception:
+        return None
+
+
+def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
+    """Template déterministe avec vraies données — utilisé si aucun LLM disponible."""
+    dossier_id = case.get("dossier_id", "—")
+    date_ref = case.get("date_reference", "—")
+    type_bien = case.get("type_bien", "—").replace("_", " ").capitalize()
+    zone = case.get("zone", "—")
+    surface = case.get("surface", {})
+    surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+    today = date.today().isoformat()
+
+    # Valeur principale = approche comparative si disponible
+    val_principale = valuation_values.get("approche_comparative") or next(iter(valuation_values.values()), None)
+    val_str = _fmt_cad(val_principale) if val_principale else "—"
+
+    comparables = case.get("comparables", [])[:5]
+    comp_rows = ""
+    for i, c in enumerate(comparables, 1):
+        price = c.get("prix_vente") or c.get("sale_price")
+        price_str = _fmt_cad(float(price)) if price else "—"
+        score = c.get("score", "—")
+        score_str = f"{float(score):.2f}" if isinstance(score, float) else str(score)
+        comp_rows += f"| {i} | {c.get('source_id', '—')} | {price_str} | {c.get('date_vente', '—')} | {score_str} |\n"
+
+    approach_rows = ""
+    labels = {
+        "approche_comparative": "Approche comparative",
+        "approche_cout": "Approche par le coût",
+        "approche_revenu": "Approche par le revenu",
+    }
+    for key, label in labels.items():
+        if key in valuation_values:
+            approach_rows += f"| {label} | {_fmt_cad(valuation_values[key])} |\n"
+
+    blocking_section = ""
+    if blocking:
+        items = "\n".join(f"- {b}" for b in blocking)
+        blocking_section = f"\n**Blocages ({len(blocking)}) :**\n{items}\n"
+
+    warnings_section = ""
+    if warnings:
+        items = "\n".join(f"- {w}" for w in warnings)
+        warnings_section = f"\n**Avertissements ({len(warnings)}) :**\n{items}\n"
+
+    return f"""\
+# BROUILLON DE RAPPORT D'ÉVALUATION
+
+> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA le {today}.
+> Validation et signature d'un évaluateur agréé requises avant toute diffusion.
+
+---
+
+## 1. Identification du bien
+
+| Champ | Valeur |
+|-------|--------|
+| Dossier | {dossier_id} |
+| Type de bien | {type_bien} |
+| Zone | {zone} |
+| Surface | {surface_str} |
+| Date de référence | {date_ref} |
+| Statut conformité | {status} |
+
+---
+
+## 2. Conclusion de valeur marchande proposée
+
+**Valeur estimée : {val_str}**
+
+Cette valeur est établie principalement par l'approche comparative, corroborée par les approches
+par le coût et par le revenu. Elle n'est pas certifiée et ne constitue pas une opinion formelle
+d'un évaluateur agréé.
+
+---
+
+## 3. Réconciliation des approches
+
+| Méthode | Valeur indiquée |
+|---------|-----------------|
+{approach_rows}
+---
+
+## 4. Soutien du marché — comparables retenus
+
+{len(comparables)} comparable(s) retenu(s) pour l'analyse comparative :
+
+| # | Référence source | Prix de vente | Date de vente | Score similarité |
+|---|------------------|---------------|---------------|-----------------|
+{comp_rows}
+---
+
+## 5. Hypothèses et conditions limitatives
+
+- L'analyse est basée exclusivement sur les données et sources référencées dans ce dossier.
+- Aucune inspection physique du bien n'a été effectuée par le système IA.
+- Les valeurs des approches par le coût et par le revenu sont des proxys V0 et ne remplacent
+  pas un calcul de coût ou de capitalisation complet par un évaluateur agréé.
+- Toute donnée manquante ou incomplète est signalée dans la section conformité ci-dessous.
+{blocking_section}{warnings_section}
+---
+
+## 6. Mention légale
+
+Ce document est un brouillon produit par un assistant IA à titre d'aide à la rédaction.
+Il **ne constitue pas** un rapport d'évaluation certifié au sens des normes professionnelles
+applicables et ne peut être utilisé à des fins de transaction, de financement ou de litige
+sans validation et signature d'un évaluateur agréé autorisé.
+"""
+
+
+def generate_brouillon_rapport(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
+    """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe."""
+    prompt = _build_rapport_prompt(case, valuation_values, status, blocking, warnings)
+    llm_text = _generate_rapport_llm(prompt)
+    if llm_text:
+        disclaimer = (
+            "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
+            "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
+        )
+        return disclaimer + llm_text
+    return _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+
+
 def write_artifact_payload(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix == ".md":
-        path.write_text(render_markdown_payload(payload), encoding="utf-8")
+        raw = payload.get("_raw_md")
+        path.write_text(raw if isinstance(raw, str) else render_markdown_payload(payload), encoding="utf-8")
         return
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
