@@ -866,6 +866,12 @@ def app_session_view(session_id: str) -> dict:
         "assistant": assistant,
         "package": package,
         "workflow": app_workflow(summary, dossier, package, assistant),
+        "mandat": {
+            "mandat_type": session.get("mandat_type"),
+            "format_rapport": session.get("format_rapport"),
+            "methodes_requises": session.get("methodes_requises", []),
+            "methode_preponderante": session.get("methode_preponderante"),
+        } if session.get("mandat_type") else None,
     }
 
 
@@ -1157,6 +1163,11 @@ def start_runtime(body: dict) -> dict:
         case = PlanOrchestrator().enrich_case(case, _plan)
     except Exception:
         pass  # classification facultative — jamais bloquante
+    # Persister les champs plan dans la session pour exposition frontend
+    for _field in ("mandat_type", "format_rapport", "methodes_requises", "methode_preponderante"):
+        if case.get(_field) is not None:
+            session[_field] = case[_field]
+    write_json(Path(session["session_dir"]) / "session.json", session)
     session_dir = Path(session["session_dir"])
     case_key = safe_path_id(str(case.get("dossier_id") or source_fixture.replace(".json", "")))
     case_input_path = session_dir / f"{case_key}.input.json"
