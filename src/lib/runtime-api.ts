@@ -11,6 +11,12 @@ export interface AppState {
     dossier: Dossier
     documents: Document[]
     fact_chips: FactChip[]
+    mandat: {
+      mandat_type: string
+      format_rapport: string
+      methodes_requises: string[]
+      methode_preponderante: string
+    } | null
     comparables: Comparable[]
     adjustments: Adjustment[]
     valuation: {

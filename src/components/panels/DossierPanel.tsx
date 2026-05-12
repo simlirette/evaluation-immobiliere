@@ -13,7 +13,7 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
-import { sendRuntimeMessage } from '@/lib/runtime-api'
+import { sendRuntimeMessage, fetchAppState } from '@/lib/runtime-api'
 import type { Document, FactChip } from '@/types'
 
 interface Props {
@@ -198,15 +198,25 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   const [replies, setReplies] = useState<AssistantReply[]>([])
   const [uploads, setUploads] = useState<UploadStatus[]>([])
 
+  type MandatData = {
+    mandat_type: string
+    format_rapport: string
+    methodes_requises: string[]
+    methode_preponderante: string
+  } | null
+  const [mandat, setMandat] = useState<MandatData>(null)
+
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
     Promise.all([
       fetchDocuments(dossierId),
       fetchPropertyFacts(dossierId),
-    ]).then(([docs, facts]) => {
+      fetchAppState(dossierId),
+    ]).then(([docs, facts, appState]) => {
       setDocuments(docs)
       setChips(facts)
+      setMandat(appState.active?.mandat ?? null)
       setLoading(false)
     })
   }, [dossierId])
@@ -272,6 +282,18 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
             {'J\u2019ai charg\u00e9 les faits produits par le backend runtime.'}
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {chips.map((c, i) => <Chip key={i} label={c.label} highlight={c.highlight} />)}
+            </div>
+          </AgentMessage>
+        )}
+        {mandat && (
+          <AgentMessage agentName="Agent Mandat">
+            {'Plan de mandat'}
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+              <Chip label={`Mandat\u00a0: ${mandat.mandat_type.replace(/_/g, '\u00a0')}`} highlight />
+              <Chip label={`Format\u00a0: ${mandat.format_rapport.replace(/_/g, '\u00a0')}`} highlight />
+              {mandat.methodes_requises.map((m, i) => (
+                <Chip key={i} label={m.replace(/_/g, '\u00a0')} />
+              ))}
             </div>
           </AgentMessage>
         )}
