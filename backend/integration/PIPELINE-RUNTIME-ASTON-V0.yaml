@@ -18,6 +18,14 @@ description: >
 
 sequence:
   - step: 1
+    agent_config: AGENTCONFIG-MANDAT-INTAKE-V0.yaml
+    reads:
+      - dossier_input
+    writes:
+      - lettre_mandat.md
+      - conflit_interets.json
+
+  - step: 2
     agent_config: AGENTCONFIG-DATA-FACTS-V0.yaml
     reads:
       - dossier_input
@@ -27,7 +35,7 @@ sequence:
       - timeline_faits.json
       - source_index.json
 
-  - step: 2
+  - step: 3
     agent_config: AGENTCONFIG-AMU-ANALYST-V0.yaml
     reads:
       - fiche_bien.json
@@ -36,7 +44,7 @@ sequence:
       - umpp_conclusion.json
       - amu_analyse.md
 
-  - step: 3
+  - step: 4
     agent_config: AGENTCONFIG-COMPS-MARKET-V0.yaml
     reads:
       - fiche_bien.json
@@ -48,7 +56,7 @@ sequence:
       - justifications_comparables.json
       - source_index.json
 
-  - step: 4
+  - step: 5
     agent_config: AGENTCONFIG-VALUATION-DRAFT-V0.yaml
     reads:
       - comparables_proposes.json
@@ -62,7 +70,7 @@ sequence:
       - hypotheses_explicites.json
       - brouillon_valeur.md
 
-  - step: 5
+  - step: 6
     agent_config: AGENTCONFIG-COMPLIANCE-QA-V0.yaml
     reads:
       - calculs_approche_comparative.json
@@ -75,12 +83,13 @@ sequence:
       - statut_sortie.json
       - recommandations_corrections.md
 
-  - step: 6
+  - step: 7
     agent_config: AGENTCONFIG-REDACTION-V0.yaml
     reads:
       - statut_sortie.json
       - recommandations_corrections.md
       - amu_analyse.md
+      - lettre_mandat.md
       - source_index.json
     writes:
       - brouillon_rapport.md
