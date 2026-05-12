@@ -196,6 +196,26 @@ def load_agent_config_skills(config_path: Path) -> list[str]:
     return skills
 
 
+def load_agent_system_prompt(config_path: Path) -> str:
+    """Extrait le system_prompt d'un fichier AGENTCONFIG YAML (bloc | ou >)."""
+    if not config_path.exists():
+        return ""
+    lines = config_path.read_text(encoding="utf-8").splitlines()
+    prompt_lines: list[str] = []
+    mode = False
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("system_prompt:"):
+            mode = True
+            continue
+        if mode:
+            if raw.startswith(" ") or raw.startswith("\t"):
+                prompt_lines.append(stripped)
+            elif stripped:
+                break
+    return "\n".join(prompt_lines).strip()
+
+
 def load_skill_registry(registry_path: Path | None = None) -> dict:
     path = registry_path or PROJECT_ROOT / "skills" / "SKILLS-REGISTRY.json"
     if not path.exists():

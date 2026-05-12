@@ -10,7 +10,7 @@ import time
 import ast
 
 from engine.audit import append_audit_log
-from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills
+from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
 from engine.tools import search_comparables, validate_schema
 from engine.valuation import calculate_valuation_trace
 
@@ -53,6 +53,22 @@ CONTRACT_CHECKS_BY_ARTIFACT = {
 }
 
 CONTRACTS_DATA_PATH = Path(__file__).resolve().parent.parent / "mvp" / "CONTRATS-DONNEES-V0.yaml"
+INTEGRATION_DIR = Path(__file__).resolve().parent.parent / "integration"
+
+# Artifacts enrichis par LLM : artifact → champ cible dans le payload
+_LLM_TEXT_FIELD_BY_ARTIFACT: dict[str, str] = {
+    "fiche_bien.json": "analyse_contextuelle",
+    "comparables_proposes.json": "analyse_marche",
+    "justifications_comparables.json": "synthese_comparables",
+    "calculs_approche_comparative.json": "commentaire",
+    "calculs_approche_cout.json": "commentaire",
+    "calculs_approche_revenu.json": "commentaire",
+    "hypotheses_explicites.json": "analyse_hypotheses",
+    "rapport_non_conformites.json": "analyse_conformite",
+    "recommandations_corrections.md": "_raw_md",
+    "brouillon_valeur.md": "_raw_md",
+    # brouillon_rapport.md : géré par generate_brouillon_rapport — ne pas dupliquer
+}
 _CONTRACT_TREE_CACHE: dict | None = None
 
 
@@ -163,11 +179,165 @@ DEFAULT_STEPS = [
 ]
 
 
+def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case: dict) -> str:
+    """Construit le prompt utilisateur pour l'enrichissement LLM d'un artefact."""
+    dossier_id = case.get("dossier_id", "—")
+    type_bien = str(case.get("type_bien", "—")).replace("_", " ")
+    zone = case.get("zone", "—")
+    date_ref = case.get("date_reference", "—")
+    base = f"Dossier: {dossier_id} | Type de bien: {type_bien} | Zone: {zone} | Date de référence: {date_ref}\n\n"
+
+    if artifact == "fiche_bien.json":
+        surface = payload.get("surface", {})
+        surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+        return base + (
+            f"DONNÉES DE LA FICHE BIEN :\n"
+            f"Surface : {surface_str}\n"
+            f"Confiance : {payload.get('confidence', '—')}\n"
+            f"Sources : {payload.get('source_ids', [])}\n\n"
+            "Rédige en 2–3 paragraphes une analyse contextuelle professionnelle du bien identifié. "
+            "Inclus : description physique probable, localisation et contexte de marché local. "
+            "Sois factuel et n'invente aucune donnée absente du contexte fourni."
+        )
+
+    if artifact in {"calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json"}:
+        approach_labels = {
+            "calculs_approche_comparative.json": "comparaison directe",
+            "calculs_approche_cout.json": "coût",
+            "calculs_approche_revenu.json": "revenu",
+        }
+        label = approach_labels[artifact]
+        trace_str = json.dumps(payload.get("trace", {}), ensure_ascii=False)[:400]
+        return base + (
+            f"CALCULS — APPROCHE PAR {label.upper()} :\n"
+            f"Valeur indiquée : {payload.get('value', '—')} $\n"
+            f"Nombre d'intrants : {payload.get('input_count', '—')}\n"
+            f"Trace de calcul : {trace_str}\n\n"
+            f"Rédige un commentaire professionnel de 2–3 phrases sur l'approche par {label}. "
+            "Explique la fiabilité de cet indicateur de valeur et les principales hypothèses retenues. "
+            "Reste factuel."
+        )
+
+    if artifact == "comparables_proposes.json":
+        comps = payload.get("comparables", [])
+        comps_preview = json.dumps(comps[:3], ensure_ascii=False)[:600]
+        return base + (
+            f"COMPARABLES PROPOSÉS ({len(comps)} au total) :\n{comps_preview}\n\n"
+            "Rédige une analyse de marché professionnelle en 2–3 paragraphes basée sur ces comparables. "
+            "Inclus : tendances de prix observées, niveau d'activité du marché, homogénéité du corpus de ventes."
+        )
+
+    if artifact == "justifications_comparables.json":
+        justs = payload.get("justifications", [])
+        justs_str = json.dumps(justs, ensure_ascii=False)[:400]
+        return base + (
+            f"JUSTIFICATIONS COMPARABLES :\n{justs_str}\n\n"
+            "Rédige une synthèse de 1–2 paragraphes expliquant les critères de sélection appliqués "
+            "et la qualité du corpus de comparables retenu pour cette évaluation."
+        )
+
+    if artifact == "hypotheses_explicites.json":
+        hyps = payload.get("hypotheses", [])
+        hyps_str = json.dumps(hyps[:5], ensure_ascii=False)[:500]
+        return base + (
+            f"HYPOTHÈSES EXPLICITES :\n{hyps_str}\n\n"
+            "Analyse la solidité de ces hypothèses en 1–2 paragraphes. "
+            "Identifie celles qui sont les plus vulnérables et explique pourquoi."
+        )
+
+    if artifact == "rapport_non_conformites.json":
+        blocking = payload.get("blocking_failures", [])
+        warnings = payload.get("warnings", [])
+        return base + (
+            f"BLOCAGES ({len(blocking)}) : {'; '.join(blocking[:5])}\n"
+            f"AVERTISSEMENTS ({len(warnings)}) : {'; '.join(warnings[:5])}\n\n"
+            "Rédige une analyse de conformité professionnelle de 2–3 paragraphes. "
+            "Pour chaque non-conformité : nature du problème, impact sur la fiabilité du rapport, "
+            "action corrective prioritaire."
+        )
+
+    if artifact == "recommandations_corrections.md":
+        recs = payload.get("recommendations", [])
+        recs_str = "\n".join(f"- {r}" for r in recs[:10])
+        return base + (
+            f"RECOMMANDATIONS ACTUELLES :\n{recs_str}\n\n"
+            "Rédige un mémo de corrections professionnel en Markdown adressé à l'évaluateur. "
+            "Structure : titre, corrections bloquantes par priorité décroissante, améliorations suggérées, prochaines étapes. "
+            "Sois précis et actionnable. Inclure les codes de règle (B002, W003, etc.) pour chaque item."
+        )
+
+    if artifact == "brouillon_valeur.md":
+        summary = payload.get("summary", {})
+        return base + (
+            f"RÉSUMÉ DE VALUATION :\n{json.dumps(summary, ensure_ascii=False)}\n\n"
+            "Rédige un brouillon de conclusion de valeur en Markdown (format professionnel OEAQ). "
+            "Inclus : valeur principale retenue et fourchette de confiance, "
+            "approche dominante avec justification, prochaines étapes pour finaliser le rapport."
+        )
+
+    # Fallback générique
+    payload_str = json.dumps(payload, ensure_ascii=False)[:600]
+    return base + (
+        f"Artefact : {artifact} | Étape : {step_name}\nDonnées : {payload_str}\n\n"
+        "Fournis une analyse professionnelle concise (2–3 paragraphes) de ces données "
+        "dans le contexte d'une évaluation immobilière québécoise conforme aux normes OEAQ."
+    )
+
+
 class RuntimeEngine:
     def __init__(self, steps: list[RuntimeStep] | None = None, strict_mode: bool = True) -> None:
         self.steps = steps or DEFAULT_STEPS
         self.strict_mode = strict_mode
         validate_pipeline_steps(self.steps)
+
+    def _enrich_artifact_llm(
+        self,
+        step: RuntimeStep,
+        artifact: str,
+        payload: dict,
+        case: dict,
+    ) -> dict:
+        """Enrichit un artefact via LLM si disponible. Retourne payload inchangé si LLM indisponible."""
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            return payload
+
+        target_field = _LLM_TEXT_FIELD_BY_ARTIFACT.get(artifact)
+        if not target_field:
+            return payload
+
+        # brouillon_rapport.md already handled by generate_brouillon_rapport
+        if artifact == "brouillon_rapport.md":
+            return payload
+
+        system_prompt = ""
+        if step.agent_config:
+            config_path = INTEGRATION_DIR / step.agent_config
+            system_prompt = load_agent_system_prompt(config_path)
+
+        if not system_prompt:
+            return payload
+
+        user_prompt = _build_enrichment_prompt(step.name, artifact, payload, case)
+
+        try:
+            import openai as _openai  # type: ignore
+            client = _openai.OpenAI(api_key=api_key)
+            resp = client.chat.completions.create(
+                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                max_tokens=1200,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            result = (resp.choices[0].message.content or "").strip()
+            if result:
+                return {**payload, target_field: result}
+        except Exception:
+            pass  # LLM enrichment is optional — never block pipeline
+
+        return payload
 
     def _compute_qa(self, case: dict) -> tuple[str, list[str], list[str]]:
         blocking: list[str] = []
@@ -385,6 +555,7 @@ class RuntimeEngine:
                 artifact_path.parent.mkdir(parents=True, exist_ok=True)
 
                 payload = self._artifact_payload(step.name, artifact, case, status, blocking, warnings, valuation_values)
+                payload = self._enrich_artifact_llm(step, artifact, payload, case)
                 payload["source_fixture"] = source_fixture
                 if step.skills:
                     payload["agent_skills_allowed"] = step.skills
