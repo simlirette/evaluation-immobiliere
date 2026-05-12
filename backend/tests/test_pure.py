@@ -296,6 +296,16 @@ class TestDefaultSkillsByAgent:
         assert "recherche-urbanisme-construction" in skills
         assert "recherche-normes-professionnelles" in skills
 
+    def test_mandat_intake_in_default_skills(self):
+        from engine.skills import DEFAULT_SKILLS_BY_AGENT
+        assert "mandat-intake" in DEFAULT_SKILLS_BY_AGENT
+        skills = DEFAULT_SKILLS_BY_AGENT["mandat-intake"]
+        assert "redaction-lettre-mandat" in skills
+
+    def test_fta_in_valuation_draft_skills(self):
+        from engine.skills import DEFAULT_SKILLS_BY_AGENT
+        assert "analyse-approche-fta" in DEFAULT_SKILLS_BY_AGENT["valuation-draft"]
+
 
 # ── TestAmuDeterministic ──────────────────────────────────────────────────────
 

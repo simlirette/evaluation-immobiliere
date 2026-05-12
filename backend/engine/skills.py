@@ -20,6 +20,11 @@ class ProjectSkill:
 
 
 DEFAULT_SKILLS_BY_AGENT: dict[str, list[str]] = {
+    "mandat-intake": [
+        "redaction-lettre-mandat",
+        "recherche-cadre-legal",
+        "recherche-normes-professionnelles",
+    ],
     "data-facts": [
         "analyse-extraction-faits",
         "recherche-baux-revenus",
@@ -47,6 +52,7 @@ DEFAULT_SKILLS_BY_AGENT: dict[str, list[str]] = {
     "valuation-draft": [
         "analyse-approche-comparaison",
         "analyse-approche-cout",
+        "analyse-approche-fta",
         "analyse-approche-revenu",
         "analyse-reconciliation-valeur",
         "recherche-baux-revenus",
