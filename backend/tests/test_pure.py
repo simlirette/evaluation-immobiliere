@@ -12,6 +12,12 @@ from api import (
     app_surface_label,
     app_status_label,
 )
+from engine.orchestrator import (
+    PlanOrchestrator,
+    available_mandat_types,
+    classify_dossier,
+    load_plan_for_mandat,
+)
 
 
 # ── app_money ────────────────────────────────────────────────────────────────
@@ -169,3 +175,111 @@ class TestAppStatusLabel:
 
     def test_empty_record(self):
         assert app_status_label({}) == "brouillon"
+
+
+# ── classify_dossier ──────────────────────────────────────────────────────────
+
+class TestClassifyDossier:
+    def test_explicit_mandat_type(self):
+        assert classify_dossier({"mandat_type": "commercial"}) == "commercial"
+
+    def test_assurance_via_but_evaluation(self):
+        assert classify_dossier({"but_evaluation": "fins d'assurance"}) == "assurance"
+
+    def test_unifamilial_exact(self):
+        assert classify_dossier({"type_bien": "residentiel_unifamilial"}) == "residentiel_standard"
+
+    def test_duplex_exact(self):
+        assert classify_dossier({"type_bien": "duplex"}) == "residentiel_multifamilial"
+
+    def test_triplex_partial(self):
+        assert classify_dossier({"type_bien": "triplex_clé_en_main"}) == "residentiel_multifamilial"
+
+    def test_industriel_partial(self):
+        assert classify_dossier({"type_bien": "entrepot_logistique"}) == "industriel"
+
+    def test_terrain_exact(self):
+        assert classify_dossier({"type_bien": "terrain_vacant"}) == "terrain"
+
+    def test_immeuble_revenus(self):
+        assert classify_dossier({"type_bien": "immeuble_revenus"}) == "immeuble_revenus"
+
+    def test_empty_defaults_to_residentiel_standard(self):
+        assert classify_dossier({}) == "residentiel_standard"
+
+    def test_unknown_type_bien_defaults(self):
+        assert classify_dossier({"type_bien": "xyz_inconnu"}) == "residentiel_standard"
+
+    def test_case_insensitive_partial(self):
+        assert classify_dossier({"type_bien": "PLEX"}) == "residentiel_multifamilial"
+
+    def test_assurance_type_bien(self):
+        assert classify_dossier({"type_bien": "assurance"}) == "assurance"
+
+
+# ── load_plan_for_mandat ──────────────────────────────────────────────────────
+
+class TestLoadPlanForMandat:
+    def test_all_types_loadable(self):
+        for mt in available_mandat_types():
+            plan = load_plan_for_mandat(mt)
+            assert plan.mandat_type == mt
+            assert plan.format_rapport in {"abrege", "narratif_complet", "mise_a_jour"}
+            assert len(plan.methodes_requises) >= 1
+            assert plan.methode_preponderante in plan.methodes_requises
+
+    def test_residentiel_standard_plan(self):
+        plan = load_plan_for_mandat("residentiel_standard")
+        assert plan.format_rapport == "abrege"
+        assert "approche_comparative" in plan.methodes_requises
+        assert plan.methode_preponderante == "approche_comparative"
+        assert plan.umpp_requis is True
+
+    def test_assurance_cout_only(self):
+        plan = load_plan_for_mandat("assurance")
+        assert plan.methodes_requises == ["approche_cout"]
+        assert plan.methode_preponderante == "approche_cout"
+        assert plan.umpp_requis is False
+
+    def test_immeuble_revenus_preponderance(self):
+        plan = load_plan_for_mandat("immeuble_revenus")
+        assert plan.methode_preponderante == "approche_revenu"
+        assert plan.format_rapport == "narratif_complet"
+
+    def test_unknown_raises_key_error(self):
+        import pytest
+        with pytest.raises(KeyError, match="inconnu"):
+            load_plan_for_mandat("type_inexistant")
+
+
+# ── PlanOrchestrator ──────────────────────────────────────────────────────────
+
+class TestPlanOrchestrator:
+    def test_build_engine_returns_engine_and_plan(self):
+        orch = PlanOrchestrator()
+        case = {"dossier_id": "D-TEST", "type_bien": "residentiel_unifamilial"}
+        engine, plan = orch.build_engine(case)
+        assert engine is not None
+        assert plan.mandat_type == "residentiel_standard"
+
+    def test_enrich_case_adds_plan_fields(self):
+        orch = PlanOrchestrator()
+        case = {"dossier_id": "D-TEST", "type_bien": "duplex"}
+        _, plan = orch.build_engine(case)
+        enriched = orch.enrich_case(case, plan)
+        assert enriched["mandat_type"] == "residentiel_multifamilial"
+        assert "methodes_requises" in enriched
+        assert enriched["dossier_id"] == "D-TEST"  # original preserved
+
+    def test_enrich_case_does_not_mutate_original(self):
+        orch = PlanOrchestrator()
+        case = {"dossier_id": "D-TEST", "type_bien": "terrain"}
+        _, plan = orch.build_engine(case)
+        orch.enrich_case(case, plan)
+        assert "mandat_type" not in case  # original untouched
+
+    def test_explicit_mandat_type_in_case_respected(self):
+        orch = PlanOrchestrator()
+        case = {"dossier_id": "D-TEST", "type_bien": "maison", "mandat_type": "assurance"}
+        _, plan = orch.build_engine(case)
+        assert plan.mandat_type == "assurance"

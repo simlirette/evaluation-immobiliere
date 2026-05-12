@@ -1,0 +1,198 @@
+version: 0.1
+# Plans par type de mandat — routing orchestrateur
+# Chaque plan définit le format de rapport, les méthodes requises et la méthode prépondérante
+# conformément aux normes CUSPAP 2026 et NPP OEAQ.
+
+plans:
+
+  residentiel_standard:
+    label: "Résidentiel standard (unifamilial, jumelé, en rangée, condo)"
+    format_rapport: abrege
+    methodes_requises:
+      - approche_comparative
+      - approche_cout
+    methodes_optionnelles:
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Approche comparative prépondérante (preuve directe).
+      Coût = limite supérieure (preuve indirecte, substitution).
+      Revenu non applicable sauf immeuble avec revenus accessoires.
+
+  residentiel_multifamilial:
+    label: "Résidentiel multifamilial (duplex, triplex, 4-plex, 5-plex)"
+    format_rapport: abrege
+    methodes_requises:
+      - approche_comparative
+      - approche_revenu
+    methodes_optionnelles:
+      - approche_cout
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Comparative prépondérante pour 2-5 logements.
+      Revenu requis pour documenter le potentiel locatif.
+      Format narratif complet si > 5 logements → reclasser en immeuble_revenus.
+
+  immeuble_revenus:
+    label: "Immeuble à revenus (6 logements et +, commercial générateur)"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_revenu
+      - approche_comparative
+    methodes_optionnelles:
+      - approche_cout
+    methode_preponderante: approche_revenu
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Revenu prépondérante (attitude investisseur).
+      Comparative = contre-preuve de marché.
+      Coût = limite supérieure (neuf seulement, sinon informatif).
+      Normalisation revenus/dépenses obligatoire (RBP → RBE → RNE → TGA).
+
+  commercial:
+    label: "Commercial non générateur (bureaux, détail, institutionnel)"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+      - approche_cout
+    methodes_optionnelles:
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Comparative prépondérante si ventes disponibles ($/pi²).
+      Coût requis pour bâtiments spéciaux ou marché mince.
+      Revenu si immeuble locatif commercial avec baux disponibles.
+
+  industriel:
+    label: "Industriel (entrepôt, manufacture, parc industriel)"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+      - approche_cout
+    methodes_optionnelles:
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Comparative $/pi² de bâtiment + $/m² terrain.
+      Coût souvent prépondérant si marché de revente mince.
+      Revenu applicable si actif loué (baux triple net).
+
+  terrain:
+    label: "Terrain vacant ou à développer"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+    methodes_optionnelles: []
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Approche comparative en $/m² ou $/pi² de terrain.
+      Méthode résiduelle si terrain à développer (UMPP = usage optimal).
+      Coût non applicable (pas de bâtiment).
+      Revenu non applicable (pas de revenus).
+
+  mise_a_jour:
+    label: "Mise à jour d'une évaluation antérieure"
+    format_rapport: mise_a_jour
+    methodes_requises:
+      - approche_comparative
+    methodes_optionnelles:
+      - approche_cout
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: false
+    visite_physique: selon_etendue_travail
+    notes: >
+      Actualisation d'un rapport existant.
+      Description immeuble = identification seulement + renvoi dossier.
+      Brève référence aux méthodes + renvoi rapport original.
+      Mention UMPP si changement de conditions depuis rapport original.
+
+  assurance:
+    label: "Fins d'assurance (valeur de remplacement)"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_cout
+    methodes_optionnelles: []
+    methode_preponderante: approche_cout
+    umpp_requis: false
+    visite_physique: obligatoire
+    notes: >
+      MÉTHODE DU COÛT SEULEMENT. La méthode du coût ne peut JAMAIS servir à
+      la valeur marchande dans un mandat assurance.
+      Inclusions/exclusions selon Annexe 2 NPP obligatoire.
+      Mandat écrit signé obligatoire.
+      Coût = remplacement (neuf équivalent fonctionnel) ou reproduction.
+
+# Correspondances type_bien → mandat_type
+# Utilisé par classify_dossier() pour le routing automatique
+type_bien_mapping:
+  # Résidentiel standard
+  residentiel_unifamilial: residentiel_standard
+  unifamilial: residentiel_standard
+  maison: residentiel_standard
+  bungalow: residentiel_standard
+  cottage: residentiel_standard
+  jumelé: residentiel_standard
+  jumele: residentiel_standard
+  en_rangee: residentiel_standard
+  en_rangée: residentiel_standard
+  maison_rangee: residentiel_standard
+  condo: residentiel_standard
+  condominium: residentiel_standard
+  appartement_condo: residentiel_standard
+  # Multifamilial
+  residentiel_multifamilial: residentiel_multifamilial
+  duplex: residentiel_multifamilial
+  triplex: residentiel_multifamilial
+  quadruplex: residentiel_multifamilial
+  quintuplex: residentiel_multifamilial
+  4plex: residentiel_multifamilial
+  5plex: residentiel_multifamilial
+  plex: residentiel_multifamilial
+  # Immeubles à revenus
+  immeuble_revenus: immeuble_revenus
+  immeuble_locatif: immeuble_revenus
+  multiresidentiel: immeuble_revenus
+  grand_multiresidentiel: immeuble_revenus
+  commercial_revenus: immeuble_revenus
+  commercial_generateur: immeuble_revenus
+  # Commercial
+  commercial: commercial
+  bureau: commercial
+  bureaux: commercial
+  magasin: commercial
+  commerce: commercial
+  centre_commercial: commercial
+  local_commercial: commercial
+  institutionnel: commercial
+  # Industriel
+  industriel: industriel
+  entrepot: industriel
+  entrepôt: industriel
+  manufacture: industriel
+  usine: industriel
+  parc_industriel: industriel
+  # Terrain
+  terrain: terrain
+  terrain_vacant: terrain
+  lot: terrain
+  lot_vacant: terrain
+  terrain_developpement: terrain
+  terrain_agricole: terrain
+  # Cas spéciaux
+  mise_a_jour: mise_a_jour
+  mise_à_jour: mise_a_jour
+  assurance: assurance
+
+default_mandat_type: residentiel_standard
