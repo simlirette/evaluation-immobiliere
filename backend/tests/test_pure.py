@@ -370,6 +370,10 @@ class TestPipelineStepCount:
         from engine.runtime import DEFAULT_STEPS
         assert DEFAULT_STEPS[0].name == "mandat-intake"
 
+    def test_data_facts_at_index_one(self):
+        from engine.runtime import DEFAULT_STEPS
+        assert DEFAULT_STEPS[1].name == "data-facts"
+
     def test_amu_analyst_at_index_two(self):
         from engine.runtime import DEFAULT_STEPS
         assert DEFAULT_STEPS[2].name == "amu-analyst"
@@ -384,6 +388,18 @@ class TestPipelineStepCount:
         amu_step = DEFAULT_STEPS[2]
         assert "umpp_conclusion.json" in amu_step.writes
         assert "amu_analyse.md" in amu_step.writes
+
+    def test_mandat_intake_writes_lettre_mandat(self):
+        from engine.runtime import DEFAULT_STEPS
+        step = DEFAULT_STEPS[0]
+        assert "lettre_mandat.md" in step.writes
+        assert "conflit_interets.json" in step.writes
+
+    def test_redaction_reads_lettre_mandat(self):
+        from engine.runtime import DEFAULT_STEPS
+        redaction = DEFAULT_STEPS[6]
+        assert redaction.name == "redaction"
+        assert "lettre_mandat.md" in redaction.reads
 
 
 # ── TestMandatIntakeDeterministic ─────────────────────────────────────────────
