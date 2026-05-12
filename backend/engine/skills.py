@@ -32,6 +32,11 @@ DEFAULT_SKILLS_BY_AGENT: dict[str, list[str]] = {
         "recherche-urbanisme-construction",
         "redaction-fiches-techniques",
     ],
+    "amu-analyst": [
+        "analyse-amu",
+        "recherche-normes-professionnelles",
+        "recherche-urbanisme-construction",
+    ],
     "comps-market": [
         "analyse-selection-comparables",
         "recherche-marche-donnees",

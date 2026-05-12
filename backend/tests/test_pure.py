@@ -283,3 +283,90 @@ class TestPlanOrchestrator:
         case = {"dossier_id": "D-TEST", "type_bien": "maison", "mandat_type": "assurance"}
         _, plan = orch.build_engine(case)
         assert plan.mandat_type == "assurance"
+
+
+# ── DEFAULT_SKILLS_BY_AGENT ───────────────────────────────────────────────────
+
+class TestDefaultSkillsByAgent:
+    def test_amu_analyst_in_default_skills(self):
+        from engine.skills import DEFAULT_SKILLS_BY_AGENT
+        assert "amu-analyst" in DEFAULT_SKILLS_BY_AGENT
+        skills = DEFAULT_SKILLS_BY_AGENT["amu-analyst"]
+        assert "analyse-amu" in skills
+        assert "recherche-urbanisme-construction" in skills
+        assert "recherche-normes-professionnelles" in skills
+
+
+# ── TestAmuDeterministic ──────────────────────────────────────────────────────
+
+class TestAmuDeterministic:
+    def test_umpp_conclusion_fields(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        engine = RuntimeEngine()
+        case = {
+            "dossier_id": "D-AMU-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "zone": "R-2",
+            "date_reference": "2026-05-01",
+        }
+        payload = engine._artifact_payload(
+            "amu-analyst", "umpp_conclusion.json", case, "BROUILLON", [], []
+        )
+        assert payload["dossier_id"] == "D-AMU-TEST"
+        assert payload["step"] == "amu-analyst"
+        assert "umpp" in payload
+        umpp = payload["umpp"]
+        assert "usage_retenu" in umpp
+        assert "criteres" in umpp
+        criteres = umpp["criteres"]
+        assert "physiquement_possible" in criteres
+        assert "legalement_permis" in criteres
+        assert "financierement_faisable" in criteres
+        assert "maximalement_productif" in criteres
+        assert "umpp_differe_usage_actuel" in umpp
+        assert isinstance(payload.get("confidence"), float)
+
+    def test_amu_analyse_md_fields(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        engine = RuntimeEngine()
+        case = {
+            "dossier_id": "D-AMU-TEST",
+            "type_bien": "terrain_vacant",
+            "zone": "C-1",
+            "date_reference": "2026-05-01",
+        }
+        payload = engine._artifact_payload(
+            "amu-analyst", "amu_analyse.md", case, "BROUILLON", [], []
+        )
+        assert payload["step"] == "amu-analyst"
+        assert "_raw_md" in payload
+        assert "AMU" in payload["_raw_md"] or "meilleur usage" in payload["_raw_md"].lower()
+
+
+# ── TestPipelineStepCount ─────────────────────────────────────────────────────
+
+class TestPipelineStepCount:
+    def test_default_steps_has_six(self):
+        from engine.runtime import DEFAULT_STEPS
+        assert len(DEFAULT_STEPS) == 6
+
+    def test_amu_analyst_at_index_one(self):
+        from engine.runtime import DEFAULT_STEPS
+        assert DEFAULT_STEPS[1].name == "amu-analyst"
+
+    def test_amu_analyst_reads_fiche_bien(self):
+        from engine.runtime import DEFAULT_STEPS
+        amu_step = DEFAULT_STEPS[1]
+        assert "fiche_bien.json" in amu_step.reads
+
+    def test_amu_analyst_writes_umpp_conclusion(self):
+        from engine.runtime import DEFAULT_STEPS
+        amu_step = DEFAULT_STEPS[1]
+        assert "umpp_conclusion.json" in amu_step.writes
+        assert "amu_analyse.md" in amu_step.writes

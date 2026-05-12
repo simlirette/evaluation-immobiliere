@@ -35,6 +35,7 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "calculs_approche_comparative.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
     "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
     "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
+    "umpp_conclusion.json": ["dossier_id", "step", "artifact", "source_fixture", "umpp"],
 }
 
 CONTRACT_CHECKS_BY_ARTIFACT = {
@@ -67,6 +68,7 @@ _LLM_TEXT_FIELD_BY_ARTIFACT: dict[str, str] = {
     "rapport_non_conformites.json": "analyse_conformite",
     "recommandations_corrections.md": "_raw_md",
     "brouillon_valeur.md": "_raw_md",
+    "amu_analyse.md": "_raw_md",
     # brouillon_rapport.md : géré par generate_brouillon_rapport — ne pas dupliquer
 }
 _CONTRACT_TREE_CACHE: dict | None = None
@@ -172,10 +174,11 @@ def _skills_for_agent(agent_name: str) -> list[str]:
 
 DEFAULT_STEPS = [
     RuntimeStep("data-facts", ["dossier_input", "documents_sources"], ["fiche_bien.json", "timeline_faits.json", "source_index.json"], _skills_for_agent("data-facts"), "AGENTCONFIG-DATA-FACTS-V0.yaml"),
-    RuntimeStep("comps-market", ["fiche_bien.json", "source_index.json", "market_data_sources"], ["comparables_proposes.json", "justifications_comparables.json", "source_index.json"], _skills_for_agent("comps-market"), "AGENTCONFIG-COMPS-MARKET-V0.yaml"),
+    RuntimeStep("amu-analyst", ["fiche_bien.json", "source_index.json"], ["umpp_conclusion.json", "amu_analyse.md"], _skills_for_agent("amu-analyst"), "AGENTCONFIG-AMU-ANALYST-V0.yaml"),
+    RuntimeStep("comps-market", ["fiche_bien.json", "umpp_conclusion.json", "source_index.json", "market_data_sources"], ["comparables_proposes.json", "justifications_comparables.json", "source_index.json"], _skills_for_agent("comps-market"), "AGENTCONFIG-COMPS-MARKET-V0.yaml"),
     RuntimeStep("valuation-draft", ["comparables_proposes.json", "couts_reference", "revenus_depenses", "source_index.json"], ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "brouillon_valeur.md"], _skills_for_agent("valuation-draft"), "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"),
     RuntimeStep("compliance-qa", ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "source_index.json"], ["rapport_non_conformites.json", "statut_sortie.json", "recommandations_corrections.md"], _skills_for_agent("compliance-qa"), "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"),
-    RuntimeStep("redaction", ["statut_sortie.json", "recommandations_corrections.md", "source_index.json"], ["brouillon_rapport.md", "annexe_sources.md"], _skills_for_agent("redaction"), "AGENTCONFIG-REDACTION-V0.yaml"),
+    RuntimeStep("redaction", ["statut_sortie.json", "recommandations_corrections.md", "amu_analyse.md", "source_index.json"], ["brouillon_rapport.md", "annexe_sources.md"], _skills_for_agent("redaction"), "AGENTCONFIG-REDACTION-V0.yaml"),
 ]
 
 
@@ -273,6 +276,23 @@ def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case:
             "Rédige un brouillon de conclusion de valeur en Markdown (format professionnel OEAQ). "
             "Inclus : valeur principale retenue et fourchette de confiance, "
             "approche dominante avec justification, prochaines étapes pour finaliser le rapport."
+        )
+
+    if artifact == "amu_analyse.md":
+        umpp = payload.get("umpp", {})
+        usage_retenu = str(umpp.get("usage_retenu", type_bien)).replace("_", " ")
+        criteres = umpp.get("criteres", {})
+        return base + (
+            f"ANALYSE AMU :\n"
+            f"Type de bien : {type_bien} | Zone : {zone}\n"
+            f"Usage retenu (UMPP) : {usage_retenu}\n"
+            f"Criteres : {criteres}\n"
+            f"UMPP differe usage actuel : {umpp.get('umpp_differe_usage_actuel', False)}\n\n"
+            "Redige l'Analyse du Meilleur Usage (AMU) professionnelle en Markdown, "
+            "conforme a la Norme de pratique professionnelle OEAQ. "
+            "Structure : titre, 4 criteres numerotes avec justification, conclusion UMPP. "
+            "Inclure le lien entre l'UMPP et le choix des approches d'evaluation. "
+            "Ton professionnel, factuel, 3-4 paragraphes minimum."
         )
 
     # Fallback générique
@@ -432,6 +452,69 @@ class RuntimeEngine:
 
         if artifact == "source_index.json":
             payload["sources"] = [{"source_id": source_id} for source_id in collect_source_ids(case)]
+
+        if step == "amu-analyst" and artifact == "umpp_conclusion.json":
+            type_bien = str(case.get("type_bien", "inconnu")).lower()
+            usage_map = {
+                "residentiel_unifamilial": "residentiel_unifamilial",
+                "unifamilial": "residentiel_unifamilial",
+                "maison": "residentiel_unifamilial",
+                "condo": "residentiel_condo",
+                "duplex": "residentiel_multifamilial",
+                "triplex": "residentiel_multifamilial",
+                "commercial": "commercial",
+                "industriel": "industriel",
+                "terrain": "terrain_vacant",
+                "terrain_vacant": "terrain_vacant",
+            }
+            usage_retenu = usage_map.get(type_bien, type_bien or "inconnu")
+            payload.update({
+                "umpp": {
+                    "usage_retenu": usage_retenu,
+                    "usage_actuel": type_bien,
+                    "conformite_zonage": True,
+                    "criteres": {
+                        "physiquement_possible": True,
+                        "legalement_permis": True,
+                        "financierement_faisable": True,
+                        "maximalement_productif": True,
+                    },
+                    "conclusion": (
+                        f"L'usage actuel ({type_bien.replace('_', ' ')}) constitue le "
+                        f"meilleur usage du bien."
+                        if usage_retenu == type_bien else
+                        f"L'usage optimal ({usage_retenu.replace('_', ' ')}) differe "
+                        f"de l'usage actuel ({type_bien.replace('_', ' ')})."
+                    ),
+                    "umpp_differe_usage_actuel": usage_retenu != type_bien,
+                },
+                "confidence": 0.70,
+            })
+
+        if step == "amu-analyst" and artifact == "amu_analyse.md":
+            type_bien = str(case.get("type_bien", "inconnu")).replace("_", " ")
+            zone = str(case.get("zone", "non specifiee"))
+            dossier_id = case.get("dossier_id", "—")
+            payload["_raw_md"] = (
+                f"# Analyse du Meilleur Usage (AMU)\n\n"
+                f"**Dossier :** {dossier_id}  \n"
+                f"**Type de bien :** {type_bien}  \n"
+                f"**Zone :** {zone}\n\n"
+                f"## Critere 1 — Legalement permis\n\n"
+                f"L'usage de type {type_bien} est conforme au zonage {zone}. "
+                f"Aucune restriction legale identifiee.\n\n"
+                f"## Critere 2 — Physiquement possible\n\n"
+                f"Les caracteristiques physiques du terrain et du batiment sont "
+                f"compatibles avec l'usage de type {type_bien}.\n\n"
+                f"## Critere 3 — Financierement faisable\n\n"
+                f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
+                f"## Critere 4 — Maximalement productif\n\n"
+                f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
+                f"plus profitable (UMPP) pour ce bien.\n\n"
+                f"## Conclusion UMPP\n\n"
+                f"L'usage actuel correspond a l'UMPP. L'evaluation procede selon "
+                f"les methodes appropriees a ce type de bien.\n"
+            )
 
         if step == "comps-market" and artifact == "comparables_proposes.json":
             payload["date_reference"] = case.get("date_reference")
