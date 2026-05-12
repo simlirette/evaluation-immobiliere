@@ -362,21 +362,72 @@ class TestAmuDeterministic:
 # ── TestPipelineStepCount ─────────────────────────────────────────────────────
 
 class TestPipelineStepCount:
-    def test_default_steps_has_six(self):
+    def test_default_steps_has_seven(self):
         from engine.runtime import DEFAULT_STEPS
-        assert len(DEFAULT_STEPS) == 6
+        assert len(DEFAULT_STEPS) == 7
 
-    def test_amu_analyst_at_index_one(self):
+    def test_mandat_intake_at_index_zero(self):
         from engine.runtime import DEFAULT_STEPS
-        assert DEFAULT_STEPS[1].name == "amu-analyst"
+        assert DEFAULT_STEPS[0].name == "mandat-intake"
+
+    def test_amu_analyst_at_index_two(self):
+        from engine.runtime import DEFAULT_STEPS
+        assert DEFAULT_STEPS[2].name == "amu-analyst"
 
     def test_amu_analyst_reads_fiche_bien(self):
         from engine.runtime import DEFAULT_STEPS
-        amu_step = DEFAULT_STEPS[1]
+        amu_step = DEFAULT_STEPS[2]
         assert "fiche_bien.json" in amu_step.reads
 
     def test_amu_analyst_writes_umpp_conclusion(self):
         from engine.runtime import DEFAULT_STEPS
-        amu_step = DEFAULT_STEPS[1]
+        amu_step = DEFAULT_STEPS[2]
         assert "umpp_conclusion.json" in amu_step.writes
         assert "amu_analyse.md" in amu_step.writes
+
+
+# ── TestMandatIntakeDeterministic ─────────────────────────────────────────────
+
+class TestMandatIntakeDeterministic:
+    def test_conflit_interets_fields(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        engine = RuntimeEngine()
+        case = {
+            "dossier_id": "D-MANDAT-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-12",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+        }
+        payload = engine._artifact_payload(
+            "mandat-intake", "conflit_interets.json", case, "BROUILLON", [], []
+        )
+        assert payload["dossier_id"] == "D-MANDAT-TEST"
+        assert payload["step"] == "mandat-intake"
+        assert payload["artifact"] == "conflit_interets.json"
+        assert payload["conflit_detecte"] is False
+        assert payload["verification_completee"] is True
+        assert "commentaire" in payload
+
+    def test_lettre_mandat_md_raw_md(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        engine = RuntimeEngine()
+        case = {
+            "dossier_id": "D-MANDAT-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-12",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+        }
+        payload = engine._artifact_payload(
+            "mandat-intake", "lettre_mandat.md", case, "BROUILLON", [], []
+        )
+        assert payload["step"] == "mandat-intake"
+        assert "_raw_md" in payload
+        assert "Lettre de mandat" in payload["_raw_md"] or "mandat" in payload["_raw_md"].lower()

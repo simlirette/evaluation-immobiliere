@@ -36,6 +36,7 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
     "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
     "umpp_conclusion.json": ["dossier_id", "step", "artifact", "source_fixture", "umpp"],
+    "conflit_interets.json": ["dossier_id", "step", "artifact", "source_fixture", "conflit_detecte"],
 }
 
 CONTRACT_CHECKS_BY_ARTIFACT = {
@@ -69,6 +70,7 @@ _LLM_TEXT_FIELD_BY_ARTIFACT: dict[str, str] = {
     "recommandations_corrections.md": "_raw_md",
     "brouillon_valeur.md": "_raw_md",
     "amu_analyse.md": "_raw_md",
+    "lettre_mandat.md": "_raw_md",
     # brouillon_rapport.md : géré par generate_brouillon_rapport — ne pas dupliquer
 }
 _CONTRACT_TREE_CACHE: dict | None = None
@@ -173,12 +175,13 @@ def _skills_for_agent(agent_name: str) -> list[str]:
 
 
 DEFAULT_STEPS = [
+    RuntimeStep("mandat-intake", ["dossier_input"], ["lettre_mandat.md", "conflit_interets.json"], _skills_for_agent("mandat-intake"), "AGENTCONFIG-MANDAT-INTAKE-V0.yaml"),
     RuntimeStep("data-facts", ["dossier_input", "documents_sources"], ["fiche_bien.json", "timeline_faits.json", "source_index.json"], _skills_for_agent("data-facts"), "AGENTCONFIG-DATA-FACTS-V0.yaml"),
     RuntimeStep("amu-analyst", ["fiche_bien.json", "source_index.json"], ["umpp_conclusion.json", "amu_analyse.md"], _skills_for_agent("amu-analyst"), "AGENTCONFIG-AMU-ANALYST-V0.yaml"),
     RuntimeStep("comps-market", ["fiche_bien.json", "umpp_conclusion.json", "source_index.json", "market_data_sources"], ["comparables_proposes.json", "justifications_comparables.json", "source_index.json"], _skills_for_agent("comps-market"), "AGENTCONFIG-COMPS-MARKET-V0.yaml"),
     RuntimeStep("valuation-draft", ["comparables_proposes.json", "couts_reference", "revenus_depenses", "source_index.json"], ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "brouillon_valeur.md"], _skills_for_agent("valuation-draft"), "AGENTCONFIG-VALUATION-DRAFT-V0.yaml"),
     RuntimeStep("compliance-qa", ["calculs_approche_comparative.json", "calculs_approche_cout.json", "calculs_approche_revenu.json", "hypotheses_explicites.json", "source_index.json"], ["rapport_non_conformites.json", "statut_sortie.json", "recommandations_corrections.md"], _skills_for_agent("compliance-qa"), "AGENTCONFIG-COMPLIANCE-QA-V0.yaml"),
-    RuntimeStep("redaction", ["statut_sortie.json", "recommandations_corrections.md", "amu_analyse.md", "source_index.json"], ["brouillon_rapport.md", "annexe_sources.md"], _skills_for_agent("redaction"), "AGENTCONFIG-REDACTION-V0.yaml"),
+    RuntimeStep("redaction", ["statut_sortie.json", "recommandations_corrections.md", "amu_analyse.md", "lettre_mandat.md", "source_index.json"], ["brouillon_rapport.md", "annexe_sources.md"], _skills_for_agent("redaction"), "AGENTCONFIG-REDACTION-V0.yaml"),
 ]
 
 
@@ -293,6 +296,22 @@ def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case:
             "Structure : titre, 4 criteres numerotes avec justification, conclusion UMPP. "
             "Inclure le lien entre l'UMPP et le choix des approches d'evaluation. "
             "Ton professionnel, factuel, 3-4 paragraphes minimum."
+        )
+
+    if artifact == "lettre_mandat.md":
+        mandat_type = str(case.get("mandat_type", "residentiel_standard"))
+        format_rapport = str(case.get("format_rapport", "abrege"))
+        methodes = case.get("methodes_requises", [])
+        return base + (
+            f"MANDAT :\n"
+            f"Type de bien : {type_bien} | Mandat : {mandat_type} | Format rapport : {format_rapport}\n"
+            f"Methodes requises : {methodes}\n\n"
+            "Redige la lettre de mandat professionnelle en Markdown conforme au Code de deontologie OEAQ. "
+            "Structure obligatoire : identification du bien, identification du commanditaire (laisser [COMMANDITAIRE] si absent), "
+            "type d'acte professionnel, type de rapport, fin d'evaluation, date de reference, "
+            "etendue de l'inspection, hypotheses et limitations prealables, honoraires ([A CONFIRMER]), "
+            "date de livraison prevue ([A CONFIRMER]), lignes de signature. "
+            "Ton professionnel, juridiction Quebec, references deontologiques OEAQ."
         )
 
     # Fallback générique
@@ -514,6 +533,39 @@ class RuntimeEngine:
                 f"## Conclusion UMPP\n\n"
                 f"L'usage actuel correspond a l'UMPP. L'evaluation procede selon "
                 f"les methodes appropriees a ce type de bien.\n"
+            )
+
+        if step == "mandat-intake" and artifact == "conflit_interets.json":
+            payload.update({
+                "conflit_detecte": False,
+                "verification_completee": True,
+                "commentaire": "Aucun conflit d'interets detecte — verification V0 deterministe.",
+            })
+
+        if step == "mandat-intake" and artifact == "lettre_mandat.md":
+            type_bien = str(case.get("type_bien", "inconnu")).replace("_", " ")
+            mandat_type = str(case.get("mandat_type", "residentiel_standard"))
+            format_rapport = str(case.get("format_rapport", "abrege"))
+            date_ref = case.get("date_reference", "—")
+            dossier_id = case.get("dossier_id", "—")
+            payload["_raw_md"] = (
+                f"# Lettre de mandat\n\n"
+                f"**Dossier :** {dossier_id}  \n"
+                f"**Type de bien :** {type_bien}  \n"
+                f"**Type de mandat :** {mandat_type}  \n"
+                f"**Format du rapport :** {format_rapport}  \n"
+                f"**Date de référence :** {date_ref}\n\n"
+                f"## Identification du bien\n\n"
+                f"Bien de type {type_bien} tel que décrit dans le dossier {dossier_id}.\n\n"
+                f"## Type d'acte professionnel\n\n"
+                f"Évaluation immobilière — rapport {format_rapport}.\n\n"
+                f"## Fin d'évaluation\n\n"
+                f"Mandat de type {mandat_type}.\n\n"
+                f"## Honoraires et conditions\n\n"
+                f"À confirmer selon entente avec le commanditaire.\n\n"
+                f"## Signatures\n\n"
+                f"_Évaluateur agréé (É.A.) — signature requise_  \n"
+                f"_Commanditaire — signature requise_\n"
             )
 
         if step == "comps-market" and artifact == "comparables_proposes.json":
