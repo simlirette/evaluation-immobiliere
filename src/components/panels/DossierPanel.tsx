@@ -208,6 +208,7 @@ function NewDossierForm() {
             type="button"
             onClick={() => {
               if (address.trim() && propertyType.trim() && neighborhood.trim()) {
+                setError('')
                 setFormStep(2)
               }
             }}
@@ -261,7 +262,7 @@ function NewDossierForm() {
           <div className="flex gap-2 mt-1">
             <button
               type="button"
-              onClick={() => setFormStep(1)}
+              onClick={() => { setError(''); setFormStep(1) }}
               className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
               style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
             >
