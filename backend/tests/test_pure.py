@@ -742,3 +742,240 @@ class TestConflitLLMParsing:
 
         assert result["conflit_detecte"] is False
         assert result["analyse_conflit"] == llm_response
+
+
+# ── TestIngestion_ExtractPDFText ──────────────────────────────────────────────
+
+class TestIngestion_ExtractPDFText:
+    def test_extracts_text_from_pdf_with_text_layer(self):
+        import sys
+        import unittest.mock
+        mock_fitz = unittest.mock.MagicMock()
+        mock_page = unittest.mock.MagicMock()
+        mock_page.get_text.return_value = "Surface : 1200 pi²\nPrix : 350 000 $"
+        mock_doc = unittest.mock.MagicMock()
+        mock_doc.__iter__ = unittest.mock.Mock(return_value=iter([mock_page]))
+        mock_fitz.open.return_value = mock_doc
+        with unittest.mock.patch.dict(sys.modules, {"fitz": mock_fitz}):
+            from engine.ingestion import extract_text_from_pdf
+            text, has_text = extract_text_from_pdf(Path("/fake/doc.pdf"))
+        assert has_text is True
+        assert "1200" in text
+
+    def test_returns_false_when_no_text(self):
+        import sys
+        import unittest.mock
+        mock_fitz = unittest.mock.MagicMock()
+        mock_page = unittest.mock.MagicMock()
+        mock_page.get_text.return_value = ""
+        mock_doc = unittest.mock.MagicMock()
+        mock_doc.__iter__ = unittest.mock.Mock(return_value=iter([mock_page]))
+        mock_fitz.open.return_value = mock_doc
+        with unittest.mock.patch.dict(sys.modules, {"fitz": mock_fitz}):
+            from engine.ingestion import extract_text_from_pdf
+            text, has_text = extract_text_from_pdf(Path("/fake/scan.pdf"))
+        assert has_text is False
+        assert text == ""
+
+
+# ── TestIngestion_VisionFallback_PDF ─────────────────────────────────────────
+
+class TestIngestion_VisionFallback_PDF:
+    def test_vision_called_when_pdf_has_no_text(self):
+        import unittest.mock
+        mock_client = unittest.mock.MagicMock()
+        mock_resp = unittest.mock.MagicMock()
+        mock_resp.choices[0].message.content = "Maison de plain-pied en brique"
+        mock_client.chat.completions.create.return_value = mock_resp
+        with unittest.mock.patch("engine.ingestion.extract_text_from_pdf", return_value=("", False)):
+            with unittest.mock.patch("engine.ingestion.pdf_page_to_b64_image", return_value="fakeb64base64"):
+                from engine.ingestion import extract_document
+                result = extract_document(Path("/fake/scan.pdf"), "application/pdf", mock_client)
+        assert result["method"] == "vision"
+        assert "Maison" in result["extracted_text"]
+
+    def test_skipped_when_pdf_has_no_text_and_no_client(self):
+        import unittest.mock
+        with unittest.mock.patch("engine.ingestion.extract_text_from_pdf", return_value=("", False)):
+            from engine.ingestion import extract_document
+            result = extract_document(Path("/fake/scan.pdf"), "application/pdf", None)
+        assert result["method"] == "skipped"
+        assert result["extracted_text"] == ""
+
+
+# ── TestIngestion_VisionImage ─────────────────────────────────────────────────
+
+class TestIngestion_VisionImage:
+    def test_vision_called_for_jpeg(self):
+        import unittest.mock
+        import tempfile
+        mock_client = unittest.mock.MagicMock()
+        mock_resp = unittest.mock.MagicMock()
+        mock_resp.choices[0].message.content = "Belle maison en brique"
+        mock_client.chat.completions.create.return_value = mock_resp
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(b"\xff\xd8\xff\xe0" + b"\x00" * 20)
+            tmp_path = Path(f.name)
+        try:
+            from engine.ingestion import extract_document
+            result = extract_document(tmp_path, "image/jpeg", mock_client)
+            assert result["method"] == "vision"
+            assert "Belle maison" in result["extracted_text"]
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_skipped_for_jpeg_without_client(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(b"\xff\xd8\xff\xe0" + b"\x00" * 20)
+            tmp_path = Path(f.name)
+        try:
+            from engine.ingestion import extract_document
+            result = extract_document(tmp_path, "image/jpeg", None)
+            assert result["method"] == "skipped"
+            assert result["extracted_text"] == ""
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+
+# ── TestIngestion_NoOpenAI ────────────────────────────────────────────────────
+
+class TestIngestion_NoOpenAI:
+    def test_no_crash_when_no_client_pdf(self):
+        import sys
+        import unittest.mock
+        mock_fitz = unittest.mock.MagicMock()
+        mock_page = unittest.mock.MagicMock()
+        mock_page.get_text.return_value = ""
+        mock_doc = unittest.mock.MagicMock()
+        mock_doc.__iter__ = unittest.mock.Mock(return_value=iter([mock_page]))
+        mock_fitz.open.return_value = mock_doc
+        with unittest.mock.patch.dict(sys.modules, {"fitz": mock_fitz}):
+            from engine.ingestion import extract_document
+            result = extract_document(Path("/fake/scan.pdf"), "application/pdf", None)
+        assert result["extracted_text"] == ""
+        assert result["method"] == "skipped"
+
+
+# ── TestIngestion_StructuredFields ────────────────────────────────────────────
+
+class TestIngestion_StructuredFields:
+    def test_parse_structured_fields_returns_known_keys(self):
+        import unittest.mock
+        mock_client = unittest.mock.MagicMock()
+        mock_resp = unittest.mock.MagicMock()
+        mock_resp.choices[0].message.content = (
+            '{"prix_achat": 350000.0, "date_achat": "2025-03-15", "no_lot": null}'
+        )
+        mock_client.chat.completions.create.return_value = mock_resp
+        from engine.ingestion import parse_structured_fields
+        docs = [{"filename": "acte.pdf", "extracted_text": "Prix : 350 000 $"}]
+        result = parse_structured_fields(docs, mock_client)
+        assert result["prix_achat"] == 350000.0
+        assert result["date_achat"] == "2025-03-15"
+        assert "no_lot" not in result  # null excluded
+
+    def test_returns_empty_when_no_client(self):
+        from engine.ingestion import parse_structured_fields
+        docs = [{"filename": "acte.pdf", "extracted_text": "Prix : 350 000 $"}]
+        result = parse_structured_fields(docs, None)
+        assert result == {}
+
+
+# ── TestIngestion_NullFieldsSkipped ──────────────────────────────────────────
+
+class TestIngestion_NullFieldsSkipped:
+    def test_null_fields_not_in_result(self):
+        import unittest.mock
+        mock_client = unittest.mock.MagicMock()
+        mock_resp = unittest.mock.MagicMock()
+        mock_resp.choices[0].message.content = '{"prix_achat": null, "date_achat": null}'
+        mock_client.chat.completions.create.return_value = mock_resp
+        from engine.ingestion import parse_structured_fields
+        docs = [{"filename": "photo.jpg", "extracted_text": "Maison en briques"}]
+        result = parse_structured_fields(docs, mock_client)
+        assert result == {}
+
+
+# ── TestIngestion_NoUpload ────────────────────────────────────────────────────
+
+class TestIngestion_NoUpload:
+    def test_empty_uploaded_docs_returns_empty_dict(self):
+        from engine.ingestion import ingest_uploaded_documents
+        session = {"session_dir": "/tmp/fake-session", "uploaded_documents": []}
+        result = ingest_uploaded_documents(session, None)
+        assert result == {}
+
+    def test_missing_uploaded_docs_key_returns_empty_dict(self):
+        from engine.ingestion import ingest_uploaded_documents
+        session = {"session_dir": "/tmp/fake-session"}
+        result = ingest_uploaded_documents(session, None)
+        assert result == {}
+
+
+# ── TestIngestion_ExistingFieldsNotOverwritten ────────────────────────────────
+
+class TestIngestion_ExistingFieldsNotOverwritten:
+    def test_fixture_field_wins_over_extracted_field(self):
+        """Injection loop: 'not case.get(k)' — existing values win."""
+        case = {"prix_achat": 450000.0}
+        _fields = {"prix_achat": 350000.0, "date_achat": "2025-03-15"}
+        for k, v in _fields.items():
+            if v is not None and not case.get(k):
+                case[k] = v
+        assert case["prix_achat"] == 450000.0  # not overwritten
+        assert case["date_achat"] == "2025-03-15"  # new field added
+
+    def test_empty_string_case_field_is_overwritten(self):
+        """Empty string is falsy — extraction fills the gap."""
+        case = {"prix_achat": ""}
+        _fields = {"prix_achat": 350000.0}
+        for k, v in _fields.items():
+            if v is not None and not case.get(k):
+                case[k] = v
+        assert case["prix_achat"] == 350000.0
+
+
+# ── TestFicheBien_IngestedDocs ────────────────────────────────────────────────
+
+class TestFicheBien_IngestedDocs:
+    def test_ingested_docs_appended_to_fiche_bien_prompt(self):
+        from engine.runtime import _build_enrichment_prompt
+        case = {
+            "dossier_id": "D-INGEST-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "zone": "Laval",
+            "ingested_docs": [
+                {
+                    "filename": "acte_vente.pdf",
+                    "extracted_text": "Prix : 350 000 $\nDate : 2025-03-15",
+                },
+            ],
+        }
+        payload = {
+            "surface": {"value": 1200, "unit": "pi²"},
+            "confidence": 0.85,
+            "source_ids": ["SRC-001"],
+        }
+        prompt = _build_enrichment_prompt("data-facts", "fiche_bien.json", payload, case)
+        assert "Documents" in prompt
+        assert "acte_vente.pdf" in prompt
+        assert "350 000" in prompt
+
+    def test_fiche_bien_prompt_unchanged_without_ingested_docs(self):
+        from engine.runtime import _build_enrichment_prompt
+        case = {
+            "dossier_id": "D-NO-INGEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "zone": "Montreal",
+        }
+        payload = {
+            "surface": {"value": 900, "unit": "pi²"},
+            "confidence": 0.70,
+            "source_ids": [],
+        }
+        prompt = _build_enrichment_prompt("data-facts", "fiche_bien.json", payload, case)
+        assert "DONNÉES DE LA FICHE BIEN" in prompt
+        assert "acte_vente.pdf" not in prompt
