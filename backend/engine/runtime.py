@@ -202,11 +202,22 @@ def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case:
     if artifact == "fiche_bien.json":
         surface = payload.get("surface", {})
         surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+        ingested_section = ""
+        if case.get("ingested_docs"):
+            doc_parts = []
+            for d in case["ingested_docs"]:
+                fname = str(d.get("filename", "document"))
+                text = str(d.get("extracted_text", "")).strip()
+                if text:
+                    doc_parts.append(f"[{fname}]\n{text[:600]}")
+            if doc_parts:
+                ingested_section = "\n\n## Documents uploadés\n\n" + "\n\n".join(doc_parts)
         return base + (
             f"DONNÉES DE LA FICHE BIEN :\n"
             f"Surface : {surface_str}\n"
             f"Confiance : {payload.get('confidence', '—')}\n"
-            f"Sources : {payload.get('source_ids', [])}\n\n"
+            f"Sources : {payload.get('source_ids', [])}"
+            f"{ingested_section}\n\n"
             "Rédige en 2–3 paragraphes une analyse contextuelle professionnelle du bien identifié. "
             "Inclus : description physique probable, localisation et contexte de marché local. "
             "Sois factuel et n'invente aucune donnée absente du contexte fourni."
