@@ -54,6 +54,11 @@ CONTRACT_CHECKS_BY_ARTIFACT = {
     },
 }
 
+class PipelineConflitError(ValueError):
+    """Raised when a conflict of interest is detected and the pipeline must stop."""
+    pass
+
+
 CONTRACTS_DATA_PATH = Path(__file__).resolve().parent.parent / "mvp" / "CONTRATS-DONNEES-V0.yaml"
 INTEGRATION_DIR = Path(__file__).resolve().parent.parent / "integration"
 
@@ -71,6 +76,7 @@ _LLM_TEXT_FIELD_BY_ARTIFACT: dict[str, str] = {
     "brouillon_valeur.md": "_raw_md",
     "amu_analyse.md": "_raw_md",
     "lettre_mandat.md": "_raw_md",
+    "conflit_interets.json": "analyse_conflit",
     # brouillon_rapport.md : géré par generate_brouillon_rapport — ne pas dupliquer
 }
 _CONTRACT_TREE_CACHE: dict | None = None
@@ -314,6 +320,24 @@ def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case:
             "Ton professionnel, juridiction Quebec, references deontologiques OEAQ."
         )
 
+    if artifact == "conflit_interets.json":
+        commanditaire = case.get("commanditaire", {})
+        nom_cmd = str(commanditaire.get("nom", "[COMMANDITAIRE]"))
+        org_cmd = str(commanditaire.get("organisation", ""))
+        fin_eval = str(commanditaire.get("fin_evaluation", "non specifie"))
+        return base + (
+            f"VÉRIFICATION CONFLIT D'INTÉRÊTS :\n"
+            f"Commanditaire : {nom_cmd} | Organisation : {org_cmd} | Fin : {fin_eval}\n"
+            f"Type de bien : {type_bien} | Zone : {case.get('zone', '—')}\n\n"
+            "Tu es un expert en déontologie de l'évaluation immobilière OEAQ. "
+            "Analyse s'il existe un conflit d'intérêts potentiel entre l'évaluateur et le commanditaire/les parties. "
+            "Critères OEAQ : lien financier, familial, ou professionnel avec une partie; mandat conditionnel à une valeur; "
+            "intérêt direct dans la propriété. "
+            "Si tu détectes un conflit réel ou potentiel, commence ta réponse EXACTEMENT par : "
+            "'CONFLIT_DETECTE: <motif court en 1 ligne>' puis développe l'analyse. "
+            "Si aucun conflit : rédige une analyse courte confirmant l'absence de conflit apparent."
+        )
+
     # Fallback générique
     payload_str = json.dumps(payload, ensure_ascii=False)[:600]
     return base + (
@@ -372,6 +396,10 @@ class RuntimeEngine:
             )
             result = (resp.choices[0].message.content or "").strip()
             if result:
+                if artifact == "conflit_interets.json" and result.startswith("CONFLIT_DETECTE:"):
+                    first_line = result.split("\n")[0]
+                    motif = first_line.replace("CONFLIT_DETECTE:", "").strip()
+                    return {**payload, target_field: result, "conflit_detecte": True, "conflit_motif": motif}
                 return {**payload, target_field: result}
         except Exception:
             pass  # LLM enrichment is optional — never block pipeline
@@ -540,6 +568,7 @@ class RuntimeEngine:
                 "conflit_detecte": False,
                 "verification_completee": True,
                 "commentaire": "Aucun conflit d'interets detecte — verification V0 deterministe.",
+                "analyse_conflit": "",
             })
 
         if step == "mandat-intake" and artifact == "lettre_mandat.md":
@@ -548,6 +577,11 @@ class RuntimeEngine:
             format_rapport = str(case.get("format_rapport", "abrege"))
             date_ref = case.get("date_reference", "—")
             dossier_id = case.get("dossier_id", "—")
+            commanditaire = case.get("commanditaire", {})
+            nom_cmd = str(commanditaire.get("nom", "[COMMANDITAIRE]")) if commanditaire else "[COMMANDITAIRE]"
+            org_cmd = str(commanditaire.get("organisation", "")) if commanditaire else ""
+            cmd_label = f"{nom_cmd} — {org_cmd}" if org_cmd else nom_cmd
+            fin_eval = str(commanditaire.get("fin_evaluation", "non specifie")).replace("_", " ") if commanditaire else "non specifie"
             payload["_raw_md"] = (
                 f"# Lettre de mandat\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -557,10 +591,12 @@ class RuntimeEngine:
                 f"**Date de référence :** {date_ref}\n\n"
                 f"## Identification du bien\n\n"
                 f"Bien de type {type_bien} tel que décrit dans le dossier {dossier_id}.\n\n"
+                f"## Identification du commanditaire\n\n"
+                f"Commanditaire : {cmd_label}\n\n"
                 f"## Type d'acte professionnel\n\n"
                 f"Évaluation immobilière — rapport {format_rapport}.\n\n"
                 f"## Fin d'évaluation\n\n"
-                f"Mandat de type {mandat_type}.\n\n"
+                f"Mandat de type {mandat_type} — fin : {fin_eval}.\n\n"
                 f"## Honoraires et conditions\n\n"
                 f"À confirmer selon entente avec le commanditaire.\n\n"
                 f"## Signatures\n\n"
@@ -740,6 +776,18 @@ class RuntimeEngine:
                 )
 
             self._record_event(events, audit_log_path, {"event": "step_done", "step": step.name, "dossier_id": dossier_id})
+
+            # Gate conflit après mandat-intake
+            if step.name == "mandat-intake":
+                if case_subdir:
+                    _conflit_path = case_dir / "mandat-intake.conflit_interets.json"
+                else:
+                    _conflit_path = case_dir / f"{case_key}.mandat-intake.conflit_interets.json"
+                if _conflit_path.exists():
+                    _conflit = json.loads(_conflit_path.read_text(encoding="utf-8"))
+                    if _conflit.get("conflit_detecte") and not case.get("force_conflit_continue"):
+                        motif = _conflit.get("conflit_motif", "Conflit detecte par analyse mandat-intake")
+                        raise PipelineConflitError(motif)
 
             review_status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
             if step.name == "compliance-qa" and status == review_status:
