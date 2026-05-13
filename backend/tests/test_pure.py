@@ -447,3 +447,208 @@ class TestMandatIntakeDeterministic:
         assert payload["step"] == "mandat-intake"
         assert "_raw_md" in payload
         assert "Lettre de mandat" in payload["_raw_md"] or "mandat" in payload["_raw_md"].lower()
+
+
+# ── TestCommanditaireInCase ───────────────────────────────────────────────────
+
+class TestCommanditaireInCase:
+    def test_commanditaire_merged_from_body(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import load_case_from_body
+        body = {
+            "commanditaire": {
+                "nom": "Banque Nationale",
+                "organisation": "Financement immobilier",
+                "fin_evaluation": "hypothecaire",
+            }
+        }
+        case, _ = load_case_from_body(body)
+        assert case["commanditaire"]["nom"] == "Banque Nationale"
+        assert case["commanditaire"]["organisation"] == "Financement immobilier"
+        assert case["commanditaire"]["fin_evaluation"] == "hypothecaire"
+
+    def test_commanditaire_defaults_when_absent(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import load_case_from_body
+        case, _ = load_case_from_body({})
+        # commanditaire key absent — no crash, no injection
+        assert "commanditaire" not in case or case.get("commanditaire") == {}
+
+    def test_commanditaire_nom_default_placeholder(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import load_case_from_body
+        body = {"commanditaire": {"nom": "", "fin_evaluation": "succession"}}
+        case, _ = load_case_from_body(body)
+        assert case["commanditaire"]["nom"] == "[COMMANDITAIRE]"
+
+
+# ── TestLettreMandat_Commanditaire ────────────────────────────────────────────
+
+class TestLettreMandat_Commanditaire:
+    def test_lettre_mandat_uses_commanditaire_nom(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        engine = RuntimeEngine()
+        case = {
+            "dossier_id": "D-CMD-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+            "commanditaire": {
+                "nom": "Banque Nationale",
+                "organisation": "Financement immobilier",
+                "fin_evaluation": "hypothecaire",
+            },
+        }
+        payload = engine._artifact_payload(
+            "mandat-intake", "lettre_mandat.md", case, "BROUILLON", [], []
+        )
+        assert "[COMMANDITAIRE]" not in payload["_raw_md"]
+        assert "Banque Nationale" in payload["_raw_md"]
+
+    def test_lettre_mandat_placeholder_when_no_commanditaire(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        engine = RuntimeEngine()
+        case = {
+            "dossier_id": "D-CMD-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+        }
+        payload = engine._artifact_payload(
+            "mandat-intake", "lettre_mandat.md", case, "BROUILLON", [], []
+        )
+        assert "[COMMANDITAIRE]" in payload["_raw_md"]
+
+
+# ── TestConflit_Deterministic_False ──────────────────────────────────────────
+
+class TestConflit_Deterministic_False:
+    def test_conflit_detecte_false_without_llm(self):
+        """Without LLM (no OPENAI_API_KEY), conflit_detecte stays False."""
+        import sys
+        import os
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine
+        original_key = os.environ.pop("OPENAI_API_KEY", None)
+        try:
+            engine = RuntimeEngine()
+            case = {
+                "dossier_id": "D-CONFLIT-TEST",
+                "type_bien": "residentiel_unifamilial",
+                "date_reference": "2026-05-13",
+                "mandat_type": "residentiel_standard",
+                "format_rapport": "abrege",
+                "commanditaire": {"nom": "BNC", "organisation": "", "fin_evaluation": "hypothecaire"},
+            }
+            payload = engine._artifact_payload(
+                "mandat-intake", "conflit_interets.json", case, "BROUILLON", [], []
+            )
+            assert payload["conflit_detecte"] is False
+            assert payload["verification_completee"] is True
+        finally:
+            if original_key is not None:
+                os.environ["OPENAI_API_KEY"] = original_key
+
+
+# ── TestConflit_Gate_Blocks ───────────────────────────────────────────────────
+
+class TestConflit_Gate_Blocks:
+    def test_pipeline_raises_on_conflit_detecte(self, tmp_path):
+        """run_case_data raises PipelineConflitError when conflit_detecte: True in artifact."""
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine, PipelineConflitError, DEFAULT_STEPS
+
+        engine = RuntimeEngine(steps=DEFAULT_STEPS[:1])  # mandat-intake only
+        case = {
+            "dossier_id": "D-GATE-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+        }
+
+        import pytest
+
+        original_payload = engine._artifact_payload
+
+        def patched_payload(step, artifact, case, status, blocking, warnings, valuation_values=None):
+            p = original_payload(step, artifact, case, status, blocking, warnings, valuation_values)
+            if step == "mandat-intake" and artifact == "conflit_interets.json":
+                p["conflit_detecte"] = True
+                p["conflit_motif"] = "Test: conflit injecte"
+            return p
+
+        engine._artifact_payload = patched_payload
+
+        with pytest.raises(PipelineConflitError, match="Test: conflit injecte"):
+            engine.run_case_data(case, tmp_path, source_fixture="test", case_stem="test", case_subdir=True)
+
+    def test_pipeline_no_exception_when_conflit_false(self, tmp_path):
+        """run_case_data runs normally when conflit_detecte: False."""
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine, DEFAULT_STEPS
+
+        engine = RuntimeEngine(steps=DEFAULT_STEPS[:1])
+        case = {
+            "dossier_id": "D-GATE-OK-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+        }
+        result = engine.run_case_data(case, tmp_path, source_fixture="test", case_stem="test", case_subdir=True)
+        assert result["dossier_id"] == "D-GATE-OK-TEST"
+
+
+# ── TestConflit_ForceOverride ─────────────────────────────────────────────────
+
+class TestConflit_ForceOverride:
+    def test_force_conflit_continue_bypasses_gate(self, tmp_path):
+        """force_conflit_continue: True lets pipeline continue despite conflit_detecte."""
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine, DEFAULT_STEPS
+
+        engine = RuntimeEngine(steps=DEFAULT_STEPS[:1])
+        case = {
+            "dossier_id": "D-OVERRIDE-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "date_reference": "2026-05-13",
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+            "force_conflit_continue": True,
+        }
+
+        original_payload = engine._artifact_payload
+
+        def patched_payload(step, artifact, case, status, blocking, warnings, valuation_values=None):
+            p = original_payload(step, artifact, case, status, blocking, warnings, valuation_values)
+            if step == "mandat-intake" and artifact == "conflit_interets.json":
+                p["conflit_detecte"] = True
+                p["conflit_motif"] = "Test: conflit injecte"
+            return p
+
+        engine._artifact_payload = patched_payload
+
+        result = engine.run_case_data(case, tmp_path, source_fixture="test", case_stem="test", case_subdir=True)
+        assert result["dossier_id"] == "D-OVERRIDE-TEST"
