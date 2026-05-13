@@ -322,7 +322,7 @@ def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case:
 
     if artifact == "conflit_interets.json":
         commanditaire = case.get("commanditaire", {})
-        nom_cmd = str(commanditaire.get("nom", "[COMMANDITAIRE]"))
+        nom_cmd = str(commanditaire.get("nom", "") or "[COMMANDITAIRE]")
         org_cmd = str(commanditaire.get("organisation", ""))
         fin_eval = str(commanditaire.get("fin_evaluation", "non specifie"))
         return base + (
@@ -396,10 +396,11 @@ class RuntimeEngine:
             )
             result = (resp.choices[0].message.content or "").strip()
             if result:
-                if artifact == "conflit_interets.json" and result.startswith("CONFLIT_DETECTE:"):
-                    first_line = result.split("\n")[0]
-                    motif = first_line.replace("CONFLIT_DETECTE:", "").strip()
-                    return {**payload, target_field: result, "conflit_detecte": True, "conflit_motif": motif}
+                if artifact == "conflit_interets.json":
+                    _first_line = next((l.strip() for l in result.splitlines() if l.strip()), "")
+                    if _first_line.startswith("CONFLIT_DETECTE:"):
+                        motif = _first_line.replace("CONFLIT_DETECTE:", "").strip()
+                        return {**payload, target_field: result, "conflit_detecte": True, "conflit_motif": motif}
                 return {**payload, target_field: result}
         except Exception:
             pass  # LLM enrichment is optional — never block pipeline
@@ -578,7 +579,7 @@ class RuntimeEngine:
             date_ref = case.get("date_reference", "—")
             dossier_id = case.get("dossier_id", "—")
             commanditaire = case.get("commanditaire", {})
-            nom_cmd = str(commanditaire.get("nom", "[COMMANDITAIRE]")) if commanditaire else "[COMMANDITAIRE]"
+            nom_cmd = str(commanditaire.get("nom", "") or "[COMMANDITAIRE]") if commanditaire else "[COMMANDITAIRE]"
             org_cmd = str(commanditaire.get("organisation", "")) if commanditaire else ""
             cmd_label = f"{nom_cmd} — {org_cmd}" if org_cmd else nom_cmd
             fin_eval = str(commanditaire.get("fin_evaluation", "non specifie")).replace("_", " ") if commanditaire else "non specifie"
