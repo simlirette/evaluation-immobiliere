@@ -476,7 +476,7 @@ class TestCommanditaireInCase:
         from api import load_case_from_body
         case, _ = load_case_from_body({})
         # commanditaire key absent — no crash, no injection
-        assert "commanditaire" not in case or case.get("commanditaire") == {}
+        assert "commanditaire" not in case
 
     def test_commanditaire_nom_default_placeholder(self):
         import sys
@@ -652,3 +652,93 @@ class TestConflit_ForceOverride:
 
         result = engine.run_case_data(case, tmp_path, source_fixture="test", case_stem="test", case_subdir=True)
         assert result["dossier_id"] == "D-OVERRIDE-TEST"
+
+
+# ── TestConflitLLMParsing ─────────────────────────────────────────────────────
+
+class TestConflitLLMParsing:
+    def _make_mock_openai(self, llm_response: str):
+        """Build a mock openai module whose OpenAI().chat.completions.create() returns llm_response."""
+        import unittest.mock
+        mock_resp = unittest.mock.MagicMock()
+        mock_resp.choices[0].message.content = llm_response
+        mock_client = unittest.mock.MagicMock()
+        mock_client.chat.completions.create.return_value = mock_resp
+        mock_openai_module = unittest.mock.MagicMock()
+        mock_openai_module.OpenAI.return_value = mock_client
+        return mock_openai_module
+
+    def test_conflit_detecte_set_on_sentinel_prefix(self):
+        """_enrich_artifact_llm sets conflit_detecte: True when LLM returns CONFLIT_DETECTE: prefix."""
+        import sys
+        import os
+        import unittest.mock
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine, RuntimeStep
+
+        engine = RuntimeEngine()
+        payload = {
+            "dossier_id": "D-LLM-TEST",
+            "step": "mandat-intake",
+            "artifact": "conflit_interets.json",
+            "conflit_detecte": False,
+            "verification_completee": True,
+            "commentaire": "V0 deterministe.",
+            "analyse_conflit": "",
+        }
+        case = {"dossier_id": "D-LLM-TEST", "type_bien": "residentiel_unifamilial"}
+        step = RuntimeStep(
+            name="mandat-intake",
+            reads=[],
+            writes=["conflit_interets.json"],
+            skills=[],
+            agent_config="AGENTCONFIG-MANDAT-INTAKE-V0.yaml",
+        )
+        llm_response = "CONFLIT_DETECTE: Lien familial avec le vendeur\n\nAnalyse détaillée..."
+        mock_openai = self._make_mock_openai(llm_response)
+
+        with unittest.mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with unittest.mock.patch.dict(sys.modules, {"openai": mock_openai}):
+                result = engine._enrich_artifact_llm(step, "conflit_interets.json", payload, case)
+
+        assert result["conflit_detecte"] is True
+        assert result["conflit_motif"] == "Lien familial avec le vendeur"
+        assert result["analyse_conflit"] == llm_response
+
+    def test_no_conflit_when_llm_returns_normal_response(self):
+        """_enrich_artifact_llm leaves conflit_detecte: False when LLM returns normal text."""
+        import sys
+        import os
+        import unittest.mock
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import RuntimeEngine, RuntimeStep
+
+        engine = RuntimeEngine()
+        payload = {
+            "dossier_id": "D-LLM-OK-TEST",
+            "step": "mandat-intake",
+            "artifact": "conflit_interets.json",
+            "conflit_detecte": False,
+            "verification_completee": True,
+            "commentaire": "V0 deterministe.",
+            "analyse_conflit": "",
+        }
+        case = {"dossier_id": "D-LLM-OK-TEST", "type_bien": "residentiel_unifamilial"}
+        step = RuntimeStep(
+            name="mandat-intake",
+            reads=[],
+            writes=["conflit_interets.json"],
+            skills=[],
+            agent_config="AGENTCONFIG-MANDAT-INTAKE-V0.yaml",
+        )
+        llm_response = "Aucun conflit détecté. L'évaluateur est indépendant de toutes les parties."
+        mock_openai = self._make_mock_openai(llm_response)
+
+        with unittest.mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with unittest.mock.patch.dict(sys.modules, {"openai": mock_openai}):
+                result = engine._enrich_artifact_llm(step, "conflit_interets.json", payload, case)
+
+        assert result["conflit_detecte"] is False
+        assert result["analyse_conflit"] == llm_response
