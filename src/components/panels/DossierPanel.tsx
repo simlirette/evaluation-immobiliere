@@ -41,11 +41,25 @@ const LAUNCH_STEPS = [
   { label: 'Génération du rapport…', delay: 14000 },
 ]
 
+const FIN_EVAL_OPTIONS = [
+  { value: 'hypothecaire', label: 'Hypothécaire / financement' },
+  { value: 'succession', label: 'Succession / liquidation' },
+  { value: 'litige', label: 'Litige judiciaire' },
+  { value: 'assurance', label: 'Valeur assurable' },
+  { value: 'commercial', label: 'Investissement commercial' },
+  { value: 'expropriation', label: 'Expropriation' },
+  { value: 'autre', label: 'Autre' },
+]
+
 function NewDossierForm() {
   const router = useRouter()
+  const [formStep, setFormStep] = useState<1 | 2>(1)
   const [address, setAddress] = useState('Dossier pilote residentiel')
   const [propertyType, setPropertyType] = useState('Residentiel unifamilial')
   const [neighborhood, setNeighborhood] = useState('Zone anonymisee')
+  const [cmdNom, setCmdNom] = useState('')
+  const [cmdOrg, setCmdOrg] = useState('')
+  const [cmdFin, setCmdFin] = useState('hypothecaire')
   const [loading, setLoading] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
@@ -58,6 +72,7 @@ function NewDossierForm() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!address.trim() || !propertyType.trim() || !neighborhood.trim()) return
+    if (!cmdNom.trim()) return
     setLoading(true)
     setStepIndex(0)
     setError('')
@@ -73,6 +88,11 @@ function NewDossierForm() {
         address: address.trim(),
         property_type: propertyType.trim(),
         neighborhood: neighborhood.trim(),
+        commanditaire: {
+          nom: cmdNom.trim(),
+          organisation: cmdOrg.trim(),
+          fin_evaluation: cmdFin,
+        },
       })
       router.push(`/dossier/${dossier.slug}?tab=dossier`)
     } catch (err) {
@@ -88,6 +108,13 @@ function NewDossierForm() {
     border: '1px solid var(--input-border)',
   }
 
+  const selectStyle = {
+    background: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none' as const,
+  }
+
   return (
     <div className="w-full max-w-[520px] flex flex-col gap-6 pb-9">
       <div className="text-center">
@@ -98,7 +125,9 @@ function NewDossierForm() {
           Nouveau dossier
         </div>
         <p className="mt-1 text-[13px] text-[#8a8780]">
-          Lance un dossier pilote dans le backend runtime et ouvre les agents AI.
+          {formStep === 1
+            ? 'Lance un dossier pilote dans le backend runtime et ouvre les agents AI.'
+            : 'Identifiez le commanditaire du mandat.'}
         </p>
       </div>
 
@@ -110,7 +139,6 @@ function NewDossierForm() {
 
       {loading ? (
         <div className="flex flex-col gap-3 py-2">
-          {/* Progress bar */}
           <div className="w-full h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--input-bg)' }}>
             <div
               className="h-full rounded-full transition-all duration-700 ease-out"
@@ -120,7 +148,6 @@ function NewDossierForm() {
               }}
             />
           </div>
-          {/* Step list */}
           <div className="flex flex-col gap-1.5">
             {LAUNCH_STEPS.map((step, i) => (
               <div
@@ -138,8 +165,8 @@ function NewDossierForm() {
             ))}
           </div>
         </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      ) : formStep === 1 ? (
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[12px] text-[#8a8780] font-medium">Nom du dossier</label>
             <input
@@ -178,12 +205,76 @@ function NewDossierForm() {
           </div>
 
           <button
-            type="submit"
+            type="button"
+            onClick={() => {
+              if (address.trim() && propertyType.trim() && neighborhood.trim()) {
+                setFormStep(2)
+              }
+            }}
             className="mt-1 w-full rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
             style={{ background: '#334155' }}
           >
-            Lancer le dossier pilote
+            Suivant →
           </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] text-[#8a8780] font-medium">Nom du commanditaire <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              required
+              placeholder="ex. Banque Nationale"
+              value={cmdNom}
+              onChange={e => setCmdNom(e.target.value)}
+              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] text-[#8a8780] font-medium">Organisation <span className="text-[#b5b2ac]">(optionnel)</span></label>
+            <input
+              type="text"
+              placeholder="ex. Financement immobilier"
+              value={cmdOrg}
+              onChange={e => setCmdOrg(e.target.value)}
+              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] text-[#8a8780] font-medium">Fin d&apos;évaluation</label>
+            <select
+              value={cmdFin}
+              onChange={e => setCmdFin(e.target.value)}
+              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+              style={selectStyle}
+            >
+              {FIN_EVAL_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => setFormStep(1)}
+              className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
+              style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+            >
+              ← Retour
+            </button>
+            <button
+              type="submit"
+              className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+              style={{ background: '#334155' }}
+            >
+              Lancer le dossier
+            </button>
+          </div>
         </form>
       )}
     </div>
@@ -206,6 +297,9 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   } | null
   const [mandat, setMandat] = useState<MandatData>(null)
 
+  type ConflitData = { detecte: boolean; motif: string } | null
+  const [conflit, setConflitData] = useState<ConflitData>(null)
+
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
@@ -217,6 +311,7 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
       setDocuments(docs)
       setChips(facts)
       setMandat(appState.active?.mandat ?? null)
+      setConflitData(appState.active?.conflit ?? null)
       setLoading(false)
     })
   }, [dossierId])
@@ -277,6 +372,14 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
+        {conflit?.detecte && (
+          <AgentMessage agentName="Agent Mandat">
+            <div className="rounded-[8px] px-3 py-2 text-[12px] text-red-700 bg-red-50/80 border border-red-200/60">
+              {'Conflit d\u2019int\u00e9r\u00eats d\u00e9tect\u00e9\u00a0\u2014 pipeline arr\u00eat\u00e9'}
+              {conflit.motif && <div className="mt-1 opacity-80">{conflit.motif}</div>}
+            </div>
+          </AgentMessage>
+        )}
         {chips.length > 0 && (
           <AgentMessage agentName="Agent Dossier">
             {'J\u2019ai charg\u00e9 les faits produits par le backend runtime.'}
