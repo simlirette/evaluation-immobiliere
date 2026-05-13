@@ -1196,6 +1196,26 @@ def start_runtime(body: dict) -> dict:
     case_input_path = session_dir / f"{case_key}.input.json"
     write_json(case_input_path, case)
 
+    # ── Ingestion documents uploadés (non-bloquant) ──────────────────────────
+    if session.get("uploaded_documents"):
+        try:
+            from engine.ingestion import ingest_uploaded_documents as _ingest
+            _fields = _ingest(session, os.environ.get("OPENAI_API_KEY"))
+            for k, v in _fields.items():
+                if v is not None and not case.get(k):
+                    case[k] = v
+            # Textes bruts disponibles pour enrichissement LLM de fiche_bien.json
+            case["ingested_docs"] = [
+                {
+                    "filename": d.get("filename", ""),
+                    "extracted_text": d.get("extracted_text", ""),
+                }
+                for d in session.get("uploaded_documents", [])
+                if d.get("extracted_text")
+            ]
+        except Exception:
+            pass  # ingestion is optional — never block pipeline
+
     steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
     engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
     try:
