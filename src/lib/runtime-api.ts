@@ -17,6 +17,10 @@ export interface AppState {
       methodes_requises: string[]
       methode_preponderante: string
     } | null
+    conflit: {
+      detecte: boolean
+      motif: string
+    } | null
     comparables: Comparable[]
     adjustments: Adjustment[]
     valuation: {
@@ -58,6 +62,11 @@ export interface CreateRuntimeDossierInput {
   address: string
   property_type: string
   neighborhood: string
+  commanditaire?: {
+    nom: string
+    organisation: string
+    fin_evaluation: string
+  }
 }
 
 interface RuntimeMessageResponse {
@@ -121,6 +130,7 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
       display_name: input.address,
       property_type: input.property_type,
       neighborhood: input.neighborhood,
+      ...(input.commanditaire ? { commanditaire: input.commanditaire } : {}),
     }),
   })
   const dossier = payload.state.active?.dossier
