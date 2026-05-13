@@ -16,7 +16,7 @@ Batch 5 terminé. En attente review utilisateur avant Batch 6.
 - Batch 6: plan NON encore écrit
 
 ## Evidence
-- 76 tests pass
+- 78 tests pass
 - Pipeline : mandat-intake(1) → data-facts(2) → amu-analyst(3) → comps-market(4) → valuation-draft(5) → compliance-qa(6) → redaction(7)
 - Gate conflit actif après mandat-intake : PipelineConflitError → status CONFLIT_DETECTE
 
