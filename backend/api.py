@@ -18,7 +18,7 @@ import json
 import os
 import uuid
 
-from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml, safe_path_id
+from engine.runtime import RuntimeEngine, PipelineConflitError, load_steps_from_pipeline_yaml, safe_path_id
 from engine.orchestrator import PlanOrchestrator, classify_dossier, load_plan_for_mandat
 
 
@@ -158,7 +158,19 @@ def load_case_from_body(body: dict) -> tuple[dict, str]:
     if not fixture_path.exists():
         raise FileNotFoundError(f"fixture introuvable: {fixture_name}")
 
-    return json.loads(fixture_path.read_text(encoding="utf-8")), fixture_name
+    case = json.loads(fixture_path.read_text(encoding="utf-8"))
+    source_fixture = fixture_name
+
+    # Injecter commanditaire dans le case si fourni dans le body
+    if body.get("commanditaire") and isinstance(body["commanditaire"], dict):
+        _cmd = body["commanditaire"]
+        case["commanditaire"] = {
+            "nom": str(_cmd.get("nom", "") or "[COMMANDITAIRE]"),
+            "organisation": str(_cmd.get("organisation", "") or ""),
+            "fin_evaluation": str(_cmd.get("fin_evaluation", "") or "non_specifie"),
+        }
+
+    return case, source_fixture
 
 
 def list_fixtures() -> list[dict[str, object]]:
@@ -814,6 +826,10 @@ def app_workflow(summary: dict, dossier: dict, package: dict, assistant: dict) -
 
 def app_session_view(session_id: str) -> dict:
     summary = session_summary(session_id)
+    _artifact_index = session_artifacts(session_id)
+    _conflit_data = read_artifact_json_from_index(
+        summary.get("session", {}), _artifact_index, "mandat-intake", "conflit_interets.json"
+    )
     dossier = dossier_review_summary(session_id)
     knowledge = knowledge_immobilier_summary(session_id)
     assistant = assistant_workbench(session_id)
@@ -872,6 +888,10 @@ def app_session_view(session_id: str) -> dict:
             "methodes_requises": session.get("methodes_requises", []),
             "methode_preponderante": session.get("methode_preponderante"),
         } if session.get("mandat_type") else None,
+        "conflit": {
+            "detecte": bool(_conflit_data.get("conflit_detecte", False)),
+            "motif": str(_conflit_data.get("conflit_motif", _conflit_data.get("commentaire", ""))),
+        } if _conflit_data else None,
     }
 
 
@@ -914,7 +934,10 @@ def app_state(session_id: str = "") -> dict:
 
 def app_start_demo(body: dict) -> dict:
     fixture = str(body.get("fixture") or APP_DEFAULT_FIXTURE)
-    started = start_runtime({"fixture": fixture, "strict_mode": True})
+    runtime_body: dict = {"fixture": fixture, "strict_mode": True}
+    if body.get("commanditaire") and isinstance(body["commanditaire"], dict):
+        runtime_body["commanditaire"] = body["commanditaire"]
+    started = start_runtime(runtime_body)
     session_id = str(started.get("session", {}).get("session_id") or "")
     if session_id and any(body.get(key) for key in ("display_name", "property_type", "neighborhood")):
         session = require_session(session_id)
@@ -1175,13 +1198,23 @@ def start_runtime(body: dict) -> dict:
 
     steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
     engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
-    result = engine.run_case_data(
-        case,
-        session_dir / "artifacts",
-        source_fixture=source_fixture,
-        case_stem=case_key,
-        case_subdir=True,
-    )
+    try:
+        result = engine.run_case_data(
+            case,
+            session_dir / "artifacts",
+            source_fixture=source_fixture,
+            case_stem=case_key,
+            case_subdir=True,
+        )
+    except PipelineConflitError as _e:
+        result = {
+            "dossier_id": case.get("dossier_id", ""),
+            "status": "CONFLIT_DETECTE",
+            "blocking_failures": [f"CONFLIT: {_e}"],
+            "warnings": [],
+            "events": [],
+            "artifact_dir": str(session_dir / "artifacts"),
+        }
 
     result_path = session_dir / "result.json"
     events_path = session_dir / "events.jsonl"
