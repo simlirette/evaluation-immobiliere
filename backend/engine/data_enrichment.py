@@ -4,6 +4,8 @@ data_enrichment.py — enrichissement du case depuis sources données externes.
 Sources actives V0 :
   - SCHL marché locatif  : StatCan WDS API, table 34-10-0133-01 (cache 24 h)
   - Rôle municipal Mtl   : CSV MAMH (~72 MB, si data_cache/role_mtl.csv présent)
+  - Rôle municipal XML   : MAMH XML (Qc/Laval/Longueuil/Gatineau/Sherbrooke)
+  - Zonage urbanisme     : GeoJSON open data + Nominatim geocoding + PiP lookup
 
 Tout est non-bloquant : une exception n'interrompt jamais le pipeline.
 """
@@ -615,6 +617,304 @@ def lookup_role_xml(
     return row or {}
 
 
+# ── Geocoding (Nominatim OSM) ─────────────────────────────────────────────────
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_GEOCODE_TTL = 7 * 86_400  # 7 days
+
+
+def _geocode_cache_path(display_name: str, cache_dir: Path) -> Path:
+    import hashlib
+    key = hashlib.md5(display_name.encode("utf-8")).hexdigest()[:12]
+    return cache_dir / f"geo_{key}.json"
+
+
+def geocode_address(display_name: str, cache_dir: Path) -> tuple[float, float] | None:
+    """
+    Geocode via Nominatim OSM. Returns (lat, lng) or None. Cache 7 days.
+
+    Appends ', Québec, Canada' when city not explicit, to bias results.
+    Respects Nominatim's 1 req/s policy — caller must not hammer this.
+    """
+    import httpx  # type: ignore
+
+    cp = _geocode_cache_path(display_name, cache_dir)
+    if cp.exists():
+        try:
+            d = json.loads(cp.read_text(encoding="utf-8"))
+            if time.time() - d.get("_ts", 0) < _GEOCODE_TTL:
+                lat, lng = d.get("lat"), d.get("lng")
+                if lat is not None and lng is not None:
+                    return float(lat), float(lng)
+                return None  # cached "not found"
+        except Exception:
+            pass
+
+    query = display_name.strip()
+    low = query.lower()
+    if "québec" not in low and "quebec" not in low and "canada" not in low:
+        query += ", Québec, Canada"
+
+    try:
+        r = httpx.get(
+            _NOMINATIM_URL,
+            params={"q": query, "format": "json", "limit": 1},
+            headers={"User-Agent": "eval-immo/1.0 contact=eval-immo@example.com"},
+            timeout=_HTTP_TIMEOUT,
+            follow_redirects=True,
+        )
+        r.raise_for_status()
+        results = r.json()
+    except Exception as exc:
+        logger.debug("geocode_address HTTP failed: %s", exc)
+        return None
+
+    if not results:
+        # Cache negative result
+        cp.parent.mkdir(parents=True, exist_ok=True)
+        cp.write_text(json.dumps({"_ts": time.time(), "lat": None, "lng": None}),
+                      encoding="utf-8")
+        return None
+
+    lat = float(results[0]["lat"])
+    lng = float(results[0]["lon"])
+    cp.parent.mkdir(parents=True, exist_ok=True)
+    cp.write_text(json.dumps({"_ts": time.time(), "lat": lat, "lng": lng}),
+                  encoding="utf-8")
+    return lat, lng
+
+
+# ── Zonage urbanisme (GeoJSON open data + PiP) ────────────────────────────────
+
+# city_code → CKAN config + rough bounding box [minlng, minlat, maxlng, maxlat]
+_ZONING_CITIES: dict[str, dict] = {
+    "montreal": {
+        "ckan_api": "https://donnees.montreal.ca/api/3/action",
+        # Try multiple package IDs (open data slugs may change)
+        "package_ids": ["zones-urbanistiques", "zonage", "plan-urbanisme-zones"],
+        "bbox": [-74.05, 45.39, -73.45, 45.75],
+    },
+    # Other cities: add as open data URLs stabilize
+}
+
+# module-level spatial index cache: city_code → list[zone_record]
+_ZONING_INDEX_CACHE: dict[str, list] = {}
+
+
+def _find_ckan_geojson(ckan_api: str, package_id: str) -> str | None:
+    """Find first GeoJSON resource URL in a CKAN package."""
+    import httpx  # type: ignore
+    r = httpx.get(f"{ckan_api}/package_show",
+                  params={"id": package_id}, timeout=10, follow_redirects=True)
+    r.raise_for_status()
+    data = r.json()
+    if not data.get("success"):
+        return None
+    for res in data["result"].get("resources", []):
+        fmt = (res.get("format") or "").lower()
+        url = res.get("url", "")
+        if "geojson" in fmt or url.lower().endswith(".geojson"):
+            return url
+    return None
+
+
+def download_zoning_geojson(city_code: str, cache_dir: Path, force: bool = False) -> Path | None:
+    """
+    Download zoning GeoJSON for a city (discovery via CKAN API).
+    Returns local path or None if unavailable.
+    """
+    import httpx  # type: ignore
+
+    city = _ZONING_CITIES.get(city_code)
+    if not city:
+        return None
+
+    geojson_path = cache_dir / f"zoning_{city_code}.geojson"
+    if geojson_path.exists() and not force:
+        return geojson_path
+
+    # CKAN discovery — try each package ID
+    url: str | None = None
+    for pkg_id in city.get("package_ids", []):
+        try:
+            url = _find_ckan_geojson(city["ckan_api"], pkg_id)
+            if url:
+                break
+        except Exception as exc:
+            logger.debug("CKAN discovery %s / %s failed: %s", city_code, pkg_id, exc)
+
+    if not url:
+        logger.debug("No GeoJSON URL found for zoning %s", city_code)
+        return None
+
+    logger.info("Downloading zoning GeoJSON %s …", city_code)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with httpx.stream("GET", url, timeout=300, follow_redirects=True) as r:
+            r.raise_for_status()
+            with geojson_path.open("wb") as fh:
+                for chunk in r.iter_bytes(chunk_size=256 * 1024):
+                    fh.write(chunk)
+    except Exception as exc:
+        logger.debug("Zoning download failed: %s", exc)
+        if geojson_path.exists():
+            geojson_path.unlink()
+        return None
+
+    logger.info("Zoning %s downloaded: %.1f MB", city_code,
+                geojson_path.stat().st_size / 1e6)
+    return geojson_path
+
+
+def _simplify_ring(ring: list, max_pts: int = 300) -> list:
+    """Downsample a coordinate ring to at most max_pts vertices."""
+    if len(ring) <= max_pts:
+        return ring
+    step = len(ring) / max_pts
+    return [ring[int(i * step)] for i in range(max_pts)]
+
+
+def _pip_exterior(lng: float, lat: float, ring: list) -> bool:
+    """
+    Ray casting point-in-polygon test.
+    ring: list of [lng, lat] pairs (GeoJSON coordinate order).
+    Exterior ring only — holes are ignored (acceptable for zoning lookups).
+    """
+    x, y = lng, lat
+    inside = False
+    n = len(ring)
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if (yi > y) != (yj > y):
+            denom = yj - yi
+            if denom == 0.0:
+                denom = 1e-15
+            if x < (xj - xi) * (y - yi) / denom + xi:
+                inside = not inside
+        j = i
+    return inside
+
+
+def build_zoning_index(geojson_path: Path, index_path: Path) -> int:
+    """
+    Parse a GeoJSON zoning file and write a compact spatial index.
+
+    Index structure (JSON):
+      {
+        "zones": [
+          {
+            "props": {<original GeoJSON properties>},
+            "bbox":  [minlng, minlat, maxlng, maxlat],
+            "ring":  [[lng, lat], ...],   # simplified exterior ring
+          },
+          ...
+        ],
+        "_built_at": <timestamp>,
+        "_count": <int>,
+      }
+
+    Only Polygon / MultiPolygon geometries are indexed.
+    Returns the number of zones indexed.
+    """
+    data = json.loads(geojson_path.read_text(encoding="utf-8"))
+    features = data.get("features") or []
+    zones: list[dict] = []
+
+    for feat in features:
+        geom = feat.get("geometry") or {}
+        props = feat.get("properties") or {}
+        gtype = geom.get("type", "")
+
+        if gtype == "Polygon":
+            polys = [geom["coordinates"]]
+        elif gtype == "MultiPolygon":
+            polys = geom["coordinates"]
+        else:
+            continue
+
+        for poly in polys:
+            if not poly:
+                continue
+            exterior = poly[0]
+            if len(exterior) < 3:
+                continue
+            xs = [p[0] for p in exterior]
+            ys = [p[1] for p in exterior]
+            bbox = [min(xs), min(ys), max(xs), max(ys)]
+            zones.append({
+                "props": props,
+                "bbox": bbox,
+                "ring": _simplify_ring(exterior),
+            })
+
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps({"zones": zones, "_built_at": time.time(), "_count": len(zones)},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Zoning index built: %d zones → %s (%.1f MB)",
+                len(zones), index_path.name, index_path.stat().st_size / 1e6)
+    return len(zones)
+
+
+def lookup_zoning_point(city_code: str, lat: float, lng: float, cache_dir: Path) -> dict:
+    """
+    Return zone properties for the point (lat, lng) in the given city.
+
+    Auto-downloads GeoJSON and builds index if not cached.
+    Returns {} if not found, city unsupported, or any failure.
+    """
+    if city_code not in _ZONING_CITIES:
+        return {}
+
+    index_path = cache_dir / f"zoning_{city_code}_index.json"
+
+    # Build index from GeoJSON if needed
+    if not index_path.exists():
+        geojson_path = cache_dir / f"zoning_{city_code}.geojson"
+        if not geojson_path.exists():
+            try:
+                geojson_path = download_zoning_geojson(city_code, cache_dir)
+            except Exception as exc:
+                logger.debug("Zoning download skip: %s", exc)
+                return {}
+        if geojson_path and geojson_path.exists():
+            try:
+                build_zoning_index(geojson_path, index_path)
+            except Exception as exc:
+                logger.debug("Zoning index build skip: %s", exc)
+                return {}
+
+    if not index_path.exists():
+        return {}
+
+    # Load index into module-level cache
+    global _ZONING_INDEX_CACHE
+    key = str(index_path)
+    if key not in _ZONING_INDEX_CACHE:
+        try:
+            data = json.loads(index_path.read_text(encoding="utf-8"))
+            _ZONING_INDEX_CACHE[key] = data.get("zones", [])
+        except Exception as exc:
+            logger.debug("Zoning index load failed: %s", exc)
+            return {}
+
+    zones = _ZONING_INDEX_CACHE[key]
+
+    # Spatial lookup: bbox pre-filter → PiP on exterior ring
+    for zone in zones:
+        bbox = zone["bbox"]
+        if not (bbox[0] <= lng <= bbox[2] and bbox[1] <= lat <= bbox[3]):
+            continue
+        if _pip_exterior(lng, lat, zone["ring"]):
+            return {"source": f"zonage-{city_code}", **zone["props"]}
+
+    return {}
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -687,3 +987,16 @@ def enrich_case(
             if not case.get("evaluation_municipale_totale") and role.get("valeur_totale"):
                 case["evaluation_municipale_totale"] = role["valeur_totale"]
             logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
+
+    # ── Zonage urbanisme ──────────────────────────────────────────────────────
+    if not case.get("zonage_urbanisme") and display_name:
+        try:
+            coords = geocode_address(display_name, cache_dir)
+            if coords:
+                lat, lng = coords
+                zone_info = lookup_zoning_point(city_code, lat, lng, cache_dir)
+                if zone_info:
+                    case["zonage_urbanisme"] = zone_info
+                    logger.debug("zonage_urbanisme injecté : %s", zone_info)
+        except Exception as exc:
+            logger.debug("zonage skip: %s", exc)

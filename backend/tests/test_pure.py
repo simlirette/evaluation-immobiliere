@@ -1605,3 +1605,241 @@ class TestDataEnrichment_XmlRole:
         assert case.get("role_municipal", {}).get("valeur_totale") == 320000.0
         assert case.get("annee_construction") == 1988
         assert case.get("evaluation_municipale_totale") == 320000.0
+
+
+# ── TestDataEnrichment_Zonage ─────────────────────────────────────────────────
+
+class TestDataEnrichment_Zonage:
+    """Tests for geocoding helpers and zoning PiP lookup."""
+
+    def _import(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.data_enrichment import (
+            _pip_exterior,
+            _simplify_ring,
+            build_zoning_index,
+            lookup_zoning_point,
+            _ZONING_INDEX_CACHE,
+        )
+        return _pip_exterior, _simplify_ring, build_zoning_index, lookup_zoning_point, _ZONING_INDEX_CACHE
+
+    def test_pip_point_inside_square(self):
+        """Point at centre of unit square → inside."""
+        _pip_exterior, *_ = self._import()
+        ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]
+        assert _pip_exterior(0.5, 0.5, ring) is True
+
+    def test_pip_point_outside_square(self):
+        """Point clearly outside square → False."""
+        _pip_exterior, *_ = self._import()
+        ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]
+        assert _pip_exterior(2.0, 2.0, ring) is False
+
+    def test_pip_point_outside_left(self):
+        """Point to the left of square → False."""
+        _pip_exterior, *_ = self._import()
+        ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]
+        assert _pip_exterior(-0.5, 0.5, ring) is False
+
+    def test_simplify_ring_keeps_short(self):
+        """Ring shorter than max_pts returned unchanged."""
+        _, _simplify_ring, *_ = self._import()
+        ring = [[float(i), 0.0] for i in range(10)]
+        result = _simplify_ring(ring, max_pts=20)
+        assert result == ring
+
+    def test_simplify_ring_downsamples(self):
+        """Ring longer than max_pts is downsampled to ≤ max_pts."""
+        _, _simplify_ring, *_ = self._import()
+        ring = [[float(i), 0.0] for i in range(1000)]
+        result = _simplify_ring(ring, max_pts=100)
+        assert len(result) == 100
+
+    def test_build_zoning_index_polygon(self, tmp_path):
+        """build_zoning_index creates correct index from a simple GeoJSON polygon."""
+        _pip_exterior, _simplify_ring, build_zoning_index, *_ = self._import()
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"ZONE": "RH", "DESCRIPTION": "Résidentiel haute densité"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6],
+                             [-73.6, 45.6], [-73.6, 45.5]]
+                        ],
+                    },
+                }
+            ],
+        }
+        import json
+        gj_path = tmp_path / "zoning_montreal.geojson"
+        gj_path.write_text(json.dumps(geojson), encoding="utf-8")
+        idx_path = tmp_path / "zoning_montreal_index.json"
+
+        count = build_zoning_index(gj_path, idx_path)
+        assert count == 1
+        assert idx_path.exists()
+
+        data = json.loads(idx_path.read_text(encoding="utf-8"))
+        assert data["_count"] == 1
+        zone = data["zones"][0]
+        assert zone["props"]["ZONE"] == "RH"
+        import pytest
+        assert zone["bbox"][0] == pytest.approx(-73.6)
+        assert len(zone["ring"]) >= 4
+
+    def test_build_zoning_index_multipolygon(self, tmp_path):
+        """MultiPolygon with 2 parts → 2 zones in index."""
+        _, _, build_zoning_index, *_ = self._import()
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"ZONE": "C1"},
+                    "geometry": {
+                        "type": "MultiPolygon",
+                        "coordinates": [
+                            [[[-73.7, 45.4], [-73.6, 45.4], [-73.6, 45.5],
+                              [-73.7, 45.5], [-73.7, 45.4]]],
+                            [[[-73.5, 45.4], [-73.4, 45.4], [-73.4, 45.5],
+                              [-73.5, 45.5], [-73.5, 45.4]]],
+                        ],
+                    },
+                }
+            ],
+        }
+        import json
+        gj_path = tmp_path / "zoning_montreal.geojson"
+        gj_path.write_text(json.dumps(geojson), encoding="utf-8")
+        idx_path = tmp_path / "zoning_montreal_index.json"
+        count = build_zoning_index(gj_path, idx_path)
+        assert count == 2
+
+    def test_lookup_zoning_point_hit(self, tmp_path):
+        """Point inside a zone polygon → returns zone props."""
+        import json
+        from engine import data_enrichment
+        _pip_exterior, _simplify_ring, build_zoning_index, lookup_zoning_point, _ZONING_INDEX_CACHE = self._import()
+
+        # Clear module cache to avoid stale entries from other tests
+        _ZONING_INDEX_CACHE.clear()
+
+        # Temporarily add "testville" to _ZONING_CITIES
+        from engine import data_enrichment as de
+        de._ZONING_CITIES["testville"] = {"bbox": [-74.0, 45.0, -73.0, 46.0]}
+
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"ZONE": "RM", "DESCRIPTION": "Résidentiel moyen"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6],
+                             [-73.6, 45.6], [-73.6, 45.5]]
+                        ],
+                    },
+                }
+            ],
+        }
+        gj_path = tmp_path / "zoning_testville.geojson"
+        gj_path.write_text(json.dumps(geojson), encoding="utf-8")
+        idx_path = tmp_path / "zoning_testville_index.json"
+        build_zoning_index(gj_path, idx_path)
+
+        # Point inside the polygon
+        result = lookup_zoning_point("testville", 45.55, -73.55, tmp_path)
+        assert result.get("ZONE") == "RM"
+        assert result.get("source") == "zonage-testville"
+
+        # Cleanup
+        del de._ZONING_CITIES["testville"]
+
+    def test_lookup_zoning_point_miss(self, tmp_path):
+        """Point outside all zones → returns {}."""
+        import json
+        from engine import data_enrichment as de
+
+        de._ZONING_INDEX_CACHE.clear()
+        de._ZONING_CITIES["testville2"] = {"bbox": [-74.0, 45.0, -73.0, 46.0]}
+
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"ZONE": "RM"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6],
+                             [-73.6, 45.6], [-73.6, 45.5]]
+                        ],
+                    },
+                }
+            ],
+        }
+        gj_path = tmp_path / "zoning_testville2.geojson"
+        gj_path.write_text(json.dumps(geojson), encoding="utf-8")
+        from engine.data_enrichment import build_zoning_index, lookup_zoning_point
+        build_zoning_index(gj_path, tmp_path / "zoning_testville2_index.json")
+
+        # Point far outside
+        result = lookup_zoning_point("testville2", 46.9, -75.0, tmp_path)
+        assert result == {}
+
+        del de._ZONING_CITIES["testville2"]
+
+    def test_lookup_zoning_unsupported_city(self, tmp_path):
+        """Unsupported city_code → {} with no error."""
+        from engine.data_enrichment import lookup_zoning_point
+        result = lookup_zoning_point("mars", 45.5, -73.5, tmp_path)
+        assert result == {}
+
+    def test_enrich_case_injects_zonage(self, tmp_path):
+        """enrich_case with mocked geocoding injects zonage_urbanisme when GeoJSON present."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_zoning_index
+
+        de._ZONING_INDEX_CACHE.clear()
+
+        # Patch geocode_address to return coords inside our test polygon
+        with mock.patch.object(de, "geocode_address", return_value=(45.55, -73.55)):
+            # Add testville3 to supported cities
+            de._ZONING_CITIES["testville3"] = {"bbox": [-74.0, 45.0, -73.0, 46.0]}
+            # Patch detect_city to return testville3
+            with mock.patch.object(de, "detect_city", return_value="testville3"):
+                geojson = {
+                    "type": "FeatureCollection",
+                    "features": [{
+                        "type": "Feature",
+                        "properties": {"ZONE": "I1", "DESCRIPTION": "Industriel léger"},
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[
+                                [-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6],
+                                [-73.6, 45.6], [-73.6, 45.5]
+                            ]],
+                        },
+                    }],
+                }
+                gj_path = tmp_path / "zoning_testville3.geojson"
+                gj_path.write_text(json.dumps(geojson), encoding="utf-8")
+
+                case = {"dossier_id": "D-ZU-TEST"}
+                enrich_case(case, display_name="100 rue Test, TestVille", cache_dir=tmp_path)
+
+                assert case.get("zonage_urbanisme", {}).get("ZONE") == "I1"
+                assert case["zonage_urbanisme"]["source"] == "zonage-testville3"
+
+            del de._ZONING_CITIES["testville3"]

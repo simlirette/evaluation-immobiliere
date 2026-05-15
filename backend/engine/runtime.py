@@ -514,6 +514,12 @@ class RuntimeEngine:
                     k: v for k, v in role.items()
                     if k not in ("source",) and v is not None
                 }
+            if case.get("zonage_urbanisme"):
+                z = case["zonage_urbanisme"]
+                fb["zonage_urbanisme"] = {
+                    k: v for k, v in z.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -567,6 +573,22 @@ class RuntimeEngine:
             type_bien = str(case.get("type_bien", "inconnu")).replace("_", " ")
             zone = str(case.get("zone", "non specifiee"))
             dossier_id = case.get("dossier_id", "—")
+            # Build zonage section from enrichment (if available)
+            zu = case.get("zonage_urbanisme") or {}
+            if zu:
+                zone_code = zu.get("ZONE") or zu.get("CODE_ZONE") or zu.get("zone") or zone
+                zone_desc = zu.get("DESCRIPTION") or zu.get("CATEGORIE_ZONE") or zu.get("NOM_ZONE") or ""
+                zone_usage = zu.get("USAGE_PRINCIPAL") or zu.get("usage") or ""
+                zonage_section = (
+                    f"## Données de zonage (open data)\n\n"
+                    f"Code de zone : **{zone_code}**  \n"
+                    + (f"Description : {zone_desc}  \n" if zone_desc else "")
+                    + (f"Usage principal autorisé : {zone_usage}  \n" if zone_usage else "")
+                    + "\n"
+                )
+            else:
+                zone_code = zone
+                zonage_section = ""
             # Build market data section from enrichment (if available)
             ml = case.get("marche_locatif") or {}
             if ml:
@@ -592,9 +614,10 @@ class RuntimeEngine:
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
                 f"**Type de bien :** {type_bien}  \n"
-                f"**Zone :** {zone}\n\n"
-                f"## Critere 1 — Legalement permis\n\n"
-                f"L'usage de type {type_bien} est conforme au zonage {zone}. "
+                f"**Zone :** {zone_code}\n\n"
+                + zonage_section
+                + f"## Critere 1 — Legalement permis\n\n"
+                f"L'usage de type {type_bien} est conforme au zonage {zone_code}. "
                 f"Aucune restriction legale identifiee.\n\n"
                 f"## Critere 2 — Physiquement possible\n\n"
                 f"Les caracteristiques physiques du terrain et du batiment sont "
