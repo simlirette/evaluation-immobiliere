@@ -1026,24 +1026,60 @@ def validate_contract_rules(artifact: str, payload: dict) -> list[str]:
     return failures
 
 
-_RAPPORT_MAX_TOKENS = 2000
+_RAPPORT_MAX_TOKENS = 4000
 
-_RAPPORT_SYSTEM_PROMPT = (
-    "Tu es un assistant spécialisé en rédaction de rapports d'évaluation immobilière au Canada.\n"
-    "Génère un brouillon de rapport structuré et professionnel en français canadien.\n\n"
+_RAPPORT_SYSTEM_PROMPT_ABREGE = (
+    "Tu es un expert en rédaction de rapports d'évaluation immobilière au Québec, conforme aux normes OEAQ/CUSPAP 2026.\n\n"
+    "Génère un RAPPORT ABRÉGÉ (formulaire) professionnel en Markdown. Format cible : 5-6 pages, "
+    "tous les 16 éléments obligatoires CUSPAP présents.\n\n"
+    "STRUCTURE OBLIGATOIRE (rapport abrégé) :\n"
+    "1. Identification — dossier, mandant, propriétaire, conclusion de valeur, but et fin\n"
+    "2. Généralités — secteur, marché, données municipales, zonage\n"
+    "3. Description — terrain, UMPP (analyse brève), bâtiment (généralités, composantes, finition)\n"
+    "4. Approches de valeur — méthode du coût et/ou de comparaison (3-5 comparables avec ajustements)\n"
+    "5. Réconciliation et attestation — jugement pondéré (jamais une moyenne), valeur en chiffres ET lettres\n"
+    "6. Réserves et hypothèses — clauses standards OEAQ\n\n"
     "RÈGLES ABSOLUES :\n"
+    "- BROUILLON NON CERTIFIÉ bien visible en tête\n"
     "- N'invente aucune donnée non fournie dans le prompt\n"
-    "- Ne prétends jamais que le rapport est certifié ou signé\n"
-    "- Indique clairement le statut BROUILLON NON CERTIFIÉ\n"
-    "- Utilise uniquement les valeurs et comparables fournis\n"
-    "- Format Markdown structuré avec sections numérotées\n\n"
-    "STRUCTURE REQUISE :\n"
-    "1. Identification du bien\n"
-    "2. Conclusion de valeur marchande proposée\n"
-    "3. Réconciliation des approches (tableau)\n"
-    "4. Soutien du marché — comparables retenus\n"
-    "5. Hypothèses et conditions limitatives\n"
-    "6. Mention légale (brouillon IA, validation évaluateur agréé requise)\n"
+    "- Valeur finale en chiffres ET en lettres (ex: 475 000 $ (quatre cent soixante-quinze mille dollars))\n"
+    "- Réconciliation = jugement professionnel pondéré, jamais une moyenne arithmétique\n"
+    "- La méthode du coût ne peut servir aux fins d'assurance\n"
+    "- Justifier tout rejet de méthode (élément 10 CUSPAP)\n"
+    "- Langue : français canadien professionnel\n"
+    "- Format : Markdown avec titres numérotés, tableaux pour comparables et ajustements\n"
+)
+
+_RAPPORT_SYSTEM_PROMPT_COMPLET = (
+    "Tu es un expert en rédaction de rapports d'évaluation immobilière au Québec, conforme aux normes OEAQ/CUSPAP 2026.\n\n"
+    "Génère un RAPPORT NARRATIF COMPLET en Markdown. Format cible : 15+ sections, "
+    "tous les 16 éléments obligatoires CUSPAP.\n\n"
+    "STRUCTURE OBLIGATOIRE (15 sections) :\n"
+    "0. Lettre de transmission — client, objet, conclusion (chiffres + lettres), référence OEAQ\n"
+    "1. Page titre — titre, adresse, référence, date\n"
+    "2. Table des matières\n"
+    "3. Identification de l'immeuble (éléments 1-5) — adresse, cadastre, droits évalués, but/fin, définition valeur, date référence, historique\n"
+    "4. Étendue du travail (élément 6) — visite, collecte, recherches, analyses, vérifications\n"
+    "5. Réserves et hypothèses (élément 7) — 11 clauses standard OEAQ + extraordinaires si applicable\n"
+    "6. Informations générales — ville, secteur, marché, données municipales, zonage, infrastructures\n"
+    "7. Description de l'immeuble (éléments 1, 8) — terrain, UMPP (élément 9), bâtiment (généralités, composantes, finition)\n"
+    "8. Évaluation et analyse (éléments 10, 11) — présentation des 3 méthodes, justification retenues/rejetées\n"
+    "9. Méthode du coût — terrain (comparables $/m²), coût neuf, dépréciations, conclusion\n"
+    "10. Méthode de comparaison — tableau comparables, fiches détaillées, ajustements, taux, conclusion\n"
+    "11. Méthode du revenu — RBP, vacance, RBE, frais, RNE, TGA, capitalisation, conclusion ou justification non-application\n"
+    "12. Réconciliation (élément 13) — résultats, analyse chaque indication, méthode prépondérante, valeur finale\n"
+    "13. Attestation (élément 12) — 7 déclarations OEAQ, inspection, conclusion chiffres+lettres, [SIGNATURE É.A.]\n"
+    "14. Extrait NPP — éléments applicables\n"
+    "15. Annexes (élément 16) — liste pièces jointes\n\n"
+    "RÈGLES ABSOLUES :\n"
+    "- BROUILLON NON CERTIFIÉ bien visible en tête ET à l'attestation\n"
+    "- N'invente aucune donnée non fournie dans le prompt\n"
+    "- Valeur finale en chiffres ET en lettres\n"
+    "- Réconciliation = jugement professionnel pondéré, jamais une moyenne arithmétique\n"
+    "- Attestation avec les 7 déclarations OEAQ (à signer par l'É.A.)\n"
+    "- Justifier tout rejet de méthode (élément 10)\n"
+    "- Langue : français canadien professionnel\n"
+    "- Format : Markdown structuré avec titres numérotés\n"
 )
 
 
@@ -1052,47 +1088,84 @@ def _fmt_cad(value: float) -> str:
     return f"{round(value):,}".replace(",", "\u00a0") + " $"
 
 
-def _build_rapport_prompt(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
+def _build_rapport_prompt_v2(
+    case: dict,
+    format: str,
+    valuation_values: dict,
+    status: str,
+    blocking: list,
+    warnings: list,
+) -> str:
+    """Construit le prompt utilisateur enrichi pour la génération du rapport."""
     surface = case.get("surface", {})
-    surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+    surface_str = (
+        f"{surface.get('value', '—')} {surface.get('unit', 'm²')}"
+        if isinstance(surface, dict)
+        else str(surface or "—")
+    )
+    cmd = case.get("commanditaire", {}) if isinstance(case.get("commanditaire"), dict) else {}
+    format_label = (
+        "Rapport abrégé (formulaire)"
+        if format == "abrege"
+        else "Rapport narratif complet 15 sections CUSPAP"
+    )
     comp_lines = []
     for i, c in enumerate(case.get("comparables", [])[:5], 1):
         price = c.get("prix_vente") or c.get("sale_price")
         price_str = _fmt_cad(float(price)) if price else "—"
+        score = c.get("score", "—")
+        score_str = f"{float(score):.2f}" if isinstance(score, (int, float)) else str(score)
         comp_lines.append(
-            f"  Comparable {i}: prix={price_str}, date={c.get('date_vente', '—')}, "
-            f"source={c.get('source_id', '—')}, score={c.get('score', '—')}"
+            f"  {i}. source={c.get('source_id', '—')} | adresse={c.get('adresse', '—')} | "
+            f"prix={price_str} | date={c.get('date_vente', '—')} | score={score_str}"
         )
-    approach_lines = [
-        f"  - Approche comparative : {_fmt_cad(valuation_values['approche_comparative'])}"
-        if "approche_comparative" in valuation_values else "",
-        f"  - Approche par le coût : {_fmt_cad(valuation_values['approche_cout'])}"
-        if "approche_cout" in valuation_values else "",
-        f"  - Approche par le revenu : {_fmt_cad(valuation_values['approche_revenu'])}"
-        if "approche_revenu" in valuation_values else "",
-    ]
+    approach_lines = []
+    labels = {
+        "approche_comparative": "Approche comparative",
+        "approche_cout": "Approche par le coût",
+        "approche_revenu": "Approche par le revenu",
+    }
+    for key, label in labels.items():
+        if key in valuation_values:
+            approach_lines.append(f"  - {label} : {_fmt_cad(valuation_values[key])}")
     lines = [
-        f"DOSSIER : {case.get('dossier_id', '—')}",
-        f"DATE DE RÉFÉRENCE : {case.get('date_reference', '—')}",
-        f"TYPE DE BIEN : {case.get('type_bien', '—')}",
-        f"ZONE : {case.get('zone', '—')}",
-        f"SURFACE : {surface_str}",
-        f"STATUT CONFORMITÉ : {status}",
+        f"FORMAT: {format} — {format_label}",
+        f"DOSSIER: {case.get('dossier_id', '—')}",
+        f"COMMANDITAIRE: {cmd.get('nom', '—')} — {cmd.get('organisation', '—')}",
+        f"FIN ÉVALUATION: {cmd.get('fin_evaluation', '—')}",
+        f"TYPE MANDAT: {case.get('mandat_type', case.get('type_bien', '—'))}",
+        f"DATE RÉFÉRENCE: {case.get('date_reference', '—')}",
         "",
-        "APPROCHES DE VALEUR :",
-        *[l for l in approach_lines if l],
+        "IDENTIFICATION:",
+        f"  Adresse: {case.get('adresse', case.get('display_name', '—'))}",
+        f"  Type de bien: {case.get('type_bien', '—')}",
+        f"  Zone / secteur: {case.get('zone', '—')}",
+        f"  Surface habitable: {surface_str}",
+        f"  Surface terrain: {case.get('surface_terrain', '—')} m²",
+        f"  Année construction: {case.get('annee_construction', '—')}",
+        f"  Nb logements: {case.get('nb_logements', '—')}",
         "",
-        f"COMPARABLES RETENUS ({len(case.get('comparables', []))}) :",
+        f"APPROCHES DE VALEUR ({len(approach_lines)}):",
+        *approach_lines,
+        "",
+        f"COMPARABLES RETENUS ({len(case.get('comparables', []))}):",
         *comp_lines,
+        "",
+        f"STATUT CONFORMITÉ: {status}",
     ]
     if blocking:
-        lines += ["", f"BLOCAGES ({len(blocking)}) : " + "; ".join(blocking[:3])]
+        lines += [f"BLOCAGES ({len(blocking)}): " + "; ".join(str(b) for b in blocking[:3])]
     if warnings:
-        lines += [f"AVERTISSEMENTS : " + "; ".join(warnings[:3])]
+        lines += [f"AVERTISSEMENTS ({len(warnings)}): " + "; ".join(str(w) for w in warnings[:3])]
+    hypotheses = case.get("hypotheses_explicites") or case.get("hypotheses", [])
+    if hypotheses and isinstance(hypotheses, list):
+        lines += ["", f"HYPOTHÈSES ({len(hypotheses)}):"]
+        for h in hypotheses[:3]:
+            lines.append(f"  - {h}")
     return "\n".join(lines)
 
 
-def _generate_rapport_llm(prompt: str) -> str | None:
+def _generate_rapport_llm(prompt: str, format: str = "abrege") -> str | None:
     """Appelle OpenAI pour générer le rapport. Retourne None si indisponible."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
@@ -1100,11 +1173,14 @@ def _generate_rapport_llm(prompt: str) -> str | None:
     try:
         import openai as _openai  # type: ignore
         client = _openai.OpenAI(api_key=api_key)
+        system_prompt = (
+            _RAPPORT_SYSTEM_PROMPT_COMPLET if format == "complet" else _RAPPORT_SYSTEM_PROMPT_ABREGE
+        )
         resp = client.chat.completions.create(
             model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=_RAPPORT_MAX_TOKENS,
             messages=[
-                {"role": "system", "content": _RAPPORT_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -1222,10 +1298,17 @@ sans validation et signature d'un évaluateur agréé autorisé.
 """
 
 
-def generate_brouillon_rapport(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
+def generate_brouillon_rapport(
+    case: dict,
+    valuation_values: dict,
+    status: str,
+    blocking: list,
+    warnings: list,
+    format: str = "abrege",
+) -> str:
     """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe."""
-    prompt = _build_rapport_prompt(case, valuation_values, status, blocking, warnings)
-    llm_text = _generate_rapport_llm(prompt)
+    prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings)
+    llm_text = _generate_rapport_llm(prompt, format)
     if llm_text:
         disclaimer = (
             "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"

@@ -12,6 +12,8 @@ import {
   generateRuntimePackage,
   sendRuntimeMessage,
   validateRuntimeReview,
+  saveRapport,
+  generateRapport,
 } from '@/lib/runtime-api'
 import type { Comparable, Adjustment, FactChip } from '@/types'
 
@@ -33,6 +35,7 @@ interface RapportState {
   adjustments: Adjustment[]
   factChips: FactChip[]
   valuationValues: Record<string, number>
+  reportText: string
   complianceStatus: string
 }
 
@@ -60,6 +63,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       adjustments: app.active?.adjustments ?? [],
       factChips: app.active?.fact_chips ?? [],
       valuationValues: app.active?.valuation.values ?? {},
+      reportText: app.active?.report.preview ?? '',
       complianceStatus: compliance?.status ?? '',
     })
     setLoading(false)
@@ -97,6 +101,17 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     } finally {
       setBusy('')
     }
+  }
+
+  async function handleSaveReport(content: string) {
+    if (!dossierId) return
+    await saveRapport(dossierId, content)
+  }
+
+  async function handleGenerateReport(format: 'abrege' | 'complet') {
+    if (!dossierId) return
+    const newContent = await generateRapport(dossierId, format)
+    setState(prev => prev ? { ...prev, reportText: newContent } : prev)
   }
 
   if (!dossierId || loading || !state) return <PanelLoader />
@@ -172,6 +187,9 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
           blockingFailures={state.blockingFailures}
           warnings={state.warnings}
           onClose={() => setSplit(false)}
+          reportText={state.reportText}
+          onSave={handleSaveReport}
+          onGenerate={handleGenerateReport}
         />
       )}
     </div>

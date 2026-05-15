@@ -262,3 +262,21 @@ export async function generateRuntimePackage(sessionId: string): Promise<AppStat
   })
   return payload.state
 }
+
+export async function saveRapport(sessionId: string, content: string): Promise<void> {
+  await runtimeJson<{ ok: boolean }>('/app/report', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, content }),
+  })
+}
+
+export async function generateRapport(
+  sessionId: string,
+  format: 'abrege' | 'complet'
+): Promise<string> {
+  const result = await runtimeJson<{ ok: boolean; content: string }>('/app/report/generate', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, format }),
+  })
+  return result.content
+}

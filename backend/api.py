@@ -711,6 +711,59 @@ def app_upload_document(body: dict) -> dict:
     }
 
 
+def app_save_rapport(body: dict) -> dict:
+    """Écrase le contenu de brouillon_rapport.md dans la session."""
+    session_id = str(body.get("session_id", "")).strip()
+    content = str(body.get("content", "")).strip()
+    if not session_id:
+        raise ValueError("session_id requis")
+    if not content:
+        raise ValueError("content requis")
+    session = require_session(session_id)
+    artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
+    if not artifact:
+        raise FileNotFoundError("brouillon_rapport.md introuvable dans la session")
+    _, artifact_path = resolve_session_artifact(
+        session, event_id=str(artifact.get("event_id") or "")
+    )
+    artifact_path.write_text(content, encoding="utf-8")
+    return {"ok": True, "session_id": session_id}
+
+
+def app_generate_rapport(body: dict) -> dict:
+    """Régénère brouillon_rapport.md via LLM (ou fallback déterministe), sauvegarde et retourne le contenu."""
+    from engine.runtime import generate_brouillon_rapport
+    session_id = str(body.get("session_id", "")).strip()
+    format_param = str(body.get("format", "abrege")).strip()
+    if not session_id:
+        raise ValueError("session_id requis")
+    if format_param not in {"abrege", "complet"}:
+        raise ValueError("format doit être 'abrege' ou 'complet'")
+    session = require_session(session_id)
+    dossier = dossier_review_summary(session_id)
+    session_dir = Path(str(session.get("session_dir", "")))
+    dossier_id = str(session.get("dossier_id", "") or dossier.get("dossier_id", ""))
+    case_input_path = session_dir / f"{dossier_id}.input.json"
+    if not case_input_path.exists():
+        raise FileNotFoundError(f"case input introuvable: {case_input_path.name}")
+    case = json.loads(case_input_path.read_text(encoding="utf-8"))
+    valuation_values = dossier.get("valuation", {}).get("values", {}) or {}
+    compliance = dossier.get("compliance", {}) or {}
+    status = str(compliance.get("status", "BROUILLON") or "BROUILLON")
+    blocking = list(compliance.get("blocking_failures", []) or [])
+    warnings = list(compliance.get("warnings", []) or [])
+    rapport_md = generate_brouillon_rapport(
+        case, valuation_values, status, blocking, warnings, format=format_param
+    )
+    artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
+    if artifact:
+        _, artifact_path = resolve_session_artifact(
+            session, event_id=str(artifact.get("event_id") or "")
+        )
+        artifact_path.write_text(rapport_md, encoding="utf-8")
+    return {"ok": True, "content": rapport_md, "session_id": session_id, "format": format_param}
+
+
 def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
     subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
     mandate = knowledge.get("mandate", {}) if isinstance(knowledge.get("mandate"), dict) else {}
@@ -1622,6 +1675,11 @@ def session_artifacts(session_id: str) -> dict:
     session = require_session(session_id)
     artifact_index_path = session.get("artifact_index_path")
     if not artifact_index_path:
+        # fallback: check session_dir/artifact_index.json
+        session_dir = session.get("session_dir", "")
+        fallback = Path(str(session_dir)) / "artifact_index.json" if session_dir else None
+        if fallback and fallback.exists():
+            return json.loads(fallback.read_text(encoding="utf-8"))
         return {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
     path = Path(str(artifact_index_path))
     if not path.exists():
@@ -2956,6 +3014,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("ops_write"):
                     return
                 self._send_json(200, run_pre_response_ops(dry_run=bool(body.get("dry_run", False))))
+                return
+            if self.path == "/app/report":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_save_rapport(body))
+                return
+            if self.path == "/app/report/generate":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_generate_rapport(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:

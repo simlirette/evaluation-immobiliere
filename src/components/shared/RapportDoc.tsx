@@ -1,4 +1,5 @@
 import type { Comparable, Adjustment, FactChip } from '@/types'
+import RapportEditor from '@/components/shared/RapportEditor'
 
 interface Props {
   address?: string
@@ -11,6 +12,9 @@ interface Props {
   blockingFailures: string[]
   warnings: string[]
   onClose: () => void
+  reportText?: string
+  onSave?: (markdown: string) => Promise<void>
+  onGenerate?: (format: 'abrege' | 'complet') => Promise<void>
 }
 
 const APPROACH_LABELS: Record<string, string> = {
@@ -51,24 +55,47 @@ export default function RapportDoc({
   blockingFailures,
   warnings,
   onClose,
+  reportText,
+  onSave,
+  onGenerate,
 }: Props) {
   const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
   const approaches = Object.entries(valuationValues).filter(([, v]) => v > 0)
 
+  const closeButton = (
+    <div className="absolute top-3 right-8 z-10">
+      <button
+        onClick={onClose}
+        className="w-7 h-7 rounded-[7px] flex items-center justify-center bg-transparent border-none cursor-pointer text-[#b5b2ac] hover:text-[#1a1916] hover:bg-black/[.06] transition-colors"
+        title="Fermer"
+      >
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+            d="M20 4L13 11M17 11H13V7M4 20L11 13M7 13H11V17"/>
+        </svg>
+      </button>
+    </div>
+  )
+
+  // Si texte brouillon disponible → éditeur TipTap
+  if (reportText) {
+    return (
+      <div className="flex flex-col flex-1 relative overflow-hidden">
+        {closeButton}
+        <div className="pt-8 flex flex-col flex-1 overflow-hidden">
+          <RapportEditor
+            initialMarkdown={reportText}
+            onSave={onSave ?? (async () => {})}
+            onGenerate={onGenerate ?? (async () => {})}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col flex-1 relative overflow-hidden">
-      <div className="absolute top-3 right-8 z-10">
-        <button
-          onClick={onClose}
-          className="w-7 h-7 rounded-[7px] flex items-center justify-center bg-transparent border-none cursor-pointer text-[#b5b2ac] hover:text-[#1a1916] hover:bg-black/[.06] transition-colors"
-          title="Fermer"
-        >
-          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-              d="M20 4L13 11M17 11H13V7M4 20L11 13M7 13H11V17"/>
-          </svg>
-        </button>
-      </div>
+      {closeButton}
 
       <div className="flex-1 overflow-y-auto px-8 py-10 scroll-fade">
         <div

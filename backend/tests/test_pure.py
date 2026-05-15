@@ -1114,3 +1114,147 @@ class TestLoadCaseBody_ComparablesInjected:
         fixture_comps = list(case_a.get("comparables", []))
         case_b, _ = load_case_from_body({})
         assert case_b.get("comparables", []) == fixture_comps
+
+
+# ── TestBuildRapportPromptV2 ───────────────────────────────────────────────────
+
+class TestBuildRapportPromptV2_IncludesCommanditaire:
+    def test_commanditaire_nom_in_prompt(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import _build_rapport_prompt_v2
+        case = {
+            "dossier_id": "D-TEST",
+            "commanditaire": {
+                "nom": "Jean Tremblay",
+                "organisation": "Banque XYZ",
+                "fin_evaluation": "hypothecaire",
+            },
+            "date_reference": "2026-05-15",
+            "type_bien": "residentiel_unifamilial",
+            "zone": "R-1",
+            "surface": {"value": 120, "unit": "m²"},
+            "comparables": [],
+        }
+        prompt = _build_rapport_prompt_v2(case, "abrege", {}, "BROUILLON", [], [])
+        assert "Jean Tremblay" in prompt
+
+    def test_commanditaire_organisation_in_prompt(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import _build_rapport_prompt_v2
+        case = {
+            "commanditaire": {"nom": "Marie Côté", "organisation": "Caisse Pop", "fin_evaluation": "succession"},
+        }
+        prompt = _build_rapport_prompt_v2(case, "abrege", {}, "BROUILLON", [], [])
+        assert "Caisse Pop" in prompt
+
+
+class TestBuildRapportPromptV2_FormatAbrege:
+    def test_format_abrege_label_in_prompt(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import _build_rapport_prompt_v2
+        case = {"dossier_id": "D-TEST"}
+        prompt = _build_rapport_prompt_v2(case, "abrege", {}, "BROUILLON", [], [])
+        assert "abrege" in prompt.lower() or "abrégé" in prompt.lower()
+
+    def test_format_abrege_not_complet(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import _build_rapport_prompt_v2
+        case = {"dossier_id": "D-TEST"}
+        prompt = _build_rapport_prompt_v2(case, "abrege", {}, "BROUILLON", [], [])
+        assert "narratif complet" not in prompt.lower()
+
+
+class TestBuildRapportPromptV2_FormatComplet:
+    def test_format_complet_label_in_prompt(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import _build_rapport_prompt_v2
+        case = {"dossier_id": "D-TEST"}
+        prompt = _build_rapport_prompt_v2(case, "complet", {}, "BROUILLON", [], [])
+        assert "complet" in prompt.lower() or "narratif" in prompt.lower()
+
+
+class TestGenerateRapportFallbackNoCle:
+    def test_returns_deterministic_string_without_api_key(self, monkeypatch):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import generate_brouillon_rapport
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        case = {
+            "dossier_id": "D-TEST",
+            "type_bien": "residentiel_unifamilial",
+            "zone": "R-1",
+            "date_reference": "2026-05-15",
+            "surface": {"value": 120, "unit": "m²"},
+            "comparables": [],
+        }
+        result = generate_brouillon_rapport(case, {}, "BROUILLON", [], [], format="abrege")
+        assert isinstance(result, str)
+        assert len(result) > 100
+        assert "BROUILLON" in result
+
+    def test_complet_format_also_returns_string(self, monkeypatch):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.runtime import generate_brouillon_rapport
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        case = {"dossier_id": "D-TEST", "type_bien": "immeuble_revenus"}
+        result = generate_brouillon_rapport(case, {}, "BROUILLON", [], [], format="complet")
+        assert isinstance(result, str)
+        assert len(result) > 100
+
+
+class TestSaveRapportContent:
+    def test_writes_content_to_artifact_file(self, tmp_path, monkeypatch):
+        """app_save_rapport écrase le fichier brouillon_rapport.md dans la session."""
+        import sys, json
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import api as api_module
+        monkeypatch.setattr(api_module, "SESSIONS_DIR", tmp_path)
+
+        session_id = "test-session-abc"
+        session_dir = tmp_path / session_id
+        session_dir.mkdir()
+        artifacts_dir = session_dir / "artifacts" / "D-TEST"
+        artifacts_dir.mkdir(parents=True)
+        rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
+        rapport_path.write_text("# Brouillon original\n", encoding="utf-8")
+
+        artifact_index = {
+            "artifacts": [
+                {
+                    "step": "redaction",
+                    "artifact": "brouillon_rapport.md",
+                    "event_id": "evt_001",
+                    "path": str(rapport_path),
+                }
+            ]
+        }
+        (session_dir / "artifact_index.json").write_text(
+            json.dumps(artifact_index), encoding="utf-8"
+        )
+        session_data = {
+            "session_id": session_id,
+            "session_dir": str(session_dir),
+        }
+        (session_dir / "session.json").write_text(
+            json.dumps(session_data), encoding="utf-8"
+        )
+
+        result = api_module.app_save_rapport(
+            {"session_id": session_id, "content": "# Contenu modifié\n\nTexte édité."}
+        )
+        assert result["ok"] is True
+        assert rapport_path.read_text(encoding="utf-8") == "# Contenu modifié\n\nTexte édité."

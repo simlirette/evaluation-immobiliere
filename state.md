@@ -1,11 +1,13 @@
 # State
 
 ## Current Goal
-Batch 6 plan écrit. En attente lancement subagent-driven-development.
+Batch 8a DONE. Prêt pour Batch 8b (export Word/PDF + versioning) ou Batch 9.
 
 ## Decisions
-- Batch 6 design : extraction lazy (pipeline launch), PyMuPDF + GPT-4o Vision fallback, structured fields injection, fixture fields win
-- Spec : docs/specs/2026-05-13-batch6-ingestion-docs.md
+- Batch 7 : saisie manuelle (option A) — pas de scraping ni DB externe pour V0
+- Comparables passent via case["comparables"] (déjà câblé dans runtime.py + tools.py)
+- Step 3 ajouté au wizard DossierPanel (step1: bien, step2: commanditaire, step3: comparables)
+- Spec : docs/specs/2026-05-14-batch7-comparables.md
 
 ## Plan Status
 - Batch 1 (AGENTCONFIG×5 + SKILL.md×20 + LLM enrichment): DONE ✓
@@ -14,11 +16,14 @@ Batch 6 plan écrit. En attente lancement subagent-driven-development.
 - Batch 4 (mandat-intake + FTA skill + frontend): DONE ✓
 - Batch 5 (commanditaire form + LLM conflit + gate): DONE ✓
 - Batch 6 (ingestion-docs): DONE ✓
+- Batch 7 (comparables manuels): DONE ✓
+- Batch 8a (rapport éditeur TipTap + LLM quality): DONE ✓
 
 ## Evidence
-- 94 tests pass
+- 108+ tests pass
 - Pipeline : mandat-intake(1) → data-facts(2) → amu-analyst(3) → comps-market(4) → valuation-draft(5) → compliance-qa(6) → redaction(7)
-- Gate conflit actif après mandat-intake : PipelineConflitError → status CONFLIT_DETECTE
+- runtime.py ligne 624 : search_comparables(case.get("comparables", [])) — déjà câblé
+- CONF002 : 0 comparables → A_REVOIR (blocking, non-crash) — pipeline complète
 
 ## Open Issues
-- APIs Batch 7 (DLC, Centris, MRNF) — user travaille à les obtenir
+- DLC/JLR + Registre foncier : HOLD jusqu'à présentation à évaluateur agréé
