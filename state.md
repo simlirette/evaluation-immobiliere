@@ -30,7 +30,7 @@ Phase A complète. En attente décision auth (Option A: Supabase enforced / Opti
 - Git aligné : master → origin/master + origin/main, GitHub default = main ✓
 - Bug conflit gate fixé : faux positifs LLM (runtime.py + api.py), 115 tests pass ✓
 - Pipeline E2E validé bout-en-bout ✓
-- Auth decision : EN ATTENTE (Option A: Supabase enforced / Option B: local-only)
+- Auth decision : Option B local-only (middleware.ts LOCAL_ONLY=true, SidebarFooter caché) ✓
 
 ## Open Issues
 - Auth model : décision requise avant Phase B
