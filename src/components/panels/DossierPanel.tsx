@@ -10,6 +10,9 @@ import DocItem from '@/components/shared/DocItem'
 import ChatInput from '@/components/shared/ChatInput'
 import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
+import PipelineProgress from '@/components/shared/PipelineProgress'
+import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
+import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
@@ -19,6 +22,7 @@ import type { Document, FactChip, ComparableInput } from '@/types'
 interface Props {
   isNew: boolean
   dossierId: string | null
+  onPipelineComplete?: () => void
 }
 
 interface AssistantReply {
@@ -486,7 +490,7 @@ function NewDossierForm() {
   )
 }
 
-export default function DossierPanel({ isNew, dossierId }: Props) {
+export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: Props) {
   const [chips, setChips] = useState<FactChip[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [showDropZone, setShowDropZone] = useState(false)
@@ -505,6 +509,15 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   type ConflitData = { detecte: boolean; motif: string } | null
   const [conflit, setConflitData] = useState<ConflitData>(null)
 
+  const [isRunning, setIsRunning] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const {
+    steps: pipelineSteps,
+    workflowStatus: liveStatus,
+    error: pipelineError,
+  } = usePipelinePolling(dossierId, isRunning)
+
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
@@ -518,8 +531,28 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
       setMandat(appState.active?.mandat ?? null)
       setConflitData(appState.active?.conflit ?? null)
       setLoading(false)
+      // Démarrer le polling uniquement si le pipeline tourne encore
+      if (!isNew) {
+        const status = (appState.active?.workflow.status as string | null) ?? ''
+        const existingSteps = (appState.active?.workflow.steps ?? []) as PipelineStep[]
+        const allDone = existingSteps.length > 0 && existingSteps.every(s => s.complete)
+        if (!PIPELINE_TERMINAL_STATUSES.has(status) && !allDone) {
+          setIsRunning(true)
+        }
+      }
     })
-  }, [dossierId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossierId, refreshKey])
+
+  useEffect(() => {
+    if (!isRunning) return
+    const allDone = pipelineSteps.length > 0 && pipelineSteps.every(s => s.complete)
+    if (PIPELINE_TERMINAL_STATUSES.has(liveStatus) || allDone) {
+      setIsRunning(false)
+      onPipelineComplete?.()
+      setRefreshKey(k => k + 1)
+    }
+  }, [liveStatus, pipelineSteps, isRunning, onPipelineComplete])
 
   async function handleDrop(files: FileList) {
     if (!dossierId) return
@@ -577,6 +610,13 @@ export default function DossierPanel({ isNew, dossierId }: Props) {
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
+        {isRunning && (
+          <PipelineProgress
+            steps={pipelineSteps}
+            workflowStatus={liveStatus}
+            error={pipelineError}
+          />
+        )}
         {conflit?.detecte && (
           <AgentMessage agentName="Agent Mandat">
             <div className="rounded-[8px] px-3 py-2 text-[12px] text-red-700 bg-red-50/80 border border-red-200/60">

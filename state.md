@@ -1,15 +1,13 @@
 # State
 
 ## Current Goal
-Batch 8b DONE. Prêt pour Batch 9 ou présentation É.A.
+Batch 9 DONE. Prêt pour test end-to-end pipeline É.A.
 
 ## Decisions
-- Batch 8b spec : docs/specs/2026-05-15-batch8b-export-versioning.md
-- Export .docx : python-docx + parser MD custom, watermark toujours injecté
-- Export HTML/PDF : markdown lib → template CSS print A4, browser Ctrl+P
-- Versioning : 100% frontend (Supabase JS) — pas de supabase-py backend
-- Versions : 1ère auto (is_initial=true) + max 5 manuelles = 6 total par session
-- Schéma SQL à exécuter manuellement dans Supabase avant implémentation
+- Batch 9 spec : docs/specs/2026-05-15-batch9-pipeline-liveview-polish.md
+- Pipeline live view : polling /app/state toutes les 2s via usePipelinePolling hook
+- Rapport panel resize : DragHandle custom (no lib), localStorage persist, clamp 280px–80vw
+- UX polish : PanelSkeleton (remplace PanelLoader), erreur pipeline explicite, badge tab Rapport
 
 ## Plan Status
 - Batch 1 (AGENTCONFIG×5 + SKILL.md×20 + LLM enrichment): DONE ✓
@@ -21,10 +19,13 @@ Batch 8b DONE. Prêt pour Batch 9 ou présentation É.A.
 - Batch 7 (comparables manuels): DONE ✓
 - Batch 8a (rapport éditeur TipTap + LLM quality): DONE ✓
 - Batch 8b (export docx/html + versioning Supabase): DONE ✓
+- Batch 9 (pipeline live view + UX polish): DONE ✓
 
 ## Evidence
 - 115 tests pass
 - Pipeline : mandat-intake(1) → data-facts(2) → amu-analyst(3) → comps-market(4) → valuation-draft(5) → compliance-qa(6) → redaction(7)
 
 ## Open Issues
-- DLC/JLR + Registre foncier : HOLD jusqu'à présentation à évaluateur agréé
+- DLC/JLR + Registre foncier : HOLD — rôle d'évaluation foncière municipal envisagé Batch 10+
+- Pipeline jamais testé bout-en-bout — validation qualité É.A. à faire après Batch 9
+- Pipeline à tester end-to-end avec dossier réel avant démo É.A.

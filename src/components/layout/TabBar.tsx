@@ -8,9 +8,10 @@ interface Props {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
   hidden: boolean
+  reportReady?: boolean
 }
 
-export default function TabBar({ activeTab, onTabChange, hidden }: Props) {
+export default function TabBar({ activeTab, onTabChange, hidden, reportReady }: Props) {
   const { groupRef, pillRef } = useTabPill(activeTab)
 
   return (
@@ -56,6 +57,9 @@ export default function TabBar({ activeTab, onTabChange, hidden }: Props) {
             onClick={() => onTabChange(tab.id)}
           >
             {tab.label}
+            {tab.id === 'rapport' && reportReady && (
+              <span className="absolute top-[6px] right-[4px] sm:right-[14px] w-1.5 h-1.5 rounded-full bg-[#1f7a5c]" />
+            )}
           </button>
         ))}
       </div>

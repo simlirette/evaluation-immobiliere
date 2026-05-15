@@ -29,6 +29,7 @@ function DossierShellInner() {
   const [showMesDossiers, setShowMesDossiers] = useState(false)
   const [isNew, setIsNew] = useState(params.id === 'nouveau')
   const [visible, setVisible] = useState(true)
+  const [reportReady, setReportReady] = useState(false)
 
   useEffect(() => {
     if (params.id === 'nouveau') return
@@ -47,6 +48,10 @@ function DossierShellInner() {
       .catch(() => router.push('/dossiers'))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
+
+  useEffect(() => {
+    if (activeTab === 'rapport') setReportReady(false)
+  }, [activeTab])
 
   function setTab(tab: TabId) {
     setShowMesDossiers(false)
@@ -112,6 +117,7 @@ function DossierShellInner() {
           activeTab={activeTab}
           onTabChange={setTab}
           hidden={showMesDossiers}
+          reportReady={reportReady}
         />
 
         <div
@@ -122,7 +128,7 @@ function DossierShellInner() {
           }}
         >
           <div className="absolute inset-0 flex">
-            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} />}
+            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => setReportReady(true)} />}
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} />}
             {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
             {activeTab === 'rapport'  && <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />}

@@ -18,6 +18,7 @@ import {
 import { saveVersion, loadVersions } from '@/lib/rapport-versions'
 import RapportVersionHistory from '@/components/shared/RapportVersionHistory'
 import type { Comparable, Adjustment, FactChip } from '@/types'
+import DragHandle from '@/components/shared/DragHandle'
 
 interface Props {
   dossierId: string | null
@@ -45,6 +46,10 @@ interface RapportState {
 
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [split, setSplit] = useState(false)
+  const [leftWidth, setLeftWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 400
+    return Number(localStorage.getItem('rapport-panel-width') ?? '400') || 400
+  })
   const [state, setState] = useState<RapportState | null>(null)
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState('')
@@ -165,11 +170,29 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     setShowHistory(false)
   }
 
+  function handleDrag(delta: number) {
+    setLeftWidth(w => {
+      const min = 280
+      const max = Math.floor(window.innerWidth * 0.8)
+      return Math.max(min, Math.min(max, w + delta))
+    })
+  }
+
+  function handleDragEnd() {
+    setLeftWidth(w => {
+      localStorage.setItem('rapport-panel-width', String(w))
+      return w
+    })
+  }
+
   if (!dossierId || loading || !state) return <PanelLoader />
 
   return (
     <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
-      <div className={`flex flex-col ${split ? 'flex-[0_0_400px] border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}>
+      <div
+        className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}
+        style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0 } : undefined}
+      >
         <div className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
           <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
@@ -244,24 +267,27 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       </div>
 
       {split && (
-        <RapportDoc
-          address={dossierAddress}
-          valeur={state.conclusion}
-          comparables={state.comparables}
-          adjustments={state.adjustments}
-          factChips={state.factChips}
-          valuationValues={state.valuationValues}
-          complianceStatus={state.complianceStatus}
-          blockingFailures={state.blockingFailures}
-          warnings={state.warnings}
-          onClose={() => setSplit(false)}
-          reportText={state.reportText}
-          onSave={handleSaveReport}
-          onGenerate={handleGenerateReport}
-          sessionId={dossierId ?? ''}
-          dossierId={state.realDossierId}
-          onSaveVersion={handleSaveVersion}
-        />
+        <>
+          <DragHandle onDrag={handleDrag} onDragEnd={handleDragEnd} />
+          <RapportDoc
+            address={dossierAddress}
+            valeur={state.conclusion}
+            comparables={state.comparables}
+            adjustments={state.adjustments}
+            factChips={state.factChips}
+            valuationValues={state.valuationValues}
+            complianceStatus={state.complianceStatus}
+            blockingFailures={state.blockingFailures}
+            warnings={state.warnings}
+            onClose={() => setSplit(false)}
+            reportText={state.reportText}
+            onSave={handleSaveReport}
+            onGenerate={handleGenerateReport}
+            sessionId={dossierId ?? ''}
+            dossierId={state.realDossierId}
+            onSaveVersion={handleSaveVersion}
+          />
+        </>
       )}
     </div>
   )
