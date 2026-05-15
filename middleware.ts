@@ -1,45 +1,24 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// ── AUTH MODE ──────────────────────────────────────────────────────────────────
+// Option B (local-only): middleware passthrough — no auth enforced.
+// To switch to Option A (Supabase enforced): set LOCAL_ONLY = false and
+// configure NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.
+const LOCAL_ONLY = true
 
-export async function middleware(request: NextRequest) {
-  // No Supabase configured → local dev, skip auth enforcement
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return NextResponse.next()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function middleware(_request: NextRequest) {
+  if (LOCAL_ONLY) return NextResponse.next()
 
-  const { pathname } = request.nextUrl
-  const isProtected = pathname.startsWith('/dossiers') || pathname.startsWith('/dossier/')
-  const isLogin = pathname === '/login'
+  // Option A — Supabase auth enforcement (re-enable when LOCAL_ONLY = false)
+  // Uncomment and configure when switching to production auth:
+  //
+  // import { createServerClient } from '@supabase/ssr'
+  // const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  // const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  // ... (see git history for full implementation)
 
-  if (!isProtected && !isLogin) return NextResponse.next()
-
-  let response = NextResponse.next({ request })
-
-  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (cookiesToSet) => {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-        response = NextResponse.next({ request })
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        )
-      },
-    },
-  })
-
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (isProtected && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  if (isLogin && user) {
-    return NextResponse.redirect(new URL('/dossiers', request.url))
-  }
-
-  return response
+  return NextResponse.next()
 }
 
 export const config = {
