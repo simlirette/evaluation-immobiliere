@@ -1,7 +1,7 @@
 # State
 
 ## Current Goal
-Batch 9 DONE. Prêt pour test end-to-end pipeline É.A.
+Phase A complète. En attente décision auth (Option A: Supabase enforced / Option B: local-only).
 
 ## Decisions
 - Batch 9 spec : docs/specs/2026-05-15-batch9-pipeline-liveview-polish.md
@@ -24,8 +24,18 @@ Batch 9 DONE. Prêt pour test end-to-end pipeline É.A.
 ## Evidence
 - 115 tests pass
 - Pipeline : mandat-intake(1) → data-facts(2) → amu-analyst(3) → comps-market(4) → valuation-draft(5) → compliance-qa(6) → redaction(7)
+- E2E validé 2026-05-15 : session f152408cb9f1, valeur 569 122 $, PRET_REVISION_FINALE, 0 blocking failures
+
+## Phase A (2026-05-15) — DONE
+- Git aligné : master → origin/master + origin/main, GitHub default = main ✓
+- Bug conflit gate fixé : faux positifs LLM (runtime.py + api.py), 115 tests pass ✓
+- Pipeline E2E validé bout-en-bout ✓
+- Auth decision : EN ATTENTE (Option A: Supabase enforced / Option B: local-only)
 
 ## Open Issues
-- DLC/JLR + Registre foncier : HOLD — rôle d'évaluation foncière municipal envisagé Batch 10+
-- Pipeline jamais testé bout-en-bout — validation qualité É.A. à faire après Batch 9
-- Pipeline à tester end-to-end avec dossier réel avant démo É.A.
+- Auth model : décision requise avant Phase B
+- Dossier lifecycle réel : create/delete/pin persistants (P0)
+- Sources données : 15+ sources dans informations/ non connectées au pipeline
+- Mobile/responsive : absent
+- CI/CD : GitHub Actions + Playwright E2E non configurés
+- DLC/JLR + Registre foncier : HOLD
