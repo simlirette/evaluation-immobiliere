@@ -1387,3 +1387,104 @@ class TestExportRapport_InvalidFormat:
 
         with pytest.raises(ValueError, match="format"):
             api_module.app_export_rapport({"session_id": session_id, "format": "pdf"})
+
+
+# ── TestDataEnrichment ────────────────────────────────────────────────────────
+
+class TestDataEnrichment_CityDetection:
+    def _detect(self, display_name, zone=""):
+        from engine.data_enrichment import detect_city
+        return detect_city(display_name, zone)
+
+    def test_montreal_explicit(self):
+        assert self._detect("1234 rue Sherbrooke, Montréal") == "montreal"
+
+    def test_plateau_maps_to_montreal(self):
+        assert self._detect("123 Avenue du Parc", zone="plateau-mont-royal") == "montreal"
+
+    def test_laval_maps_to_montreal(self):
+        assert self._detect("456 boul Laval, Laval") == "montreal"
+
+    def test_quebec_city(self):
+        assert self._detect("100 Grande Allée, Québec") == "quebec"
+
+    def test_gatineau(self):
+        assert self._detect("789 boul Maloney, Gatineau") == "gatineau"
+
+    def test_sherbrooke(self):
+        assert self._detect("321 King O, Sherbrooke") == "sherbrooke"
+
+    def test_default_fallback(self):
+        assert self._detect("", zone="SECTEUR-ANONYMISE") == "montreal"
+
+    def test_case_insensitive(self):
+        assert self._detect("MONTREAL") == "montreal"
+
+
+class TestDataEnrichment_EnrichCase:
+    def test_enrich_case_never_raises(self, tmp_path):
+        from engine.data_enrichment import enrich_case
+        case = {"dossier_id": "TEST", "zone": "SECTEUR-X"}
+        # Should not raise even with no network / no CSV
+        enrich_case(case, display_name="9999 rue Inexistante", cache_dir=tmp_path)
+
+    def test_enrich_case_no_side_effect_on_failure(self, tmp_path):
+        from engine.data_enrichment import enrich_case
+        case = {"dossier_id": "TEST", "zone": "SECTEUR-X", "surface": 150.0}
+        enrich_case(case, display_name="", cache_dir=tmp_path)
+        # surface must not be overwritten
+        assert case["surface"] == 150.0
+
+    def test_role_lookup_empty_when_no_csv(self, tmp_path):
+        from engine.data_enrichment import lookup_role_mtl
+        result = lookup_role_mtl(tmp_path / "nonexistent.csv")
+        assert result == {}
+
+    def test_role_lookup_from_csv(self, tmp_path):
+        from engine.data_enrichment import lookup_role_mtl
+        csv_path = tmp_path / "role_mtl.csv"
+        csv_path.write_text(
+            "ID_UEV,CIVIQUE_DEBUT,CIVIQUE_FIN,NOM_RUE,SUITE_DEBUT,ETAGE_HORS_SOL,"
+            "NOMBRE_LOGEMENT,ANNEE_CONSTRUCTION,CODE_UTILISATION,LETTRE_DEBUT,"
+            "LETTRE_FIN,LIBELLE_UTILISATION,CATEGORIE_UEF,MATRICULE83,"
+            "SUPERFICIE_TERRAIN,SUPERFICIE_BATIMENT,NO_ARROND_ILE_CUM,MUNICIPALITE\n"
+            "1234567,1000,1000,RUE SHERBROOKE O,,3,6,1958,1000,,,"
+            "Résidentiel,Régulier,9999-12-3456-7-001-0,312.5,420.0,10,Montréal\n",
+            encoding="utf-8",
+        )
+        result = lookup_role_mtl(csv_path, matricule="9999-12-3456-7-001-0")
+        assert result["annee_construction"] == 1958
+        assert result["nb_logements"] == 6
+        assert result["superficie_terrain_m2"] == 312.5
+
+    def test_role_lookup_by_address(self, tmp_path):
+        from engine.data_enrichment import lookup_role_mtl
+        csv_path = tmp_path / "role_mtl.csv"
+        csv_path.write_text(
+            "ID_UEV,CIVIQUE_DEBUT,CIVIQUE_FIN,NOM_RUE,SUITE_DEBUT,ETAGE_HORS_SOL,"
+            "NOMBRE_LOGEMENT,ANNEE_CONSTRUCTION,CODE_UTILISATION,LETTRE_DEBUT,"
+            "LETTRE_FIN,LIBELLE_UTILISATION,CATEGORIE_UEF,MATRICULE83,"
+            "SUPERFICIE_TERRAIN,SUPERFICIE_BATIMENT,NO_ARROND_ILE_CUM,MUNICIPALITE\n"
+            "1234567,1000,1000,RUE SHERBROOKE O,,3,6,1958,1000,,,"
+            "Résidentiel,Régulier,9999-12-3456-7-001-0,312.5,420.0,10,Montréal\n",
+            encoding="utf-8",
+        )
+        result = lookup_role_mtl(csv_path, display_name="1000 rue Sherbrooke O")
+        assert result["annee_construction"] == 1958
+
+    def test_enrich_case_injects_role_from_csv(self, tmp_path):
+        from engine.data_enrichment import enrich_case
+        csv_path = tmp_path / "role_mtl.csv"
+        csv_path.write_text(
+            "ID_UEV,CIVIQUE_DEBUT,CIVIQUE_FIN,NOM_RUE,SUITE_DEBUT,ETAGE_HORS_SOL,"
+            "NOMBRE_LOGEMENT,ANNEE_CONSTRUCTION,CODE_UTILISATION,LETTRE_DEBUT,"
+            "LETTRE_FIN,LIBELLE_UTILISATION,CATEGORIE_UEF,MATRICULE83,"
+            "SUPERFICIE_TERRAIN,SUPERFICIE_BATIMENT,NO_ARROND_ILE_CUM,MUNICIPALITE\n"
+            "1234567,500,500,AV DU PARC,,2,4,1975,1000,,,"
+            "Résidentiel,Régulier,ABCD-12-3456-7-000-0000,400.0,300.0,10,Montréal\n",
+            encoding="utf-8",
+        )
+        case = {"dossier_id": "TEST", "matricule": "ABCD-12-3456-7-000-0000"}
+        enrich_case(case, display_name="500 av du Parc", cache_dir=tmp_path)
+        assert case.get("role_municipal", {}).get("annee_construction") == 1975
+        assert case.get("annee_construction") == 1975

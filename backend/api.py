@@ -1373,6 +1373,15 @@ def start_runtime(body: dict) -> dict:
         except Exception:
             pass  # ingestion is optional — never block pipeline
 
+    # ── Enrichissement sources données externes (non-bloquant) ───────────────
+    try:
+        from engine.data_enrichment import enrich_case as _enrich
+        _cache_dir = ROOT / "data_cache"
+        _display_name = str(session.get("app_display_name") or "")
+        _enrich(case, display_name=_display_name, cache_dir=_cache_dir)
+    except Exception:
+        pass  # data enrichment is optional — never block pipeline
+
     steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
     engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
     try:

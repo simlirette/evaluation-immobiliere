@@ -496,17 +496,25 @@ class RuntimeEngine:
         }
 
         if step == "data-facts" and artifact == "fiche_bien.json":
-            payload.update(
-                {
-                    "date_reference": case.get("date_reference"),
-                    "surface": case.get("surface"),
-                    "type_bien": case.get("type_bien"),
-                    "zone": case.get("zone"),
-                    "adresse_anonymisee": case.get("adresse_anonymisee", "NON_FOURNIE"),
-                    "confidence": case.get("confidence"),
-                    "source_ids": collect_source_ids(case),
+            fb: dict = {
+                "date_reference": case.get("date_reference"),
+                "surface": case.get("surface"),
+                "type_bien": case.get("type_bien"),
+                "zone": case.get("zone"),
+                "adresse_anonymisee": case.get("adresse_anonymisee", "NON_FOURNIE"),
+                "confidence": case.get("confidence"),
+                "source_ids": collect_source_ids(case),
+            }
+            # Inject enrichment data when available
+            if case.get("annee_construction"):
+                fb["annee_construction"] = case["annee_construction"]
+            if case.get("role_municipal"):
+                role = case["role_municipal"]
+                fb["role_municipal"] = {
+                    k: v for k, v in role.items()
+                    if k not in ("source",) and v is not None
                 }
-            )
+            payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
             payload["events"] = [
@@ -559,6 +567,27 @@ class RuntimeEngine:
             type_bien = str(case.get("type_bien", "inconnu")).replace("_", " ")
             zone = str(case.get("zone", "non specifiee"))
             dossier_id = case.get("dossier_id", "—")
+            # Build market data section from enrichment (if available)
+            ml = case.get("marche_locatif") or {}
+            if ml:
+                ville_ml = ml.get("ville", zone)
+                loyer_1ch = ml.get("loyer_moyen_1ch")
+                loyer_2ch = ml.get("loyer_moyen_2ch")
+                loyer_total = ml.get("loyer_moyen_total")
+                source_ml = ml.get("source", "")
+                marche_section = (
+                    f"## Données marché locatif (SCHL {ville_ml})\n\n"
+                    f"Source : {source_ml}  \n"
+                    + (f"Loyer moyen 1 ch. : {loyer_1ch:,.0f} $/mois  \n" if loyer_1ch else "")
+                    + (f"Loyer moyen 2 ch. : {loyer_2ch:,.0f} $/mois  \n" if loyer_2ch else "")
+                    + (f"Loyer moyen (total) : {loyer_total:,.0f} $/mois\n" if loyer_total else "")
+                    + "\n"
+                )
+            else:
+                marche_section = (
+                    "## Données marché locatif\n\n"
+                    "Données de marché non disponibles pour ce secteur (sources externes non connectées).\n\n"
+                )
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -572,7 +601,8 @@ class RuntimeEngine:
                 f"compatibles avec l'usage de type {type_bien}.\n\n"
                 f"## Critere 3 — Financierement faisable\n\n"
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
-                f"## Critere 4 — Maximalement productif\n\n"
+                + marche_section
+                + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"
                 f"## Conclusion UMPP\n\n"
@@ -632,6 +662,8 @@ class RuntimeEngine:
                     date_reference=case.get("date_reference"),
                 )
             ]
+            if case.get("marche_locatif"):
+                payload["marche_locatif"] = case["marche_locatif"]
 
         if step == "comps-market" and artifact == "justifications_comparables.json":
             payload["justifications"] = [
