@@ -110,11 +110,8 @@ export function fetchAppState(sessionId?: string | null): Promise<AppState> {
 
 export async function fetchRuntimeDossiers(): Promise<Dossier[]> {
   const state = await fetchAppState()
-  const archived = lsGetSet(LS_ARCHIVED)
-  const pinned   = lsGetSet(LS_PINNED)
+  // archived filtered server-side; pinned comes from backend record
   return (state.dossiers ?? [])
-    .filter(d => !archived.has(d.id))
-    .map(d => ({ ...d, pinned: pinned.has(d.id) }))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
 }
 
@@ -140,38 +137,19 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
   return dossier
 }
 
-// ── Local persistence helpers (localStorage — browser only) ──────────────────
-
-const LS_PINNED   = 'eval_immo_pinned'
-const LS_ARCHIVED = 'eval_immo_archived'
-
-function lsGetSet(key: string): Set<string> {
-  if (typeof window === 'undefined') return new Set()
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
-  } catch { return new Set() }
-}
-
-function lsSaveSet(key: string, set: Set<string>) {
-  if (typeof window === 'undefined') return
-  try { localStorage.setItem(key, JSON.stringify([...set])) } catch {}
-}
 
 export function deleteRuntimeDossier(sessionId: string): Promise<void> {
-  // Runtime sessions are immutable audit traces — we archive locally instead of deleting.
-  const archived = lsGetSet(LS_ARCHIVED)
-  archived.add(sessionId)
-  lsSaveSet(LS_ARCHIVED, archived)
-  return Promise.resolve()
+  return runtimeJson('/app/archive', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  }).then(() => undefined)
 }
 
 export function toggleRuntimePin(sessionId: string, currentlyPinned: boolean): Promise<void> {
-  const pinned = lsGetSet(LS_PINNED)
-  if (currentlyPinned) pinned.delete(sessionId)
-  else pinned.add(sessionId)
-  lsSaveSet(LS_PINNED, pinned)
-  return Promise.resolve()
+  return runtimeJson('/app/pin', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, pinned: !currentlyPinned }),
+  }).then(() => undefined)
 }
 
 export async function fetchRuntimeDocuments(sessionId: string): Promise<Document[]> {

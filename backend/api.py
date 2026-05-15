@@ -198,6 +198,10 @@ def load_case_from_body(body: dict) -> tuple[dict, str]:
             if isinstance(r, dict)
         ]
 
+    # Override dossier_id si fourni dans le body (évite que toutes les sessions partagent D-PILOTE-RES-001)
+    if body.get("dossier_id"):
+        case["dossier_id"] = str(body["dossier_id"])
+
     return case, source_fixture
 
 
@@ -260,6 +264,8 @@ def list_session_records(limit: int = 50) -> list[dict]:
             continue
         if not isinstance(session, dict):
             continue
+        if session.get("archived"):
+            continue
         sessions.append(session_workbench_record(session))
     sessions.sort(key=lambda item: str(item.get("updated_at_utc") or ""), reverse=True)
     return sessions[: max(0, limit)]
@@ -314,6 +320,8 @@ def session_workbench_record(session: dict) -> dict:
         "app_display_name": session.get("app_display_name", ""),
         "app_property_type": session.get("app_property_type", ""),
         "app_neighborhood": session.get("app_neighborhood", ""),
+        "pinned": bool(session.get("pinned", False)),
+        "archived": bool(session.get("archived", False)),
     }
 
 
@@ -600,12 +608,33 @@ def app_dossier_card_from_record(record: dict) -> dict:
         "neighborhood": str(record.get("app_neighborhood") or record.get("status") or "Session"),
         "status": app_status_label(record),
         "updatedAt": app_date_label(record.get("updated_at_utc")) or "Session locale",
-        "pinned": record.get("package_status") == "PRET_REVUE_EVALUATEUR_AGREE",
+        "pinned": bool(record.get("pinned", False)),
         "runtime_status": record.get("status", "UNKNOWN"),
         "review_decision": record.get("review_decision", "A_SAISIR"),
         "package_status": record.get("package_status", "ABSENT"),
         "next_action": record.get("next_action", ""),
     }
+
+
+def app_pin_dossier(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    pinned = bool(body.get("pinned", True))
+    session = require_session(session_id)
+    session["pinned"] = pinned
+    save_session(session)
+    return {"ok": True, "session_id": session_id, "pinned": pinned}
+
+
+def app_archive_dossier(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = require_session(session_id)
+    session["archived"] = True
+    save_session(session)
+    return {"ok": True, "session_id": session_id, "archived": True}
 
 
 def app_source_documents(knowledge: dict, session: dict | None = None) -> list[dict]:
@@ -1054,8 +1083,11 @@ def app_state(session_id: str = "") -> dict:
 
 
 def app_start_demo(body: dict) -> dict:
+    import uuid as _uuid
     fixture = str(body.get("fixture") or APP_DEFAULT_FIXTURE)
     runtime_body: dict = {"fixture": fixture, "strict_mode": True}
+    # Générer un dossier_id unique pour chaque session (évite que toutes partagent D-PILOTE-RES-001)
+    runtime_body["dossier_id"] = f"D-{_uuid.uuid4().hex[:8].upper()}"
     if body.get("commanditaire") and isinstance(body["commanditaire"], dict):
         runtime_body["commanditaire"] = body["commanditaire"]
     if body.get("comparables") and isinstance(body["comparables"], list):
@@ -3071,6 +3103,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_export_rapport(body))
+                return
+            if self.path == "/app/pin":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_pin_dossier(body))
+                return
+            if self.path == "/app/archive":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_archive_dossier(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:
