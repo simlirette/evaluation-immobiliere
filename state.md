@@ -48,9 +48,26 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - fiche_bien.json + amu_analyse.md + comparables_proposes.json enrichis
   - Commit: 880b5cf
 
+- B5b rôle municipal autres villes (MAMH XML iterparse — QC/Laval/Longueuil/Gatineau/Sherbrooke) ✓
+  - build_role_xml_index() + lookup_role_xml() + download_role_xml()
+  - valeur_totale → evaluation_municipale_totale (absent du CSV Montréal)
+  - Commit: 3b07e3e
+- B6 zonage urbanisme (Nominatim geocoding + GeoJSON open data + PiP) ✓
+  - geocode_address(): Nominatim OSM, cache 7j
+  - download_zoning_geojson(): CKAN discovery (Montréal open data)
+  - build_zoning_index(): GeoJSON → compact JSON (bbox + ring simplifié 300pts)
+  - _pip_exterior(): ray casting pur Python, pas de dépendance shapely
+  - lookup_zoning_point(): bbox pre-filter + PiP, module-level cache
+  - enrich_case() → case["zonage_urbanisme"] → fiche_bien.json + amu_analyse.md
+  - Commit: 10653c4
+- 145 tests pass
+
 ## Open Issues
-- Sources données : 10 autres sources (StatCan census, zonage, CPTAQ, centris, etc.) — prochaine phase
-- Rôle municipal CSV : besoin de `python -m engine.data_enrichment download_role_mtl` pour activer
+- Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
+- Sources données actives : 9 autres (StatCan census, CPTAQ, centris, etc.) — prochaines phases
+- Pour activer rôle municipal : download_role_mtl() (Mtl CSV) ou download_role_xml('quebec') etc.
+- Mobile/responsive : absent
+- CI/CD : GitHub Actions + Playwright E2E non configurés
 - Mobile/responsive : absent
 - CI/CD : GitHub Actions + Playwright E2E non configurés
 - Sources données : 15+ sources dans informations/ non connectées au pipeline
