@@ -1488,3 +1488,120 @@ class TestDataEnrichment_EnrichCase:
         enrich_case(case, display_name="500 av du Parc", cache_dir=tmp_path)
         assert case.get("role_municipal", {}).get("annee_construction") == 1975
         assert case.get("annee_construction") == 1975
+
+
+class TestDataEnrichment_XmlRole:
+    """Tests for MAMH XML index builder + lookup (autres villes)."""
+
+    def _make_xml(self, tmp_path, entries: list[dict]) -> Path:
+        """Build a minimal MAMH XML with given UEV entries."""
+        rows = []
+        for e in entries:
+            rows.append(f"""  <RLUEx>
+    <RL0101><RL0101x>
+      <RL0101Ax>{e.get('civique','')}</RL0101Ax>
+      <RL0101Ex>{e.get('type_voie','RU')}</RL0101Ex>
+      <RL0101Gx>{e.get('nom_voie','')}</RL0101Gx>
+    </RL0101x></RL0101>
+    <RL0103><RL0103x><RL0103Ax>{e.get('lot','')}</RL0103Ax></RL0103x></RL0103>
+    <RL0104>
+      <RL0104A>{e.get('a','0001')}</RL0104A>
+      <RL0104B>{e.get('b','01')}</RL0104B>
+      <RL0104C>{e.get('c','0001')}</RL0104C>
+      <RL0104D>{e.get('d','1')}</RL0104D>
+    </RL0104>
+    <RL0105A>{e.get('cubf','1000')}</RL0105A>
+    <RL0302A>{e.get('sup_terrain','400')}</RL0302A>
+    <RL0307A>{e.get('annee','1980')}</RL0307A>
+    <RL0308A>{e.get('sup_bat','200')}</RL0308A>
+    <RL0311A>{e.get('logements','2')}</RL0311A>
+    <RL0402A>{e.get('val_terrain','150000')}</RL0402A>
+    <RL0403A>{e.get('val_bat','250000')}</RL0403A>
+    <RL0404A>{e.get('val_totale','400000')}</RL0404A>
+  </RLUEx>""")
+        xml_content = "<ROLE>\n" + "\n".join(rows) + "\n</ROLE>"
+        p = tmp_path / "test_role.xml"
+        p.write_text(xml_content, encoding="utf-8")
+        return p
+
+    def test_build_xml_index_count(self, tmp_path):
+        from engine.data_enrichment import build_role_xml_index
+        xml = self._make_xml(tmp_path, [
+            {"civique": "100", "nom_voie": "GRANDE ALLEE", "annee": "1920",
+             "a": "0023", "b": "01", "c": "0001", "d": "1"},
+            {"civique": "200", "nom_voie": "CHEMIN SAINTE-FOY", "annee": "1965",
+             "a": "0023", "b": "01", "c": "0002", "d": "1"},
+        ])
+        index_path = tmp_path / "idx.json"
+        count = build_role_xml_index(xml, index_path, "quebec")
+        assert count == 2
+        assert index_path.exists()
+
+    def test_xml_index_lookup_by_matricule(self, tmp_path):
+        from engine.data_enrichment import build_role_xml_index, lookup_role_xml
+        xml = self._make_xml(tmp_path, [
+            {"civique": "100", "nom_voie": "GRANDE ALLEE", "annee": "1920",
+             "a": "0023", "b": "01", "c": "0001", "d": "1",
+             "val_totale": "680000", "sup_bat": "350"},
+        ])
+        index_path = tmp_path / "idx.json"
+        build_role_xml_index(xml, index_path, "quebec")
+        result = lookup_role_xml(index_path, matricule="0023-01-0001-1-000-0000")
+        assert result["annee_construction"] == 1920
+        assert result["valeur_totale"] == 680000.0
+        assert result["superficie_batiment_m2"] == 350.0
+
+    def test_xml_index_lookup_by_address(self, tmp_path):
+        from engine.data_enrichment import build_role_xml_index, lookup_role_xml
+        xml = self._make_xml(tmp_path, [
+            {"civique": "500", "type_voie": "AV", "nom_voie": "CARTIER",
+             "annee": "1955", "a": "0081", "b": "02", "c": "0003", "d": "2"},
+        ])
+        index_path = tmp_path / "idx.json"
+        build_role_xml_index(xml, index_path, "gatineau")
+        result = lookup_role_xml(index_path, display_name="500 av Cartier")
+        assert result["annee_construction"] == 1955
+
+    def test_xml_index_missing_returns_empty(self, tmp_path):
+        from engine.data_enrichment import lookup_role_xml
+        result = lookup_role_xml(tmp_path / "nonexistent.json")
+        assert result == {}
+
+    def test_enrich_case_xml_city_builds_index_from_xml(self, tmp_path):
+        from engine.data_enrichment import enrich_case, build_role_xml_index
+        # Simulate pre-downloaded XML for Gatineau
+        xml_entries = [{"civique": "789", "type_voie": "BOUL", "nom_voie": "MALONEY",
+                        "annee": "1988", "a": "0081", "b": "03", "c": "0005", "d": "1",
+                        "val_totale": "320000"}]
+        xml_content = ("<ROLE>\n"
+                       "  <RLUEx>\n"
+                       "    <RL0101><RL0101x>"
+                       "<RL0101Ax>789</RL0101Ax>"
+                       "<RL0101Ex>BOUL</RL0101Ex>"
+                       "<RL0101Gx>MALONEY</RL0101Gx>"
+                       "</RL0101x></RL0101>\n"
+                       "    <RL0103><RL0103x><RL0103Ax>11111</RL0103Ax></RL0103x></RL0103>\n"
+                       "    <RL0104>\n"
+                       "      <RL0104A>0081</RL0104A><RL0104B>03</RL0104B>\n"
+                       "      <RL0104C>0005</RL0104C><RL0104D>1</RL0104D>\n"
+                       "    </RL0104>\n"
+                       "    <RL0105A>1000</RL0105A>\n"
+                       "    <RL0302A>600</RL0302A>\n"
+                       "    <RL0307A>1988</RL0307A>\n"
+                       "    <RL0308A>180</RL0308A>\n"
+                       "    <RL0311A>1</RL0311A>\n"
+                       "    <RL0402A>80000</RL0402A>\n"
+                       "    <RL0403A>240000</RL0403A>\n"
+                       "    <RL0404A>320000</RL0404A>\n"
+                       "  </RLUEx>\n"
+                       "</ROLE>\n")
+        xml_path = tmp_path / "role_gatineau.xml"
+        xml_path.write_text(xml_content, encoding="utf-8")
+
+        case = {"dossier_id": "TEST-GATINEAu", "zone": "gatineau-aylmer"}
+        enrich_case(case, display_name="789 boul Maloney, Gatineau", cache_dir=tmp_path)
+
+        assert case.get("role_municipal", {}).get("annee_construction") == 1988
+        assert case.get("role_municipal", {}).get("valeur_totale") == 320000.0
+        assert case.get("annee_construction") == 1988
+        assert case.get("evaluation_municipale_totale") == 320000.0

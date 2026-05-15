@@ -395,6 +395,226 @@ def lookup_role_mtl(
     }
 
 
+# ── Rôle municipal XML (autres villes — MAMH XML → JSON index) ───────────────
+
+# city_code → (code_geo, display_name, xml_url)
+_ROLE_XML_CITIES: dict[str, tuple[str, str, str]] = {
+    "quebec":       ("23027", "Ville de Québec",
+                     "https://donneesouvertes.affmunqc.net/role/RL23027_2026.xml"),
+    "laval":        ("65005", "Laval",
+                     "https://donneesouvertes.affmunqc.net/role/RL65005_2026.xml"),
+    "longueuil":    ("58227", "Longueuil",
+                     "https://donneesouvertes.affmunqc.net/role/RL58227_2026.xml"),
+    "gatineau":     ("81017", "Gatineau",
+                     "https://donneesouvertes.affmunqc.net/role/RL81017_2026.xml"),
+    "sherbrooke":   ("43027", "Sherbrooke",
+                     "https://donneesouvertes.affmunqc.net/role/RL43027_2026.xml"),
+}
+
+# in-process cache for loaded XML indexes
+_XML_INDEX_CACHE: dict[str, dict] = {}
+
+
+def download_role_xml(city_code: str, cache_dir: Path, force: bool = False) -> Path | None:
+    """Download MAMH XML for a non-Montreal city (100–400 MB). Returns path or None."""
+    import httpx  # type: ignore
+    info = _ROLE_XML_CITIES.get(city_code)
+    if not info:
+        return None
+    code_geo, city_name, url = info
+    xml_path = cache_dir / f"role_{city_code}.xml"
+    if xml_path.exists() and not force:
+        return xml_path
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Téléchargement rôle %s XML…", city_name)
+    with httpx.stream("GET", url, timeout=600, follow_redirects=True) as r:
+        r.raise_for_status()
+        with xml_path.open("wb") as fh:
+            for chunk in r.iter_bytes(chunk_size=256 * 1024):
+                fh.write(chunk)
+    logger.info("Rôle %s téléchargé : %s", city_name, xml_path)
+    return xml_path
+
+
+def _xml_text(elem, tag: str) -> str | None:
+    """Extract text from a direct child tag; return None if absent/empty."""
+    child = elem.find(tag)
+    if child is None:
+        return None
+    t = (child.text or "").strip()
+    return t or None
+
+
+def _xml_int(elem, tag: str) -> int | None:
+    t = _xml_text(elem, tag)
+    if t is None:
+        return None
+    try:
+        v = int(t)
+        return v if v != 0 else None
+    except ValueError:
+        return None
+
+
+def _xml_float(elem, tag: str) -> float | None:
+    t = _xml_text(elem, tag)
+    if t is None:
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _xml_build_matricule(a: str | None, b: str | None, c: str | None, d: str | None,
+                          e: str | None = None, f: str | None = None) -> str | None:
+    if not all([a, b, c, d]):
+        return None
+    try:
+        sub1 = int(e) if e else 0
+        sub2 = int(f) if f else 0
+        return f"{int(a):04d}-{int(b):02d}-{int(c):04d}-{d}-{sub1:03d}-{sub2:04d}"
+    except (ValueError, TypeError):
+        return None
+
+
+def build_role_xml_index(xml_path: Path, index_path: Path, city_code: str = "") -> int:
+    """
+    Parse a MAMH XML file (iterparse) and write a compact JSON index.
+
+    Index structure:
+      {
+        "by_matricule": {"XXXX-YY-ZZZZ-W-000-0000": {...record...}},
+        "by_address":   {"1000|rue sherbrooke o": [{...record...}]},
+        "city_code": "...",
+        "_built_at": <timestamp>,
+      }
+
+    Returns the number of UEVs indexed.
+    """
+    from xml.etree import ElementTree as ET
+
+    logger.info("Building XML index for %s → %s", xml_path.name, index_path.name)
+    by_matricule: dict[str, dict] = {}
+    by_address: dict[str, list[dict]] = {}
+    count = 0
+
+    for _event, elem in ET.iterparse(str(xml_path), events=("end",)):
+        if elem.tag != "RLUEx":
+            continue  # do NOT clear sub-elements before RLUEx is processed
+
+        # Adresse
+        addr_parent = elem.find("RL0101")
+        addr = addr_parent.find("RL0101x") if addr_parent is not None else None
+        civique = _xml_text(addr, "RL0101Ax") if addr is not None else None
+        nom_voie = _xml_text(addr, "RL0101Gx") if addr is not None else None
+        type_voie = _xml_text(addr, "RL0101Ex") if addr is not None else None
+
+        # Matricule
+        rl0104 = elem.find("RL0104")
+        mat = _xml_build_matricule(
+            _xml_text(rl0104, "RL0104A") if rl0104 is not None else None,
+            _xml_text(rl0104, "RL0104B") if rl0104 is not None else None,
+            _xml_text(rl0104, "RL0104C") if rl0104 is not None else None,
+            _xml_text(rl0104, "RL0104D") if rl0104 is not None else None,
+            _xml_text(rl0104, "RL0104E") if rl0104 is not None else None,
+            _xml_text(rl0104, "RL0104F") if rl0104 is not None else None,
+        ) if rl0104 is not None else None
+
+        # Lot
+        rl0103_parent = elem.find("RL0103")
+        rl0103x = rl0103_parent.find("RL0103x") if rl0103_parent is not None else None
+
+        rec: dict = {
+            "source": "mamh-xml",
+            "city_code": city_code,
+            "matricule83": mat or "",
+            "adresse_civique": civique or "",
+            "nom_rue": f"{type_voie or ''} {nom_voie or ''}".strip(),
+            "no_lot": _xml_int(rl0103x, "RL0103Ax") if rl0103x is not None else None,
+            "annee_construction": _xml_int(elem, "RL0307A"),
+            "superficie_batiment_m2": _xml_float(elem, "RL0308A"),
+            "superficie_terrain_m2": _xml_float(elem, "RL0302A"),
+            "nb_logements": _xml_int(elem, "RL0311A") or 0,
+            "code_cubf": _xml_int(elem, "RL0105A"),
+            "valeur_terrain": _xml_float(elem, "RL0402A"),
+            "valeur_batiment": _xml_float(elem, "RL0403A"),
+            "valeur_totale": _xml_float(elem, "RL0404A"),
+            "valeur_imposable": _xml_float(elem, "RL0405A"),
+        }
+
+        if mat:
+            by_matricule[mat.upper()] = rec
+
+        if civique and nom_voie:
+            addr_key = f"{civique}|{_norm(f'{type_voie or ''} {nom_voie}')}"
+            by_address.setdefault(addr_key, []).append(rec)
+
+        count += 1
+        if count % 50_000 == 0:
+            logger.info("  %d UEV indexées…", count)
+
+        elem.clear()
+
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps({
+            "by_matricule": by_matricule,
+            "by_address": by_address,
+            "city_code": city_code,
+            "_built_at": time.time(),
+            "_count": count,
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Index built: %d UEVs → %s (%.1f MB)",
+                count, index_path.name, index_path.stat().st_size / 1e6)
+    return count
+
+
+def _load_xml_index(index_path: Path) -> dict:
+    """Load XML JSON index; module-level cache (one load per process)."""
+    key = str(index_path)
+    if key in _XML_INDEX_CACHE:
+        return _XML_INDEX_CACHE[key]
+    data = json.loads(index_path.read_text(encoding="utf-8"))
+    _XML_INDEX_CACHE[key] = data
+    return data
+
+
+def lookup_role_xml(
+    index_path: Path,
+    matricule: str | None = None,
+    display_name: str = "",
+) -> dict:
+    """Look up a property in a MAMH XML index (JSON). Returns {} if not found."""
+    if not index_path.exists():
+        return {}
+    try:
+        idx = _load_xml_index(index_path)
+    except Exception as exc:
+        logger.debug("XML index load failed: %s", exc)
+        return {}
+
+    by_mat = idx.get("by_matricule", {})
+    by_addr = idx.get("by_address", {})
+
+    row: dict | None = None
+
+    if matricule:
+        row = by_mat.get(matricule.strip().upper())
+
+    if row is None and display_name:
+        civic, street = _parse_civic_from_display(display_name)
+        if civic and street:
+            addr_key = f"{civic}|{street}"
+            candidates = by_addr.get(addr_key, [])
+            if candidates:
+                row = candidates[0]
+
+    return row or {}
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -407,7 +627,7 @@ def enrich_case(
 
     Injects (when available) :
       - case["marche_locatif"]  : SCHL rental market data (StatCan WDS)
-      - case["role_municipal"]  : building characteristics (Montréal CSV)
+      - case["role_municipal"]  : building characteristics + valeurs foncières
 
     Never raises — all failures logged at DEBUG level.
     """
@@ -427,20 +647,43 @@ def enrich_case(
         except Exception as exc:
             logger.debug("marche_locatif skip: %s", exc)
 
-    # ── Rôle municipal Montréal ───────────────────────────────────────────────
+    # ── Rôle municipal ────────────────────────────────────────────────────────
     if not case.get("role_municipal"):
-        csv_path = cache_dir / "role_mtl.csv"
-        if csv_path.exists():
-            try:
-                matricule = str(case.get("matricule") or "").strip() or None
-                role = lookup_role_mtl(csv_path, matricule=matricule, display_name=display_name)
-                if role:
-                    case["role_municipal"] = role
-                    # Backfill case fields that fixture may have left empty
-                    if not case.get("annee_construction") and role.get("annee_construction"):
-                        case["annee_construction"] = role["annee_construction"]
-                    if not case.get("surface") and role.get("superficie_batiment_m2"):
-                        case["surface"] = role["superficie_batiment_m2"]
-                    logger.debug("role_municipal injecté : %s", role.get("matricule83"))
-            except Exception as exc:
-                logger.debug("role_municipal skip: %s", exc)
+        matricule = str(case.get("matricule") or "").strip() or None
+        role: dict = {}
+
+        if city_code == "montreal":
+            # Montréal: CSV lookup
+            csv_path = cache_dir / "role_mtl.csv"
+            if csv_path.exists():
+                try:
+                    role = lookup_role_mtl(csv_path, matricule=matricule, display_name=display_name)
+                except Exception as exc:
+                    logger.debug("role_municipal (mtl csv) skip: %s", exc)
+        elif city_code in _ROLE_XML_CITIES:
+            # Autres villes: XML JSON index lookup
+            index_path = cache_dir / f"role_{city_code}_index.json"
+            if not index_path.exists():
+                # Try to build index from XML if XML is cached
+                xml_path = cache_dir / f"role_{city_code}.xml"
+                if xml_path.exists():
+                    try:
+                        build_role_xml_index(xml_path, index_path, city_code)
+                    except Exception as exc:
+                        logger.debug("role XML index build skip: %s", exc)
+            if index_path.exists():
+                try:
+                    role = lookup_role_xml(index_path, matricule=matricule, display_name=display_name)
+                except Exception as exc:
+                    logger.debug("role_municipal (xml) skip: %s", exc)
+
+        if role:
+            case["role_municipal"] = role
+            if not case.get("annee_construction") and role.get("annee_construction"):
+                case["annee_construction"] = role["annee_construction"]
+            if not case.get("surface") and role.get("superficie_batiment_m2"):
+                case["surface"] = role["superficie_batiment_m2"]
+            # Backfill evaluation municipale from XML valeur_totale
+            if not case.get("evaluation_municipale_totale") and role.get("valeur_totale"):
+                case["evaluation_municipale_totale"] = role["valeur_totale"]
+            logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
