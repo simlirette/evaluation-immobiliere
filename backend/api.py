@@ -146,6 +146,26 @@ def utc_now_compact() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _map_comparable_input(row: dict) -> dict:
+    """Convertit un comparable saisi côté frontend au format attendu par tools.py:search_comparables."""
+    surface_hab = row.get("surface_hab")
+    return {
+        "comparable_id": str(row.get("source_id") or row.get("id") or ""),
+        "adresse": str(row.get("adresse") or ""),
+        "date_vente": str(row.get("date_vente") or ""),
+        "prix_vente": float(row.get("prix_vente") or 0),
+        "source_id": str(row.get("source_id") or ""),
+        "source_type": str(row.get("source_type") or "autre"),
+        "surface": {"value": float(surface_hab), "unit": "m²"} if surface_hab else {},
+        "surface_terrain": float(row["surface_terrain"]) if row.get("surface_terrain") else None,
+        "annee_construction": int(row["annee_construction"]) if row.get("annee_construction") else None,
+        "nb_logements": int(row["nb_logements"]) if row.get("nb_logements") else None,
+        "conditions_vente": str(row.get("conditions_vente") or "normale"),
+        "notes": str(row.get("notes") or ""),
+        "confidence": 0.80,
+    }
+
+
 def load_case_from_body(body: dict) -> tuple[dict, str]:
     if "case" in body:
         return body["case"], body.get("source_fixture", "inline")
@@ -169,6 +189,14 @@ def load_case_from_body(body: dict) -> tuple[dict, str]:
             "organisation": str(_cmd.get("organisation", "") or ""),
             "fin_evaluation": str(_cmd.get("fin_evaluation", "") or "non_specifie"),
         }
+
+    # Injecter comparables dans le case si fournis dans le body
+    if body.get("comparables") and isinstance(body["comparables"], list):
+        case["comparables"] = [
+            _map_comparable_input(r)
+            for r in body["comparables"]
+            if isinstance(r, dict)
+        ]
 
     return case, source_fixture
 
@@ -937,6 +965,8 @@ def app_start_demo(body: dict) -> dict:
     runtime_body: dict = {"fixture": fixture, "strict_mode": True}
     if body.get("commanditaire") and isinstance(body["commanditaire"], dict):
         runtime_body["commanditaire"] = body["commanditaire"]
+    if body.get("comparables") and isinstance(body["comparables"], list):
+        runtime_body["comparables"] = body["comparables"]
     started = start_runtime(runtime_body)
     session_id = str(started.get("session", {}).get("session_id") or "")
     if session_id and any(body.get(key) for key in ("display_name", "property_type", "neighborhood")):
