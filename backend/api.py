@@ -1060,6 +1060,8 @@ def app_start_demo(body: dict) -> dict:
         runtime_body["commanditaire"] = body["commanditaire"]
     if body.get("comparables") and isinstance(body["comparables"], list):
         runtime_body["comparables"] = body["comparables"]
+    if body.get("force_conflit_continue"):
+        runtime_body["force_conflit_continue"] = True
     started = start_runtime(runtime_body)
     session_id = str(started.get("session", {}).get("session_id") or "")
     if session_id and any(body.get(key) for key in ("display_name", "property_type", "neighborhood")):

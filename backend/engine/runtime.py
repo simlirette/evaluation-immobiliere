@@ -341,12 +341,13 @@ def _build_enrichment_prompt(step_name: str, artifact: str, payload: dict, case:
             f"Commanditaire : {nom_cmd} | Organisation : {org_cmd} | Fin : {fin_eval}\n"
             f"Type de bien : {type_bien} | Zone : {case.get('zone', '—')}\n\n"
             "Tu es un expert en déontologie de l'évaluation immobilière OEAQ. "
-            "Analyse s'il existe un conflit d'intérêts potentiel entre l'évaluateur et le commanditaire/les parties. "
-            "Critères OEAQ : lien financier, familial, ou professionnel avec une partie; mandat conditionnel à une valeur; "
-            "intérêt direct dans la propriété. "
-            "Si tu détectes un conflit réel ou potentiel, commence ta réponse EXACTEMENT par : "
-            "'CONFLIT_DETECTE: <motif court en 1 ligne>' puis développe l'analyse. "
-            "Si aucun conflit : rédige une analyse courte confirmant l'absence de conflit apparent."
+            "Vérifie s'il existe un conflit d'intérêts RÉEL entre l'évaluateur et le commanditaire. "
+            "Critères OEAQ : lien financier/familial/professionnel avéré; mandat conditionnel à une valeur cible; intérêt direct dans la propriété. "
+            "RÈGLE STRICTE DE FORMAT : "
+            "— Si conflit réel identifié : commence EXACTEMENT par 'CONFLIT_DETECTE: <motif>' (1 ligne), puis développe. "
+            "— Si PAS de conflit (cas normal, absence d'info, commanditaire externe) : commence par 'Aucun conflit détecté.' puis explique brièvement. "
+            "Ne commence JAMAIS par 'CONFLIT_DETECTE:' si tu n'as pas identifié un conflit réel et concret. "
+            "L'absence de déclaration de liens n'est pas un conflit — c'est la situation par défaut."
         )
 
     # Fallback générique
@@ -411,7 +412,11 @@ class RuntimeEngine:
                     _first_line = next((l.strip() for l in result.splitlines() if l.strip()), "")
                     if _first_line.startswith("CONFLIT_DETECTE:"):
                         motif = _first_line.replace("CONFLIT_DETECTE:", "").strip()
-                        return {**payload, target_field: result, "conflit_detecte": True, "conflit_motif": motif}
+                        # Guard: LLM sometimes uses CONFLIT_DETECTE as a header even for "no conflict" — ignore false positives
+                        _motif_lower = motif.lower()
+                        _false_positive = any(kw in _motif_lower for kw in ("aucun", "pas de", "absence", "no conflict", "aucune", "sans conflit", "non détecté", "non detecte"))
+                        if not _false_positive:
+                            return {**payload, target_field: result, "conflit_detecte": True, "conflit_motif": motif}
                 return {**payload, target_field: result}
         except Exception:
             pass  # LLM enrichment is optional — never block pipeline
