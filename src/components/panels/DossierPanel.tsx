@@ -14,7 +14,7 @@ import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
 import { sendRuntimeMessage, fetchAppState } from '@/lib/runtime-api'
-import type { Document, FactChip } from '@/types'
+import type { Document, FactChip, ComparableInput } from '@/types'
 
 interface Props {
   isNew: boolean
@@ -53,7 +53,7 @@ const FIN_EVAL_OPTIONS = [
 
 function NewDossierForm() {
   const router = useRouter()
-  const [formStep, setFormStep] = useState<1 | 2>(1)
+  const [formStep, setFormStep] = useState<1 | 2 | 3>(1)
   const [address, setAddress] = useState('Dossier pilote residentiel')
   const [propertyType, setPropertyType] = useState('Residentiel unifamilial')
   const [neighborhood, setNeighborhood] = useState('Zone anonymisee')
@@ -68,6 +68,38 @@ function NewDossierForm() {
   useEffect(() => {
     return () => timersRef.current.forEach(clearTimeout)
   }, [])
+
+  const [comparables, setComparables] = useState<ComparableInput[]>([])
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  function addComparable() {
+    const id = Math.random().toString(36).slice(2, 10)
+    setComparables(prev => [...prev, {
+      id,
+      adresse: '',
+      date_vente: '',
+      prix_vente: 0,
+      source_id: '',
+      source_type: 'mls_centris',
+      type_propriete: '',
+      surface_hab: null,
+      surface_terrain: null,
+      annee_construction: null,
+      nb_logements: null,
+      conditions_vente: 'normale',
+      notes: '',
+    }])
+    setExpandedId(id)
+  }
+
+  function updateComp(id: string, field: keyof ComparableInput, value: string | number | null) {
+    setComparables(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
+  }
+
+  function removeComp(id: string) {
+    setComparables(prev => prev.filter(c => c.id !== id))
+    if (expandedId === id) setExpandedId(null)
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -93,6 +125,7 @@ function NewDossierForm() {
           organisation: cmdOrg.trim(),
           fin_evaluation: cmdFin,
         },
+        comparables: comparables.length > 0 ? comparables : undefined,
       })
       router.push(`/dossier/${dossier.slug}?tab=dossier`)
     } catch (err) {
@@ -127,7 +160,9 @@ function NewDossierForm() {
         <p className="mt-1 text-[13px] text-[#8a8780]">
           {formStep === 1
             ? 'Lance un dossier pilote dans le backend runtime et ouvre les agents AI.'
-            : 'Identifiez le commanditaire du mandat.'}
+            : formStep === 2
+            ? 'Identifiez le commanditaire du mandat.'
+            : 'Ajoutez les ventes comparables (optionnel).'}
         </p>
       </div>
 
@@ -218,8 +253,8 @@ function NewDossierForm() {
             Suivant →
           </button>
         </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      ) : formStep === 2 ? (
+        <form onSubmit={e => { e.preventDefault(); if (cmdNom.trim()) { setError(''); setFormStep(3) } }} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[12px] text-[#8a8780] font-medium">Nom du commanditaire <span className="text-red-500">*</span></label>
             <input
@@ -273,7 +308,176 @@ function NewDossierForm() {
               className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
               style={{ background: '#334155' }}
             >
-              Lancer le dossier
+              Suivant →
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            {comparables.map(comp => (
+              <div
+                key={comp.id}
+                className="rounded-[10px] overflow-hidden"
+                style={{ border: '1px solid var(--input-border)' }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(expandedId === comp.id ? null : comp.id)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+                  style={{ background: 'var(--input-bg)' }}
+                >
+                  <span className="text-[13px] text-[#1a1916] truncate">
+                    {comp.adresse || 'Comparable sans adresse'}{comp.prix_vente > 0 ? ` · ${comp.prix_vente.toLocaleString('fr-CA')} $` : ''}
+                  </span>
+                  <span className="text-[11px] text-[#8a8780] ml-2 shrink-0">{expandedId === comp.id ? '▲' : '▼'}</span>
+                </button>
+
+                {expandedId === comp.id && (
+                  <div className="flex flex-col gap-3 px-4 pb-4 pt-3" style={{ background: 'var(--input-bg)', borderTop: '1px solid var(--input-border)' }}>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] text-[#8a8780] font-medium">Adresse</label>
+                      <input type="text" value={comp.adresse} onChange={e => updateComp(comp.id, 'adresse', e.target.value)}
+                        className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                        style={inputStyle} placeholder="123 rue Example, Montréal" />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Date de vente</label>
+                        <input type="date" value={comp.date_vente} onChange={e => updateComp(comp.id, 'date_vente', e.target.value)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={inputStyle} />
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Prix de vente ($)</label>
+                        <input type="number" min="0" value={comp.prix_vente || ''} onChange={e => updateComp(comp.id, 'prix_vente', parseFloat(e.target.value) || 0)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={inputStyle} placeholder="450000" />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">
+                          Source ID <span className="text-[#b5b2ac]">(traçabilité OEAQ)</span>
+                        </label>
+                        <input type="text" value={comp.source_id} onChange={e => updateComp(comp.id, 'source_id', e.target.value)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                          style={inputStyle} placeholder="CENTRIS-12345678" />
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Source</label>
+                        <select value={comp.source_type} onChange={e => updateComp(comp.id, 'source_type', e.target.value as ComparableInput['source_type'])}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={selectStyle}>
+                          <option value="mls_centris">Centris / MLS</option>
+                          <option value="registre_foncier">Registre foncier</option>
+                          <option value="dlc">DLC</option>
+                          <option value="autre">Autre</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Type de propriété</label>
+                        <input type="text" value={comp.type_propriete} onChange={e => updateComp(comp.id, 'type_propriete', e.target.value)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                          style={inputStyle} placeholder="Unifamiliale" />
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Conditions de vente</label>
+                        <select value={comp.conditions_vente} onChange={e => updateComp(comp.id, 'conditions_vente', e.target.value as ComparableInput['conditions_vente'])}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={selectStyle}>
+                          <option value="normale">Normale</option>
+                          <option value="liee">Liée</option>
+                          <option value="autre">Autre</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Superficie hab. (m²)</label>
+                        <input type="number" min="0" value={comp.surface_hab ?? ''} onChange={e => updateComp(comp.id, 'surface_hab', e.target.value ? parseFloat(e.target.value) : null)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={inputStyle} placeholder="145" />
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Superficie terrain (m²)</label>
+                        <input type="number" min="0" value={comp.surface_terrain ?? ''} onChange={e => updateComp(comp.id, 'surface_terrain', e.target.value ? parseFloat(e.target.value) : null)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={inputStyle} placeholder="350" />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Année construction</label>
+                        <input type="number" min="1800" max="2099" value={comp.annee_construction ?? ''} onChange={e => updateComp(comp.id, 'annee_construction', e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={inputStyle} placeholder="1985" />
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <label className="text-[11px] text-[#8a8780] font-medium">Nb logements <span className="text-[#b5b2ac]">(opt.)</span></label>
+                        <input type="number" min="1" value={comp.nb_logements ?? ''} onChange={e => updateComp(comp.id, 'nb_logements', e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none"
+                          style={inputStyle} placeholder="1" />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] text-[#8a8780] font-medium">Notes</label>
+                      <input type="text" value={comp.notes} onChange={e => updateComp(comp.id, 'notes', e.target.value)}
+                        className="w-full rounded-[8px] px-3 py-2 text-[13px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                        style={inputStyle} placeholder="Particularités, ajustements prévus…" />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeComp(comp.id)}
+                      className="text-[12px] text-red-400 hover:text-red-600 text-left transition-colors"
+                    >
+                      Supprimer ce comparable
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={addComparable}
+            className="w-full rounded-[10px] py-2.5 text-[14px] font-medium text-[#334155] transition-opacity hover:opacity-80"
+            style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}
+          >
+            + Ajouter un comparable
+          </button>
+
+          {comparables.length === 0 && (
+            <div className="rounded-[8px] px-3 py-2.5 text-[12px] text-[#8a8780]" style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}>
+              Aucun comparable — le rapport sera marqué <strong>A_REVOIR</strong> (CONF002). Vous pouvez continuer et corriger après.
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => { setError(''); setFormStep(2) }}
+              className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
+              style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+            >
+              ← Retour
+            </button>
+            <button
+              type="submit"
+              className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+              style={{ background: '#334155' }}
+            >
+              Lancer l&apos;évaluation
             </button>
           </div>
         </form>
