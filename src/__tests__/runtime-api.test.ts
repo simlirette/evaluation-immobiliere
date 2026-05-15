@@ -1,59 +1,64 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { deleteRuntimeDossier, toggleRuntimePin, uploadRuntimeDocument } from '@/lib/runtime-api'
 
-// ── localStorage helpers ─────────────────────────────────────────────────────
+// ── Backend-persisted archive / pin ──────────────────────────────────────────
+
+function mockFetch(ok: boolean, json: object) {
+  return vi.fn().mockResolvedValue({ ok, status: ok ? 200 : 500, json: async () => json })
+}
+
+afterEach(() => vi.unstubAllGlobals())
 
 describe('deleteRuntimeDossier', () => {
-  beforeEach(() => localStorage.clear())
-
-  it('adds id to archived set', async () => {
+  it('calls POST /app/archive with session_id', async () => {
+    const fetch = mockFetch(true, { ok: true })
+    vi.stubGlobal('fetch', fetch)
     await deleteRuntimeDossier('abc')
-    const stored = JSON.parse(localStorage.getItem('eval_immo_archived') ?? '[]') as string[]
-    expect(stored).toContain('abc')
+    expect(fetch).toHaveBeenCalledOnce()
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/app/archive')
+    expect(JSON.parse(init.body as string)).toMatchObject({ session_id: 'abc' })
   })
 
-  it('accumulates multiple archived ids', async () => {
+  it('calls POST /app/archive for each id independently', async () => {
+    const fetch = mockFetch(true, { ok: true })
+    vi.stubGlobal('fetch', fetch)
     await deleteRuntimeDossier('id1')
     await deleteRuntimeDossier('id2')
-    const stored = JSON.parse(localStorage.getItem('eval_immo_archived') ?? '[]') as string[]
-    expect(stored).toContain('id1')
-    expect(stored).toContain('id2')
-  })
-
-  it('is idempotent', async () => {
-    await deleteRuntimeDossier('dup')
-    await deleteRuntimeDossier('dup')
-    const stored = JSON.parse(localStorage.getItem('eval_immo_archived') ?? '[]') as string[]
-    expect(stored.filter(x => x === 'dup').length).toBe(1)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    const bodies = fetch.mock.calls.map((c: unknown[]) => JSON.parse((c[1] as RequestInit).body as string))
+    expect(bodies[0]).toMatchObject({ session_id: 'id1' })
+    expect(bodies[1]).toMatchObject({ session_id: 'id2' })
   })
 })
 
 describe('toggleRuntimePin', () => {
-  beforeEach(() => localStorage.clear())
-
-  it('pins an unpinned dossier', async () => {
+  it('calls POST /app/pin with pinned:true when unpinned', async () => {
+    const fetch = mockFetch(true, { ok: true })
+    vi.stubGlobal('fetch', fetch)
     await toggleRuntimePin('xyz', false)
-    const stored = JSON.parse(localStorage.getItem('eval_immo_pinned') ?? '[]') as string[]
-    expect(stored).toContain('xyz')
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/app/pin')
+    expect(JSON.parse(init.body as string)).toMatchObject({ session_id: 'xyz', pinned: true })
   })
 
-  it('unpins a pinned dossier', async () => {
-    await toggleRuntimePin('xyz', false)
+  it('calls POST /app/pin with pinned:false when currently pinned', async () => {
+    const fetch = mockFetch(true, { ok: true })
+    vi.stubGlobal('fetch', fetch)
     await toggleRuntimePin('xyz', true)
-    const stored = JSON.parse(localStorage.getItem('eval_immo_pinned') ?? '[]') as string[]
-    expect(stored).not.toContain('xyz')
+    const [, init] = fetch.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(init.body as string)).toMatchObject({ session_id: 'xyz', pinned: false })
   })
 
-  it('pinned and archived sets are independent', async () => {
+  it('archive and pin hit different endpoints', async () => {
+    const fetch = mockFetch(true, { ok: true })
+    vi.stubGlobal('fetch', fetch)
     await toggleRuntimePin('p1', false)
     await deleteRuntimeDossier('a1')
-    const pinned = JSON.parse(localStorage.getItem('eval_immo_pinned') ?? '[]') as string[]
-    const archived = JSON.parse(localStorage.getItem('eval_immo_archived') ?? '[]') as string[]
-    expect(pinned).toContain('p1')
-    expect(archived).toContain('a1')
-    expect(pinned).not.toContain('a1')
-    expect(archived).not.toContain('p1')
+    const urls = fetch.mock.calls.map((c: unknown[]) => c[0] as string)
+    expect(urls[0]).toContain('/app/pin')
+    expect(urls[1]).toContain('/app/archive')
   })
 })
 

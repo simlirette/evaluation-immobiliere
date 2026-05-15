@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Allow up to 120s — pipeline runs include LLM steps + optional Vision ingestion
+export const maxDuration = 120
+
 const RUNTIME_URL = (process.env.RUNTIME_API_URL || 'http://127.0.0.1:8796').replace(/\/$/, '')
 const RUNTIME_TOKEN = process.env.RUNTIME_API_TOKEN || ''
+// Default timeout: 30s for reads, 120s for pipeline runs (ingestion + 7 LLM steps)
 const TIMEOUT_MS = 30_000
+const TIMEOUT_PIPELINE_MS = 120_000
+const PIPELINE_PATHS = new Set(['/app/demo', '/app/state'])
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 // Catch misconfigured deployments before they silently fail
@@ -33,8 +39,9 @@ async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promis
     // Supabase not configured — local dev, skip
   }
 
+  const timeout = PIPELINE_PATHS.has(forwardPath) ? TIMEOUT_PIPELINE_MS : TIMEOUT_MS
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeout)
 
   try {
     const body = method === 'POST' ? await req.text() : undefined
