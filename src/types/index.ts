@@ -48,6 +48,22 @@ export interface Comparable {
   date: string         // formatted
 }
 
+export interface ComparableInput {
+  id: string                        // UUID client-side (React key)
+  adresse: string
+  date_vente: string                // ISO: "2024-06-15"
+  prix_vente: number
+  source_id: string                 // ex: "CENTRIS-12345678" | "RF-2024-ABC"
+  source_type: 'mls_centris' | 'registre_foncier' | 'dlc' | 'autre'
+  type_propriete: string
+  surface_hab: number | null        // m²
+  surface_terrain: number | null    // m²
+  annee_construction: number | null
+  nb_logements: number | null
+  conditions_vente: 'normale' | 'liee' | 'autre'
+  notes: string
+}
+
 export interface Adjustment {
   id: string
   comparable_id: string

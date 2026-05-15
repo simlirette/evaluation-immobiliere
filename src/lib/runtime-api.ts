@@ -67,6 +67,7 @@ export interface CreateRuntimeDossierInput {
     organisation: string
     fin_evaluation: string
   }
+  comparables?: import('@/types').ComparableInput[]
 }
 
 interface RuntimeMessageResponse {
@@ -131,6 +132,7 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
       property_type: input.property_type,
       neighborhood: input.neighborhood,
       ...(input.commanditaire ? { commanditaire: input.commanditaire } : {}),
+      ...(input.comparables && input.comparables.length > 0 ? { comparables: input.comparables } : {}),
     }),
   })
   const dossier = payload.state.active?.dossier
