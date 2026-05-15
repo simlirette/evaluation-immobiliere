@@ -979,3 +979,138 @@ class TestFicheBien_IngestedDocs:
         prompt = _build_enrichment_prompt("data-facts", "fiche_bien.json", payload, case)
         assert "DONNÉES DE LA FICHE BIEN" in prompt
         assert "acte_vente.pdf" not in prompt
+
+
+# ── TestMapComparableInput_Full ───────────────────────────────────────────────
+
+class TestMapComparableInput_Full:
+    def test_all_fields_mapped_correctly(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import _map_comparable_input
+        row = {
+            "id": "abc123",
+            "adresse": "123 rue Example, Montréal",
+            "date_vente": "2024-06-15",
+            "prix_vente": 450000,
+            "source_id": "CENTRIS-12345678",
+            "source_type": "mls_centris",
+            "type_propriete": "unifamiliale",
+            "surface_hab": 145.0,
+            "surface_terrain": 350.0,
+            "annee_construction": 1985,
+            "nb_logements": None,
+            "conditions_vente": "normale",
+            "notes": "Belle propriété",
+        }
+        result = _map_comparable_input(row)
+        assert result["comparable_id"] == "CENTRIS-12345678"
+        assert result["adresse"] == "123 rue Example, Montréal"
+        assert result["date_vente"] == "2024-06-15"
+        assert result["prix_vente"] == 450000.0
+        assert result["source_id"] == "CENTRIS-12345678"
+        assert result["source_type"] == "mls_centris"
+        assert result["surface"] == {"value": 145.0, "unit": "m²"}
+        assert result["surface_terrain"] == 350.0
+        assert result["annee_construction"] == 1985
+        assert result["nb_logements"] is None
+        assert result["conditions_vente"] == "normale"
+        assert result["notes"] == "Belle propriété"
+        assert result["confidence"] == 0.80
+
+
+# ── TestMapComparableInput_NullOptionals ──────────────────────────────────────
+
+class TestMapComparableInput_NullOptionals:
+    def test_surface_hab_none_returns_empty_surface_dict(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import _map_comparable_input
+        row = {
+            "surface_hab": None,
+            "annee_construction": None,
+            "surface_terrain": None,
+            "nb_logements": None,
+        }
+        result = _map_comparable_input(row)
+        assert result["surface"] == {}
+        assert result["annee_construction"] is None
+        assert result["surface_terrain"] is None
+        assert result["nb_logements"] is None
+
+    def test_missing_source_id_falls_back_to_id_field(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import _map_comparable_input
+        row = {"id": "fallback-uuid", "source_id": ""}
+        result = _map_comparable_input(row)
+        assert result["comparable_id"] == "fallback-uuid"
+
+
+# ── TestLoadCaseBody_ComparablesInjected ──────────────────────────────────────
+
+class TestLoadCaseBody_ComparablesInjected:
+    def test_comparables_mapped_from_body(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import load_case_from_body
+        body = {
+            "comparables": [
+                {
+                    "id": "c1",
+                    "adresse": "456 rue Test",
+                    "date_vente": "2024-03-01",
+                    "prix_vente": 500000,
+                    "source_id": "RF-2024-001",
+                    "source_type": "registre_foncier",
+                    "surface_hab": 120.0,
+                    "surface_terrain": None,
+                    "annee_construction": 1992,
+                    "nb_logements": None,
+                    "conditions_vente": "normale",
+                    "notes": "",
+                }
+            ]
+        }
+        case, _ = load_case_from_body(body)
+        assert len(case["comparables"]) == 1
+        comp = case["comparables"][0]
+        assert comp["source_id"] == "RF-2024-001"
+        assert comp["surface"] == {"value": 120.0, "unit": "m²"}
+        assert comp["confidence"] == 0.80
+
+    def test_comparables_body_override_fixture_comparables(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import load_case_from_body
+        body = {
+            "comparables": [
+                {
+                    "id": "new1",
+                    "source_id": "NEW-001",
+                    "prix_vente": 300000,
+                    "surface_hab": None,
+                    "surface_terrain": None,
+                    "annee_construction": None,
+                    "nb_logements": None,
+                }
+            ]
+        }
+        case, _ = load_case_from_body(body)
+        assert len(case["comparables"]) >= 1
+        assert all(c["source_id"] == "NEW-001" for c in case["comparables"])
+
+    def test_no_comparables_in_body_leaves_fixture_untouched(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from api import load_case_from_body
+        case_a, _ = load_case_from_body({})
+        fixture_comps = list(case_a.get("comparables", []))
+        case_b, _ = load_case_from_body({})
+        assert case_b.get("comparables", []) == fixture_comps
