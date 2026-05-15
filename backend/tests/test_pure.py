@@ -1258,3 +1258,132 @@ class TestSaveRapportContent:
         )
         assert result["ok"] is True
         assert rapport_path.read_text(encoding="utf-8") == "# Contenu modifié\n\nTexte édité."
+
+
+# ── Batch 8b — Export rapport ────────────────────────────────────────────────
+
+class TestGenerateDocx_ContainsWatermark:
+    def test_watermark_in_generated_docx(self):
+        import sys, io
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.report_export import _generate_docx
+        from docx import Document
+        data = _generate_docx("## Identification\n\nTestDocument", "D-TEST")
+        assert isinstance(data, bytes) and len(data) > 0
+        doc = Document(io.BytesIO(data))
+        all_text = " ".join(p.text for p in doc.paragraphs)
+        assert "BROUILLON NON CERTIFIÉ" in all_text
+
+
+class TestGenerateDocx_HeadingsRendered:
+    def test_h2_becomes_heading2(self):
+        import sys, io
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.report_export import _generate_docx
+        from docx import Document
+        data = _generate_docx("## Section principale\n\nTexte normal.", "D-TEST")
+        doc = Document(io.BytesIO(data))
+        heading_styles = [p.style.name for p in doc.paragraphs]
+        assert "Heading 2" in heading_styles
+
+
+class TestGenerateHtml_ContainsWatermark:
+    def test_watermark_div_present(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.report_export import _generate_html
+        html = _generate_html("## Test\n\nContenu.", "D-TEST")
+        assert isinstance(html, str)
+        assert "BROUILLON NON CERTIFIÉ" in html
+
+
+class TestGenerateHtml_TablesRendered:
+    def test_markdown_table_becomes_html_table(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from engine.report_export import _generate_html
+        md = "| Col A | Col B |\n|-------|-------|\n| val1  | val2  |"
+        html = _generate_html(md, "D-TEST")
+        assert "<table" in html.lower()
+        assert "val1" in html
+
+
+class TestExportRapport_DocxEndpoint:
+    def test_docx_export_returns_base64_with_correct_fields(self, tmp_path, monkeypatch):
+        import sys, json, base64
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import api as api_module
+        monkeypatch.setattr(api_module, "SESSIONS_DIR", tmp_path)
+
+        session_id = "test-export-docx"
+        session_dir = tmp_path / session_id
+        session_dir.mkdir()
+        artifacts_dir = session_dir / "artifacts" / "D-EXPORT"
+        artifacts_dir.mkdir(parents=True)
+        rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
+        rapport_path.write_text("## Rapport\n\nContenu test.", encoding="utf-8")
+        artifact_index = {"artifacts": [{"step": "redaction", "artifact": "brouillon_rapport.md",
+                                          "event_id": "evt_001", "path": str(rapport_path)}]}
+        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        (session_dir / "session.json").write_text(
+            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": "D-EXPORT"}),
+            encoding="utf-8")
+
+        result = api_module.app_export_rapport({"session_id": session_id, "format": "docx"})
+        assert result["ok"] is True
+        assert result["content_type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert result["filename"] == "rapport-D-EXPORT.docx"
+        data = base64.b64decode(result["data"])
+        assert len(data) > 100
+
+
+class TestExportRapport_HtmlEndpoint:
+    def test_html_export_returns_html_string_with_watermark(self, tmp_path, monkeypatch):
+        import sys, json
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import api as api_module
+        monkeypatch.setattr(api_module, "SESSIONS_DIR", tmp_path)
+
+        session_id = "test-export-html"
+        session_dir = tmp_path / session_id
+        session_dir.mkdir()
+        artifacts_dir = session_dir / "artifacts" / "D-HTML"
+        artifacts_dir.mkdir(parents=True)
+        rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
+        rapport_path.write_text("## Test\n\nContenu.", encoding="utf-8")
+        artifact_index = {"artifacts": [{"step": "redaction", "artifact": "brouillon_rapport.md",
+                                          "event_id": "evt_001", "path": str(rapport_path)}]}
+        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        (session_dir / "session.json").write_text(
+            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": "D-HTML"}),
+            encoding="utf-8")
+
+        result = api_module.app_export_rapport({"session_id": session_id, "format": "html"})
+        assert result["ok"] is True
+        assert result["content_type"] == "text/html; charset=utf-8"
+        assert "BROUILLON NON CERTIFIÉ" in result["data"]
+
+
+class TestExportRapport_InvalidFormat:
+    def test_format_pdf_raises_value_error(self, tmp_path, monkeypatch):
+        import sys, json, pytest
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import api as api_module
+        monkeypatch.setattr(api_module, "SESSIONS_DIR", tmp_path)
+
+        session_id = "test-invalid-fmt"
+        session_dir = tmp_path / session_id
+        session_dir.mkdir()
+        (session_dir / "session.json").write_text(
+            json.dumps({"session_id": session_id, "session_dir": str(session_dir)}),
+            encoding="utf-8")
+
+        with pytest.raises(ValueError, match="format"):
+            api_module.app_export_rapport({"session_id": session_id, "format": "pdf"})

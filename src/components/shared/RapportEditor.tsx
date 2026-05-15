@@ -10,6 +10,7 @@ import TableHeader from '@tiptap/extension-table-header'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm'
+import { exportRapport } from '@/lib/runtime-api'
 
 const td = new TurndownService({
   headingStyle: 'atx',
@@ -20,8 +21,11 @@ td.use(gfm)
 
 interface Props {
   initialMarkdown: string
+  sessionId: string
+  dossierId: string
   onSave: (markdown: string) => Promise<void>
   onGenerate: (format: 'abrege' | 'complet') => Promise<void>
+  onSaveVersion: (markdown: string) => Promise<void>
 }
 
 function ToolbarButton({
@@ -51,10 +55,11 @@ function ToolbarButton({
   )
 }
 
-export default function RapportEditor({ initialMarkdown, onSave, onGenerate }: Props) {
+export default function RapportEditor({ initialMarkdown, sessionId, dossierId, onSave, onGenerate, onSaveVersion }: Props) {
   const [isEdited, setIsEdited] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [toast, setToast] = useState('')
 
   const editor = useEditor({
@@ -110,6 +115,39 @@ export default function RapportEditor({ initialMarkdown, onSave, onGenerate }: P
     [onGenerate]
   )
 
+  const handleExport = useCallback(
+    async (format: 'docx' | 'html') => {
+      if (isExporting) return
+      setIsExporting(true)
+      try {
+        const { filename, blob } = await exportRapport(sessionId, format)
+        if (format === 'docx') {
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = filename
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        } else {
+          const url = URL.createObjectURL(blob)
+          window.open(url, '_blank')
+          setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        }
+      } finally {
+        setIsExporting(false)
+      }
+    },
+    [isExporting, sessionId]
+  )
+
+  const handleSaveVersion = useCallback(async () => {
+    if (!editor) return
+    const markdown = td.turndown(editor.getHTML())
+    await onSaveVersion(markdown)
+  }, [editor, onSaveVersion])
+
   if (!editor) return null
 
   return (
@@ -160,6 +198,34 @@ export default function RapportEditor({ initialMarkdown, onSave, onGenerate }: P
         {toast && (
           <span className="text-[11px] text-emerald-600 mr-2 transition-opacity">{toast}</span>
         )}
+        <div className="w-px h-4 bg-black/[.10] mx-1" />
+        <button
+          type="button"
+          onClick={() => handleExport('docx')}
+          disabled={isExporting}
+          title="Télécharger .docx"
+          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] disabled:opacity-40 transition-colors"
+        >
+          {isExporting ? '…' : '⬇ .docx'}
+        </button>
+        <button
+          type="button"
+          onClick={() => handleExport('html')}
+          disabled={isExporting}
+          title="Aperçu PDF (imprimer depuis le navigateur)"
+          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] disabled:opacity-40 transition-colors"
+        >
+          {isExporting ? '…' : '🖨 PDF'}
+        </button>
+        <button
+          type="button"
+          onClick={handleSaveVersion}
+          title="Sauvegarder comme nouvelle version"
+          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+        >
+          📌 Sauv. version
+        </button>
+        <div className="w-px h-4 bg-black/[.10] mx-1" />
         <button
           type="button"
           onClick={handleSave}

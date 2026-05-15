@@ -15,6 +15,8 @@ import {
   saveRapport,
   generateRapport,
 } from '@/lib/runtime-api'
+import { saveVersion, loadVersions } from '@/lib/rapport-versions'
+import RapportVersionHistory from '@/components/shared/RapportVersionHistory'
 import type { Comparable, Adjustment, FactChip } from '@/types'
 
 interface Props {
@@ -37,6 +39,8 @@ interface RapportState {
   valuationValues: Record<string, number>
   reportText: string
   complianceStatus: string
+  versionCount: number
+  realDossierId: string
 }
 
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
@@ -45,6 +49,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
 
   async function reload() {
     if (!dossierId) return
@@ -63,10 +68,35 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       adjustments: app.active?.adjustments ?? [],
       factChips: app.active?.fact_chips ?? [],
       valuationValues: app.active?.valuation.values ?? {},
-      reportText: app.active?.report.preview ?? '',
+      reportText: app.active?.report?.preview ?? '',
       complianceStatus: compliance?.status ?? '',
+      versionCount: 0,
+      realDossierId: app.active?.dossier?.id ?? dossierId ?? '',
     })
     setLoading(false)
+
+    // Auto-save version initiale si aucune version n'existe
+    const preview = app.active?.report?.preview ?? ''
+    if (preview && dossierId) {
+      try {
+        const versions = await loadVersions(dossierId)
+        setState(prev => prev ? { ...prev, versionCount: versions.length } : prev)
+        if (versions.length === 0) {
+          const realId = app.active?.dossier?.id ?? dossierId
+          await saveVersion(
+            dossierId,
+            realId,
+            preview,
+            'abrege',
+            'Génération initiale',
+            true
+          )
+          setState(prev => prev ? { ...prev, versionCount: 1 } : prev)
+        }
+      } catch {
+        // Supabase non configuré — silencieux
+      }
+    }
   }
 
   useEffect(() => {
@@ -112,6 +142,27 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     if (!dossierId) return
     const newContent = await generateRapport(dossierId, format)
     setState(prev => prev ? { ...prev, reportText: newContent } : prev)
+  }
+
+  async function handleSaveVersion(markdown: string) {
+    if (!dossierId || !state) return
+    if (state.versionCount >= 6) {
+      alert('Quota atteint : 5 versions manuelles + 1 initiale maximum. Aucune nouvelle version sauvegardée.')
+      return
+    }
+    const now = new Date()
+    const label = `Manuelle ${now.toLocaleDateString('fr-CA')} ${now.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}`
+    try {
+      await saveVersion(dossierId, state.realDossierId, markdown, 'abrege', label, false)
+      setState(prev => prev ? { ...prev, versionCount: prev.versionCount + 1 } : prev)
+    } catch {
+      alert('Version non sauvegardée — vérifier la connexion Supabase.')
+    }
+  }
+
+  function handleRestoreVersion(content: string) {
+    setState(prev => prev ? { ...prev, reportText: content } : prev)
+    setShowHistory(false)
   }
 
   if (!dossierId || loading || !state) return <PanelLoader />
@@ -163,6 +214,23 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
               label={split ? 'Fermer' : 'Ouvrir'}
               onClick={() => setSplit(s => !s)}
             />
+            {split && (
+              <button
+                type="button"
+                onClick={() => setShowHistory(s => !s)}
+                className="mt-2 rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+              >
+                {showHistory ? 'Fermer historique' : `Historique (${state.versionCount})`}
+              </button>
+            )}
+            {showHistory && dossierId && (
+              <div className="mt-2 rounded-[10px] border border-black/[.07] overflow-hidden">
+                <RapportVersionHistory
+                  sessionId={dossierId}
+                  onRestore={handleRestoreVersion}
+                />
+              </div>
+            )}
           </AgentMessage>
           {reply && (
             <AgentMessage agentName="Agent Rapport" last>
@@ -190,6 +258,9 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
           reportText={state.reportText}
           onSave={handleSaveReport}
           onGenerate={handleGenerateReport}
+          sessionId={dossierId ?? ''}
+          dossierId={state.realDossierId}
+          onSaveVersion={handleSaveVersion}
         />
       )}
     </div>

@@ -280,3 +280,33 @@ export async function generateRapport(
   })
   return result.content
 }
+
+export async function exportRapport(
+  sessionId: string,
+  format: 'docx' | 'html'
+): Promise<{ filename: string; blob: Blob }> {
+  const result = await runtimeJson<{
+    ok: boolean
+    content_type: string
+    filename: string
+    data: string
+  }>('/app/report/export', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, format }),
+  })
+
+  let blob: Blob
+  if (format === 'docx') {
+    // data is base64 — decode to bytes
+    const binary = atob(result.data)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    blob = new Blob([bytes], { type: result.content_type })
+  } else {
+    blob = new Blob([result.data], { type: result.content_type })
+  }
+
+  return { filename: result.filename, blob }
+}

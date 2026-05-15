@@ -764,6 +764,46 @@ def app_generate_rapport(body: dict) -> dict:
     return {"ok": True, "content": rapport_md, "session_id": session_id, "format": format_param}
 
 
+def app_export_rapport(body: dict) -> dict:
+    """Génère l'export du rapport en .docx ou HTML (base64 JSON)."""
+    import base64
+    from engine.report_export import _generate_docx, _generate_html
+
+    session_id = str(body.get("session_id", "")).strip()
+    format_param = str(body.get("format", "")).strip()
+    if not session_id:
+        raise ValueError("session_id requis")
+    if format_param not in {"docx", "html"}:
+        raise ValueError("format doit être 'docx' ou 'html'")
+
+    session = require_session(session_id)
+    artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
+    if not artifact:
+        raise FileNotFoundError("brouillon_rapport.md introuvable dans la session")
+    _, artifact_path = resolve_session_artifact(
+        session, event_id=str(artifact.get("event_id") or "")
+    )
+    md_text = artifact_path.read_text(encoding="utf-8")
+    dossier_id = str(session.get("dossier_id", "rapport"))
+
+    if format_param == "docx":
+        data = _generate_docx(md_text, dossier_id)
+        return {
+            "ok": True,
+            "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "filename": f"rapport-{dossier_id}.docx",
+            "data": base64.b64encode(data).decode("ascii"),
+        }
+    # format == "html"
+    html = _generate_html(md_text, dossier_id)
+    return {
+        "ok": True,
+        "content_type": "text/html; charset=utf-8",
+        "filename": f"rapport-{dossier_id}.html",
+        "data": html,
+    }
+
+
 def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
     subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
     mandate = knowledge.get("mandate", {}) if isinstance(knowledge.get("mandate"), dict) else {}
@@ -3024,6 +3064,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_generate_rapport(body))
+                return
+            if self.path == "/app/report/export":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_export_rapport(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:

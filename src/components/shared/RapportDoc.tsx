@@ -15,6 +15,9 @@ interface Props {
   reportText?: string
   onSave?: (markdown: string) => Promise<void>
   onGenerate?: (format: 'abrege' | 'complet') => Promise<void>
+  sessionId?: string
+  dossierId?: string
+  onSaveVersion?: (markdown: string) => Promise<void>
 }
 
 const APPROACH_LABELS: Record<string, string> = {
@@ -58,6 +61,9 @@ export default function RapportDoc({
   reportText,
   onSave,
   onGenerate,
+  sessionId,
+  dossierId,
+  onSaveVersion,
 }: Props) {
   const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
   const approaches = Object.entries(valuationValues).filter(([, v]) => v > 0)
@@ -87,6 +93,9 @@ export default function RapportDoc({
             initialMarkdown={reportText}
             onSave={onSave ?? (async () => {})}
             onGenerate={onGenerate ?? (async () => {})}
+            sessionId={sessionId ?? ''}
+            dossierId={dossierId ?? ''}
+            onSaveVersion={onSaveVersion ?? (async () => {})}
           />
         </div>
       </div>
