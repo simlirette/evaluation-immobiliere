@@ -538,6 +538,12 @@ class RuntimeEngine:
                     k: v for k, v in inond.items()
                     if k not in ("source",) and v is not None
                 }
+            ipc = case.get("ipc_logement")
+            if ipc:
+                fb["ipc_logement"] = {
+                    k: v for k, v in ipc.items()
+                    if k not in ("source",) and v is not None
+                }
             travail = case.get("marche_travail")
             if travail:
                 fb["marche_travail"] = {
@@ -744,6 +750,24 @@ class RuntimeEngine:
                 )
             else:
                 financement_section = ""
+            # Build IPC / inflation section
+            ipc = case.get("ipc_logement") or {}
+            if ipc:
+                ipc_log = ipc.get("ipc_logement")
+                ipc_tot = ipc.get("ipc_total")
+                ipc_var = ipc.get("variation_logement_pct")
+                ipc_per = ipc.get("periode", "")
+                ipc_section = (
+                    f"## Indice des prix à la consommation — logement"
+                    + (f" ({ipc_per})" if ipc_per else "")
+                    + "\n\n"
+                    + (f"IPC total : **{ipc_tot:.1f}**  \n" if ipc_tot else "")
+                    + (f"IPC logement (Shelter) : **{ipc_log:.1f}**  \n" if ipc_log else "")
+                    + (f"Variation annuelle logement : **{ipc_var:+.1f} %**  \n" if ipc_var is not None else "")
+                    + "\n"
+                )
+            else:
+                ipc_section = ""
             # Build market data section from enrichment (if available)
             ml = case.get("marche_locatif") or {}
             nhpi = case.get("indice_prix_logement") or {}
@@ -850,6 +874,7 @@ class RuntimeEngine:
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
                 + pop_section
                 + financement_section
+                + ipc_section
                 + marche_section
                 + permis_section
                 + census_section

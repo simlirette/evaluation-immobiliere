@@ -128,6 +128,19 @@ _BOC_SERIES: dict[str, str] = {
     "V122496":      "taux_hypo_1an_pct",          # 1-year conventional mortgage
 }
 
+# ── IPC (Indice des prix à la consommation) — StatCan 18-10-0004-01 ──────────
+_IPC_TABLE = 1810000401  # 18-10-0004-01 : CPI by component, annual
+
+# Geography — use Canada total or Quebec province
+_IPC_GEO_SEARCHES = ["Canada", "Québec", "Quebec"]
+
+# Components to extract (dim search terms)
+_IPC_COMPONENTS: dict[str, list[str]] = {
+    "ipc_total":    ["All-items", "Ensemble"],
+    "ipc_logement": ["Shelter", "Logement"],
+    "ipc_energie":  ["Energy", "Énergie"],
+}
+
 # ── Marché du travail CMA (StatCan 14-10-0096-01) ────────────────────────────
 _TRAVAIL_TABLE = 1410009601  # 14-10-0096-01 : Labour force characteristics by CMA (SA)
 
@@ -560,6 +573,86 @@ def fetch_marche_travail(city_code: str, cache_dir: Path) -> dict:
 
     except Exception as exc:  # pragma: no cover
         logger.debug("Marché travail fetch failed for %s: %s", city_code, exc)
+        return {}
+
+
+def fetch_ipc_logement(cache_dir: Path) -> dict:
+    """
+    Return CPI housing component + annual variation via StatCan WDS (18-10-0004-01).
+
+    Non city-specific (Canada or Quebec aggregate).
+    Returns dict with keys: ipc_total, ipc_logement, ipc_energie,
+    variation_logement_pct, periode, source.
+    Returns {} on any failure.
+    """
+    try:
+        meta = _cube_metadata(_IPC_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # Dim 0 = GEO — prefer Canada total
+        geo_ord = _find_member_ordinal(dims, 0, _IPC_GEO_SEARCHES)
+        if geo_ord is None:
+            return {}
+
+        result: dict = {"source": "statcan-18-10-0004-01"}
+
+        for field_key, searches in _IPC_COMPONENTS.items():
+            comp_ord = _find_member_ordinal(dims, 1, searches)
+            if comp_ord is None:
+                continue
+            # Try 3-dim coordinate if extra dim present
+            extra_ord: int | None = None
+            if len(dims) >= 3:
+                members3 = dims[2].get("member", [])
+                if members3:
+                    extra_ord = int(members3[0]["memberId"])
+            coord = _build_coordinate(geo_ord, comp_ord,
+                                      *([] if extra_ord is None else [extra_ord]))
+            if not coord:
+                continue
+            val = _fetch_series(_IPC_TABLE, coord, cache_dir)
+            if val is not None:
+                result[field_key] = val
+
+        if "ipc_logement" not in result:
+            return {}
+
+        # Compute annual variation for logement component using latestN=13
+        comp_ord_log = _find_member_ordinal(dims, 1, _IPC_COMPONENTS["ipc_logement"])
+        extra_ord2: int | None = None
+        if len(dims) >= 3:
+            members3 = dims[2].get("member", [])
+            if members3:
+                extra_ord2 = int(members3[0]["memberId"])
+        coord_log = _build_coordinate(geo_ord, comp_ord_log,
+                                      *([] if extra_ord2 is None else [extra_ord2]))
+        if coord_log:
+            try:
+                payload = [{"productId": _IPC_TABLE, "coordinate": coord_log,
+                            "latestN": 13}]
+                data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if isinstance(data, list) and data and data[0].get("status") == "SUCCESS":
+                    pts = data[0].get("object", {}).get("vectorDataPoint", [])
+                    if pts:
+                        ref = pts[0].get("refPer") or pts[0].get("refper") or ""
+                        if ref:
+                            result["periode"] = str(ref)[:7]
+                    if len(pts) >= 13:
+                        latest = float(pts[0]["value"])
+                        year_ago = float(pts[12]["value"])
+                        if year_ago > 0:
+                            result["variation_logement_pct"] = round(
+                                (latest - year_ago) / year_ago * 100, 1
+                            )
+            except Exception:
+                pass
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("IPC fetch failed: %s", exc)
         return {}
 
 
@@ -2205,6 +2298,18 @@ def enrich_case(
 
     zone = str(case.get("zone", ""))
     city_code = detect_city(display_name, zone)
+
+    # ── IPC logement (national, non spécifique à la ville) ───────────────────
+    if not case.get("ipc_logement"):
+        try:
+            ipc = fetch_ipc_logement(cache_dir)
+            if ipc:
+                case["ipc_logement"] = ipc
+                logger.debug("ipc_logement injecté : logement=%.1f var=%.1f%%",
+                             ipc.get("ipc_logement", 0),
+                             ipc.get("variation_logement_pct", 0))
+        except Exception as exc:
+            logger.debug("ipc_logement skip: %s", exc)
 
     # ── Marché du travail CMA ─────────────────────────────────────────────────
     if not case.get("marche_travail"):

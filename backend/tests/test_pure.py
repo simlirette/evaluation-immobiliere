@@ -2402,6 +2402,127 @@ class TestDataEnrichment_Inondable:
         assert case["zone_inondable"] == {}
 
 
+# ── TestDataEnrichment_IPC ────────────────────────────────────────────────────
+
+class TestDataEnrichment_IPC:
+    """Tests for fetch_ipc_logement() via StatCan WDS 18-10-0004-01."""
+
+    def _meta(self, geo_labels, component_labels):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        return {"dims": [
+            {"member": members(geo_labels)},
+            {"member": members(component_labels)},
+        ]}
+
+    def _wds_scalar(self, value):
+        return [{"status": "SUCCESS",
+                 "object": {"vectorDataPoint": [{"value": str(value)}]}}]
+
+    def _wds_13pts(self, latest, year_ago, period="2025-01"):
+        pts = [{"value": str(latest), "refPer": period}]
+        pts += [{"value": str((latest + year_ago) / 2)}] * 11
+        pts += [{"value": str(year_ago)}]
+        return [{"status": "SUCCESS",
+                 "object": {"vectorDataPoint": pts}}]
+
+    def test_fetch_ipc_success(self, tmp_path):
+        """IPC components extracted + annual variation computed."""
+        import pytest
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_ipc_logement
+
+        meta = self._meta(
+            ["Canada", "Québec"],
+            ["All-items", "Shelter", "Energy"],
+        )
+        # _fetch_series returns current value per coord
+        series_map = {"1.1": 160.0, "1.2": 175.0, "1.3": 140.0}
+
+        def fake_fetch_series(pid, coord, cache_dir):
+            return series_map.get(coord)
+
+        # _wds_post used for latestN=13 annual variation
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return self._wds_13pts(175.0, 165.0, "2025-01")
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_fetch_series", side_effect=fake_fetch_series):
+                with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                    result = fetch_ipc_logement(tmp_path)
+
+        assert result.get("source") == "statcan-18-10-0004-01"
+        assert result.get("ipc_total") == 160.0
+        assert result.get("ipc_logement") == 175.0
+        assert result.get("ipc_energie") == 140.0
+        assert result.get("periode") == "2025-01"
+        # (175 - 165) / 165 * 100 ≈ 6.06%
+        assert result.get("variation_logement_pct") == pytest.approx(6.1, abs=0.1)
+
+    def test_fetch_ipc_no_shelter_component(self, tmp_path):
+        """If Shelter component missing → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_ipc_logement
+
+        meta = self._meta(["Canada"], ["All-items", "Food", "Transportation"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_fetch_series", return_value=100.0):
+                with mock.patch.object(de, "_wds_post", return_value=[]):
+                    result = fetch_ipc_logement(tmp_path)
+
+        assert result == {}
+
+    def test_fetch_ipc_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_ipc_logement
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_ipc_logement(tmp_path)
+
+        assert result == {}
+
+    def test_fetch_ipc_geo_not_found(self, tmp_path):
+        """No matching GEO → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_ipc_logement
+
+        meta = self._meta(["Ontario", "Alberta"], ["All-items", "Shelter"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_ipc_logement(tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_ipc_logement(self, tmp_path):
+        """enrich_case populates ipc_logement from fetch_ipc_logement."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        ipc_data = {
+            "source": "statcan-18-10-0004-01",
+            "ipc_total": 160.5,
+            "ipc_logement": 178.2,
+            "variation_logement_pct": 5.3,
+            "periode": "2025-01",
+        }
+
+        with mock.patch.object(de, "fetch_ipc_logement", return_value=ipc_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-IPC-TEST"}
+                enrich_case(case, display_name="1 pl. Ville-Marie, Montréal",
+                            cache_dir=tmp_path)
+
+        ip = case.get("ipc_logement", {})
+        assert ip.get("ipc_logement") == 178.2
+        assert ip.get("variation_logement_pct") == 5.3
+
+
 # ── TestDataEnrichment_Travail ────────────────────────────────────────────────
 
 class TestDataEnrichment_Travail:
