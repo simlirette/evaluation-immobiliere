@@ -299,7 +299,15 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - cout_min, cout_max, cout_median + type_travaux
   - fiche_bien.json + section AMU "Coût estimé de rénovation" (Critère 2)
   - 6 tests pass
-- 360 tests pass
+- B43 Projection de valeur à 5 ans (calcul interne) ✓
+  - compute_projection_valeur(case): 3 scénarios × 3 horizons (1/3/5 ans)
+  - Inputs: valeur_indicative.synthese (B40, fallback eval_mun) + NHPI variation (B10, défaut 2%/an)
+  - Scénarios: base (NHPI), optimiste (×1.5), pessimiste (×0.3, plancher 0%)
+  - Croissance composée annuelle, taux_base/optimiste/pessimiste exposés
+  - fiche_bien.json + section AMU "Projection de valeur" (Critère 4)
+  - Fix test: valeur_base = valeur_indicative ajustée NHPI (pas eval brute)
+  - 6 tests pass
+- 366 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

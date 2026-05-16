@@ -712,6 +712,12 @@ class RuntimeEngine:
                     k: v for k, v in cout_ren.items()
                     if k not in ("source",) and v is not None
                 }
+            proj_val = case.get("projection_valeur")
+            if proj_val:
+                fb["projection_valeur"] = {
+                    k: v for k, v in proj_val.items()
+                    if k not in ("source", "source_taux") and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1294,6 +1300,33 @@ class RuntimeEngine:
                 )
             else:
                 qdv_section = ""
+            # Build value projection section
+            pv_d = case.get("projection_valeur") or {}
+            if pv_d:
+                pv_base = pv_d.get("valeur_base")
+                pv_taux = pv_d.get("taux_base_pct")
+                pv_proj = pv_d.get("projections") or {}
+                pv_src = pv_d.get("source_taux", "")
+
+                def _pv_row(scenario: str, label: str) -> str:
+                    s = pv_proj.get(scenario, {})
+                    if not s:
+                        return ""
+                    return (f"**{label}** ({pv_d.get(f'taux_{scenario}_pct', 0):.1f} %/an) : "
+                            + " | ".join(f"{n} an{'s' if n>1 else ''} → {s.get(f'an{n}', 0):,.0f} $"
+                                         for n in [1, 3, 5])
+                            + "  \n")
+
+                projection_section = (
+                    "## Projection de valeur à 5 ans (calcul interne)\n\n"
+                    + (f"Valeur de base : **{pv_base:,.0f} $** | Taux NHPI : {pv_taux:.2f} %/an ({pv_src})  \n\n" if pv_base else "")
+                    + _pv_row("optimiste", "Optimiste")
+                    + _pv_row("base", "Base")
+                    + _pv_row("pessimiste", "Pessimiste")
+                    + "\n*Projection à titre indicatif — ne constitue pas une garantie de rendement.*\n\n"
+                )
+            else:
+                projection_section = ""
             # Build renovation cost section
             cr_d = case.get("cout_renovation") or {}
             if cr_d:
@@ -1503,6 +1536,7 @@ class RuntimeEngine:
                 + plr_section
                 + rendement_section
                 + invest_section
+                + projection_section
                 + score_marche_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

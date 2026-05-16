@@ -6063,3 +6063,72 @@ class TestDataEnrichment_CoutRenovation:
         assert cr.get("surface_m2") == 110.0
         assert cr.get("cout_min") > 0
         assert cr.get("cout_max") >= cr.get("cout_min")
+
+
+class TestDataEnrichment_ProjectionValeur:
+    """B43 — compute_projection_valeur (pure function)."""
+
+    def test_projection_base_composee(self):
+        """Projection an1 = valeur_base * (1 + taux/100)^1."""
+        from engine.data_enrichment import compute_projection_valeur
+        case = {
+            "valeur_indicative": {"valeur_indicative_synthese": 400_000},
+            "indice_prix_logement": {"variation_annuelle_pct": 5.0},
+        }
+        r = compute_projection_valeur(case)
+        assert r["projections"]["base"]["an1"] == pytest.approx(420_000, abs=1)
+        assert r["projections"]["base"]["an3"] == pytest.approx(400_000 * 1.05**3, abs=1)
+
+    def test_trois_scenarios_presents(self):
+        """Les trois scénarios existent avec an1/an3/an5."""
+        from engine.data_enrichment import compute_projection_valeur
+        case = {"evaluation_municipale_totale": 300_000}
+        r = compute_projection_valeur(case)
+        for scenario in ("base", "optimiste", "pessimiste"):
+            assert scenario in r["projections"]
+            for horizon in ("an1", "an3", "an5"):
+                assert horizon in r["projections"][scenario]
+
+    def test_taux_defaut_si_nhpi_absent(self):
+        """Sans NHPI → taux base = 2.0% (défaut LT-QC)."""
+        from engine.data_enrichment import compute_projection_valeur
+        case = {"evaluation_municipale_totale": 500_000}
+        r = compute_projection_valeur(case)
+        assert r["taux_base_pct"] == pytest.approx(2.0, abs=0.01)
+
+    def test_optimiste_plus_grand_que_base(self):
+        """Scénario optimiste > base > pessimiste pour taux positif."""
+        from engine.data_enrichment import compute_projection_valeur
+        case = {
+            "evaluation_municipale_totale": 400_000,
+            "indice_prix_logement": {"variation_annuelle_pct": 4.0},
+        }
+        r = compute_projection_valeur(case)
+        proj = r["projections"]
+        assert proj["optimiste"]["an5"] > proj["base"]["an5"] > proj["pessimiste"]["an5"]
+
+    def test_no_value_returns_empty(self):
+        """Sans valeur de base → dict vide."""
+        from engine.data_enrichment import compute_projection_valeur
+        assert compute_projection_valeur({}) == {}
+
+    def test_enrich_case_injects_projection(self, tmp_path):
+        """enrich_case injecte projection_valeur quand valeur disponible."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-PROJ-TEST",
+            "evaluation_municipale_totale": 450_000,
+            "indice_prix_logement": {"variation_annuelle_pct": 3.5},
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        pv = case.get("projection_valeur", {})
+        assert pv.get("source") == "calcul-interne"
+        # valeur_base = valeur_indicative (eval ajustée NHPI) ou eval brute
+        assert pv.get("valeur_base") > 0
+        assert pv.get("taux_base_pct") == pytest.approx(3.5, abs=0.01)
+        assert pv["projections"]["base"]["an5"] > pv["valeur_base"]

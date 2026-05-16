@@ -302,6 +302,13 @@ _RENOV_COUTS_PAR_CATEGORIE: dict[str, tuple[float, float, str]] = {
     "très vieux": (2_200, 3_500, "complète"),
 }
 
+# ── Projection de valeur à 5 ans (calcul interne) ─────────────────────────────
+_PROJ_HORIZONS          = [1, 3, 5]     # années de projection
+_PROJ_MULT_OPTIMISTE    = 1.5           # ×taux_base pour scénario optimiste
+_PROJ_MULT_PESSIMISTE   = 0.3           # ×taux_base pour scénario pessimiste (>0)
+_PROJ_TAUX_BASE_DEFAUT  = 2.0           # % annuel si NHPI indisponible (LT QC)
+_PROJ_TAUX_PLANCHER     = 0.0           # % : plancher scénario pessimiste
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -4417,6 +4424,65 @@ def compute_cout_renovation(case: dict) -> dict:
     return result
 
 
+def compute_projection_valeur(case: dict) -> dict:
+    """
+    Project property value over 1, 3, and 5 years using three scenarios.
+
+    Pure function — no external calls.  Uses:
+      - valeur_indicative.valeur_indicative_synthese  (B40) as base value
+        Fallback: evaluation_municipale_totale → role_municipal.valeur_totale
+      - indice_prix_logement.variation_annuelle_pct   (B10) as base annual rate
+        Fallback: _PROJ_TAUX_BASE_DEFAUT (2.0 % — QC long-term average)
+
+    Three scenarios:
+      base        : taux_nhpi as-is
+      optimiste   : taux_nhpi × _PROJ_MULT_OPTIMISTE (capped for realism)
+      pessimiste  : max(taux_nhpi × _PROJ_MULT_PESSIMISTE, _PROJ_TAUX_PLANCHER)
+
+    Returns dict with projections dict (scenario → {an1, an3, an5}),
+    taux_base_pct, taux_optimiste_pct, taux_pessimiste_pct, valeur_base, source.
+    Returns {} if no base value available.
+    """
+    # ── Valeur de base ─────────────────────────────────────────────────────────
+    valeur_base = (case.get("valeur_indicative") or {}).get("valeur_indicative_synthese")
+    if not valeur_base:
+        valeur_base = case.get("evaluation_municipale_totale")
+    if not valeur_base:
+        valeur_base = (case.get("role_municipal") or {}).get("valeur_totale")
+    if not valeur_base or valeur_base <= 0:
+        return {}
+
+    # ── Taux annuel de base ────────────────────────────────────────────────────
+    nhpi_var = (case.get("indice_prix_logement") or {}).get("variation_annuelle_pct")
+    taux_base = float(nhpi_var) if nhpi_var is not None else _PROJ_TAUX_BASE_DEFAUT
+    taux_opt  = taux_base * _PROJ_MULT_OPTIMISTE
+    taux_pess = max(taux_base * _PROJ_MULT_PESSIMISTE, _PROJ_TAUX_PLANCHER)
+
+    def projeter(valeur: float, taux_pct: float, ans: int) -> float:
+        return round(valeur * ((1 + taux_pct / 100.0) ** ans), 0)
+
+    projections: dict[str, dict] = {}
+    for scenario, taux in [("base", taux_base), ("optimiste", taux_opt), ("pessimiste", taux_pess)]:
+        projections[scenario] = {
+            f"an{n}": projeter(valeur_base, taux, n)
+            for n in _PROJ_HORIZONS
+        }
+
+    result = {
+        "valeur_base": round(valeur_base, 0),
+        "taux_base_pct": round(taux_base, 2),
+        "taux_optimiste_pct": round(taux_opt, 2),
+        "taux_pessimiste_pct": round(taux_pess, 2),
+        "projections": projections,
+        "source_taux": "NHPI StatCan" if nhpi_var is not None else f"défaut {_PROJ_TAUX_BASE_DEFAUT}% LT-QC",
+        "source": "calcul-interne",
+    }
+
+    logger.debug("projection_valeur : base=%d$ taux=%.2f%%/an (opt=%.2f%% pess=%.2f%%)",
+                 valeur_base, taux_base, taux_opt, taux_pess)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4932,3 +4998,15 @@ def enrich_case(
                              cout.get("cout_max", 0))
         except Exception as exc:
             logger.debug("cout_renovation skip: %s", exc)
+
+    # ── Projection de valeur à 5 ans (calcul interne, dépend B10+B40) ─────────
+    if not case.get("projection_valeur"):
+        try:
+            proj = compute_projection_valeur(case)
+            if proj:
+                case["projection_valeur"] = proj
+                logger.debug("projection_valeur : base=%d$ taux=%.2f%%/an",
+                             proj.get("valeur_base", 0),
+                             proj.get("taux_base_pct", 0))
+        except Exception as exc:
+            logger.debug("projection_valeur skip: %s", exc)
