@@ -610,6 +610,12 @@ class RuntimeEngine:
                     k: v for k, v in neuf.items()
                     if k not in ("source",) and v is not None
                 }
+            dist_cbd = case.get("distance_cbd")
+            if dist_cbd:
+                fb["distance_cbd"] = {
+                    k: v for k, v in dist_cbd.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -953,6 +959,21 @@ class RuntimeEngine:
                 )
             else:
                 crime_section = ""
+            # Build distance to CBD section
+            dist_cbd = case.get("distance_cbd") or {}
+            if dist_cbd:
+                d_km = dist_cbd.get("distance_cbd_km")
+                d_ref = dist_cbd.get("ville_reference", zone)
+                d_interp = dist_cbd.get("interpretation", "")
+                dist_section = (
+                    f"## Localisation — distance au centre-ville\n\n"
+                    + (f"Centre de référence : {d_ref}  \n" if d_ref else "")
+                    + (f"Distance (Haversine) : **{d_km:.2f} km**  \n" if d_km is not None else "")
+                    + (f"Secteur : **{d_interp}**  \n" if d_interp else "")
+                    + "\n"
+                )
+            else:
+                dist_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -962,6 +983,7 @@ class RuntimeEngine:
                 + patrimoine_section
                 + inond_section
                 + cptaq_section
+                + dist_section
                 + f"## Critere 1 — Legalement permis\n\n"
                 f"L'usage de type {type_bien} est conforme au zonage {zone_code}. "
                 f"Aucune restriction legale identifiee.\n\n"

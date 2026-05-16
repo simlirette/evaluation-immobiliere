@@ -4005,3 +4005,73 @@ class TestDataEnrichment_MarcheNeuf:
         mn = case.get("marche_neuf", {})
         assert mn.get("completions_mois") == 420.0
         assert mn.get("taux_absorption_pct") == 84.0
+
+
+# ── TestDataEnrichment_DistanceCBD ────────────────────────────────────────────
+
+class TestDataEnrichment_DistanceCBD:
+    """Tests for compute_distance_cbd() and _haversine_km()."""
+
+    def test_haversine_known_distance(self):
+        """Haversine: MTL downtown to Laval approx 15-20 km."""
+        import pytest
+        from engine.data_enrichment import _haversine_km
+        # Montreal Place d'Armes → Carrefour Laval
+        dist = _haversine_km(45.5088, -73.5540, 45.5636, -73.6924)
+        assert 10.0 < dist < 20.0
+
+    def test_compute_distance_cbd_center(self):
+        """Coords at Place d'Armes → 'centre-ville', distance < 5 km."""
+        import pytest
+        from engine.data_enrichment import compute_distance_cbd
+        result = compute_distance_cbd(45.5088, -73.5540, "montreal")
+        assert result.get("source") == "calcul-haversine"
+        assert result.get("ville_reference") == "Montréal"
+        assert result.get("distance_cbd_km") == pytest.approx(0.0, abs=0.5)
+        assert result.get("interpretation") == "centre-ville"
+
+    def test_compute_distance_cbd_suburb(self):
+        """Coords far from city center → 'banlieue' category."""
+        from engine.data_enrichment import compute_distance_cbd
+        # Repentigny (~35 km from MTL downtown)
+        result = compute_distance_cbd(45.7447, -73.4498, "montreal")
+        assert result.get("distance_cbd_km") > 20.0
+        assert result.get("interpretation") in ("banlieue proche", "banlieue éloignée")
+
+    def test_compute_distance_cbd_unknown_city(self):
+        """Unknown city_code → {}."""
+        from engine.data_enrichment import compute_distance_cbd
+        result = compute_distance_cbd(45.5, -73.5, "rimouski")
+        assert result == {}
+
+    def test_compute_distance_cbd_peri_central(self):
+        """Coords ~10 km from CBD → 'péri-central'."""
+        from engine.data_enrichment import compute_distance_cbd
+        # Anjou / Saint-Léonard area (~10-12 km east of Place d'Armes)
+        result = compute_distance_cbd(45.5783, -73.5515, "montreal")
+        assert 5.0 <= result.get("distance_cbd_km", 0) < 15.0
+        assert result.get("interpretation") == "péri-central"
+
+    def test_enrich_case_injects_distance_cbd(self, tmp_path):
+        """enrich_case injects distance_cbd after geocoding."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        dist_data = {
+            "source": "calcul-haversine",
+            "distance_cbd_km": 3.5,
+            "ville_reference": "Montréal",
+            "interpretation": "centre-ville",
+        }
+
+        with mock.patch.object(de, "compute_distance_cbd", return_value=dist_data):
+            with mock.patch.object(de, "geocode_address", return_value=(45.51, -73.56)):
+                with mock.patch.object(de, "detect_city", return_value="montreal"):
+                    case: dict = {"dossier_id": "D-DIST-TEST"}
+                    enrich_case(case, display_name="500 rue Sherbrooke, Montréal",
+                                cache_dir=tmp_path)
+
+        dc = case.get("distance_cbd", {})
+        assert dc.get("distance_cbd_km") == 3.5
+        assert dc.get("interpretation") == "centre-ville"

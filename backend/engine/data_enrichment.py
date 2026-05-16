@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import math
 import time
 import unicodedata
 from pathlib import Path
@@ -167,6 +168,19 @@ _CRIME_VIOLATION_SEARCHES: dict[str, list[str]] = {
 
 # Statistic type searches for dim 2 (Statistic)
 _CRIME_STAT_SEARCHES: list[str] = ["Rate per 100,000 population", "Rate per 100,000", "Taux pour 100 000"]
+
+# ── Distance au CBD — coordonnées des centres-villes QC ──────────────────────
+# (lat, lng, nom_officiel)  — référence: place centrale de chaque CMA
+_CBD_COORDS: dict[str, tuple[float, float, str]] = {
+    "montreal":       (45.5088, -73.5540, "Montréal"),     # Place d'Armes
+    "quebec":         (46.8139, -71.2080, "Québec"),        # Place d'Youville
+    "gatineau":       (45.4765, -75.7013, "Gatineau"),      # Centre-ville Hull
+    "sherbrooke":     (45.4042, -71.8929, "Sherbrooke"),    # Place du Marché
+    "saguenay":       (48.4284, -71.0537, "Saguenay"),      # Centre Chicoutimi
+    "trois-rivieres": (46.3432, -72.5418, "Trois-Rivières"),
+    "drummondville":  (45.8836, -72.4832, "Drummondville"),
+    "laval":          (45.5636, -73.6924, "Laval"),         # Carrefour Laval
+}
 
 # ── Marché neuf — completions & pipeline (StatCan 34-10-0093-01) ─────────────
 _NEUF_TABLE = 3410009301   # 34-10-0093-01 : Starts, under construction, completions
@@ -720,6 +734,47 @@ def fetch_proximite_services(lat: float, lng: float, cache_dir: Path) -> dict:
     logger.debug("proximite_services injecté : écoles=%s transports=%s",
                  result.get("ecoles_1km"), result.get("arrets_transport_500m"))
     return result
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance in kilometres (Haversine formula)."""
+    R = 6_371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
+         * math.sin(dlng / 2) ** 2)
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def compute_distance_cbd(lat: float, lng: float, city_code: str) -> dict:
+    """
+    Compute straight-line distance (Haversine) from (lat, lng) to the city
+    centre reference point for city_code.
+
+    Returns dict with:
+      distance_cbd_km, ville_reference, interpretation, source
+    Returns {} if city_code is not in _CBD_COORDS.
+    """
+    cbd = _CBD_COORDS.get(city_code)
+    if not cbd:
+        return {}
+    cbd_lat, cbd_lng, cbd_name = cbd
+    dist = _haversine_km(lat, lng, cbd_lat, cbd_lng)
+    if dist < 5:
+        interpretation = "centre-ville"
+    elif dist < 15:
+        interpretation = "péri-central"
+    elif dist < 35:
+        interpretation = "banlieue proche"
+    else:
+        interpretation = "banlieue éloignée"
+    return {
+        "source": "calcul-haversine",
+        "distance_cbd_km": round(dist, 2),
+        "ville_reference": cbd_name,
+        "interpretation": interpretation,
+    }
 
 
 def fetch_marche_neuf(city_code: str, cache_dir: Path) -> dict:
@@ -2889,11 +2944,25 @@ def enrich_case(
         or not case.get("patrimoine_culturel")
         or "zone_inondable" not in case
         or "proximite_services" not in case
+        or "distance_cbd" not in case
     ):
         try:
             _coords = geocode_address(display_name, cache_dir)
         except Exception as exc:
             logger.debug("geocode skip: %s", exc)
+
+    # ── Distance au CBD (Haversine) ───────────────────────────────────────────
+    if "distance_cbd" not in case and _coords and city_code:
+        try:
+            lat, lng = _coords
+            dist_data = compute_distance_cbd(lat, lng, city_code)
+            if dist_data:
+                case["distance_cbd"] = dist_data
+                logger.debug("distance_cbd injecté : %s %.2f km (%s)",
+                             city_code, dist_data["distance_cbd_km"],
+                             dist_data["interpretation"])
+        except Exception as exc:
+            logger.debug("distance_cbd skip: %s", exc)
 
     # ── Zonage urbanisme ──────────────────────────────────────────────────────
     if not case.get("zonage_urbanisme") and _coords:
