@@ -168,6 +168,28 @@ _CRIME_VIOLATION_SEARCHES: dict[str, list[str]] = {
 # Statistic type searches for dim 2 (Statistic)
 _CRIME_STAT_SEARCHES: list[str] = ["Rate per 100,000 population", "Rate per 100,000", "Taux pour 100 000"]
 
+# ── Marché neuf — completions & pipeline (StatCan 34-10-0093-01) ─────────────
+_NEUF_TABLE = 3410009301   # 34-10-0093-01 : Starts, under construction, completions
+_NEUF_TTL = 86_400         # 24 h (données mensuelles)
+
+# Same GEO labels as mises en chantier (same SCHL CMA survey)
+_NEUF_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal", "Montreal"],
+    "quebec":         ["Québec", "Quebec"],
+    "gatineau":       ["Ottawa - Gatineau", "Gatineau"],
+    "sherbrooke":     ["Sherbrooke"],
+    "saguenay":       ["Saguenay"],
+    "trois-rivieres": ["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville":  ["Drummondville"],
+    "laval":          ["Laval"],
+}
+
+# Variable searches for dim 2 (housing market variable)
+_NEUF_VAR_SEARCHES: dict[str, list[str]] = {
+    "completions_mois":      ["Completed", "Completions", "Completées"],
+    "unites_en_construction": ["Under construction", "En construction"],
+}
+
 # ── Mises en chantier SCHL (StatCan 34-10-0056-01) ───────────────────────────
 _CHANTIER_TABLE = 3410005601  # 34-10-0056-01 : Housing starts by CMA (CMHC)
 
@@ -697,6 +719,96 @@ def fetch_proximite_services(lat: float, lng: float, cache_dir: Path) -> dict:
     _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
     logger.debug("proximite_services injecté : écoles=%s transports=%s",
                  result.get("ecoles_1km"), result.get("arrets_transport_500m"))
+    return result
+
+
+def fetch_marche_neuf(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return new housing completions and units under construction for a QC CMA
+    via StatCan WDS (34-10-0093-01).
+
+    Returns dict with:
+      completions_mois, completions_12mois, unites_en_construction,
+      taux_absorption_pct (completions / starts × 100 if starts available),
+      ville, periode, source
+    Returns {} if city not supported or data unavailable.
+    """
+    geo_labels = _NEUF_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    cache_path = cache_dir / f"marche_neuf_{city_code}.json"
+    cached = _read_cache_ttl(cache_path, _NEUF_TTL)
+    if cached is not None:
+        return cached
+
+    meta = _cube_metadata(_NEUF_TABLE, cache_dir)
+    if not meta:
+        return {}
+
+    dims = meta.get("dims", [])
+    # Table has at least 3 dims: Geography, Dwelling type, Variable
+    if len(dims) < 3:
+        return {}
+
+    # Dim 0 = Geography, Dim 1 = Dwelling type, Dim 2 = Variable
+    geo_ord = None
+    for lbl in geo_labels:
+        geo_ord = _find_member_ordinal(dims, 0, [lbl])
+        if geo_ord is not None:
+            break
+    if geo_ord is None:
+        return {}
+
+    total_type_ord = _find_member_ordinal(dims, 1, ["Total units", "Total", "Ensemble", "All types"])
+    if total_type_ord is None:
+        return {}
+
+    result: dict = {
+        "source": "statcan-34-10-0093-01",
+        "ville": geo_labels[0],
+    }
+    periode = ""
+
+    for field_key, searches in _NEUF_VAR_SEARCHES.items():
+        var_ord = _find_member_ordinal(dims, 2, searches)
+        if var_ord is None:
+            continue
+        coord = _build_coordinate([geo_ord, total_type_ord, var_ord])
+        try:
+            payload = [{"productId": _NEUF_TABLE, "coordinate": coord, "latestN": 12}]
+            rows = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+            if rows:
+                pts = rows[0].get("object", {}).get("vectorDataPoint", [])
+                valid = [float(p["value"]) for p in pts
+                         if p.get("status") != "E" and p.get("value") not in (None, "")]
+                if valid:
+                    result[field_key] = round(valid[-1], 0)  # latest month
+                    if field_key == "completions_mois":
+                        result["completions_12mois"] = round(sum(valid), 0)
+                        if pts:
+                            periode = pts[-1].get("refPer", "")
+        except Exception as exc:
+            logger.debug("marche_neuf %s skip: %s", field_key, exc)
+
+    if periode:
+        result["periode"] = periode
+
+    # Compute absorption rate if starts available (from mises_en_chantier cache)
+    starts_cache = cache_dir / f"mises_en_chantier_{city_code}.json"
+    starts_cached = _read_cache_ttl(starts_cache, _NEUF_TTL * 30)  # accept older starts data
+    if starts_cached and result.get("completions_mois") and starts_cached.get("total_mois"):
+        starts_val = starts_cached["total_mois"]
+        compl_val = result["completions_mois"]
+        if starts_val > 0:
+            result["taux_absorption_pct"] = round(compl_val / starts_val * 100, 1)
+
+    if len(result) <= 3:
+        return {}
+
+    _write_cache_ttl(cache_path, result, _NEUF_TTL)
+    logger.debug("marche_neuf injecté : %s completions=%s en_constr=%s",
+                 city_code, result.get("completions_mois"), result.get("unites_en_construction"))
     return result
 
 
@@ -2694,6 +2806,17 @@ def enrich_case(
                              city_code, chantier.get("total_mois"))
         except Exception as exc:
             logger.debug("mises_en_chantier skip: %s", exc)
+
+    # ── Marché neuf — completions & pipeline (StatCan 34-10-0093-01) ────────────
+    if not case.get("marche_neuf"):
+        try:
+            neuf = fetch_marche_neuf(city_code, cache_dir)
+            if neuf:
+                case["marche_neuf"] = neuf
+                logger.debug("marche_neuf injecté : %s completions=%s",
+                             city_code, neuf.get("completions_mois"))
+        except Exception as exc:
+            logger.debug("marche_neuf skip: %s", exc)
 
     # ── Permis de construction (StatCan 34-10-0066-01) ────────────────────────
     if not case.get("permis_construction"):

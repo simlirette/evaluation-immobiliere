@@ -3854,3 +3854,154 @@ class TestDataEnrichment_Crime:
         cs = case.get("crime_stats", {})
         assert cs.get("taux_criminalite_total") == 4150.0
         assert cs.get("annee") == "2022"
+
+
+# ── TestDataEnrichment_MarcheNeuf ─────────────────────────────────────────────
+
+class TestDataEnrichment_MarcheNeuf:
+    """Tests for fetch_marche_neuf() via StatCan WDS 34-10-0093-01."""
+
+    def _meta(self, geo_labels, type_labels, var_labels):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        return {"dims": [
+            {"member": members(geo_labels)},
+            {"member": members(type_labels)},
+            {"member": members(var_labels)},
+        ]}
+
+    def _wds_12pts(self, values, period="2025-01"):
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": str(v), "refPer": period, "status": ""}
+                    for v in values
+                ]
+            },
+        }]
+
+    def test_fetch_marche_neuf_success(self, tmp_path):
+        """Completions, 12-month total, and units under construction returned."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_neuf
+
+        meta = self._meta(
+            ["Montréal", "Québec"],
+            ["Total units", "Single-detached"],
+            ["Completed", "Under construction"],
+        )
+
+        call_idx = {"n": 0}
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            idx = call_idx["n"]
+            call_idx["n"] += 1
+            if idx == 0:
+                # completions: 400/month × 12 months
+                return self._wds_12pts([400.0] * 12, "2025-03")
+            else:
+                # under construction: single value
+                return self._wds_12pts([5200.0] * 12, "2025-03")
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_marche_neuf("montreal", tmp_path)
+
+        assert result.get("source") == "statcan-34-10-0093-01"
+        assert result.get("ville") == "Montréal"
+        assert result.get("completions_mois") == 400.0
+        assert result.get("completions_12mois") == 4800.0
+        assert result.get("unites_en_construction") == 5200.0
+        assert result.get("periode") == "2025-03"
+
+    def test_fetch_marche_neuf_with_absorption(self, tmp_path):
+        """Absorption rate computed from cached starts data."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_neuf
+
+        # Pre-populate starts cache
+        starts_data = {
+            "ville": "Montréal",
+            "source": "statcan-34-10-0056-01",
+            "total_mois": 500.0,
+            "_ts": time.time(),
+        }
+        (tmp_path / "mises_en_chantier_montreal.json").write_text(json.dumps(starts_data))
+
+        meta = self._meta(
+            ["Montréal"],
+            ["Total units"],
+            ["Completed", "Under construction"],
+        )
+
+        call_idx = {"n": 0}
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            idx = call_idx["n"]
+            call_idx["n"] += 1
+            if idx == 0:
+                return self._wds_12pts([450.0] * 12, "2025-03")
+            return self._wds_12pts([5000.0] * 12, "2025-03")
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_marche_neuf("montreal", tmp_path)
+
+        import pytest
+        # 450/500 × 100 = 90.0%
+        assert result.get("taux_absorption_pct") == pytest.approx(90.0, abs=0.1)
+
+    def test_fetch_marche_neuf_unsupported_city(self, tmp_path):
+        """Unknown city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_neuf
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_marche_neuf("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_marche_neuf_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_neuf
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_marche_neuf("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_marche_neuf(self, tmp_path):
+        """enrich_case populates marche_neuf via fetch_marche_neuf."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        neuf_data = {
+            "source": "statcan-34-10-0093-01",
+            "ville": "Montréal",
+            "completions_mois": 420.0,
+            "completions_12mois": 5_040.0,
+            "unites_en_construction": 4_800.0,
+            "taux_absorption_pct": 84.0,
+            "periode": "2025-02",
+        }
+
+        with mock.patch.object(de, "fetch_marche_neuf", return_value=neuf_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-NEUF-TEST"}
+                enrich_case(case, display_name="50 rue Peel, Montréal",
+                            cache_dir=tmp_path)
+
+        mn = case.get("marche_neuf", {})
+        assert mn.get("completions_mois") == 420.0
+        assert mn.get("taux_absorption_pct") == 84.0

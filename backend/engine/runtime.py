@@ -604,6 +604,12 @@ class RuntimeEngine:
                     k: v for k, v in crime.items()
                     if k not in ("source",) and v is not None
                 }
+            neuf = case.get("marche_neuf")
+            if neuf:
+                fb["marche_neuf"] = {
+                    k: v for k, v in neuf.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -835,11 +841,12 @@ class RuntimeEngine:
                     "## Données marché\n\n"
                     "Données de marché non disponibles pour ce secteur (sources externes non connectées).\n\n"
                 )
-            # Build construction activity section (permis + mises en chantier)
+            # Build construction activity section (permis + mises en chantier + completions)
             permis = case.get("permis_construction") or {}
             chantier = case.get("mises_en_chantier") or {}
-            if permis or chantier:
-                ville_constr = (permis or chantier).get("ville", zone)
+            neuf = case.get("marche_neuf") or {}
+            if permis or chantier or neuf:
+                ville_constr = (permis or chantier or neuf).get("ville", zone)
                 u_mois = permis.get("unites_residentielles_mois")
                 u_12m  = permis.get("unites_residentielles_12mois")
                 val_k  = permis.get("valeur_permis_k_mois")
@@ -851,6 +858,11 @@ class RuntimeEngine:
                 ch_12m = chantier.get("total_12mois")
                 var_6m_c = chantier.get("variation_pct_6m")
                 periode_c = chantier.get("periode", "")
+                neuf_comp = neuf.get("completions_mois")
+                neuf_12m = neuf.get("completions_12mois")
+                neuf_constr = neuf.get("unites_en_construction")
+                neuf_abs = neuf.get("taux_absorption_pct")
+                periode_n = neuf.get("periode", "")
                 permis_section = (
                     f"## Activité de construction ({ville_constr})\n\n"
                     + (
@@ -869,6 +881,14 @@ class RuntimeEngine:
                         + (f"Total 12 mois : **{ch_12m:,.0f}**  \n" if ch_12m else "")
                         + (f"Tendance 6m : **{var_6m_c:+.1f} %**  \n" if var_6m_c is not None else "")
                         if chantier else ""
+                    )
+                    + (
+                        f"\n**Completions et pipeline ({periode_n})**  \n"
+                        + (f"Completions (mois) : **{neuf_comp:,.0f}**  \n" if neuf_comp else "")
+                        + (f"Total completions 12 mois : **{neuf_12m:,.0f}**  \n" if neuf_12m else "")
+                        + (f"Unités en construction : **{neuf_constr:,.0f}**  \n" if neuf_constr else "")
+                        + (f"Taux d'absorption : **{neuf_abs:.1f} %**  \n" if neuf_abs is not None else "")
+                        if neuf else ""
                     )
                     + "\n"
                 )
