@@ -899,7 +899,39 @@ _ZONING_CITIES: dict[str, dict] = {
         "package_ids": ["zones-urbanistiques", "zonage", "plan-urbanisme-zones"],
         "bbox": [-74.05, 45.39, -73.45, 45.75],
     },
-    # Other cities: add as open data URLs stabilize
+    "quebec": {
+        # Ville de Québec — portail données ouvertes provincial
+        "ckan_api": "https://www.donneesquebec.ca/api/3/action",
+        "package_ids": [
+            "vmqc-plan-zonage",
+            "plan-de-zonage-ville-de-quebec",
+            "zonage-ville-de-quebec",
+            "plan-zonage",
+        ],
+        "bbox": [-71.55, 46.70, -71.10, 47.05],
+    },
+    "laval": {
+        "ckan_api": "https://www.donneesouvertes.laval.ca/api/3/action",
+        "package_ids": ["plan-urbanisme-zonage", "zonage-laval", "plan-zonage"],
+        "bbox": [-73.92, 45.49, -73.58, 45.68],
+    },
+    "longueuil": {
+        # Longueuil — portail propriétaire (URL directe, pas CKAN standardisé)
+        "ckan_api": None,
+        "package_ids": [],
+        "direct_url": "https://donneesouvertes.longueuil.quebec/datasets/zonage.geojson",
+        "bbox": [-73.60, 45.46, -73.41, 45.58],
+    },
+    "gatineau": {
+        "ckan_api": "https://www.donneesouvertes.gatineau.ca/api/3/action",
+        "package_ids": ["zonage-gatineau", "plan-urbanisme-zonage", "reglements-zonage"],
+        "bbox": [-76.15, 45.38, -75.55, 45.65],
+    },
+    "sherbrooke": {
+        "ckan_api": "https://www.donneesouvertes.sherbrooke.ca/api/3/action",
+        "package_ids": ["plan-urbanisme-zones", "zonage-sherbrooke", "plan-zonage"],
+        "bbox": [-72.00, 45.35, -71.78, 45.55],
+    },
 }
 
 # module-level spatial index cache: city_code → list[zone_record]
@@ -925,7 +957,11 @@ def _find_ckan_geojson(ckan_api: str, package_id: str) -> str | None:
 
 def download_zoning_geojson(city_code: str, cache_dir: Path, force: bool = False) -> Path | None:
     """
-    Download zoning GeoJSON for a city (discovery via CKAN API).
+    Download zoning GeoJSON for a city.
+
+    Discovery order:
+      1. CKAN API (package_ids list) — for cities with a CKAN portal
+      2. direct_url — for cities with a stable direct GeoJSON endpoint
     Returns local path or None if unavailable.
     """
     import httpx  # type: ignore
@@ -938,15 +974,21 @@ def download_zoning_geojson(city_code: str, cache_dir: Path, force: bool = False
     if geojson_path.exists() and not force:
         return geojson_path
 
-    # CKAN discovery — try each package ID
+    # 1. CKAN discovery
     url: str | None = None
-    for pkg_id in city.get("package_ids", []):
-        try:
-            url = _find_ckan_geojson(city["ckan_api"], pkg_id)
-            if url:
-                break
-        except Exception as exc:
-            logger.debug("CKAN discovery %s / %s failed: %s", city_code, pkg_id, exc)
+    ckan_api = city.get("ckan_api")
+    if ckan_api:
+        for pkg_id in city.get("package_ids", []):
+            try:
+                url = _find_ckan_geojson(ckan_api, pkg_id)
+                if url:
+                    break
+            except Exception as exc:
+                logger.debug("CKAN discovery %s / %s failed: %s", city_code, pkg_id, exc)
+
+    # 2. Fallback: direct_url
+    if not url:
+        url = city.get("direct_url")
 
     if not url:
         logger.debug("No GeoJSON URL found for zoning %s", city_code)

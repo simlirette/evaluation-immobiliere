@@ -1845,6 +1845,118 @@ class TestDataEnrichment_Zonage:
             del de._ZONING_CITIES["testville3"]
 
 
+# ── TestDataEnrichment_ZonageVilles ───────────────────────────────────────────
+
+class TestDataEnrichment_ZonageVilles:
+    """Tests for multi-city zoning config and direct_url download path."""
+
+    def test_all_new_cities_in_zoning_cities(self):
+        """Québec, Laval, Longueuil, Gatineau, Sherbrooke all registered."""
+        from engine.data_enrichment import _ZONING_CITIES
+        for city in ("quebec", "laval", "longueuil", "gatineau", "sherbrooke"):
+            assert city in _ZONING_CITIES, f"{city} missing from _ZONING_CITIES"
+
+    def test_longueuil_has_direct_url(self):
+        """Longueuil (no CKAN) has direct_url configured."""
+        from engine.data_enrichment import _ZONING_CITIES
+        cfg = _ZONING_CITIES["longueuil"]
+        assert cfg.get("ckan_api") is None
+        assert cfg.get("direct_url", "").startswith("http")
+
+    def test_new_cities_have_bbox(self):
+        """All new cities define a bounding box."""
+        from engine.data_enrichment import _ZONING_CITIES
+        for city in ("quebec", "laval", "longueuil", "gatineau", "sherbrooke"):
+            bbox = _ZONING_CITIES[city].get("bbox")
+            assert isinstance(bbox, list) and len(bbox) == 4, f"bbox missing/malformed for {city}"
+
+    def test_lookup_unsupported_city_still_returns_empty(self, tmp_path):
+        """City not in _ZONING_CITIES → {} without error."""
+        from engine.data_enrichment import lookup_zoning_point
+        assert lookup_zoning_point("rimouski", 48.45, -68.52, tmp_path) == {}
+
+    def test_download_zoning_uses_direct_url(self, tmp_path):
+        """When CKAN is None, download_zoning_geojson uses direct_url."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import download_zoning_geojson
+
+        fake_geojson = b'{"type":"FeatureCollection","features":[]}'
+
+        # Simulate a city with only direct_url (like Longueuil)
+        de._ZONING_CITIES["mockville"] = {
+            "ckan_api": None,
+            "package_ids": [],
+            "direct_url": "https://example.com/zonage.geojson",
+            "bbox": [-74.0, 45.0, -73.0, 46.0],
+        }
+        try:
+            # Mock httpx.stream to return fake GeoJSON bytes
+            mock_response = mock.MagicMock()
+            mock_response.__enter__ = mock.Mock(return_value=mock_response)
+            mock_response.__exit__ = mock.Mock(return_value=False)
+            mock_response.raise_for_status = mock.Mock()
+            mock_response.iter_bytes = mock.Mock(return_value=iter([fake_geojson]))
+
+            with mock.patch("httpx.stream", return_value=mock_response) as mock_stream:
+                result = download_zoning_geojson("mockville", tmp_path)
+
+            # Should have called httpx.stream with the direct_url (not CKAN)
+            mock_stream.assert_called_once()
+            call_url = mock_stream.call_args[0][1]
+            assert "example.com" in call_url
+            assert result is not None
+            assert result.exists()
+        finally:
+            del de._ZONING_CITIES["mockville"]
+
+    def test_download_zoning_ckan_fallback_to_direct_url(self, tmp_path):
+        """CKAN discovery fails → falls back to direct_url."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import download_zoning_geojson
+
+        fake_geojson = b'{"type":"FeatureCollection","features":[]}'
+
+        de._ZONING_CITIES["fallbackville"] = {
+            "ckan_api": "https://fake-ckan.example.com/api/3/action",
+            "package_ids": ["bad-package-id"],
+            "direct_url": "https://direct.example.com/zonage.geojson",
+            "bbox": [-74.0, 45.0, -73.0, 46.0],
+        }
+        try:
+            mock_response = mock.MagicMock()
+            mock_response.__enter__ = mock.Mock(return_value=mock_response)
+            mock_response.__exit__ = mock.Mock(return_value=False)
+            mock_response.raise_for_status = mock.Mock()
+            mock_response.iter_bytes = mock.Mock(return_value=iter([fake_geojson]))
+
+            # _find_ckan_geojson raises (CKAN unavailable)
+            with mock.patch.object(de, "_find_ckan_geojson", side_effect=Exception("CKAN down")):
+                with mock.patch("httpx.stream", return_value=mock_response) as mock_stream:
+                    result = download_zoning_geojson("fallbackville", tmp_path)
+
+            call_url = mock_stream.call_args[0][1]
+            assert "direct.example.com" in call_url
+            assert result is not None
+        finally:
+            del de._ZONING_CITIES["fallbackville"]
+
+    def test_lookup_new_city_no_data_returns_empty(self, tmp_path):
+        """Lookup for a new city with no cached data returns {} gracefully."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import lookup_zoning_point
+
+        de._ZONING_INDEX_CACHE.clear()
+
+        # download returns None (no data available)
+        with mock.patch.object(de, "download_zoning_geojson", return_value=None):
+            result = lookup_zoning_point("quebec", 46.82, -71.21, tmp_path)
+
+        assert result == {}
+
+
 # ── TestDataEnrichment_CPTAQ ──────────────────────────────────────────────────
 
 class TestDataEnrichment_CPTAQ:
