@@ -153,6 +153,13 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B29 Données climatiques historiques (Open-Meteo archive) ✓
+  - fetch_donnees_climatiques(lat, lng, cache_dir): API archive-api.open-meteo.com
+  - Année 2023 (stable), daily tmax/tmin/precip → agrégats annuels
+  - temperature_moyenne_annuelle, precipitations_annuelles_mm, jours_gel, jours_chaleur_extreme
+  - 1 an cache, None values filtrés, non-bloquant
+  - fiche_bien.json + section AMU "Données climatiques"
+  - 6 tests pass (pytest importé au top de test_pure.py)
 - B28 Nuisances environnementales (OSM Overpass) ✓
   - fetch_nuisances_environnementales(lat, lng, cache_dir): 4 catégories Overpass
   - aeroports_10km, voies_ferrees_500m, zones_industrielles_1km, carrieres_2km
@@ -188,7 +195,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 275 tests pass
+- 281 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

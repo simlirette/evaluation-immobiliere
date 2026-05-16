@@ -1,5 +1,6 @@
 """Pure-function unit tests — no I/O, no sessions, no server."""
 import sys
+import pytest
 from pathlib import Path
 
 # Allow importing api.py directly without the full package installed
@@ -4870,3 +4871,174 @@ class TestDataEnrichment_NuisancesEnvironnementales:
         nv = case.get("nuisances_environnementales", {})
         assert nv.get("score_nuisances") == 1
         assert nv.get("voies_ferrees_500m") == 1
+
+
+# ── TestDataEnrichment_DonneesClimatiques ─────────────────────────────────────
+
+class TestDataEnrichment_DonneesClimatiques:
+    """Tests for fetch_donnees_climatiques() via Open-Meteo archive API."""
+
+    def _open_meteo_response(self, n_days=365, tmax_base=15.0, tmin_base=5.0,
+                              precip_base=2.0) -> dict:
+        """Synthetic Open-Meteo daily response for n_days."""
+        import math
+        tmax = []
+        tmin = []
+        precip = []
+        for i in range(n_days):
+            # Seasonal sinusoidal variation
+            angle = 2 * math.pi * i / 365
+            seasonal = 15 * math.sin(angle - math.pi / 2)
+            tmax.append(round(tmax_base + seasonal, 1))
+            tmin.append(round(tmin_base + seasonal, 1))
+            precip.append(precip_base)
+        return {
+            "latitude": 45.51,
+            "longitude": -73.56,
+            "daily": {
+                "temperature_2m_max": tmax,
+                "temperature_2m_min": tmin,
+                "precipitation_sum": precip,
+            }
+        }
+
+    def test_fetch_climatiques_success(self, tmp_path):
+        """Returns temperature, precipitation, frost days, heat days."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_donnees_climatiques
+
+        body = self._open_meteo_response()
+
+        with mock.patch("urllib.request.urlopen",
+                        return_value=io.BytesIO(json.dumps(body).encode())):
+            result = fetch_donnees_climatiques(45.51, -73.56, tmp_path)
+
+        assert result.get("source") == "open-meteo-archive"
+        assert result.get("annee_reference") == 2023
+        temp = result.get("temperature_moyenne_annuelle")
+        assert temp is not None
+        # Mean of tmax_base/tmin_base averages + seasonal oscillation averages to 0
+        # So mean ≈ (15+5)/2 = 10°C
+        assert 5.0 <= temp <= 15.0
+        assert result.get("precipitations_annuelles_mm") == pytest.approx(365 * 2.0, abs=5)
+        assert isinstance(result.get("jours_gel"), int)
+        assert isinstance(result.get("jours_chaleur_extreme"), int)
+
+    def test_fetch_climatiques_frost_days(self, tmp_path):
+        """Frost days counted correctly (tmin < 0)."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_donnees_climatiques
+
+        # Simple: 100 days tmin=-5, rest tmin=+5
+        tmax  = [10.0] * 365
+        tmin  = [-5.0] * 100 + [5.0] * 265
+        precip = [1.0] * 365
+        body = {"daily": {
+            "temperature_2m_max": tmax,
+            "temperature_2m_min": tmin,
+            "precipitation_sum": precip,
+        }}
+
+        with mock.patch("urllib.request.urlopen",
+                        return_value=io.BytesIO(json.dumps(body).encode())):
+            result = fetch_donnees_climatiques(45.51, -73.56, tmp_path)
+
+        assert result.get("jours_gel") == 100
+
+    def test_fetch_climatiques_cache_hit(self, tmp_path):
+        """Cached result returned without API call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_donnees_climatiques
+
+        cached = {
+            "source": "open-meteo-archive",
+            "lat": 45.51,
+            "lng": -73.56,
+            "annee_reference": 2023,
+            "temperature_moyenne_annuelle": 7.5,
+            "precipitations_annuelles_mm": 980.0,
+            "jours_gel": 112,
+            "jours_chaleur_extreme": 8,
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "climat_45.51_-73.56.json").write_text(json.dumps(cached))
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_donnees_climatiques(45.51, -73.56, tmp_path)
+
+        mock_url.assert_not_called()
+        assert result.get("temperature_moyenne_annuelle") == 7.5
+        assert result.get("jours_gel") == 112
+
+    def test_fetch_climatiques_api_failure(self, tmp_path):
+        """Network error → {} (non-blocking)."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_donnees_climatiques
+
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("timeout")):
+            result = fetch_donnees_climatiques(45.51, -73.56, tmp_path)
+
+        assert result == {}
+
+    def test_fetch_climatiques_null_values(self, tmp_path):
+        """None values in API response handled gracefully."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_donnees_climatiques
+
+        # 10 valid days, rest None (simulate sparse data)
+        tmax  = [20.0] * 10 + [None] * 355
+        tmin  = [5.0]  * 10 + [None] * 355
+        precip = [2.0] * 10 + [None] * 355
+        body = {"daily": {
+            "temperature_2m_max": tmax,
+            "temperature_2m_min": tmin,
+            "precipitation_sum": precip,
+        }}
+
+        with mock.patch("urllib.request.urlopen",
+                        return_value=io.BytesIO(json.dumps(body).encode())):
+            result = fetch_donnees_climatiques(45.51, -73.56, tmp_path)
+
+        # Should compute from the 10 valid days
+        assert result.get("temperature_moyenne_annuelle") == pytest.approx(12.5, abs=0.1)
+
+    def test_enrich_case_injects_climatiques(self, tmp_path):
+        """enrich_case populates donnees_climatiques."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        climat_data = {
+            "source": "open-meteo-archive",
+            "lat": 45.51,
+            "lng": -73.56,
+            "annee_reference": 2023,
+            "temperature_moyenne_annuelle": 7.8,
+            "precipitations_annuelles_mm": 950.0,
+            "jours_gel": 105,
+            "jours_chaleur_extreme": 6,
+        }
+
+        with mock.patch.object(de, "fetch_donnees_climatiques", return_value=climat_data):
+            with mock.patch.object(de, "geocode_address", return_value=(45.51, -73.56)):
+                with mock.patch.object(de, "detect_city", return_value="montreal"):
+                    case: dict = {"dossier_id": "D-CLIMAT-TEST"}
+                    enrich_case(case, display_name="1000 rue Sherbrooke, Montréal",
+                                cache_dir=tmp_path)
+
+        dc = case.get("donnees_climatiques", {})
+        assert dc.get("temperature_moyenne_annuelle") == 7.8
+        assert dc.get("jours_gel") == 105

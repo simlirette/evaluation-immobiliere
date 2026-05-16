@@ -628,6 +628,12 @@ class RuntimeEngine:
                     k: v for k, v in nuisances.items()
                     if k not in ("source",) and v is not None
                 }
+            climat = case.get("donnees_climatiques")
+            if climat:
+                fb["donnees_climatiques"] = {
+                    k: v for k, v in climat.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1064,6 +1070,24 @@ class RuntimeEngine:
                 )
             else:
                 nuisances_section = ""
+            # Build climate data section
+            climat = case.get("donnees_climatiques") or {}
+            if climat:
+                c_temp = climat.get("temperature_moyenne_annuelle")
+                c_prec = climat.get("precipitations_annuelles_mm")
+                c_gel  = climat.get("jours_gel")
+                c_chal = climat.get("jours_chaleur_extreme")
+                c_annee = climat.get("annee_reference", "")
+                climat_section = (
+                    f"## Données climatiques — {c_annee} (Open-Meteo)\n\n"
+                    + (f"Température moyenne annuelle : **{c_temp:.1f} °C**  \n" if c_temp is not None else "")
+                    + (f"Précipitations annuelles : **{c_prec:,.0f} mm**  \n" if c_prec is not None else "")
+                    + (f"Jours de gel (T_min < 0 °C) : **{c_gel}**  \n" if c_gel is not None else "")
+                    + (f"Jours de chaleur extrême (T_max ≥ 30 °C) : **{c_chal}**  \n" if c_chal is not None else "")
+                    + "\n"
+                )
+            else:
+                climat_section = ""
             # Build crime statistics section
             crime = case.get("crime_stats") or {}
             if crime:
@@ -1127,6 +1151,7 @@ class RuntimeEngine:
                 + routes_section
                 + postsec_section
                 + nuisances_section
+                + climat_section
                 + crime_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

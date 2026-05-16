@@ -160,6 +160,11 @@ _NUISANCES_QUERIES: list[tuple[str, int, str]] = [
     ("carrieres_2km",           2_000, '["landuse"~"quarry|landfill"]'),
 ]
 
+# ── Données climatiques historiques (Open-Meteo archive API) ─────────────────
+_CLIMAT_BASE = "https://archive-api.open-meteo.com/v1/archive"
+_CLIMAT_TTL = 365 * 86_400  # 1 an (données historiques stables)
+_CLIMAT_YEAR = 2023           # année de référence (complète, stable)
+
 # ── Proximité axes routiers (OSM Overpass) ────────────────────────────────────
 # Reuses _OVERPASS_URL and _OVERPASS_TTL from services section above.
 # highway values ordered from most to least impactful for real estate.
@@ -976,6 +981,87 @@ def fetch_proximite_routes(lat: float, lng: float, cache_dir: Path) -> dict:
     logger.debug("proximite_routes injecté : autoroute=%.1f km, artere=%.1f km",
                  result.get("autoroute_km", 0), result.get("artere_km", 0))
     return result
+
+
+def fetch_donnees_climatiques(lat: float, lng: float, cache_dir: Path) -> dict:
+    """
+    Return historical climate summary for the property location via Open-Meteo
+    archive API (year _CLIMAT_YEAR).
+
+    Returns dict with keys: temperature_moyenne_annuelle, precipitations_annuelles_mm,
+    jours_gel, jours_chaleur_extreme, annee_reference, source, lat, lng.
+    Cache: 1 year (historical data is stable).
+    Returns {} on any failure (non-blocking).
+    """
+    import urllib.request
+    import urllib.parse
+
+    lat_r = round(lat, 4)
+    lng_r = round(lng, 4)
+    cache_path = cache_dir / f"climat_{lat_r}_{lng_r}.json"
+    cached = _read_cache_ttl(cache_path, _CLIMAT_TTL)
+    if cached is not None:
+        return cached
+
+    try:
+        params = urllib.parse.urlencode({
+            "latitude": lat_r,
+            "longitude": lng_r,
+            "start_date": f"{_CLIMAT_YEAR}-01-01",
+            "end_date": f"{_CLIMAT_YEAR}-12-31",
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum",
+            "timezone": "America/Montreal",
+        })
+        url = f"{_CLIMAT_BASE}?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "eval-immo/1.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        daily = data.get("daily", {})
+        tmax_list = daily.get("temperature_2m_max", [])
+        tmin_list = daily.get("temperature_2m_min", [])
+        precip_list = daily.get("precipitation_sum", [])
+
+        if not tmax_list or not tmin_list:
+            return {}
+
+        # Filter out None values (API returns null for missing data)
+        tmean_list = [
+            (tmax + tmin) / 2
+            for tmax, tmin in zip(tmax_list, tmin_list)
+            if tmax is not None and tmin is not None
+        ]
+        if not tmean_list:
+            return {}
+
+        temp_moy = round(sum(tmean_list) / len(tmean_list), 1)
+        precip_ann = round(sum(p for p in precip_list if p is not None), 0)
+        jours_gel = sum(
+            1 for tmin in tmin_list if tmin is not None and tmin < 0
+        )
+        jours_chaleur = sum(
+            1 for tmax in tmax_list if tmax is not None and tmax >= 30
+        )
+
+        result = {
+            "source": "open-meteo-archive",
+            "lat": lat_r,
+            "lng": lng_r,
+            "annee_reference": _CLIMAT_YEAR,
+            "temperature_moyenne_annuelle": temp_moy,
+            "precipitations_annuelles_mm": precip_ann,
+            "jours_gel": jours_gel,
+            "jours_chaleur_extreme": jours_chaleur,
+        }
+
+        _write_cache_ttl(cache_path, result, _CLIMAT_TTL)
+        logger.debug("donnees_climatiques injecté : T_moy=%.1f°C pluie=%.0f mm gel=%d j",
+                     temp_moy, precip_ann, jours_gel)
+        return result
+
+    except Exception as exc:
+        logger.debug("donnees_climatiques fetch failed: %s", exc)
+        return {}
 
 
 def fetch_enseignement_postsecondaire(lat: float, lng: float, cache_dir: Path) -> dict:
@@ -3599,3 +3685,16 @@ def enrich_case(
                              nuisances.get("score_nuisances"), nuisances.get("interpretation"))
         except Exception as exc:
             logger.debug("nuisances_environnementales skip: %s", exc)
+
+    # ── Données climatiques (Open-Meteo archive) ──────────────────────────────
+    if not case.get("donnees_climatiques") and _coords:
+        try:
+            lat, lng = _coords
+            climat = fetch_donnees_climatiques(lat, lng, cache_dir)
+            if climat:
+                case["donnees_climatiques"] = climat
+                logger.debug("donnees_climatiques injecté : T_moy=%.1f°C gel=%d j",
+                             climat.get("temperature_moyenne_annuelle", 0),
+                             climat.get("jours_gel", 0))
+        except Exception as exc:
+            logger.debug("donnees_climatiques skip: %s", exc)
