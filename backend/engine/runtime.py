@@ -658,6 +658,12 @@ class RuntimeEngine:
                     k: v for k, v in invest.items()
                     if k not in ("source",) and v is not None
                 }
+            taxes = case.get("taxes_municipales")
+            if taxes:
+                fb["taxes_municipales"] = {
+                    k: v for k, v in taxes.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1178,6 +1184,23 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build municipal taxes section
+            tx = case.get("taxes_municipales") or {}
+            if tx:
+                tx_taux = tx.get("taux_taxation_pct")
+                tx_annuel = tx.get("taxes_annuelles_estimees")
+                tx_mensuel = tx.get("taxes_mensuelles_estimees")
+                tx_comp = tx.get("comparaison", "")
+                taxes_section = (
+                    "## Profil fiscal municipal\n\n"
+                    + (f"Taux de taxation résidentiel : **{tx_taux:.3f} %** de la valeur d'évaluation  \n" if tx_taux else "")
+                    + (f"Taxes annuelles estimées : **{tx_annuel:,.0f} $**  \n" if tx_annuel else "")
+                    + (f"Taxes mensuelles estimées : **{tx_mensuel:,.0f} $/mois**  \n" if tx_mensuel else "")
+                    + (f"Comparaison : {tx_comp}  \n" if tx_comp else "")
+                    + "\n"
+                )
+            else:
+                taxes_section = ""
             # Build composite investment score section
             inv = case.get("score_investissement") or {}
             if inv:
@@ -1270,6 +1293,7 @@ class RuntimeEngine:
                 + nuisances_section
                 + climat_section
                 + crime_section
+                + taxes_section
                 + rendement_section
                 + invest_section
                 + score_marche_section

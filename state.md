@@ -229,7 +229,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Minimum 2 composantes requis, sinon {}
   - fiche_bien.json + section AMU "Score composite d'investissement"
   - 7 tests pass (incl. enrich_case injection)
-- 306 tests pass
+- B34 Profil fiscal municipal (table statique + calcul interne) ✓
+  - compute_taxes_municipales(case, city_code): taux 2024 hardcodés pour 8 villes QC
+  - Taux en % valeur évaluation : Mtl 0.701%, QC 1.008%, Laval 0.614%, Longueuil 0.832%...
+  - taxes_annuelles_estimees, taxes_mensuelles_estimees, comparaison vs moyenne QC 0.95%
+  - Fallback: role_municipal.valeur_totale si evaluation_municipale_totale absent
+  - fiche_bien.json + section AMU "Profil fiscal municipal" (Critère 3)
+  - 6 tests pass
+- 312 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

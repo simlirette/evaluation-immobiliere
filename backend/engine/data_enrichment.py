@@ -212,6 +212,21 @@ _INVEST_SEUIL_MODERE = 5.0   # ≥ 5 → "potentiel modéré"
 _INVEST_SEUIL_FAIBLE = 3.0   # ≥ 3 → "potentiel faible"
                               # < 3 → "déconseillé"
 
+# ── Profil fiscal municipal (taux de taxation résidentiel) ────────────────────
+# Taux exprimé en % de la valeur d'évaluation municipale (ex.: 0.701 % = 7,01 $/1 000 $)
+# Sources : budgets municipaux 2023-2024 (taux ordinaire, premier palier)
+_TAXES_TAUX_PCT: dict[str, float] = {
+    "montreal":       0.701,  # Montréal 2024 (taux résidentiel 1er palier)
+    "quebec":         1.008,  # Québec 2024
+    "laval":          0.614,  # Laval 2024
+    "longueuil":      0.832,  # Longueuil 2024
+    "gatineau":       1.087,  # Gatineau 2024
+    "sherbrooke":     1.098,  # Sherbrooke 2024
+    "saguenay":       1.290,  # Saguenay 2024
+    "trois_rivieres": 1.198,  # Trois-Rivières 2024
+}
+_TAXES_MOYENNE_QC_PCT = 0.95   # Moyenne provinciale QC estimée (toutes municipalités)
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3708,6 +3723,56 @@ def compute_score_investissement(case: dict) -> dict:
     return result
 
 
+def compute_taxes_municipales(case: dict, city_code: str) -> dict:
+    """
+    Estimate annual municipal property taxes for the property.
+
+    Pure function — no external calls.  Uses:
+      - city_code → hardcoded tax rate table (_TAXES_TAUX_PCT)
+      - evaluation_municipale_totale (or role_municipal.valeur_totale) as assessment base
+
+    Returns dict with keys:
+      taux_taxation_pct, taxes_annuelles_estimees, taxes_mensuelles_estimees,
+      vs_moyenne_provinciale_pct, ecart_moyenne_pct, ville_reference, source.
+    Returns {} if city_code unknown or assessment value unavailable.
+    """
+    taux = _TAXES_TAUX_PCT.get(city_code)
+    if taux is None:
+        return {}
+
+    valeur = case.get("evaluation_municipale_totale")
+    if not valeur:
+        valeur = (case.get("role_municipal") or {}).get("valeur_totale")
+    if not valeur or valeur <= 0:
+        return {}
+
+    taxes_annuelles = valeur * taux / 100.0
+    taxes_mensuelles = taxes_annuelles / 12.0
+    ecart = round(taux - _TAXES_MOYENNE_QC_PCT, 3)
+
+    if taux < _TAXES_MOYENNE_QC_PCT:
+        vs_moy = "sous la moyenne provinciale"
+    elif taux > _TAXES_MOYENNE_QC_PCT:
+        vs_moy = "au-dessus de la moyenne provinciale"
+    else:
+        vs_moy = "dans la moyenne provinciale"
+
+    result = {
+        "taux_taxation_pct": taux,
+        "taxes_annuelles_estimees": round(taxes_annuelles, 0),
+        "taxes_mensuelles_estimees": round(taxes_mensuelles, 0),
+        "vs_moyenne_provinciale_pct": _TAXES_MOYENNE_QC_PCT,
+        "ecart_moyenne_pct": ecart,
+        "comparaison": vs_moy,
+        "ville_reference": city_code,
+        "source": "calcul-interne",
+    }
+
+    logger.debug("taxes_municipales : %.3f%% → %d $/an (%s)",
+                 taux, taxes_annuelles, vs_moy)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4113,3 +4178,16 @@ def enrich_case(
                              invest.get("recommandation"))
         except Exception as exc:
             logger.debug("score_investissement skip: %s", exc)
+
+    # ── Profil fiscal municipal (calcul interne, taux 2024 hardcodés) ─────────
+    if not case.get("taxes_municipales"):
+        try:
+            taxes = compute_taxes_municipales(case, city_code)
+            if taxes:
+                case["taxes_municipales"] = taxes
+                logger.debug("taxes_municipales : %s %.3f%% → %d $/an",
+                             city_code,
+                             taxes.get("taux_taxation_pct", 0),
+                             taxes.get("taxes_annuelles_estimees", 0))
+        except Exception as exc:
+            logger.debug("taxes_municipales skip: %s", exc)

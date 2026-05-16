@@ -5419,3 +5419,64 @@ class TestDataEnrichment_ScoreInvestissement:
         assert inv.get("recommandation") in (
             "fort potentiel", "potentiel modéré", "potentiel faible", "déconseillé"
         )
+
+
+class TestDataEnrichment_TaxesMunicipales:
+    """B34 — compute_taxes_municipales (pure function, table statique)."""
+
+    def test_montreal_basic(self):
+        """Taxes estimées Montréal cohérentes avec taux 0.701%."""
+        from engine.data_enrichment import compute_taxes_municipales
+        case = {"evaluation_municipale_totale": 500_000}
+        r = compute_taxes_municipales(case, "montreal")
+        assert r["taux_taxation_pct"] == pytest.approx(0.701, abs=0.001)
+        assert r["taxes_annuelles_estimees"] == pytest.approx(3505, abs=1)
+        assert r["taxes_mensuelles_estimees"] == pytest.approx(292, abs=1)
+
+    def test_quebec_city(self):
+        """Taux Québec > Montréal, taxes cohérentes."""
+        from engine.data_enrichment import compute_taxes_municipales
+        case = {"evaluation_municipale_totale": 400_000}
+        r = compute_taxes_municipales(case, "quebec")
+        assert r["taux_taxation_pct"] > 0.701
+        assert r["taxes_annuelles_estimees"] == pytest.approx(400_000 * 1.008 / 100, abs=1)
+
+    def test_comparaison_sous_moyenne(self):
+        """Laval (0.614%) < moyenne QC (0.95%) → 'sous la moyenne provinciale'."""
+        from engine.data_enrichment import compute_taxes_municipales
+        case = {"evaluation_municipale_totale": 300_000}
+        r = compute_taxes_municipales(case, "laval")
+        assert r["comparaison"] == "sous la moyenne provinciale"
+        assert r["ecart_moyenne_pct"] < 0
+
+    def test_fallback_role_municipal(self):
+        """Utilise role_municipal.valeur_totale si evaluation_municipale_totale absent."""
+        from engine.data_enrichment import compute_taxes_municipales
+        case = {"role_municipal": {"valeur_totale": 600_000}}
+        r = compute_taxes_municipales(case, "longueuil")
+        assert r["taxes_annuelles_estimees"] == pytest.approx(600_000 * 0.832 / 100, abs=1)
+
+    def test_unknown_city_returns_empty(self):
+        """Ville inconnue → dict vide."""
+        from engine.data_enrichment import compute_taxes_municipales
+        case = {"evaluation_municipale_totale": 300_000}
+        assert compute_taxes_municipales(case, "unknownville") == {}
+
+    def test_enrich_case_injects_taxes(self, tmp_path):
+        """enrich_case injecte taxes_municipales pour ville connue avec évaluation."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-TAXES-TEST",
+            "evaluation_municipale_totale": 450_000,
+        }
+
+        with mock.patch.object(de, "detect_city", return_value="gatineau"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        tx = case.get("taxes_municipales", {})
+        assert tx.get("source") == "calcul-interne"
+        assert tx.get("taux_taxation_pct") == pytest.approx(1.087, abs=0.001)
+        assert tx.get("taxes_annuelles_estimees") > 0
