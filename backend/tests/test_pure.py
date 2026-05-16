@@ -1843,3 +1843,130 @@ class TestDataEnrichment_Zonage:
                 assert case["zonage_urbanisme"]["source"] == "zonage-testville3"
 
             del de._ZONING_CITIES["testville3"]
+
+
+# ── TestDataEnrichment_CPTAQ ──────────────────────────────────────────────────
+
+class TestDataEnrichment_CPTAQ:
+    """Tests for CPTAQ zone agricole lookup."""
+
+    def _make_cptaq_geojson(self, polygon_rings: list) -> dict:
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"NM_MRC": "Rouville", "CATEGORIE": "zone_agricole"},
+                    "geometry": {"type": "Polygon", "coordinates": [ring]},
+                }
+                for ring in polygon_rings
+            ],
+        }
+
+    def test_build_cptaq_index(self, tmp_path):
+        """build_cptaq_index creates valid index from GeoJSON."""
+        import json
+        from engine.data_enrichment import build_cptaq_index
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "cptaq_zone_agricole.geojson"
+        gj_path.write_text(json.dumps(self._make_cptaq_geojson([ring])), encoding="utf-8")
+
+        idx_path = tmp_path / "cptaq_index.json"
+        count = build_cptaq_index(gj_path, idx_path)
+        assert count == 1
+        data = json.loads(idx_path.read_text(encoding="utf-8"))
+        assert data["_count"] == 1
+        assert data["zones"][0]["props"]["NM_MRC"] == "Rouville"
+
+    def test_lookup_cptaq_inside(self, tmp_path):
+        """Point inside zone → en_zone_agricole: True."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_cptaq_index, lookup_cptaq
+
+        de._CPTAQ_INDEX_CACHE = None  # reset module-level cache
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "cptaq_zone_agricole.geojson"
+        gj_path.write_text(json.dumps(self._make_cptaq_geojson([ring])), encoding="utf-8")
+        build_cptaq_index(gj_path, tmp_path / "cptaq_index.json")
+
+        result = lookup_cptaq(45.55, -73.55, tmp_path)
+        assert result is not None
+        assert result["en_zone_agricole"] is True
+        assert result["source"] == "cptaq"
+        assert result.get("NM_MRC") == "Rouville"
+
+    def test_lookup_cptaq_outside(self, tmp_path):
+        """Point outside all zones → en_zone_agricole: False."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_cptaq_index, lookup_cptaq
+
+        de._CPTAQ_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "cptaq_zone_agricole.geojson"
+        gj_path.write_text(json.dumps(self._make_cptaq_geojson([ring])), encoding="utf-8")
+        build_cptaq_index(gj_path, tmp_path / "cptaq_index.json")
+
+        result = lookup_cptaq(46.9, -75.0, tmp_path)
+        assert result is not None
+        assert result["en_zone_agricole"] is False
+
+    def test_lookup_cptaq_no_data(self, tmp_path):
+        """No GeoJSON and download unavailable → None (not error)."""
+        from engine import data_enrichment as de
+        from engine.data_enrichment import lookup_cptaq
+        import unittest.mock as mock
+
+        de._CPTAQ_INDEX_CACHE = None
+        # Patch download_cptaq to simulate unavailable source
+        with mock.patch.object(de, "download_cptaq", return_value=None):
+            result = lookup_cptaq(45.55, -73.55, tmp_path)
+        assert result is None
+
+    def test_enrich_case_injects_zone_agricole(self, tmp_path):
+        """enrich_case with mocked geocoding and CPTAQ data injects zone_agricole."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_cptaq_index
+
+        de._CPTAQ_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "cptaq_zone_agricole.geojson"
+        gj_path.write_text(json.dumps(self._make_cptaq_geojson([ring])), encoding="utf-8")
+        build_cptaq_index(gj_path, tmp_path / "cptaq_index.json")
+
+        with mock.patch.object(de, "geocode_address", return_value=(45.55, -73.55)):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-CPTAQ-TEST"}
+                enrich_case(case, display_name="100 chemin Rural, Rouville", cache_dir=tmp_path)
+
+        assert case.get("zone_agricole", {}).get("en_zone_agricole") is True
+        assert case["zone_agricole"]["source"] == "cptaq"
+
+    def test_enrich_case_outside_zone(self, tmp_path):
+        """Point outside zone agricole → en_zone_agricole: False."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_cptaq_index
+
+        de._CPTAQ_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "cptaq_zone_agricole.geojson"
+        gj_path.write_text(json.dumps(self._make_cptaq_geojson([ring])), encoding="utf-8")
+        build_cptaq_index(gj_path, tmp_path / "cptaq_index.json")
+
+        # Point clearly outside the zone polygon (south of bbox)
+        with mock.patch.object(de, "geocode_address", return_value=(45.40, -73.55)):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-CPTAQ-OUT"}
+                enrich_case(case, display_name="1000 rue Sherbrooke, Montréal", cache_dir=tmp_path)
+
+        assert case.get("zone_agricole", {}).get("en_zone_agricole") is False

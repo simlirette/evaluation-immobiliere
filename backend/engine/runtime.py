@@ -520,6 +520,12 @@ class RuntimeEngine:
                     k: v for k, v in z.items()
                     if k not in ("source",) and v is not None
                 }
+            if case.get("zone_agricole"):
+                za = case["zone_agricole"]
+                fb["zone_agricole"] = {
+                    k: v for k, v in za.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -589,6 +595,20 @@ class RuntimeEngine:
             else:
                 zone_code = zone
                 zonage_section = ""
+            # Build CPTAQ section if relevant
+            za = case.get("zone_agricole") or {}
+            if za:
+                en_zone = za.get("en_zone_agricole", False)
+                mrc = za.get("NM_MRC") or za.get("nm_mrc") or ""
+                cptaq_section = (
+                    f"## Zone agricole (CPTAQ)\n\n"
+                    f"Statut : **{'EN ZONE AGRICOLE PROTÉGÉE' if en_zone else 'hors zone agricole'}**  \n"
+                    + (f"MRC : {mrc}  \n" if mrc else "")
+                    + ("\nNote : les usages non agricoles sont soumis à autorisation CPTAQ.\n\n"
+                       if en_zone else "\n")
+                )
+            else:
+                cptaq_section = ""
             # Build market data section from enrichment (if available)
             ml = case.get("marche_locatif") or {}
             if ml:
@@ -616,6 +636,7 @@ class RuntimeEngine:
                 f"**Type de bien :** {type_bien}  \n"
                 f"**Zone :** {zone_code}\n\n"
                 + zonage_section
+                + cptaq_section
                 + f"## Critere 1 — Legalement permis\n\n"
                 f"L'usage de type {type_bien} est conforme au zonage {zone_code}. "
                 f"Aucune restriction legale identifiee.\n\n"

@@ -915,6 +915,176 @@ def lookup_zoning_point(city_code: str, lat: float, lng: float, cache_dir: Path)
     return {}
 
 
+# ── CPTAQ zone agricole ───────────────────────────────────────────────────────
+
+# GeoQuébec / données.gouv.qc.ca — Zone agricole CPTAQ (tout le Québec)
+# File is large (~150 MB uncompressed) but indexes down to ~10 MB.
+_CPTAQ_GEOJSON_URL = (
+    "https://diffusion.mern.gouv.qc.ca/Diffusion/RGQ/Vectoriel/Theme-Series/"
+    "Produits_geobase/Reglementaires/SHP_AQreseau%2B/"
+    # Fallback: données.gouv.qc.ca canonical GeoJSON
+)
+_CPTAQ_GEOJSON_URLS: list[str] = [
+    # données.gouv.qc.ca open data — zone agricole permanente CPTAQ
+    "https://diffusion.mern.gouv.qc.ca/Diffusion/RGQ/Vectoriel/Theme-Series/"
+    "Produits_geobase/Reglementaires/SHP_AQreseau%2B/",
+    # Alternate: GeoQuébec WFS service (GeoJSON output)
+    (
+        "https://geoegl.msp.gouv.qc.ca/apis/wss/zone_agricole.fcgi"
+        "?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=ms:zone_agricole"
+        "&OUTPUTFORMAT=geojson&SRSNAME=EPSG:4326"
+    ),
+]
+
+# module-level CPTAQ index cache
+_CPTAQ_INDEX_CACHE: list | None = None
+
+
+def _download_file(url: str, dest: Path, timeout: int = 600) -> None:
+    """Stream-download url → dest."""
+    import httpx  # type: ignore
+    with httpx.stream("GET", url, timeout=timeout, follow_redirects=True) as r:
+        r.raise_for_status()
+        with dest.open("wb") as fh:
+            for chunk in r.iter_bytes(chunk_size=256 * 1024):
+                fh.write(chunk)
+
+
+def download_cptaq(cache_dir: Path, force: bool = False) -> Path | None:
+    """
+    Download the CPTAQ zone agricole GeoJSON (all of Québec, cached once).
+
+    Tries the GeoQuébec WFS service first (direct GeoJSON), falls back to
+    static file if known URL is configured. Returns local path or None.
+    """
+    geojson_path = cache_dir / "cptaq_zone_agricole.geojson"
+    if geojson_path.exists() and not force:
+        return geojson_path
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Try WFS GeoJSON endpoint (direct, no parsing needed)
+    wfs_url = (
+        "https://geoegl.msp.gouv.qc.ca/apis/wss/zone_agricole.fcgi"
+        "?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=ms:zone_agricole"
+        "&OUTPUTFORMAT=geojson&SRSNAME=EPSG:4326"
+    )
+    try:
+        logger.info("Downloading CPTAQ zone agricole (WFS GeoJSON)…")
+        _download_file(wfs_url, geojson_path, timeout=600)
+        logger.info("CPTAQ downloaded: %.1f MB", geojson_path.stat().st_size / 1e6)
+        return geojson_path
+    except Exception as exc:
+        logger.debug("CPTAQ WFS download failed: %s", exc)
+        if geojson_path.exists():
+            geojson_path.unlink()
+
+    logger.debug("CPTAQ download unavailable — place cptaq_zone_agricole.geojson in data_cache/")
+    return None
+
+
+def build_cptaq_index(geojson_path: Path, index_path: Path) -> int:
+    """
+    Build compact spatial index from CPTAQ GeoJSON.
+
+    Unlike zonage, we only keep bbox + simplified ring (props minimal).
+    Returns count of polygons indexed.
+    """
+    data = json.loads(geojson_path.read_text(encoding="utf-8"))
+    features = data.get("features") or []
+    zones: list[dict] = []
+
+    for feat in features:
+        geom = feat.get("geometry") or {}
+        props = feat.get("properties") or {}
+        gtype = geom.get("type", "")
+
+        if gtype == "Polygon":
+            polys = [geom["coordinates"]]
+        elif gtype == "MultiPolygon":
+            polys = geom["coordinates"]
+        else:
+            continue
+
+        for poly in polys:
+            if not poly:
+                continue
+            exterior = poly[0]
+            if len(exterior) < 3:
+                continue
+            xs = [p[0] for p in exterior]
+            ys = [p[1] for p in exterior]
+            # Keep only relevant props (zone designation)
+            keep = {k: v for k, v in props.items()
+                    if k.upper() in ("NM_MRC", "NM_MUNIC", "NM_REGION", "TYPE_ZONE",
+                                      "CATEGORIE", "STATUT", "NO_DECISION", "CODE")}
+            zones.append({
+                "props": keep,
+                "bbox": [min(xs), min(ys), max(xs), max(ys)],
+                "ring": _simplify_ring(exterior, max_pts=200),
+            })
+
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps({"zones": zones, "_built_at": time.time(), "_count": len(zones)},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("CPTAQ index built: %d zones → %s (%.1f MB)",
+                len(zones), index_path.name, index_path.stat().st_size / 1e6)
+    return len(zones)
+
+
+def lookup_cptaq(lat: float, lng: float, cache_dir: Path) -> dict | None:
+    """
+    Return CPTAQ zone info if point (lat, lng) is inside the agricultural zone.
+
+    Returns dict with source + props if inside, {} if outside, None if data unavailable.
+    Auto-downloads and builds index if not cached.
+    """
+    global _CPTAQ_INDEX_CACHE
+
+    index_path = cache_dir / "cptaq_index.json"
+
+    # Build index if needed
+    if not index_path.exists():
+        geojson_path = cache_dir / "cptaq_zone_agricole.geojson"
+        if not geojson_path.exists():
+            try:
+                geojson_path = download_cptaq(cache_dir)
+            except Exception as exc:
+                logger.debug("CPTAQ download skip: %s", exc)
+                return None
+        if geojson_path and geojson_path.exists():
+            try:
+                build_cptaq_index(geojson_path, index_path)
+            except Exception as exc:
+                logger.debug("CPTAQ index build skip: %s", exc)
+                return None
+
+    if not index_path.exists():
+        return None
+
+    # Load into module-level cache
+    key = str(index_path)
+    if _CPTAQ_INDEX_CACHE is None:
+        try:
+            data = json.loads(index_path.read_text(encoding="utf-8"))
+            _CPTAQ_INDEX_CACHE = data.get("zones", [])
+        except Exception as exc:
+            logger.debug("CPTAQ index load failed: %s", exc)
+            return None
+
+    for zone in _CPTAQ_INDEX_CACHE:
+        bbox = zone["bbox"]
+        if not (bbox[0] <= lng <= bbox[2] and bbox[1] <= lat <= bbox[3]):
+            continue
+        if _pip_exterior(lng, lat, zone["ring"]):
+            return {"source": "cptaq", "en_zone_agricole": True, **zone["props"]}
+
+    return {"source": "cptaq", "en_zone_agricole": False}
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -926,8 +1096,10 @@ def enrich_case(
     Enrich case dict in-place with external data.
 
     Injects (when available) :
-      - case["marche_locatif"]  : SCHL rental market data (StatCan WDS)
-      - case["role_municipal"]  : building characteristics + valeurs foncières
+      - case["marche_locatif"]    : SCHL rental market data (StatCan WDS)
+      - case["role_municipal"]    : building characteristics + valeurs foncières
+      - case["zonage_urbanisme"]  : official zone code + description (open data GeoJSON)
+      - case["zone_agricole"]     : CPTAQ agricultural zone status (bool + MRC info)
 
     Never raises — all failures logged at DEBUG level.
     """
@@ -988,15 +1160,34 @@ def enrich_case(
                 case["evaluation_municipale_totale"] = role["valeur_totale"]
             logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
 
-    # ── Zonage urbanisme ──────────────────────────────────────────────────────
-    if not case.get("zonage_urbanisme") and display_name:
+    # ── Geocode (shared by zonage + CPTAQ) ───────────────────────────────────
+    _coords: tuple[float, float] | None = None
+    if display_name and (
+        not case.get("zonage_urbanisme") or not case.get("zone_agricole")
+    ):
         try:
-            coords = geocode_address(display_name, cache_dir)
-            if coords:
-                lat, lng = coords
-                zone_info = lookup_zoning_point(city_code, lat, lng, cache_dir)
-                if zone_info:
-                    case["zonage_urbanisme"] = zone_info
-                    logger.debug("zonage_urbanisme injecté : %s", zone_info)
+            _coords = geocode_address(display_name, cache_dir)
+        except Exception as exc:
+            logger.debug("geocode skip: %s", exc)
+
+    # ── Zonage urbanisme ──────────────────────────────────────────────────────
+    if not case.get("zonage_urbanisme") and _coords:
+        try:
+            lat, lng = _coords
+            zone_info = lookup_zoning_point(city_code, lat, lng, cache_dir)
+            if zone_info:
+                case["zonage_urbanisme"] = zone_info
+                logger.debug("zonage_urbanisme injecté : %s", zone_info)
         except Exception as exc:
             logger.debug("zonage skip: %s", exc)
+
+    # ── CPTAQ zone agricole ───────────────────────────────────────────────────
+    if not case.get("zone_agricole") and _coords:
+        try:
+            lat, lng = _coords
+            cptaq = lookup_cptaq(lat, lng, cache_dir)
+            if cptaq is not None:
+                case["zone_agricole"] = cptaq
+                logger.debug("zone_agricole injecté : en_zone=%s", cptaq.get("en_zone_agricole"))
+        except Exception as exc:
+            logger.debug("cptaq skip: %s", exc)
