@@ -2392,3 +2392,146 @@ class TestDataEnrichment_NHPI:
 
         assert case.get("indice_prix_logement", {}).get("indice_total") == 142.3
         assert case["indice_prix_logement"]["variation_annuelle_pct"] == 3.2
+
+
+# ── Census Profile 2021 ───────────────────────────────────────────────────────
+
+class TestDataEnrichment_Census:
+    """Unit tests for fetch_census_profile() and enrich_case() census injection."""
+
+    # Minimal Census Profile API response (2 topics merged)
+    _CENSUS_ROWS = [
+        {
+            "CHARACTERISTIC_NAME": "Propriétaires",
+            "C1_COUNT_TOTAL": "1200000",
+        },
+        {
+            "CHARACTERISTIC_NAME": "Locataires",
+            "C1_COUNT_TOTAL": "800000",
+        },
+        {
+            "CHARACTERISTIC_NAME": "Valeur médiane ($) des logements occupés par propriétaire",
+            "C1_COUNT_TOTAL": "510000",
+        },
+        {
+            "CHARACTERISTIC_NAME": "Frais mensuels médians ($) pour les logements loués",
+            "C1_COUNT_TOTAL": "980",
+        },
+        {
+            "CHARACTERISTIC_NAME": "Revenu total médian des ménages en 2020 ($)",
+            "C1_COUNT_TOTAL": "68000",
+        },
+    ]
+
+    def _mock_urlopen(self, rows):
+        """Return a context manager that yields encoded JSON bytes."""
+        import io
+        import json
+        import unittest.mock as mock
+        body = json.dumps(rows).encode("utf-8")
+        cm = mock.MagicMock()
+        cm.__enter__ = mock.Mock(return_value=io.BytesIO(body))
+        cm.__exit__ = mock.Mock(return_value=False)
+        return cm
+
+    def test_fetch_census_profile_success(self, tmp_path):
+        """Successful fetch returns all expected numeric fields."""
+        import json
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_census_profile
+
+        with mock.patch("urllib.request.urlopen", return_value=self._mock_urlopen(self._CENSUS_ROWS)):
+            result = fetch_census_profile("montreal", tmp_path)
+
+        assert result.get("ville") == "montreal"
+        assert result.get("source") == "StatCan Recensement 2021"
+        assert result.get("pct_proprietaires") == 1_200_000.0
+        assert result.get("pct_locataires") == 800_000.0
+        assert result.get("valeur_mediane_logement") == 510_000.0
+        assert result.get("frais_loyer_median") == 980.0
+        assert result.get("revenu_median_menage") == 68_000.0
+
+    def test_fetch_census_unsupported_city(self, tmp_path):
+        """Unknown city_code → {} without network call."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_census_profile
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_census_profile("rimouski", tmp_path)
+
+        mock_url.assert_not_called()
+        assert result == {}
+
+    def test_fetch_census_empty_response(self, tmp_path):
+        """API returns empty list → {} (no data)."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_census_profile
+
+        with mock.patch("urllib.request.urlopen", return_value=self._mock_urlopen([])):
+            result = fetch_census_profile("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_census_suppressed_values_skipped(self, tmp_path):
+        """Suppressed values ('x', '...') are not extracted."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_census_profile
+
+        rows = [
+            {"CHARACTERISTIC_NAME": "Propriétaires", "C1_COUNT_TOTAL": "x"},
+            {"CHARACTERISTIC_NAME": "Locataires", "C1_COUNT_TOTAL": "..."},
+            {"CHARACTERISTIC_NAME": "Valeur médiane ($) des logements occupés par propriétaire",
+             "C1_COUNT_TOTAL": "510000"},
+        ]
+        with mock.patch("urllib.request.urlopen", return_value=self._mock_urlopen(rows)):
+            result = fetch_census_profile("montreal", tmp_path)
+
+        assert "pct_proprietaires" not in result
+        assert "pct_locataires" not in result
+        assert result.get("valeur_mediane_logement") == 510_000.0
+
+    def test_fetch_census_cache_hit(self, tmp_path):
+        """Second call reads from cache, no network."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_census_profile
+
+        # Prime cache manually
+        cache_data = {
+            "ville": "montreal",
+            "source": "StatCan Recensement 2021",
+            "valeur_mediane_logement": 499000.0,
+            "_ts": time.time(),
+        }
+        (tmp_path / "census_montreal.json").write_text(
+            json.dumps(cache_data), encoding="utf-8"
+        )
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_census_profile("montreal", tmp_path)
+
+        mock_url.assert_not_called()
+        assert result.get("valeur_mediane_logement") == 499_000.0
+
+    def test_enrich_case_injects_census(self, tmp_path):
+        """enrich_case populates donnees_sociodemographiques from fetch_census_profile."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        census_data = {
+            "ville": "montreal",
+            "source": "StatCan Recensement 2021",
+            "pct_proprietaires": 1_100_000.0,
+            "revenu_median_menage": 72_000.0,
+        }
+
+        with mock.patch.object(de, "fetch_census_profile", return_value=census_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-CENSUS-TEST"}
+                enrich_case(case, display_name="55 av. du Parc, Montréal", cache_dir=tmp_path)
+
+        sd = case.get("donnees_sociodemographiques", {})
+        assert sd.get("pct_proprietaires") == 1_100_000.0
+        assert sd.get("revenu_median_menage") == 72_000.0

@@ -125,6 +125,125 @@ _NHPI_TYPE_SEARCHES: dict[str, list[str]] = {
     "terrain":  ["Land", "Terrain"],
 }
 
+# ── Census Profile 2021 (StatCan REST) ───────────────────────────────────────
+_CENSUS_BASE = "https://www12.statcan.gc.ca/rest/census-recensement/CR2021/fr/json"
+_CENSUS_TTL = 30 * 86_400  # 30 jours — données stables (recensement 2021)
+
+# city_code → DGUID Census Subdivision (SDR/CSD) 2021
+# Format: 2021A0005{SGC-7-digits}   A = CSD level
+_CENSUS_DGUIDS: dict[str, str] = {
+    "montreal":       "2021A000524462023",  # Montréal (Île-de-Montréal CD)
+    "laval":          "2021A000524290",     # Laval
+    "longueuil":      "2021A000524458227",  # Longueuil (Agglomération)
+    "quebec":         "2021A000523305",     # Québec (Capitale-Nationale)
+    "gatineau":       "2021A000524813",     # Gatineau
+    "sherbrooke":     "2021A000245005",     # Sherbrooke
+    "saguenay":       "2021A000224006",     # Saguenay
+    "trois-rivieres": "2021A000237012",     # Trois-Rivières
+    "levis":          "2021A000223023",     # Lévis
+    "drummondville":  "2021A000220016",     # Drummondville
+}
+
+# Substring patterns to extract from CHARACTERISTIC_NAME (FR)
+# topic → [(field_key, search_substring), ...]
+_CENSUS_TOPICS: dict[str, list[tuple[str, str]]] = {
+    "9": [  # Logements
+        ("pct_proprietaires",      "Propriétaires"),
+        ("pct_locataires",         "Locataires"),
+        ("valeur_mediane_logement","Valeur médiane ($)"),
+        ("frais_loyer_median",     "Frais mensuels médians ($)"),
+    ],
+    "5": [  # Revenu
+        ("revenu_median_menage",   "Revenu total médian des ménages"),
+    ],
+}
+
+
+def fetch_census_profile(city_code: str, cache_dir: Path) -> dict:
+    """Fetch 2021 Census Profile for a given city (demographic + housing indicators).
+
+    Returns dict with keys: pct_proprietaires, pct_locataires,
+    valeur_mediane_logement, frais_loyer_median, revenu_median_menage, ville, source.
+    Returns {} if city unsupported or data unavailable.
+    """
+    import urllib.request
+
+    dguid = _CENSUS_DGUIDS.get(city_code)
+    if not dguid:
+        return {}
+
+    cache_path = cache_dir / f"census_{city_code}.json"
+    cached = _read_cache_ttl(cache_path, _CENSUS_TTL)
+    if cached is not None:
+        return cached
+
+    result: dict = {"ville": city_code, "source": "StatCan Recensement 2021"}
+    char_rows: list[dict] = []
+
+    for topic_id in _CENSUS_TOPICS:
+        url = (
+            f"{_CENSUS_BASE}?dguid={dguid}&topic={topic_id}&notes=0&lang=F"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "eval-immo/1.0"})
+            with urllib.request.urlopen(req, timeout=int(_HTTP_TIMEOUT)) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if isinstance(data, list):
+                    char_rows.extend(data)
+        except Exception as exc:
+            logger.debug("census topic %s fetch error: %s", topic_id, exc)
+
+    if not char_rows:
+        return {}
+
+    # Build lookup dict: characteristic_name → C1_COUNT_TOTAL value
+    char_lookup: dict[str, str] = {}
+    for row in char_rows:
+        name = str(row.get("CHARACTERISTIC_NAME") or row.get("Caractéristique") or "")
+        value = str(row.get("C1_COUNT_TOTAL") or row.get("C1_TOTAL") or "").strip()
+        if name and value and value not in ("", "x", "...", "F", "..F"):
+            char_lookup[name] = value
+
+    # Extract fields by substring match
+    for topic_id, fields in _CENSUS_TOPICS.items():
+        for field_key, search_sub in fields:
+            for name, value in char_lookup.items():
+                if search_sub.lower() in name.lower():
+                    try:
+                        num = float(value.replace(",", "").replace(" ", ""))
+                        result[field_key] = num
+                    except ValueError:
+                        pass
+                    break  # first match wins
+
+    _write_cache_ttl(cache_path, result, _CENSUS_TTL)
+    logger.debug("census_profile injecté: %s (%d champs)", city_code, len(result) - 2)
+    return result
+
+
+def _read_cache_ttl(path: Path, ttl: int) -> dict | None:
+    """Read JSON cache file if it exists and is within TTL. Returns None on miss."""
+    if not path.exists():
+        return None
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(d, dict) and time.time() - d.get("_ts", 0) < ttl:
+            return d
+    except Exception:
+        pass
+    return None
+
+
+def _write_cache_ttl(path: Path, data: dict, ttl: int) -> None:  # noqa: ARG001
+    """Write data to JSON cache with current timestamp."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        out = dict(data)
+        out["_ts"] = time.time()
+        path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
 
 def detect_city(display_name: str, zone: str = "") -> str:
     """Return SCHL city code inferred from display_name + zone (default: 'montreal').
@@ -1576,6 +1695,16 @@ def enrich_case(
                              nhpi.get("ville"), nhpi.get("indice_total", 0))
         except Exception as exc:
             logger.debug("nhpi skip: %s", exc)
+
+    # ── Census démographique (Recensement 2021) ───────────────────────────────
+    if not case.get("donnees_sociodemographiques"):
+        try:
+            census = fetch_census_profile(city_code, cache_dir)
+            if census:
+                case["donnees_sociodemographiques"] = census
+                logger.debug("donnees_sociodemographiques injecté : %s", city_code)
+        except Exception as exc:
+            logger.debug("census skip: %s", exc)
 
     # ── Rôle municipal ────────────────────────────────────────────────────────
     if not case.get("role_municipal"):

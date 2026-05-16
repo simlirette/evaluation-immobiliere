@@ -544,6 +544,12 @@ class RuntimeEngine:
                     k: v for k, v in nhpi.items()
                     if k not in ("source",) and v is not None
                 }
+            census = case.get("donnees_sociodemographiques")
+            if census:
+                fb["donnees_sociodemographiques"] = {
+                    k: v for k, v in census.items()
+                    if k not in ("source", "_ts") and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -691,6 +697,25 @@ class RuntimeEngine:
                     "## Données marché\n\n"
                     "Données de marché non disponibles pour ce secteur (sources externes non connectées).\n\n"
                 )
+            # Build census socio-demographic section
+            census = case.get("donnees_sociodemographiques") or {}
+            if census:
+                pct_prop = census.get("pct_proprietaires")
+                pct_loc = census.get("pct_locataires")
+                val_med = census.get("valeur_mediane_logement")
+                loyer_med = census.get("frais_loyer_median")
+                revenu_med = census.get("revenu_median_menage")
+                census_section = (
+                    f"## Données socio-démographiques (Recensement 2021)\n\n"
+                    + (f"Propriétaires : **{pct_prop:,.0f}**  \n" if pct_prop else "")
+                    + (f"Locataires : **{pct_loc:,.0f}**  \n" if pct_loc else "")
+                    + (f"Valeur médiane logements propriétaires : **{val_med:,.0f} $**  \n" if val_med else "")
+                    + (f"Frais mensuels médians (locataires) : **{loyer_med:,.0f} $/mois**  \n" if loyer_med else "")
+                    + (f"Revenu médian des ménages : **{revenu_med:,.0f} $**  \n" if revenu_med else "")
+                    + "\n"
+                )
+            else:
+                census_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -709,6 +734,7 @@ class RuntimeEngine:
                 f"## Critere 3 — Financierement faisable\n\n"
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
                 + marche_section
+                + census_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"
