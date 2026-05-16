@@ -128,6 +128,28 @@ _BOC_SERIES: dict[str, str] = {
     "V122496":      "taux_hypo_1an_pct",          # 1-year conventional mortgage
 }
 
+# ── Mises en chantier SCHL (StatCan 34-10-0056-01) ───────────────────────────
+_CHANTIER_TABLE = 3410005601  # 34-10-0056-01 : Housing starts by CMA (CMHC)
+
+# city_code → GEO labels (CMA level)
+_CHANTIER_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal", "Montreal"],
+    "quebec":         ["Québec", "Quebec"],
+    "gatineau":       ["Ottawa - Gatineau", "Gatineau"],
+    "sherbrooke":     ["Sherbrooke"],
+    "saguenay":       ["Saguenay"],
+    "trois-rivieres": ["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville":  ["Drummondville"],
+    "laval":          ["Laval"],
+}
+
+# Dwelling type searches for dim 1
+_CHANTIER_TYPE_SEARCHES: dict[str, list[str]] = {
+    "total":       ["Total units", "Total", "Ensemble"],
+    "unifamilial": ["Single-detached", "Single detached", "Maison individuelle"],
+    "collectif":   ["Apartments and other", "Multi-unit", "Appartements"],
+}
+
 # ── IPC (Indice des prix à la consommation) — StatCan 18-10-0004-01 ──────────
 _IPC_TABLE = 1810000401  # 18-10-0004-01 : CPI by component, annual
 
@@ -573,6 +595,102 @@ def fetch_marche_travail(city_code: str, cache_dir: Path) -> dict:
 
     except Exception as exc:  # pragma: no cover
         logger.debug("Marché travail fetch failed for %s: %s", city_code, exc)
+        return {}
+
+
+def fetch_mises_en_chantier(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return housing starts for a QC CMA via StatCan WDS (34-10-0056-01).
+
+    Returns dict with keys: total_mois, unifamilial_mois, collectif_mois,
+    total_12mois, variation_pct_6m, periode, ville, source.
+    Returns {} on any failure or unsupported city.
+    """
+    geo_labels = _CHANTIER_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    try:
+        meta = _cube_metadata(_CHANTIER_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        geo_ord = _find_member_ordinal(dims, 0, geo_labels)
+        if geo_ord is None:
+            return {}
+
+        # Optional extra dims (seasonal adjustment, year)
+        extra_ords: list[int] = []
+        for extra_dim_idx in range(2, len(dims)):
+            members_ex = dims[extra_dim_idx].get("member", [])
+            if members_ex:
+                # Prefer "seasonally adjusted" or just take first member
+                sa_ord = _find_member_ordinal(dims, extra_dim_idx,
+                                              ["Seasonally adjusted",
+                                               "Désaisonnalisé", "Annual rate"])
+                extra_ords.append(sa_ord if sa_ord is not None
+                                  else int(members_ex[0]["memberId"]))
+
+        result: dict = {
+            "source": "statcan-34-10-0056-01",
+            "ville": _SCHL_TO_DISPLAY.get(city_code, city_code),
+        }
+
+        # Fetch 12-month series for total to get rolling sum + trend
+        total_ord = _find_member_ordinal(dims, 1, _CHANTIER_TYPE_SEARCHES["total"])
+        if total_ord is None:
+            return {}
+
+        coord_total = _build_coordinate(geo_ord, total_ord, *extra_ords)
+        if coord_total:
+            try:
+                payload = [{"productId": _CHANTIER_TABLE,
+                            "coordinate": coord_total, "latestN": 12}]
+                data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if isinstance(data, list) and data and data[0].get("status") == "SUCCESS":
+                    pts = data[0].get("object", {}).get("vectorDataPoint", [])
+                    vals = []
+                    for pt in pts:
+                        try:
+                            vals.append(float(pt["value"]))
+                        except (TypeError, ValueError):
+                            pass
+                    if vals:
+                        result["total_mois"] = vals[0]
+                        result["total_12mois"] = round(sum(vals), 0)
+                        ref = pts[0].get("refPer") or pts[0].get("refper") or ""
+                        if ref:
+                            result["periode"] = str(ref)[:7]
+                        if len(vals) >= 12:
+                            avg_rec  = sum(vals[:6]) / 6
+                            avg_prev = sum(vals[6:12]) / 6
+                            if avg_prev > 0:
+                                result["variation_pct_6m"] = round(
+                                    (avg_rec - avg_prev) / avg_prev * 100, 1
+                                )
+            except Exception:
+                pass
+
+        # Fetch latest value for sub-types (unifamilial, collectif)
+        for field_key, searches in [
+            ("unifamilial_mois", _CHANTIER_TYPE_SEARCHES["unifamilial"]),
+            ("collectif_mois",   _CHANTIER_TYPE_SEARCHES["collectif"]),
+        ]:
+            type_ord = _find_member_ordinal(dims, 1, searches)
+            coord = _build_coordinate(geo_ord, type_ord, *extra_ords)
+            if coord:
+                val = _fetch_series(_CHANTIER_TABLE, coord, cache_dir)
+                if val is not None:
+                    result[field_key] = val
+
+        if len(result) <= 2:
+            return {}
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Mises en chantier fetch failed for %s: %s", city_code, exc)
         return {}
 
 
@@ -2386,6 +2504,17 @@ def enrich_case(
                 logger.debug("donnees_sociodemographiques injecté : %s", city_code)
         except Exception as exc:
             logger.debug("census skip: %s", exc)
+
+    # ── Mises en chantier SCHL (StatCan 34-10-0056-01) ───────────────────────
+    if not case.get("mises_en_chantier"):
+        try:
+            chantier = fetch_mises_en_chantier(city_code, cache_dir)
+            if chantier:
+                case["mises_en_chantier"] = chantier
+                logger.debug("mises_en_chantier injecté : %s total=%s/mois",
+                             city_code, chantier.get("total_mois"))
+        except Exception as exc:
+            logger.debug("mises_en_chantier skip: %s", exc)
 
     # ── Permis de construction (StatCan 34-10-0066-01) ────────────────────────
     if not case.get("permis_construction"):

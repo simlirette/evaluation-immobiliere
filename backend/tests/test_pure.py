@@ -2402,6 +2402,125 @@ class TestDataEnrichment_Inondable:
         assert case["zone_inondable"] == {}
 
 
+# ── TestDataEnrichment_Chantier ───────────────────────────────────────────────
+
+class TestDataEnrichment_Chantier:
+    """Tests for fetch_mises_en_chantier() via StatCan WDS 34-10-0056-01."""
+
+    def _meta(self, geo_labels, type_labels, extra_labels=None):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        dims = [
+            {"member": members(geo_labels)},
+            {"member": members(type_labels)},
+        ]
+        if extra_labels:
+            dims.append({"member": members(extra_labels)})
+        return {"dims": dims}
+
+    def _wds_12pts(self, values, period="2025-01"):
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": str(v), "refPer": period}
+                    for v in values
+                ]
+            },
+        }]
+
+    def test_fetch_chantier_success(self, tmp_path):
+        """Total starts + 12-month sum + 6-month trend computed."""
+        import pytest
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_mises_en_chantier
+
+        meta = self._meta(
+            ["Montréal", "Québec"],
+            ["Total units", "Single-detached", "Apartments and other"],
+        )
+        monthly = [600.0] * 6 + [500.0] * 6  # recent avg 600, prior avg 500
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return self._wds_12pts(monthly)
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                with mock.patch.object(de, "_fetch_series", return_value=480.0):
+                    result = fetch_mises_en_chantier("montreal", tmp_path)
+
+        assert result.get("ville") == "Montréal"
+        assert result.get("source") == "statcan-34-10-0056-01"
+        assert result.get("total_mois") == 600.0
+        assert result.get("total_12mois") == 6600.0
+        assert result.get("periode") == "2025-01"
+        assert result.get("variation_pct_6m") == pytest.approx(20.0, abs=0.1)
+        assert result.get("unifamilial_mois") == 480.0
+        assert result.get("collectif_mois") == 480.0
+
+    def test_fetch_chantier_unsupported_city(self, tmp_path):
+        """Unknown city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_mises_en_chantier
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_mises_en_chantier("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_chantier_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_mises_en_chantier
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_mises_en_chantier("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_chantier_geo_not_found(self, tmp_path):
+        """No GEO match → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_mises_en_chantier
+
+        meta = self._meta(["Toronto", "Vancouver"], ["Total units"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_mises_en_chantier("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_mises_en_chantier(self, tmp_path):
+        """enrich_case populates mises_en_chantier via fetch_mises_en_chantier."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        chantier_data = {
+            "ville": "Montréal",
+            "source": "statcan-34-10-0056-01",
+            "total_mois": 620.0,
+            "total_12mois": 7_200.0,
+            "variation_pct_6m": 8.5,
+            "periode": "2025-01",
+        }
+
+        with mock.patch.object(de, "fetch_mises_en_chantier", return_value=chantier_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-CHANTIER-TEST"}
+                enrich_case(case, display_name="450 rue Notre-Dame, Montréal",
+                            cache_dir=tmp_path)
+
+        mc = case.get("mises_en_chantier", {})
+        assert mc.get("total_mois") == 620.0
+        assert mc.get("variation_pct_6m") == 8.5
+
+
 # ── TestDataEnrichment_IPC ────────────────────────────────────────────────────
 
 class TestDataEnrichment_IPC:

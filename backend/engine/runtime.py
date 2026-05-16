@@ -580,6 +580,12 @@ class RuntimeEngine:
                     k: v for k, v in census.items()
                     if k not in ("source", "_ts") and v is not None
                 }
+            chantier = case.get("mises_en_chantier")
+            if chantier:
+                fb["mises_en_chantier"] = {
+                    k: v for k, v in chantier.items()
+                    if k not in ("source",) and v is not None
+                }
             permis = case.get("permis_construction")
             if permis:
                 fb["permis_construction"] = {
@@ -817,21 +823,41 @@ class RuntimeEngine:
                     "## Données marché\n\n"
                     "Données de marché non disponibles pour ce secteur (sources externes non connectées).\n\n"
                 )
-            # Build building permits section
+            # Build construction activity section (permis + mises en chantier)
             permis = case.get("permis_construction") or {}
-            if permis:
+            chantier = case.get("mises_en_chantier") or {}
+            if permis or chantier:
+                ville_constr = (permis or chantier).get("ville", zone)
                 u_mois = permis.get("unites_residentielles_mois")
                 u_12m  = permis.get("unites_residentielles_12mois")
                 val_k  = permis.get("valeur_permis_k_mois")
-                var_6m = permis.get("variation_pct_6m")
-                periode = permis.get("periode", "")
+                var_6m_p = permis.get("variation_pct_6m")
+                periode_p = permis.get("periode", "")
+                ch_tot = chantier.get("total_mois")
+                ch_uni = chantier.get("unifamilial_mois")
+                ch_col = chantier.get("collectif_mois")
+                ch_12m = chantier.get("total_12mois")
+                var_6m_c = chantier.get("variation_pct_6m")
+                periode_c = chantier.get("periode", "")
                 permis_section = (
-                    f"## Activité de construction ({permis.get('ville', '')})\n\n"
-                    + (f"Période : {periode}  \n" if periode else "")
-                    + (f"Unités résidentielles autorisées (mois) : **{u_mois:,.0f}**  \n" if u_mois else "")
-                    + (f"Total 12 mois glissants : **{u_12m:,.0f} unités**  \n" if u_12m else "")
-                    + (f"Valeur des permis (mois) : **{val_k:,.0f} k$**  \n" if val_k else "")
-                    + (f"Variation 6 mois vs 6 mois précédents : **{var_6m:+.1f} %**  \n" if var_6m is not None else "")
+                    f"## Activité de construction ({ville_constr})\n\n"
+                    + (
+                        f"**Permis de construire ({periode_p})**  \n"
+                        + (f"Unités autorisées (mois) : **{u_mois:,.0f}**  \n" if u_mois else "")
+                        + (f"Total 12 mois : **{u_12m:,.0f} unités**  \n" if u_12m else "")
+                        + (f"Valeur permis (mois) : **{val_k:,.0f} k$**  \n" if val_k else "")
+                        + (f"Tendance 6m : **{var_6m_p:+.1f} %**  \n" if var_6m_p is not None else "")
+                        if permis else ""
+                    )
+                    + (
+                        f"\n**Mises en chantier ({periode_c})**  \n"
+                        + (f"Total (mois) : **{ch_tot:,.0f}**  \n" if ch_tot else "")
+                        + (f"Unifamilial : **{ch_uni:,.0f}**  \n" if ch_uni else "")
+                        + (f"Collectif : **{ch_col:,.0f}**  \n" if ch_col else "")
+                        + (f"Total 12 mois : **{ch_12m:,.0f}**  \n" if ch_12m else "")
+                        + (f"Tendance 6m : **{var_6m_c:+.1f} %**  \n" if var_6m_c is not None else "")
+                        if chantier else ""
+                    )
                     + "\n"
                 )
             else:
