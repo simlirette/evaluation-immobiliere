@@ -2402,6 +2402,137 @@ class TestDataEnrichment_Inondable:
         assert case["zone_inondable"] == {}
 
 
+# ── TestDataEnrichment_Population ────────────────────────────────────────────
+
+class TestDataEnrichment_Population:
+    """Tests for fetch_population_growth() via StatCan WDS 17-10-0135-01."""
+
+    def _meta(self, geo_labels, age_labels=None, sex_labels=None, extra_labels=None):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        dims = [
+            {"member": members(geo_labels)},
+            {"member": members(age_labels or ["Total - all ages"])},
+            {"member": members(sex_labels or ["Both sexes"])},
+        ]
+        if extra_labels:
+            dims.append({"member": members(extra_labels)})
+        return {"dims": dims}
+
+    def _wds_2pts(self, latest, prior, ref_year="2023"):
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": str(latest), "refPer": f"{ref_year}-07-01"},
+                    {"value": str(prior),  "refPer": f"{int(ref_year)-1}-07-01"},
+                ]
+            },
+        }]
+
+    def test_fetch_population_success(self, tmp_path):
+        """Population + annual growth computed correctly."""
+        import pytest
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_population_growth
+
+        meta = self._meta(["Montréal", "Québec"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post",
+                                   return_value=self._wds_2pts(4_291_000, 4_220_000)):
+                result = fetch_population_growth("montreal", tmp_path)
+
+        assert result.get("ville") == "Montréal"
+        assert result.get("source") == "statcan-17-10-0135-01"
+        assert result.get("population") == 4_291_000
+        assert result.get("annee") == "2023"
+        # (4291000 - 4220000) / 4220000 * 100 ≈ 1.68%
+        assert result.get("variation_annuelle_pct") == pytest.approx(1.68, abs=0.02)
+
+    def test_fetch_population_unsupported_city(self, tmp_path):
+        """Unknown city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_population_growth
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_population_growth("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_population_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_population_growth
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_population_growth("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_population_geo_not_found(self, tmp_path):
+        """GEO not matched → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_population_growth
+
+        meta = self._meta(["Toronto", "Vancouver"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_population_growth("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_population_single_point_no_growth(self, tmp_path):
+        """Only 1 data point → population set, no variation."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_population_growth
+
+        meta = self._meta(["Québec"])
+        single = [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": "839311", "refPer": "2022-07-01"}
+                ]
+            },
+        }]
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", return_value=single):
+                result = fetch_population_growth("quebec", tmp_path)
+
+        assert result.get("population") == 839_311
+        assert "variation_annuelle_pct" not in result
+
+    def test_enrich_case_injects_population_cma(self, tmp_path):
+        """enrich_case populates population_cma via fetch_population_growth."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        pop_data = {
+            "ville": "Montréal",
+            "source": "statcan-17-10-0135-01",
+            "population": 4_291_000,
+            "variation_annuelle_pct": 1.68,
+            "annee": "2023",
+        }
+
+        with mock.patch.object(de, "fetch_population_growth", return_value=pop_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-POP-TEST"}
+                enrich_case(case, display_name="123 av. Mont-Royal, Montréal",
+                            cache_dir=tmp_path)
+
+        pc = case.get("population_cma", {})
+        assert pc.get("population") == 4_291_000
+        assert pc.get("variation_annuelle_pct") == 1.68
+
+
 # ── TestDataEnrichment_BOC ────────────────────────────────────────────────────
 
 class TestDataEnrichment_BOC:

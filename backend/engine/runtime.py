@@ -538,6 +538,12 @@ class RuntimeEngine:
                     k: v for k, v in inond.items()
                     if k not in ("source",) and v is not None
                 }
+            pop_cma = case.get("population_cma")
+            if pop_cma:
+                fb["population_cma"] = {
+                    k: v for k, v in pop_cma.items()
+                    if k not in ("source",) and v is not None
+                }
             taux_boc = case.get("taux_bancaires")
             if taux_boc:
                 fb["taux_bancaires"] = {
@@ -681,6 +687,22 @@ class RuntimeEngine:
                 )
             else:
                 cptaq_section = ""
+            # Build population / demographic growth section
+            pop_cma = case.get("population_cma") or {}
+            if pop_cma:
+                pop_val = pop_cma.get("population")
+                pop_var = pop_cma.get("variation_annuelle_pct")
+                pop_annee = pop_cma.get("annee", "")
+                pop_section = (
+                    f"## Démographie — CMA {pop_cma.get('ville', '')}"
+                    + (f" ({pop_annee})" if pop_annee else "")
+                    + "\n\n"
+                    + (f"Population CMA : **{pop_val:,.0f}**  \n" if pop_val else "")
+                    + (f"Croissance annuelle : **{pop_var:+.2f} %**  \n" if pop_var is not None else "")
+                    + "\n"
+                )
+            else:
+                pop_section = ""
             # Build Bank of Canada rates section
             taux_boc = case.get("taux_bancaires") or {}
             if taux_boc:
@@ -804,6 +826,7 @@ class RuntimeEngine:
                 f"compatibles avec l'usage de type {type_bien}.\n\n"
                 f"## Critere 3 — Financierement faisable\n\n"
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
+                + pop_section
                 + financement_section
                 + marche_section
                 + permis_section

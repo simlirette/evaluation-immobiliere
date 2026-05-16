@@ -128,6 +128,21 @@ _BOC_SERIES: dict[str, str] = {
     "V122496":      "taux_hypo_1an_pct",          # 1-year conventional mortgage
 }
 
+# ── Population CMA (StatCan 17-10-0135-01) ───────────────────────────────────
+_POP_TABLE = 1710013501  # 17-10-0135-01 : Estimations de population par CMA
+
+# city_code → StatCan GEO labels (CMA level, EN)
+_POP_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal", "Montreal"],
+    "quebec":         ["Québec", "Quebec"],
+    "gatineau":       ["Ottawa - Gatineau", "Gatineau"],
+    "sherbrooke":     ["Sherbrooke"],
+    "saguenay":       ["Saguenay"],
+    "trois-rivieres": ["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville":  ["Drummondville"],
+    "laval":          ["Laval"],
+}
+
 # ── NHPI — New Housing Price Index (StatCan 18-10-0205-01) ───────────────────
 _NHPI_TABLE = 1810020501  # table 18-10-0205-01
 
@@ -444,6 +459,93 @@ def fetch_taux_boc(cache_dir: Path) -> dict:
                  result.get("taux_directeur_pct", 0),
                  result.get("taux_hypo_5ans_conv_pct", 0))
     return result
+
+
+def fetch_population_growth(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return population estimate + annual growth for a QC CMA via StatCan WDS (17-10-0135-01).
+
+    Returns dict with keys: population, variation_annuelle_pct, annee, ville, source.
+    Returns {} on any failure or unsupported city.
+    """
+    geo_labels = _POP_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    try:
+        meta = _cube_metadata(_POP_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # Dim 0 = GEO
+        geo_ord = _find_member_ordinal(dims, 0, geo_labels)
+        if geo_ord is None:
+            return {}
+
+        # Dim 1 = Age group → Total / All ages
+        age_ord = _find_member_ordinal(dims, 1,
+                                       ["Total - all ages", "All ages", "Total"])
+
+        # Dim 2 = Sex → Both sexes / Total
+        sex_ord = _find_member_ordinal(dims, 2,
+                                       ["Both sexes", "Total - sex", "Total"])
+
+        # Optional dim 3 (estimate type: low/medium/high) → prefer medium or first member
+        extra_ord: int | None = None
+        if len(dims) >= 4:
+            extra_ord = _find_member_ordinal(dims, 3,
+                                             ["Medium", "medium projection", "Estimate"])
+            if extra_ord is None:
+                members = dims[3].get("member", [])
+                if members:
+                    extra_ord = int(members[0]["memberId"])
+
+        coord = _build_coordinate(geo_ord, age_ord, sex_ord,
+                                  *([] if extra_ord is None else [extra_ord]))
+        if not coord:
+            return {}
+
+        # Fetch 2 years (latestN=2) to compute annual change
+        payload = [{"productId": _POP_TABLE, "coordinate": coord, "latestN": 2}]
+        data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+        if not isinstance(data, list) or not data or data[0].get("status") != "SUCCESS":
+            return {}
+
+        pts = data[0].get("object", {}).get("vectorDataPoint", [])
+        if not pts:
+            return {}
+
+        try:
+            latest_val = float(pts[0]["value"])
+        except (TypeError, ValueError, KeyError):
+            return {}
+
+        result: dict = {
+            "source": "statcan-17-10-0135-01",
+            "ville": _SCHL_TO_DISPLAY.get(city_code, city_code),
+            "population": round(latest_val),
+        }
+
+        ref = pts[0].get("refPer") or pts[0].get("refper") or ""
+        if ref:
+            result["annee"] = str(ref)[:4]
+
+        if len(pts) >= 2:
+            try:
+                prior_val = float(pts[1]["value"])
+                if prior_val > 0:
+                    result["variation_annuelle_pct"] = round(
+                        (latest_val - prior_val) / prior_val * 100, 2
+                    )
+            except (TypeError, ValueError, KeyError):
+                pass
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Population growth fetch failed for %s: %s", city_code, exc)
+        return {}
 
 
 _BEDROOM_SEARCHES: dict[str, list[str]] = {
@@ -2001,6 +2103,18 @@ def enrich_case(
 
     zone = str(case.get("zone", ""))
     city_code = detect_city(display_name, zone)
+
+    # ── Croissance démographique CMA ──────────────────────────────────────────
+    if not case.get("population_cma"):
+        try:
+            pop = fetch_population_growth(city_code, cache_dir)
+            if pop:
+                case["population_cma"] = pop
+                logger.debug("population_cma injecté : %s pop=%d var=%.2f%%",
+                             city_code, pop.get("population", 0),
+                             pop.get("variation_annuelle_pct", 0))
+        except Exception as exc:
+            logger.debug("population_cma skip: %s", exc)
 
     # ── Taux Bank of Canada (nationaux, non spécifiques à la ville) ──────────
     if not case.get("taux_bancaires"):
