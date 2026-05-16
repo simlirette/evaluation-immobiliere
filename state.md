@@ -153,6 +153,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B27 Enseignement post-secondaire (OSM Overpass) ✓
+  - fetch_enseignement_postsecondaire(lat, lng, cache_dir): CÉGEP 5km + université 10km
+  - amenity=college / amenity=university via out count; (node + way + relation)
+  - cegep_5km, universite_10km, total_postsecondaire, interpretation (5 niveaux)
+  - 30j cache, non-bloquant, résultats partiels supportés
+  - Bug fix tests: URL-encode "→%22, test avec 'college' not '"college"'
+  - fiche_bien.json + section AMU "Enseignement post-secondaire"
+  - 6 tests pass
 - B26 Proximité axes routiers (OSM Overpass) ✓
   - fetch_proximite_routes(lat, lng, cache_dir): Overpass QL, 3 types (motorway/trunk/primary)
   - out 1 center; → Haversine distance au centroïde du way le plus proche
@@ -173,7 +181,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 263 tests pass
+- 269 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

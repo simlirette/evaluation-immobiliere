@@ -616,6 +616,12 @@ class RuntimeEngine:
                     k: v for k, v in routes.items()
                     if k not in ("source",) and v is not None
                 }
+            postsec = case.get("enseignement_postsecondaire")
+            if postsec:
+                fb["enseignement_postsecondaire"] = {
+                    k: v for k, v in postsec.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1013,6 +1019,23 @@ class RuntimeEngine:
                 )
             else:
                 routes_section = ""
+            # Build post-secondary education section
+            postsec = case.get("enseignement_postsecondaire") or {}
+            if postsec:
+                ps_cegep = postsec.get("cegep_5km")
+                ps_univ  = postsec.get("universite_10km")
+                ps_total = postsec.get("total_postsecondaire")
+                ps_interp = postsec.get("interpretation", "")
+                postsec_section = (
+                    "## Enseignement post-secondaire (OpenStreetMap)\n\n"
+                    + (f"CÉGEP / collèges (5 km) : **{ps_cegep}**  \n" if ps_cegep is not None else "")
+                    + (f"Universités (10 km) : **{ps_univ}**  \n" if ps_univ is not None else "")
+                    + (f"Total établissements : **{ps_total}**  \n" if ps_total is not None else "")
+                    + (f"Profil : **{ps_interp}**  \n" if ps_interp else "")
+                    + "\n"
+                )
+            else:
+                postsec_section = ""
             # Build crime statistics section
             crime = case.get("crime_stats") or {}
             if crime:
@@ -1074,6 +1097,7 @@ class RuntimeEngine:
                 + census_section
                 + proximite_section
                 + routes_section
+                + postsec_section
                 + crime_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

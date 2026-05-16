@@ -144,6 +144,11 @@ _OVERPASS_QUERIES: list[tuple[str, int, str]] = [
     ("pharmacies_500m",        500, '["amenity"="pharmacy"]'),
 ]
 
+# ── Enseignement post-secondaire (OSM Overpass) ───────────────────────────────
+_POSTSEC_TTL = 30 * 86_400  # 30 jours (établissements stables)
+_POSTSEC_RADIUS_CEGEP = 5_000     # 5 km pour CÉGEP/college
+_POSTSEC_RADIUS_UNIV  = 10_000    # 10 km pour université
+
 # ── Proximité axes routiers (OSM Overpass) ────────────────────────────────────
 # Reuses _OVERPASS_URL and _OVERPASS_TTL from services section above.
 # highway values ordered from most to least impactful for real estate.
@@ -878,6 +883,94 @@ def fetch_proximite_routes(lat: float, lng: float, cache_dir: Path) -> dict:
     _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
     logger.debug("proximite_routes injecté : autoroute=%.1f km, artere=%.1f km",
                  result.get("autoroute_km", 0), result.get("artere_km", 0))
+    return result
+
+
+def fetch_enseignement_postsecondaire(lat: float, lng: float, cache_dir: Path) -> dict:
+    """
+    Count CÉGEP/colleges (5 km) and universities (10 km) via OSM Overpass.
+
+    Distinct from B20 (which counts all schools within 1 km).  Post-secondary
+    density is a proxy for student rental demand and employment-centre proximity.
+    Cache: 30 days (institutions rarely change).
+
+    Returns dict with keys: cegep_5km, universite_10km, total_postsecondaire,
+    interpretation, source, lat, lng.
+    Returns {} if all queries fail (non-blocking).
+    """
+    import urllib.request
+    import urllib.parse
+
+    lat_r = round(lat, 4)
+    lng_r = round(lng, 4)
+    cache_path = cache_dir / f"postsec_{lat_r}_{lng_r}.json"
+    cached = _read_cache_ttl(cache_path, _POSTSEC_TTL)
+    if cached is not None:
+        return cached
+
+    result: dict = {
+        "source": "openstreetmap-overpass-postsec",
+        "lat": lat_r,
+        "lng": lng_r,
+    }
+
+    queries = [
+        ("cegep_5km",      _POSTSEC_RADIUS_CEGEP, '["amenity"="college"]'),
+        ("universite_10km", _POSTSEC_RADIUS_UNIV,  '["amenity"="university"]'),
+    ]
+
+    for field_key, radius_m, osm_filter in queries:
+        query = (
+            f"[out:json][timeout:15];"
+            f"("
+            f"  node{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f"  way{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f"  relation{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f");"
+            f"out count;"
+        )
+        try:
+            data_enc = urllib.parse.urlencode({"data": query}).encode()
+            req = urllib.request.Request(
+                _OVERPASS_URL,
+                data=data_enc,
+                headers={"User-Agent": "eval-immo/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+            elements = resp_data.get("elements", [])
+            if elements:
+                count_tags = elements[0].get("tags", {})
+                total = count_tags.get("total", "0")
+                result[field_key] = int(total)
+        except Exception as exc:
+            logger.debug("Overpass postsec %s skip: %s", field_key, exc)
+
+    # Compute total and interpretation
+    cegep = result.get("cegep_5km", 0)
+    univ = result.get("universite_10km", 0)
+    total = cegep + univ
+    result["total_postsecondaire"] = total
+
+    if univ >= 1 and cegep >= 1:
+        interpretation = "secteur universitaire et collégial"
+    elif univ >= 1:
+        interpretation = "proximité universitaire"
+    elif cegep >= 2:
+        interpretation = "secteur collégial dense"
+    elif cegep >= 1:
+        interpretation = "proximité CÉGEP"
+    else:
+        interpretation = "pas d'établissement post-secondaire proche"
+    result["interpretation"] = interpretation
+
+    # Need at least one real count to be useful
+    if "cegep_5km" not in result and "universite_10km" not in result:
+        return {}
+
+    _write_cache_ttl(cache_path, result, _POSTSEC_TTL)
+    logger.debug("enseignement_postsecondaire injecté : cégep=%s univ=%s (%s)",
+                 cegep, univ, interpretation)
     return result
 
 
@@ -3390,3 +3483,15 @@ def enrich_case(
                              routes.get("autoroute_km", 0), routes.get("interpretation"))
         except Exception as exc:
             logger.debug("proximite_routes skip: %s", exc)
+
+    # ── Enseignement post-secondaire (OSM Overpass) ───────────────────────────
+    if not case.get("enseignement_postsecondaire") and _coords:
+        try:
+            lat, lng = _coords
+            postsec = fetch_enseignement_postsecondaire(lat, lng, cache_dir)
+            if postsec:
+                case["enseignement_postsecondaire"] = postsec
+                logger.debug("enseignement_postsecondaire injecté : total=%s (%s)",
+                             postsec.get("total_postsecondaire"), postsec.get("interpretation"))
+        except Exception as exc:
+            logger.debug("enseignement_postsecondaire skip: %s", exc)

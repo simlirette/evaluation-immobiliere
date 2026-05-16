@@ -4556,3 +4556,157 @@ class TestDataEnrichment_ProximiteRoutes:
         pr = case.get("proximite_routes", {})
         assert pr.get("autoroute_km") == 1.5
         assert pr.get("interpretation") == "excellent accès autoroutier"
+
+
+# ── TestDataEnrichment_EnseignementPostsecondaire ─────────────────────────────
+
+class TestDataEnrichment_EnseignementPostsecondaire:
+    """Tests for fetch_enseignement_postsecondaire() via OSM Overpass."""
+
+    def _overpass_count(self, total: int) -> dict:
+        return {
+            "elements": [
+                {"type": "count", "tags": {"total": str(total)}}
+            ]
+        }
+
+    def test_fetch_postsec_secteur_universitaire(self, tmp_path):
+        """CÉGEP + university nearby → 'secteur universitaire et collégial'."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_enseignement_postsecondaire
+
+        call_n = [0]
+
+        def fake_urlopen(req, timeout=20):
+            call_n[0] += 1
+            query = req.data.decode()
+            if 'college' in query and 'university' not in query:
+                return io.BytesIO(json.dumps(self._overpass_count(2)).encode())
+            else:  # university
+                return io.BytesIO(json.dumps(self._overpass_count(1)).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_enseignement_postsecondaire(45.51, -73.56, tmp_path)
+
+        assert result.get("source") == "openstreetmap-overpass-postsec"
+        assert result.get("cegep_5km") == 2
+        assert result.get("universite_10km") == 1
+        assert result.get("total_postsecondaire") == 3
+        assert result.get("interpretation") == "secteur universitaire et collégial"
+
+    def test_fetch_postsec_no_institutions(self, tmp_path):
+        """No institutions found → {} (non-blocking)."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_enseignement_postsecondaire
+
+        def fake_urlopen(req, timeout=20):
+            return io.BytesIO(json.dumps(self._overpass_count(0)).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_enseignement_postsecondaire(45.51, -73.56, tmp_path)
+
+        # 0 results: cegep_5km=0, universite_10km=0 — both keys present so not {}
+        assert result.get("total_postsecondaire") == 0
+        assert result.get("interpretation") == "pas d'établissement post-secondaire proche"
+
+    def test_fetch_postsec_proximite_cegep(self, tmp_path):
+        """1 CÉGEP, 0 university → 'proximité CÉGEP'."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_enseignement_postsecondaire
+
+        def fake_urlopen(req, timeout=20):
+            query = req.data.decode()
+            if 'college' in query and 'university' not in query:
+                return io.BytesIO(json.dumps(self._overpass_count(1)).encode())
+            return io.BytesIO(json.dumps(self._overpass_count(0)).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_enseignement_postsecondaire(45.51, -73.56, tmp_path)
+
+        assert result.get("cegep_5km") == 1
+        assert result.get("universite_10km") == 0
+        assert result.get("interpretation") == "proximité CÉGEP"
+
+    def test_fetch_postsec_cache_hit(self, tmp_path):
+        """Cached result returned without Overpass call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_enseignement_postsecondaire
+
+        cached = {
+            "source": "openstreetmap-overpass-postsec",
+            "lat": 45.51,
+            "lng": -73.56,
+            "cegep_5km": 3,
+            "universite_10km": 2,
+            "total_postsecondaire": 5,
+            "interpretation": "secteur universitaire et collégial",
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "postsec_45.51_-73.56.json").write_text(json.dumps(cached))
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_enseignement_postsecondaire(45.51, -73.56, tmp_path)
+
+        mock_url.assert_not_called()
+        assert result.get("total_postsecondaire") == 5
+
+    def test_fetch_postsec_partial_failure(self, tmp_path):
+        """Network error on university query → partial result (cégep only)."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_enseignement_postsecondaire
+
+        def fake_urlopen(req, timeout=20):
+            query = req.data.decode()
+            if 'college' in query and 'university' not in query:
+                return io.BytesIO(json.dumps(self._overpass_count(2)).encode())
+            raise OSError("timeout")
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_enseignement_postsecondaire(45.51, -73.56, tmp_path)
+
+        # cegep_5km present, universite_10km absent → still returns result
+        assert result.get("cegep_5km") == 2
+        assert "universite_10km" not in result
+
+    def test_enrich_case_injects_postsec(self, tmp_path):
+        """enrich_case populates enseignement_postsecondaire."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        postsec_data = {
+            "source": "openstreetmap-overpass-postsec",
+            "lat": 45.51,
+            "lng": -73.56,
+            "cegep_5km": 1,
+            "universite_10km": 1,
+            "total_postsecondaire": 2,
+            "interpretation": "secteur universitaire et collégial",
+        }
+
+        with mock.patch.object(de, "fetch_enseignement_postsecondaire",
+                               return_value=postsec_data):
+            with mock.patch.object(de, "geocode_address", return_value=(45.51, -73.56)):
+                with mock.patch.object(de, "detect_city", return_value="montreal"):
+                    case: dict = {"dossier_id": "D-POSTSEC-TEST"}
+                    enrich_case(case, display_name="3040 rue Sherbrooke, Montréal",
+                                cache_dir=tmp_path)
+
+        ep = case.get("enseignement_postsecondaire", {})
+        assert ep.get("total_postsecondaire") == 2
+        assert ep.get("interpretation") == "secteur universitaire et collégial"
