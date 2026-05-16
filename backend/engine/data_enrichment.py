@@ -128,6 +128,21 @@ _BOC_SERIES: dict[str, str] = {
     "V122496":      "taux_hypo_1an_pct",          # 1-year conventional mortgage
 }
 
+# ── Proximité services (OpenStreetMap Overpass API) ──────────────────────────
+_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+_OVERPASS_TTL = 7 * 86_400  # 7 jours (OSM change peu)
+
+# Radius in metres for each amenity category
+_OVERPASS_QUERIES: list[tuple[str, int, str]] = [
+    # (field_key,            radius_m, OSM filter)
+    ("ecoles_1km",            1000, '["amenity"~"school|college|university"]'),
+    ("arrets_transport_500m",  500, '["public_transport"="stop_position"]["name"]'),
+    ("epiceries_500m",         500, '["shop"~"supermarket|grocery"]'),
+    ("parcs_1km",             1000, '["leisure"~"park|garden"]'),
+    ("hopitaux_2km",          2000, '["amenity"~"hospital|clinic"]'),
+    ("pharmacies_500m",        500, '["amenity"="pharmacy"]'),
+]
+
 # ── Mises en chantier SCHL (StatCan 34-10-0056-01) ───────────────────────────
 _CHANTIER_TABLE = 3410005601  # 34-10-0056-01 : Housing starts by CMA (CMHC)
 
@@ -596,6 +611,68 @@ def fetch_marche_travail(city_code: str, cache_dir: Path) -> dict:
     except Exception as exc:  # pragma: no cover
         logger.debug("Marché travail fetch failed for %s: %s", city_code, exc)
         return {}
+
+
+def fetch_proximite_services(lat: float, lng: float, cache_dir: Path) -> dict:
+    """
+    Count nearby OSM amenities around (lat, lng) via Overpass API.
+
+    Returns dict with counts per category (ecoles_1km, arrets_transport_500m, …)
+    plus source and coords. Cache keyed by rounded coordinates (4 decimals ≈ 11m).
+    Returns {} on any failure (non-blocking).
+    """
+    import urllib.request
+    import urllib.parse
+
+    # Round to 4 decimals for cache key (~11m precision, stable between runs)
+    lat_r = round(lat, 4)
+    lng_r = round(lng, 4)
+    cache_path = cache_dir / f"overpass_{lat_r}_{lng_r}.json"
+    cached = _read_cache_ttl(cache_path, _OVERPASS_TTL)
+    if cached is not None:
+        return cached
+
+    result: dict = {
+        "source": "openstreetmap-overpass",
+        "lat": lat_r,
+        "lng": lng_r,
+    }
+
+    for field_key, radius_m, osm_filter in _OVERPASS_QUERIES:
+        query = (
+            f"[out:json][timeout:15];"
+            f"("
+            f"  node{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f"  way{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f");"
+            f"out count;"
+        )
+        try:
+            data_enc = urllib.parse.urlencode({"data": query}).encode()
+            req = urllib.request.Request(
+                _OVERPASS_URL,
+                data=data_enc,
+                headers={"User-Agent": "eval-immo/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+            # Overpass "out count" response: {"elements": [{"type":"count","tags":{"total":"N"}}]}
+            elements = resp_data.get("elements", [])
+            if elements:
+                count_tags = elements[0].get("tags", {})
+                total = count_tags.get("total", "0")
+                result[field_key] = int(total)
+        except Exception as exc:
+            logger.debug("Overpass %s skip: %s", field_key, exc)
+            # Leave key absent — partial results still useful
+
+    if len(result) <= 3:  # only source + lat + lng
+        return {}
+
+    _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
+    logger.debug("proximite_services injecté : écoles=%s transports=%s",
+                 result.get("ecoles_1km"), result.get("arrets_transport_500m"))
+    return result
 
 
 def fetch_mises_en_chantier(city_code: str, cache_dir: Path) -> dict:
@@ -2575,6 +2652,7 @@ def enrich_case(
         or not case.get("zone_agricole")
         or not case.get("patrimoine_culturel")
         or "zone_inondable" not in case
+        or "proximite_services" not in case
     ):
         try:
             _coords = geocode_address(display_name, cache_dir)
@@ -2627,3 +2705,15 @@ def enrich_case(
                                  inond.get("recurrence"))
         except Exception as exc:
             logger.debug("inondable skip: %s", exc)
+
+    # ── Proximité services (OSM Overpass) ─────────────────────────────────────
+    if not case.get("proximite_services") and _coords:
+        try:
+            lat, lng = _coords
+            prox = fetch_proximite_services(lat, lng, cache_dir)
+            if prox:
+                case["proximite_services"] = prox
+                logger.debug("proximite_services injecté : écoles=%s transports=%s",
+                             prox.get("ecoles_1km"), prox.get("arrets_transport_500m"))
+        except Exception as exc:
+            logger.debug("proximite_services skip: %s", exc)

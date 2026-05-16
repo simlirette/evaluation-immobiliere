@@ -3565,3 +3565,141 @@ class TestDataEnrichment_Permis:
         pc = case.get("permis_construction", {})
         assert pc.get("unites_residentielles_mois") == 520.0
         assert pc.get("variation_pct_6m") == 12.5
+
+
+# ── TestDataEnrichment_Proximite ─────────────────────────────────────────────
+
+class TestDataEnrichment_Proximite:
+    """Tests for fetch_proximite_services() via Overpass API."""
+
+    def _overpass_resp(self, total: int) -> bytes:
+        import json
+        return json.dumps({
+            "elements": [{"type": "count", "tags": {"total": str(total)}}]
+        }).encode()
+
+    def test_fetch_proximite_success(self, tmp_path):
+        """All six queries succeed → full result dict cached."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_services
+
+        counts = [3, 12, 2, 5, 1, 4]  # one per _OVERPASS_QUERIES
+        call_idx = {"n": 0}
+
+        def fake_urlopen(req, timeout=None):
+            idx = call_idx["n"]
+            call_idx["n"] += 1
+            resp_bytes = self._overpass_resp(counts[idx % len(counts)])
+
+            class _FakeResp:
+                def read(self): return resp_bytes
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+
+            return _FakeResp()
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_proximite_services(45.5017, -73.5673, tmp_path)
+
+        assert result.get("ecoles_1km") == 3
+        assert result.get("arrets_transport_500m") == 12
+        assert result.get("epiceries_500m") == 2
+        assert result.get("parcs_1km") == 5
+        assert result.get("hopitaux_2km") == 1
+        assert result.get("pharmacies_500m") == 4
+        assert result.get("source") == "openstreetmap-overpass"
+        assert result.get("lat") == 45.5017
+        assert result.get("lng") == -73.5673
+
+    def test_fetch_proximite_cache_hit(self, tmp_path):
+        """Second call returns cached data without network."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_services
+
+        cached = {
+            "source": "openstreetmap-overpass",
+            "lat": 45.5017, "lng": -73.5673,
+            "ecoles_1km": 7,
+            "arrets_transport_500m": 20,
+            "_ts": 9_999_999_999.0,
+        }
+        cache_path = tmp_path / "overpass_45.5017_-73.5673.json"
+        import json
+        cache_path.write_text(json.dumps(cached))
+
+        with mock.patch("urllib.request.urlopen") as mock_req:
+            result = fetch_proximite_services(45.5017, -73.5673, tmp_path)
+
+        mock_req.assert_not_called()
+        assert result.get("ecoles_1km") == 7
+
+    def test_fetch_proximite_network_error(self, tmp_path):
+        """All queries fail → {} (non-blocking)."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_proximite_services
+
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("timeout")):
+            result = fetch_proximite_services(45.5017, -73.5673, tmp_path)
+
+        assert result == {}
+
+    def test_fetch_proximite_partial_results(self, tmp_path):
+        """Only some queries succeed → partial dict cached and returned."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_services, _OVERPASS_QUERIES
+
+        call_idx = {"n": 0}
+
+        def fake_urlopen(req, timeout=None):
+            idx = call_idx["n"]
+            call_idx["n"] += 1
+            if idx >= 3:
+                raise OSError("timeout")
+            resp_bytes = self._overpass_resp(idx + 1)
+
+            class _FakeResp:
+                def read(self): return resp_bytes
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+
+            return _FakeResp()
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_proximite_services(45.5017, -73.5673, tmp_path)
+
+        # 3 successful queries + source/lat/lng → 6 keys > 3 → not empty
+        assert result != {}
+        assert result.get("ecoles_1km") == 1
+        assert result.get("arrets_transport_500m") == 2
+
+    def test_enrich_case_injects_proximite(self, tmp_path):
+        """enrich_case injects proximite_services after geocoding."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        prox_data = {
+            "source": "openstreetmap-overpass",
+            "lat": 45.5017,
+            "lng": -73.5673,
+            "ecoles_1km": 5,
+            "arrets_transport_500m": 15,
+            "epiceries_500m": 3,
+            "parcs_1km": 4,
+            "hopitaux_2km": 2,
+            "pharmacies_500m": 6,
+        }
+
+        with mock.patch.object(de, "fetch_proximite_services", return_value=prox_data):
+            with mock.patch.object(de, "geocode_address", return_value=(45.5017, -73.5673)):
+                with mock.patch.object(de, "detect_city", return_value="montreal"):
+                    case: dict = {"dossier_id": "D-PROX-TEST"}
+                    enrich_case(case, display_name="100 rue Sherbrooke, Montréal",
+                                cache_dir=tmp_path)
+
+        pr = case.get("proximite_services", {})
+        assert pr.get("ecoles_1km") == 5
+        assert pr.get("arrets_transport_500m") == 15

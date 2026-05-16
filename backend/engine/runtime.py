@@ -592,6 +592,12 @@ class RuntimeEngine:
                     k: v for k, v in permis.items()
                     if k not in ("source",) and v is not None
                 }
+            prox = case.get("proximite_services")
+            if prox:
+                fb["proximite_services"] = {
+                    k: v for k, v in prox.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -881,6 +887,27 @@ class RuntimeEngine:
                 )
             else:
                 census_section = ""
+            # Build proximity services section
+            prox = case.get("proximite_services") or {}
+            if prox:
+                ecoles = prox.get("ecoles_1km")
+                transports = prox.get("arrets_transport_500m")
+                epiceries = prox.get("epiceries_500m")
+                parcs = prox.get("parcs_1km")
+                hopitaux = prox.get("hopitaux_2km")
+                pharmacies = prox.get("pharmacies_500m")
+                proximite_section = (
+                    "## Proximité des services (OpenStreetMap)\n\n"
+                    + (f"Écoles (1 km) : **{ecoles}**  \n" if ecoles is not None else "")
+                    + (f"Arrêts de transport (500 m) : **{transports}**  \n" if transports is not None else "")
+                    + (f"Épiceries (500 m) : **{epiceries}**  \n" if epiceries is not None else "")
+                    + (f"Parcs/jardins (1 km) : **{parcs}**  \n" if parcs is not None else "")
+                    + (f"Hôpitaux/cliniques (2 km) : **{hopitaux}**  \n" if hopitaux is not None else "")
+                    + (f"Pharmacies (500 m) : **{pharmacies}**  \n" if pharmacies is not None else "")
+                    + "\n"
+                )
+            else:
+                proximite_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -904,6 +931,7 @@ class RuntimeEngine:
                 + marche_section
                 + permis_section
                 + census_section
+                + proximite_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"
