@@ -60,14 +60,19 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - lookup_zoning_point(): bbox pre-filter + PiP, module-level cache
   - enrich_case() → case["zonage_urbanisme"] → fiche_bien.json + amu_analyse.md
   - Commit: 10653c4
-- B7 CPTAQ zone agricole (WFS GeoJSON + PiP) ✓
+- B7 CPTAQ zone agricole (WFS GeoJSON + PiP + index) ✓
   - download_cptaq(): WFS GeoJSON endpoint (geoegl.msp.gouv.qc.ca)
   - build_cptaq_index(): GeoJSON → compact bbox+ring index
   - lookup_cptaq(): {en_zone_agricole: bool, NM_MRC, ...} ou None si données absentes
   - Géocodage partagé zonage+CPTAQ (1 seul appel Nominatim par enrich_case)
   - fiche_bien.json + section amu_analyse.md (statut + note légale si en zone)
   - Commit: 59203c5
-- 151 tests pass
+- B8 patrimoine culturel (WFS GeoJSON Point+Polygon + 50m buffer PiP) ✓
+  - download_patrimoine() + build_patrimoine_index() + lookup_patrimoine()
+  - {} = non répertorié, dict = trouvé, None = données absentes
+  - Section AMU "ATTENTION" si bien répertorié (statut + note légale Ministre Culture)
+  - Commit: 2b375d4
+- 158 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
