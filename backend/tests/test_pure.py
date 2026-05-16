@@ -4710,3 +4710,163 @@ class TestDataEnrichment_EnseignementPostsecondaire:
         ep = case.get("enseignement_postsecondaire", {})
         assert ep.get("total_postsecondaire") == 2
         assert ep.get("interpretation") == "secteur universitaire et collégial"
+
+
+# ── TestDataEnrichment_NuisancesEnvironnementales ────────────────────────────
+
+class TestDataEnrichment_NuisancesEnvironnementales:
+    """Tests for fetch_nuisances_environnementales() via OSM Overpass."""
+
+    def _overpass_count(self, total: int) -> dict:
+        return {"elements": [{"type": "count", "tags": {"total": str(total)}}]}
+
+    def test_fetch_nuisances_aucune(self, tmp_path):
+        """All zeros → score=0, 'aucune nuisance environnementale détectée'."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nuisances_environnementales
+
+        def fake_urlopen(req, timeout=20):
+            return io.BytesIO(json.dumps(self._overpass_count(0)).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_nuisances_environnementales(45.51, -73.56, tmp_path)
+
+        assert result.get("score_nuisances") == 0
+        assert result.get("interpretation") == "aucune nuisance environnementale détectée"
+        assert result.get("aeroports_10km") == 0
+        assert result.get("voies_ferrees_500m") == 0
+
+    def test_fetch_nuisances_importantes(self, tmp_path):
+        """3 nuisance types present → score=3, 'nuisances importantes'."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nuisances_environnementales
+
+        call_n = [0]
+
+        def fake_urlopen(req, timeout=20):
+            call_n[0] += 1
+            query = req.data.decode()
+            if "aeroway" in query:
+                return io.BytesIO(json.dumps(self._overpass_count(1)).encode())
+            elif "railway" in query:
+                return io.BytesIO(json.dumps(self._overpass_count(3)).encode())
+            elif "industrial" in query:
+                return io.BytesIO(json.dumps(self._overpa_count(2)).encode())  # typo → will raise
+            return io.BytesIO(json.dumps(self._overpass_count(0)).encode())
+
+        # Correct mock — 3 types present, 1 absent
+        def fake_urlopen2(req, timeout=20):
+            query = req.data.decode()
+            if "aeroway" in query:
+                return io.BytesIO(json.dumps(self._overpass_count(1)).encode())
+            elif "railway" in query:
+                return io.BytesIO(json.dumps(self._overpass_count(3)).encode())
+            elif "industrial" in query:
+                return io.BytesIO(json.dumps(self._overpass_count(2)).encode())
+            else:  # quarry
+                return io.BytesIO(json.dumps(self._overpass_count(0)).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen2):
+            result = fetch_nuisances_environnementales(45.51, -73.56, tmp_path)
+
+        assert result.get("score_nuisances") == 3
+        assert result.get("aeroports_10km") == 1
+        assert result.get("voies_ferrees_500m") == 3
+        assert result.get("zones_industrielles_1km") == 2
+        assert result.get("carrieres_2km") == 0
+        assert "analyse approfondie" in result.get("interpretation", "")
+
+    def test_fetch_nuisances_mineure(self, tmp_path):
+        """Only railway present → score=1, 'nuisance mineure'."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nuisances_environnementales
+
+        def fake_urlopen(req, timeout=20):
+            query = req.data.decode()
+            if "railway" in query:
+                return io.BytesIO(json.dumps(self._overpass_count(1)).encode())
+            return io.BytesIO(json.dumps(self._overpass_count(0)).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_nuisances_environnementales(45.51, -73.56, tmp_path)
+
+        assert result.get("score_nuisances") == 1
+        assert result.get("interpretation") == "nuisance mineure détectée"
+
+    def test_fetch_nuisances_cache_hit(self, tmp_path):
+        """Cached result returned without Overpass call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nuisances_environnementales
+
+        cached = {
+            "source": "openstreetmap-overpass-nuisances",
+            "lat": 45.51,
+            "lng": -73.56,
+            "aeroports_10km": 0,
+            "voies_ferrees_500m": 2,
+            "zones_industrielles_1km": 1,
+            "carrieres_2km": 0,
+            "score_nuisances": 2,
+            "interpretation": "nuisances modérées — impact potentiel sur la valeur",
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "nuisances_45.51_-73.56.json").write_text(json.dumps(cached))
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_nuisances_environnementales(45.51, -73.56, tmp_path)
+
+        mock_url.assert_not_called()
+        assert result.get("score_nuisances") == 2
+
+    def test_fetch_nuisances_all_fail(self, tmp_path):
+        """All queries fail → {} (non-blocking)."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nuisances_environnementales
+
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("timeout")):
+            result = fetch_nuisances_environnementales(45.51, -73.56, tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_nuisances(self, tmp_path):
+        """enrich_case populates nuisances_environnementales."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        nuisances_data = {
+            "source": "openstreetmap-overpass-nuisances",
+            "lat": 45.51,
+            "lng": -73.56,
+            "aeroports_10km": 0,
+            "voies_ferrees_500m": 1,
+            "zones_industrielles_1km": 0,
+            "carrieres_2km": 0,
+            "score_nuisances": 1,
+            "interpretation": "nuisance mineure détectée",
+        }
+
+        with mock.patch.object(de, "fetch_nuisances_environnementales",
+                               return_value=nuisances_data):
+            with mock.patch.object(de, "geocode_address", return_value=(45.51, -73.56)):
+                with mock.patch.object(de, "detect_city", return_value="montreal"):
+                    case: dict = {"dossier_id": "D-NUIS-TEST"}
+                    enrich_case(case, display_name="800 rue Saint-Denis, Montréal",
+                                cache_dir=tmp_path)
+
+        nv = case.get("nuisances_environnementales", {})
+        assert nv.get("score_nuisances") == 1
+        assert nv.get("voies_ferrees_500m") == 1

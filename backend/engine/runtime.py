@@ -622,6 +622,12 @@ class RuntimeEngine:
                     k: v for k, v in postsec.items()
                     if k not in ("source",) and v is not None
                 }
+            nuisances = case.get("nuisances_environnementales")
+            if nuisances:
+                fb["nuisances_environnementales"] = {
+                    k: v for k, v in nuisances.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1036,6 +1042,28 @@ class RuntimeEngine:
                 )
             else:
                 postsec_section = ""
+            # Build environmental nuisances section
+            nuisances = case.get("nuisances_environnementales") or {}
+            if nuisances:
+                n_aero = nuisances.get("aeroports_10km")
+                n_rail = nuisances.get("voies_ferrees_500m")
+                n_ind  = nuisances.get("zones_industrielles_1km")
+                n_carr = nuisances.get("carrieres_2km")
+                n_score = nuisances.get("score_nuisances", 0)
+                n_interp = nuisances.get("interpretation", "")
+                nuisances_section = (
+                    "## Nuisances environnementales (OpenStreetMap)\n\n"
+                    + (f"Aéroports/aérodromes (10 km) : **{n_aero}**  \n" if n_aero is not None else "")
+                    + (f"Voies ferrées (500 m) : **{n_rail}**  \n" if n_rail is not None else "")
+                    + (f"Zones industrielles (1 km) : **{n_ind}**  \n" if n_ind is not None else "")
+                    + (f"Carrières/dépotoirs (2 km) : **{n_carr}**  \n" if n_carr is not None else "")
+                    + (f"Score nuisances : **{n_score}/4**  \n" if n_score is not None else "")
+                    + (f"Évaluation : **{n_interp}**  \n" if n_interp else "")
+                    + ("\n> ⚠️ Analyse approfondie des nuisances recommandée.\n" if n_score >= 2 else "")
+                    + "\n"
+                )
+            else:
+                nuisances_section = ""
             # Build crime statistics section
             crime = case.get("crime_stats") or {}
             if crime:
@@ -1098,6 +1126,7 @@ class RuntimeEngine:
                 + proximite_section
                 + routes_section
                 + postsec_section
+                + nuisances_section
                 + crime_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

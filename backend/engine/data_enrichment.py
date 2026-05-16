@@ -149,6 +149,17 @@ _POSTSEC_TTL = 30 * 86_400  # 30 jours (établissements stables)
 _POSTSEC_RADIUS_CEGEP = 5_000     # 5 km pour CÉGEP/college
 _POSTSEC_RADIUS_UNIV  = 10_000    # 10 km pour université
 
+# ── Nuisances environnementales (OSM Overpass) ───────────────────────────────
+_NUISANCES_TTL = 30 * 86_400  # 30 jours (infra stable)
+
+# (field_key, radius_m, overpass_filter) — count queries
+_NUISANCES_QUERIES: list[tuple[str, int, str]] = [
+    ("aeroports_10km",         10_000, '["aeroway"~"aerodrome|airport"]'),
+    ("voies_ferrees_500m",        500, '["railway"="rail"]'),
+    ("zones_industrielles_1km", 1_000, '["landuse"="industrial"]'),
+    ("carrieres_2km",           2_000, '["landuse"~"quarry|landfill"]'),
+]
+
 # ── Proximité axes routiers (OSM Overpass) ────────────────────────────────────
 # Reuses _OVERPASS_URL and _OVERPASS_TTL from services section above.
 # highway values ordered from most to least impactful for real estate.
@@ -805,6 +816,87 @@ def fetch_proximite_services(lat: float, lng: float, cache_dir: Path) -> dict:
     _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
     logger.debug("proximite_services injecté : écoles=%s transports=%s",
                  result.get("ecoles_1km"), result.get("arrets_transport_500m"))
+    return result
+
+
+def fetch_nuisances_environnementales(lat: float, lng: float, cache_dir: Path) -> dict:
+    """
+    Count environmental nuisance features (airport, railway, industrial, quarry)
+    around the property via OSM Overpass API.
+
+    Returns dict with keys: aeroports_10km, voies_ferrees_500m,
+    zones_industrielles_1km, carrieres_2km, score_nuisances, interpretation,
+    source, lat, lng.
+    score_nuisances: 0 (aucune) → 4 (nuisances multiples).
+    Returns {} if all queries fail (non-blocking).  Cache: 30 days.
+    """
+    import urllib.request
+    import urllib.parse
+
+    lat_r = round(lat, 4)
+    lng_r = round(lng, 4)
+    cache_path = cache_dir / f"nuisances_{lat_r}_{lng_r}.json"
+    cached = _read_cache_ttl(cache_path, _NUISANCES_TTL)
+    if cached is not None:
+        return cached
+
+    result: dict = {
+        "source": "openstreetmap-overpass-nuisances",
+        "lat": lat_r,
+        "lng": lng_r,
+    }
+
+    for field_key, radius_m, osm_filter in _NUISANCES_QUERIES:
+        query = (
+            f"[out:json][timeout:15];"
+            f"("
+            f"  node{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f"  way{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f"  relation{osm_filter}(around:{radius_m},{lat_r},{lng_r});"
+            f");"
+            f"out count;"
+        )
+        try:
+            data_enc = urllib.parse.urlencode({"data": query}).encode()
+            req = urllib.request.Request(
+                _OVERPASS_URL,
+                data=data_enc,
+                headers={"User-Agent": "eval-immo/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+            elements = resp_data.get("elements", [])
+            if elements:
+                count_tags = elements[0].get("tags", {})
+                total = count_tags.get("total", "0")
+                result[field_key] = int(total)
+        except Exception as exc:
+            logger.debug("Overpass nuisances %s skip: %s", field_key, exc)
+
+    if len(result) <= 3:  # only source + lat + lng
+        return {}
+
+    # Score: 1 point per nuisance type present
+    score = sum(
+        1 for k in ("aeroports_10km", "voies_ferrees_500m",
+                    "zones_industrielles_1km", "carrieres_2km")
+        if result.get(k, 0) > 0
+    )
+    result["score_nuisances"] = score
+
+    if score == 0:
+        interpretation = "aucune nuisance environnementale détectée"
+    elif score == 1:
+        interpretation = "nuisance mineure détectée"
+    elif score == 2:
+        interpretation = "nuisances modérées — impact potentiel sur la valeur"
+    else:
+        interpretation = "nuisances importantes — analyse approfondie requise"
+    result["interpretation"] = interpretation
+
+    _write_cache_ttl(cache_path, result, _NUISANCES_TTL)
+    logger.debug("nuisances_environnementales injecté : score=%s (%s)",
+                 score, interpretation)
     return result
 
 
@@ -3495,3 +3587,15 @@ def enrich_case(
                              postsec.get("total_postsecondaire"), postsec.get("interpretation"))
         except Exception as exc:
             logger.debug("enseignement_postsecondaire skip: %s", exc)
+
+    # ── Nuisances environnementales (OSM Overpass) ────────────────────────────
+    if not case.get("nuisances_environnementales") and _coords:
+        try:
+            lat, lng = _coords
+            nuisances = fetch_nuisances_environnementales(lat, lng, cache_dir)
+            if nuisances:
+                case["nuisances_environnementales"] = nuisances
+                logger.debug("nuisances_environnementales injecté : score=%s (%s)",
+                             nuisances.get("score_nuisances"), nuisances.get("interpretation"))
+        except Exception as exc:
+            logger.debug("nuisances_environnementales skip: %s", exc)

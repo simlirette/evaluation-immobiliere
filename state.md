@@ -153,6 +153,13 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B28 Nuisances environnementales (OSM Overpass) ✓
+  - fetch_nuisances_environnementales(lat, lng, cache_dir): 4 catégories Overpass
+  - aeroports_10km, voies_ferrees_500m, zones_industrielles_1km, carrieres_2km
+  - score_nuisances (0-4), interpretation (4 niveaux), warning AMU si score≥2
+  - 30j cache, non-bloquant, résultats partiels supportés
+  - fiche_bien.json + section AMU "Nuisances environnementales" (Critère 2)
+  - 6 tests pass
 - B27 Enseignement post-secondaire (OSM Overpass) ✓
   - fetch_enseignement_postsecondaire(lat, lng, cache_dir): CÉGEP 5km + université 10km
   - amenity=college / amenity=university via out count; (node + way + relation)
@@ -181,7 +188,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 269 tests pass
+- 275 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
