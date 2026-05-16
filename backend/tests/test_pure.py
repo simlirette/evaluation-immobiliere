@@ -3703,3 +3703,154 @@ class TestDataEnrichment_Proximite:
         pr = case.get("proximite_services", {})
         assert pr.get("ecoles_1km") == 5
         assert pr.get("arrets_transport_500m") == 15
+
+
+# ── TestDataEnrichment_Crime ──────────────────────────────────────────────────
+
+class TestDataEnrichment_Crime:
+    """Tests for fetch_crime_stats() via StatCan WDS 35-10-0078-01."""
+
+    def _meta(self, geo_labels, violation_labels, stat_labels):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        return {"dims": [
+            {"member": members(geo_labels)},
+            {"member": members(violation_labels)},
+            {"member": members(stat_labels)},
+        ]}
+
+    def test_fetch_crime_success(self, tmp_path):
+        """All three rates returned for Montreal."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_crime_stats
+
+        meta = self._meta(
+            ["Montréal", "Québec"],
+            ["Total Criminal Code violations",
+             "Violent violations",
+             "Property violations"],
+            ["Rate per 100,000 population", "Number"],
+        )
+
+        rates = {
+            "Total Criminal Code violations": 4200.0,
+            "Violent violations": 950.5,
+            "Property violations": 2100.3,
+        }
+
+        def fake_fetch_series(table, coord, cache_dir):
+            import json as _json
+            # coord is JSON array [geo_ord, viol_ord, stat_ord]
+            ords = _json.loads(coord)
+            viol_ord = ords[1]  # dim 1 = violation type
+            vals = [4200.0, 950.5, 2100.3]
+            return vals[viol_ord - 1]
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return [{
+                "status": "SUCCESS",
+                "object": {
+                    "vectorDataPoint": [{"value": "4200.0", "refPer": "2022"}]
+                }
+            }]
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_fetch_series", side_effect=fake_fetch_series):
+                with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                    result = fetch_crime_stats("montreal", tmp_path)
+
+        assert result.get("source") == "statcan-35-10-0078-01"
+        assert result.get("ville") == "Montréal"
+        assert result.get("taux_criminalite_total") == 4200.0
+        assert result.get("taux_crimes_violents") == 950.5
+        assert result.get("taux_crimes_contre_propriete") == 2100.3
+        assert result.get("annee") == "2022"
+
+    def test_fetch_crime_unsupported_city(self, tmp_path):
+        """Unknown city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_crime_stats
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_crime_stats("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_crime_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_crime_stats
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_crime_stats("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_crime_geo_not_found(self, tmp_path):
+        """CMA not in dim 0 → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_crime_stats
+
+        meta = self._meta(
+            ["Toronto", "Vancouver"],
+            ["Total Criminal Code violations"],
+            ["Rate per 100,000 population"],
+        )
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_crime_stats("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_crime_cache_hit(self, tmp_path):
+        """Cached result returned without WDS call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_crime_stats
+
+        cached = {
+            "source": "statcan-35-10-0078-01",
+            "ville": "Montréal",
+            "taux_criminalite_total": 3900.0,
+            "annee": "2021",
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "crime_montreal.json").write_text(json.dumps(cached))
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_crime_stats("montreal", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result.get("taux_criminalite_total") == 3900.0
+
+    def test_enrich_case_injects_crime(self, tmp_path):
+        """enrich_case populates crime_stats via fetch_crime_stats."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        crime_data = {
+            "source": "statcan-35-10-0078-01",
+            "ville": "Montréal",
+            "taux_criminalite_total": 4150.0,
+            "taux_crimes_violents": 890.0,
+            "taux_crimes_contre_propriete": 2050.0,
+            "annee": "2022",
+        }
+
+        with mock.patch.object(de, "fetch_crime_stats", return_value=crime_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-CRIME-TEST"}
+                enrich_case(case, display_name="300 boul. Saint-Laurent, Montréal",
+                            cache_dir=tmp_path)
+
+        cs = case.get("crime_stats", {})
+        assert cs.get("taux_criminalite_total") == 4150.0
+        assert cs.get("annee") == "2022"

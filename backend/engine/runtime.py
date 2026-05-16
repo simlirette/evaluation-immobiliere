@@ -598,6 +598,12 @@ class RuntimeEngine:
                     k: v for k, v in prox.items()
                     if k not in ("source",) and v is not None
                 }
+            crime = case.get("crime_stats")
+            if crime:
+                fb["crime_stats"] = {
+                    k: v for k, v in crime.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -908,6 +914,25 @@ class RuntimeEngine:
                 )
             else:
                 proximite_section = ""
+            # Build crime statistics section
+            crime = case.get("crime_stats") or {}
+            if crime:
+                tc = crime.get("taux_criminalite_total")
+                tv = crime.get("taux_crimes_violents")
+                tp = crime.get("taux_crimes_contre_propriete")
+                annee_crime = crime.get("annee", "")
+                ville_crime = crime.get("ville", zone)
+                crime_section = (
+                    f"## Profil de sécurité — CMA {ville_crime}"
+                    + (f" ({annee_crime})" if annee_crime else "")
+                    + "\n\nTaux pour 100 000 habitants (Police-reported, StatCan 35-10-0078-01)  \n"
+                    + (f"Criminalité totale : **{tc:,.1f}**  \n" if tc is not None else "")
+                    + (f"Crimes violents : **{tv:,.1f}**  \n" if tv is not None else "")
+                    + (f"Crimes contre la propriété : **{tp:,.1f}**  \n" if tp is not None else "")
+                    + "\n"
+                )
+            else:
+                crime_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -932,6 +957,7 @@ class RuntimeEngine:
                 + permis_section
                 + census_section
                 + proximite_section
+                + crime_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"

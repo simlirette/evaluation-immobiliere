@@ -143,6 +143,31 @@ _OVERPASS_QUERIES: list[tuple[str, int, str]] = [
     ("pharmacies_500m",        500, '["amenity"="pharmacy"]'),
 ]
 
+# ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
+_CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
+_CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
+
+_CRIME_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal", "Montreal"],
+    "quebec":         ["Québec", "Quebec City", "Quebec"],
+    "gatineau":       ["Gatineau", "Ottawa - Gatineau"],
+    "sherbrooke":     ["Sherbrooke"],
+    "saguenay":       ["Saguenay"],
+    "trois-rivieres": ["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville":  ["Drummondville"],
+    "laval":          ["Laval"],
+}
+
+# Violation type searches for dim 1 (Criminal Code violation type)
+_CRIME_VIOLATION_SEARCHES: dict[str, list[str]] = {
+    "taux_crimes_violents":        ["Violent violations", "Total violent", "Violent Criminal Code"],
+    "taux_crimes_contre_propriete": ["Property violations", "Total property", "Property Criminal Code"],
+    "taux_criminalite_total":      ["Total Criminal Code", "Total, Criminal Code", "Criminal Code violations"],
+}
+
+# Statistic type searches for dim 2 (Statistic)
+_CRIME_STAT_SEARCHES: list[str] = ["Rate per 100,000 population", "Rate per 100,000", "Taux pour 100 000"]
+
 # ── Mises en chantier SCHL (StatCan 34-10-0056-01) ───────────────────────────
 _CHANTIER_TABLE = 3410005601  # 34-10-0056-01 : Housing starts by CMA (CMHC)
 
@@ -672,6 +697,83 @@ def fetch_proximite_services(lat: float, lng: float, cache_dir: Path) -> dict:
     _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
     logger.debug("proximite_services injecté : écoles=%s transports=%s",
                  result.get("ecoles_1km"), result.get("arrets_transport_500m"))
+    return result
+
+
+def fetch_crime_stats(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return police-reported crime statistics (rate per 100,000 population) for a
+    Quebec CMA via StatCan WDS (35-10-0078-01).
+
+    Returns dict with:
+      taux_criminalite_total, taux_crimes_violents, taux_crimes_contre_propriete,
+      ville, annee, source
+    Returns {} if city not supported or data unavailable.
+    """
+    geo_labels = _CRIME_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    cache_path = cache_dir / f"crime_{city_code}.json"
+    cached = _read_cache_ttl(cache_path, _CRIME_TTL)
+    if cached is not None:
+        return cached
+
+    meta = _cube_metadata(_CRIME_TABLE, cache_dir)
+    if not meta:
+        return {}
+
+    dims = meta.get("dims", [])
+    if len(dims) < 3:
+        return {}
+
+    # Dim 0 = Geography, Dim 1 = Violation type, Dim 2 = Statistic
+    geo_ord = None
+    for lbl in geo_labels:
+        geo_ord = _find_member_ordinal(dims, 0, [lbl])
+        if geo_ord is not None:
+            break
+    if geo_ord is None:
+        return {}
+
+    stat_ord = _find_member_ordinal(dims, 2, _CRIME_STAT_SEARCHES)
+    if stat_ord is None:
+        return {}
+
+    result: dict = {
+        "source": "statcan-35-10-0078-01",
+        "ville": geo_labels[0],
+    }
+
+    for field_key, searches in _CRIME_VIOLATION_SEARCHES.items():
+        viol_ord = _find_member_ordinal(dims, 1, searches)
+        if viol_ord is None:
+            continue
+        coord = _build_coordinate([geo_ord, viol_ord, stat_ord])
+        val = _fetch_series(_CRIME_TABLE, coord, cache_dir)
+        if val is not None:
+            result[field_key] = round(val, 1)
+
+    # Get reference year from latest data point
+    try:
+        any_viol_ord = _find_member_ordinal(dims, 1, _CRIME_VIOLATION_SEARCHES["taux_criminalite_total"])
+        if any_viol_ord:
+            coord_total = _build_coordinate([geo_ord, any_viol_ord, stat_ord])
+            payload = [{"productId": _CRIME_TABLE, "coordinate": coord_total, "latestN": 1}]
+            rows = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+            if rows:
+                pts = rows[0].get("object", {}).get("vectorDataPoint", [])
+                if pts:
+                    result["annee"] = pts[-1].get("refPer", "")[:4]
+    except Exception:
+        pass
+
+    if len(result) <= 3:
+        return {}
+
+    _write_cache_ttl(cache_path, result, _CRIME_TTL)
+    logger.debug("crime_stats injecté : total=%s violents=%s",
+                 result.get("taux_criminalite_total"), result.get("taux_crimes_violents"))
     return result
 
 
@@ -2603,6 +2705,17 @@ def enrich_case(
                              city_code, permis.get("unites_residentielles_mois", 0))
         except Exception as exc:
             logger.debug("permis_construction skip: %s", exc)
+
+    # ── Statistiques criminelles CMA (StatCan 35-10-0078-01) ─────────────────
+    if not case.get("crime_stats"):
+        try:
+            crime = fetch_crime_stats(city_code, cache_dir)
+            if crime:
+                case["crime_stats"] = crime
+                logger.debug("crime_stats injecté : %s total=%.1f/100k",
+                             city_code, crime.get("taux_criminalite_total", 0))
+        except Exception as exc:
+            logger.debug("crime_stats skip: %s", exc)
 
     # ── Rôle municipal ────────────────────────────────────────────────────────
     if not case.get("role_municipal"):
