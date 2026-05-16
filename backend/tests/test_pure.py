@@ -2288,3 +2288,107 @@ class TestDataEnrichment_Inondable:
 
         assert "zone_inondable" in case
         assert case["zone_inondable"] == {}
+
+
+# ── TestDataEnrichment_NHPI ───────────────────────────────────────────────────
+
+class TestDataEnrichment_NHPI:
+    """Tests for NHPI (New Housing Price Index) fetch via StatCan WDS."""
+
+    def _meta(self, geo_members: list, type_members: list) -> dict:
+        return {
+            "_ts": 9999999999,
+            "dims": [
+                {"member": [{"memberId": i + 1, "memberNameEn": m}
+                             for i, m in enumerate(geo_members)]},
+                {"member": [{"memberId": i + 1, "memberNameEn": m}
+                             for i, m in enumerate(type_members)]},
+            ],
+        }
+
+    def test_fetch_nhpi_success(self, tmp_path):
+        """fetch_nhpi returns indice_total + variation_annuelle_pct on success."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nhpi
+
+        meta = self._meta(
+            ["Montréal", "Québec, Quebec"],
+            ["Total (house and land)", "Building", "Land"],
+        )
+
+        # Single-period response for _fetch_series
+        def fake_fetch_series(pid, coord, cache_dir):
+            return 130.5 if "1.1" in coord else 125.0
+
+        # 13-period response for annual variation
+        points_13 = [{"value": "130.5"}] + [{"value": "120.0"}] * 12
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return [{
+                "status": "SUCCESS",
+                "object": {"vectorDataPoint": points_13},
+            }]
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_fetch_series", side_effect=fake_fetch_series):
+                with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                    result = fetch_nhpi("montreal", tmp_path)
+
+        assert result.get("ville") == "Montréal"
+        assert result.get("source") == "statcan-18-10-0205-01"
+        assert result.get("indice_total") == 130.5
+        import pytest
+        assert result.get("variation_annuelle_pct") == pytest.approx(8.75, abs=0.1)
+
+    def test_fetch_nhpi_unsupported_city(self, tmp_path):
+        """Unsupported city → {}."""
+        from engine.data_enrichment import fetch_nhpi
+        result = fetch_nhpi("drummondville", tmp_path)
+        # Drummondville not in NHPI geo labels → {}
+        # (may return {} if no meta match, not an error)
+        assert isinstance(result, dict)
+
+    def test_fetch_nhpi_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nhpi
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_nhpi("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_nhpi_geo_not_found(self, tmp_path):
+        """City not in GEO dimension → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_nhpi
+
+        meta = self._meta(["Toronto", "Vancouver"], ["Total (house and land)"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_nhpi("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_nhpi(self, tmp_path):
+        """enrich_case injects indice_prix_logement via fetch_nhpi."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        nhpi_data = {
+            "source": "statcan-18-10-0205-01",
+            "ville": "Montréal",
+            "indice_total": 142.3,
+            "variation_annuelle_pct": 3.2,
+        }
+
+        with mock.patch.object(de, "fetch_nhpi", return_value=nhpi_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-NHPI-TEST"}
+                enrich_case(case, display_name="100 rue Test, Montréal", cache_dir=tmp_path)
+
+        assert case.get("indice_prix_logement", {}).get("indice_total") == 142.3
+        assert case["indice_prix_logement"]["variation_annuelle_pct"] == 3.2

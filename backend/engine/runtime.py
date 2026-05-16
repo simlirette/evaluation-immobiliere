@@ -538,6 +538,12 @@ class RuntimeEngine:
                     k: v for k, v in inond.items()
                     if k not in ("source",) and v is not None
                 }
+            nhpi = case.get("indice_prix_logement")
+            if nhpi:
+                fb["indice_prix_logement"] = {
+                    k: v for k, v in nhpi.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -653,23 +659,36 @@ class RuntimeEngine:
                 cptaq_section = ""
             # Build market data section from enrichment (if available)
             ml = case.get("marche_locatif") or {}
-            if ml:
-                ville_ml = ml.get("ville", zone)
+            nhpi = case.get("indice_prix_logement") or {}
+            if ml or nhpi:
+                ville_ml = (ml or nhpi).get("ville", zone)
                 loyer_1ch = ml.get("loyer_moyen_1ch")
                 loyer_2ch = ml.get("loyer_moyen_2ch")
                 loyer_total = ml.get("loyer_moyen_total")
                 source_ml = ml.get("source", "")
+                indice_total = nhpi.get("indice_total")
+                variation_pct = nhpi.get("variation_annuelle_pct")
+                source_nhpi = nhpi.get("source", "")
                 marche_section = (
-                    f"## Données marché locatif (SCHL {ville_ml})\n\n"
-                    f"Source : {source_ml}  \n"
-                    + (f"Loyer moyen 1 ch. : {loyer_1ch:,.0f} $/mois  \n" if loyer_1ch else "")
-                    + (f"Loyer moyen 2 ch. : {loyer_2ch:,.0f} $/mois  \n" if loyer_2ch else "")
-                    + (f"Loyer moyen (total) : {loyer_total:,.0f} $/mois\n" if loyer_total else "")
+                    f"## Données marché ({ville_ml})\n\n"
+                    + (
+                        f"**Loyers moyens (SCHL / {source_ml})**  \n"
+                        + (f"1 ch. : {loyer_1ch:,.0f} $/mois  \n" if loyer_1ch else "")
+                        + (f"2 ch. : {loyer_2ch:,.0f} $/mois  \n" if loyer_2ch else "")
+                        + (f"Total : {loyer_total:,.0f} $/mois  \n" if loyer_total else "")
+                        if ml else ""
+                    )
+                    + (
+                        f"\n**Indice des prix du logement neuf (NHPI / {source_nhpi})**  \n"
+                        + (f"Indice : {indice_total:.1f}  \n" if indice_total else "")
+                        + (f"Variation annuelle : {variation_pct:+.1f} %  \n" if variation_pct is not None else "")
+                        if nhpi else ""
+                    )
                     + "\n"
                 )
             else:
                 marche_section = (
-                    "## Données marché locatif\n\n"
+                    "## Données marché\n\n"
                     "Données de marché non disponibles pour ce secteur (sources externes non connectées).\n\n"
                 )
             payload["_raw_md"] = (

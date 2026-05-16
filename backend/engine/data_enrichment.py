@@ -104,6 +104,27 @@ _SCHL_TO_DISPLAY: dict[str, str] = {
     "drummondville": "Drummondville",
 }
 
+# ── NHPI — New Housing Price Index (StatCan 18-10-0205-01) ───────────────────
+_NHPI_TABLE = 1810020501  # table 18-10-0205-01
+
+# city_code → StatCan GEO label for NHPI (CMA level)
+_NHPI_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":      ["Montréal", "Montreal"],
+    "quebec":        ["Québec", "Quebec city"],
+    "gatineau":      ["Ottawa - Gatineau", "Gatineau"],
+    "sherbrooke":    ["Sherbrooke"],
+    "saguenay":      ["Saguenay"],
+    "trois-rivieres":["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville": ["Drummondville"],
+}
+
+# NHPI type → field key
+_NHPI_TYPE_SEARCHES: dict[str, list[str]] = {
+    "total":    ["Total (house and land)", "Total"],
+    "batiment": ["Building", "Bâtiment"],
+    "terrain":  ["Land", "Terrain"],
+}
+
 
 def detect_city(display_name: str, zone: str = "") -> str:
     """Return SCHL city code inferred from display_name + zone (default: 'montreal').
@@ -270,6 +291,71 @@ def fetch_rental_market(city_code: str, cache_dir: Path) -> dict:
 
     except Exception as exc:  # pragma: no cover
         logger.debug("SCHL fetch failed for %s: %s", city_code, exc)
+        return {}
+
+
+def fetch_nhpi(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return NHPI (New Housing Price Index) for a QC city via StatCan WDS.
+
+    Returns dict with keys: indice_total, indice_batiment, indice_terrain,
+    variation_annuelle_pct (if 12 prior periods available), ville, source.
+    Returns {} on any failure or unsupported city.
+    """
+    geo_labels = _NHPI_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    try:
+        meta = _cube_metadata(_NHPI_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # dim 0 = GEO, dim 1 = Type of unit/structure
+        geo_ord = _find_member_ordinal(dims, 0, geo_labels)
+        if geo_ord is None:
+            return {}
+
+        result: dict = {
+            "source": "statcan-18-10-0205-01",
+            "ville": _SCHL_TO_DISPLAY.get(city_code, city_code),
+        }
+
+        for field_key, searches in _NHPI_TYPE_SEARCHES.items():
+            type_ord = _find_member_ordinal(dims, 1, searches)
+            coord = _build_coordinate(geo_ord, type_ord)
+            if coord:
+                val = _fetch_series(_NHPI_TABLE, coord, cache_dir)
+                if val is not None:
+                    result[f"indice_{field_key}"] = val
+
+        if len(result) <= 2:
+            return {}
+
+        # Compute annual change using a second series fetch (latestN=13, compare first vs last)
+        total_ord = _find_member_ordinal(dims, 1, _NHPI_TYPE_SEARCHES["total"])
+        coord_total = _build_coordinate(geo_ord, total_ord)
+        if coord_total:
+            try:
+                payload = [{"productId": _NHPI_TABLE, "coordinate": coord_total, "latestN": 13}]
+                data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if isinstance(data, list) and data and data[0].get("status") == "SUCCESS":
+                    points = data[0].get("object", {}).get("vectorDataPoint", [])
+                    if len(points) >= 13:
+                        latest = float(points[0]["value"])
+                        year_ago = float(points[12]["value"])
+                        if year_ago > 0:
+                            result["variation_annuelle_pct"] = round(
+                                (latest - year_ago) / year_ago * 100, 1
+                            )
+            except Exception:
+                pass
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("NHPI fetch failed for %s: %s", city_code, exc)
         return {}
 
 
@@ -1459,7 +1545,8 @@ def enrich_case(
       - case["zonage_urbanisme"]    : official zone code + description (open data GeoJSON)
       - case["zone_agricole"]       : CPTAQ agricultural zone status (bool + MRC info)
       - case["patrimoine_culturel"] : {} if not listed, dict with statut/nom if found
-      - case["zone_inondable"]      : {} if outside, dict with recurrence if in flood zone
+      - case["zone_inondable"]        : {} if outside, dict with recurrence if in flood zone
+      - case["indice_prix_logement"]  : NHPI (indice + variation annuelle %) via StatCan WDS
 
     Never raises — all failures logged at DEBUG level.
     """
@@ -1478,6 +1565,17 @@ def enrich_case(
                 logger.debug("marche_locatif injecté : %s", rental.get("ville"))
         except Exception as exc:
             logger.debug("marche_locatif skip: %s", exc)
+
+    # ── NHPI (indice prix logement neuf) ──────────────────────────────────────
+    if not case.get("indice_prix_logement"):
+        try:
+            nhpi = fetch_nhpi(city_code, cache_dir)
+            if nhpi:
+                case["indice_prix_logement"] = nhpi
+                logger.debug("indice_prix_logement injecté : %s indice=%.1f",
+                             nhpi.get("ville"), nhpi.get("indice_total", 0))
+        except Exception as exc:
+            logger.debug("nhpi skip: %s", exc)
 
     # ── Rôle municipal ────────────────────────────────────────────────────────
     if not case.get("role_municipal"):
