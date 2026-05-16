@@ -562,6 +562,12 @@ class RuntimeEngine:
                     k: v for k, v in taux_boc.items()
                     if k not in ("source",) and v is not None
                 }
+            dette = case.get("dette_revenu")
+            if dette:
+                fb["dette_revenu"] = {
+                    k: v for k, v in dette.items()
+                    if k not in ("source",) and v is not None
+                }
             vacance = case.get("taux_inoccupation")
             if vacance:
                 fb["taux_inoccupation"] = {
@@ -780,6 +786,26 @@ class RuntimeEngine:
                 )
             else:
                 financement_section = ""
+            # Build household debt-to-income section
+            dette = case.get("dette_revenu") or {}
+            if dette:
+                dette_ratio = dette.get("ratio_dette_revenu_pct")
+                dette_hypo = dette.get("ratio_hypotheque_revenu_pct")
+                dette_ep = dette.get("taux_epargne_pct")
+                dette_var = dette.get("variation_dette_revenu_pct")
+                dette_per = dette.get("periode", "")
+                dette_section = (
+                    f"## Endettement des ménages (StatCan 11-10-0065-01)"
+                    + (f" — {dette_per}" if dette_per else "")
+                    + "\n\n"
+                    + (f"Ratio dette/revenu disponible : **{dette_ratio:.1f} %**  \n" if dette_ratio is not None else "")
+                    + (f"Dont hypothèques : **{dette_hypo:.1f} %** du revenu disponible  \n" if dette_hypo is not None else "")
+                    + (f"Taux d'épargne net : **{dette_ep:.1f} %**  \n" if dette_ep is not None else "")
+                    + (f"Variation annuelle ratio : **{dette_var:+.1f} %**  \n" if dette_var is not None else "")
+                    + "\n"
+                )
+            else:
+                dette_section = ""
             # Build IPC / inflation section
             ipc = case.get("ipc_logement") or {}
             if ipc:
@@ -994,6 +1020,7 @@ class RuntimeEngine:
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
                 + pop_section
                 + financement_section
+                + dette_section
                 + ipc_section
                 + marche_section
                 + permis_section

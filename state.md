@@ -82,7 +82,85 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - fetch_nhpi(): 7 villes QC, indice total/bâtiment/terrain + 13 périodes → variation %
   - Section marché AMU unifiée (SCHL loyers + NHPI indice/variation)
   - Commit: 5a07135
-- 170 tests pass
+- B11 Census 2021 (profil socio-démographique par CSD) ✓
+  - fetch_census_profile(): StatCan REST /CR2021/fr/json, topics 9+5
+  - 10 villes QC avec DGUID, cache 30j
+  - Champs: pct_proprietaires, pct_locataires, valeur_mediane_logement, frais_loyer_median, revenu_median_menage
+  - fiche_bien.json + section AMU "Données socio-démographiques"
+  - Commit: 7fc7e3d
+- B12 Zonage autres villes (Québec/Laval/Longueuil/Gatineau/Sherbrooke) ✓
+  - _ZONING_CITIES étendu: 6 villes total
+  - Longueuil: direct_url (pas CKAN), autres: CKAN discovery
+  - download_zoning_geojson: fallback direct_url si CKAN None/échoué
+  - Commit: 7c6ba4f
+- B13 Permis de construction (StatCan 34-10-0066-01) ✓
+  - fetch_permis_construction(): WDS latestN=12, résidentiel/nouvelle construction
+  - 8 villes QC, tables 3-dim et 4-dim supportées
+  - Champs: unites_residentielles_mois/12mois, variation_pct_6m, valeur_permis_k_mois
+  - fiche_bien.json + section AMU "Activité de construction"
+  - Commit: 6a78380
+- B14 Taux d'inoccupation SCHL (34-10-0131-01) ✓
+  - fetch_vacancy_rate(): WDS, même GEO labels que loyers SCHL
+  - Champs: taux_total_pct, taux_1ch_pct, taux_2ch_pct, taux_3ch_plus_pct, annee
+  - Section marché AMU unifiée: loyers + inoccupation + NHPI
+  - Commit: c8d0d30
+- B15 Taux Bank of Canada (Valet API) ✓
+  - fetch_taux_boc(): REST API BdC, batch unique 4 séries
+  - Champs: taux_directeur_pct, taux_preferentiel_pct, taux_hypo_5ans_conv_pct, taux_hypo_1an_pct
+  - Section AMU "Contexte financier" (Critère 3)
+  - Commit: 5178441
+- B16 Population CMA StatCan 17-10-0135-01 ✓
+  - fetch_population_growth(): WDS latestN=2, 8 villes QC
+  - Champs: population, variation_annuelle_pct, annee
+  - Section AMU "Démographie CMA"
+  - Commit: 7482611
+- B17 Marché du travail StatCan 14-10-0096-01 ✓
+  - fetch_marche_travail(): WDS latestN=1, 7 villes QC
+  - Champs: taux_chomage_pct, taux_emploi_pct, taux_participation_pct
+  - fix _find_member_ordinal: exact match avant substring (bug "employment rate" ⊂ "unemployment rate")
+  - Section AMU unifiée "Démographie et marché du travail"
+  - Commit: 15ceb1a
+- B18 IPC logement StatCan 18-10-0004-01 ✓
+  - fetch_ipc_logement(): WDS national, composantes All-items + Shelter + Energy
+  - variation_logement_pct: latestN=13, variation annuelle
+  - Section AMU "IPC logement" (Critère 3)
+  - Commit: 4e871b3
+- B19 Mises en chantier SCHL 34-10-0056-01 ✓
+  - fetch_mises_en_chantier(): WDS latestN=12, total/unifamilial/collectif par CMA
+  - Section AMU "Activité de construction" unifiée (permis + mises en chantier)
+  - Commit: 85c3f46
+- B20 Proximité services OSM Overpass ✓
+  - fetch_proximite_services(lat, lng, cache_dir): POST Overpass QL, 6 catégories
+  - écoles_1km, arrets_transport_500m, epiceries_500m, parcs_1km, hopitaux_2km, pharmacies_500m
+  - 7j cache, résultats partiels supportés, non-bloquant
+  - fiche_bien.json + section AMU "Proximité des services"
+  - Commit: dabf8f9
+- B23 Distance au CBD (Haversine pur Python) ✓
+  - _haversine_km() + compute_distance_cbd(lat, lng, city_code)
+  - distance_cbd_km + interprétation (centre-ville/péri-central/banlieue proche/éloignée)
+  - 8 villes QC, coords hardcodées, zero dépendance externe
+  - fiche_bien.json + section AMU "Localisation"
+  - Commit: 627a00f
+- B22 Marché neuf — completions & pipeline (StatCan 34-10-0093-01) ✓
+  - fetch_marche_neuf(city_code, cache_dir): completions/mois, 12mois, unites_en_construction
+  - taux_absorption_pct calculé si cache mises_en_chantier disponible
+  - 24h cache, 8 villes QC
+  - Section AMU construction étendue (permis + chantier + completions)
+  - Commit: 6d563fe
+- B21 Statistiques criminelles CMA (StatCan 35-10-0078-01) ✓
+  - fetch_crime_stats(city_code, cache_dir): WDS, taux pour 100 000 hab.
+  - taux_criminalite_total, taux_crimes_violents, taux_crimes_contre_propriete
+  - 1 an cache, 8 villes QC
+  - fiche_bien.json + section AMU "Profil de sécurité"
+  - Commit: 8661a4a
+- B24 Ratio dette/revenu ménages (StatCan 11-10-0065-01) ✓
+  - fetch_dette_revenu(cache_dir): WDS national, quarterly, 90j cache
+  - ratio_dette_revenu_pct, ratio_hypotheque_revenu_pct, taux_epargne_pct
+  - variation_dette_revenu_pct: variation annuelle (Q4 vs Q0, 5 trimestres)
+  - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
+  - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
+  - 6 tests pass
+- 251 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

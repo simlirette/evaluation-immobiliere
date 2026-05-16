@@ -169,6 +169,36 @@ _CRIME_VIOLATION_SEARCHES: dict[str, list[str]] = {
 # Statistic type searches for dim 2 (Statistic)
 _CRIME_STAT_SEARCHES: list[str] = ["Rate per 100,000 population", "Rate per 100,000", "Taux pour 100 000"]
 
+# ── Ratio dette/revenu ménages (StatCan 11-10-0065-01) ───────────────────────
+_DETTE_TABLE = 1110006501  # 11-10-0065-01 : Household sector credit market summary
+_DETTE_TTL = 90 * 86_400   # 90 jours (données trimestrielles)
+
+# Dim 0 adjustment type → prefer seasonally adjusted
+_DETTE_ADJ_SEARCHES = [
+    "Seasonally adjusted annual rates",
+    "Seasonally adjusted",
+    "Unadjusted",
+]
+
+# Dim 1 — financial indicators to extract
+_DETTE_INDICATORS: dict[str, list[str]] = {
+    "ratio_dette_revenu_pct": [
+        "Credit market debt as a percentage of household disposable income",
+        "percentage of household disposable income",
+        "Debt to income",
+    ],
+    "ratio_hypotheque_revenu_pct": [
+        "Mortgage liabilities as a percentage of household disposable income",
+        "Mortgage debt as a percentage",
+        "Mortgage liabilities",
+    ],
+    "taux_epargne_pct": [
+        "Net saving rate",
+        "Household saving rate",
+        "Saving rate",
+    ],
+}
+
 # ── Distance au CBD — coordonnées des centres-villes QC ──────────────────────
 # (lat, lng, nom_officiel)  — référence: place centrale de chaque CMA
 _CBD_COORDS: dict[str, tuple[float, float, str]] = {
@@ -942,6 +972,88 @@ def fetch_crime_stats(city_code: str, cache_dir: Path) -> dict:
     logger.debug("crime_stats injecté : total=%s violents=%s",
                  result.get("taux_criminalite_total"), result.get("taux_crimes_violents"))
     return result
+
+
+def fetch_dette_revenu(cache_dir: Path) -> dict:
+    """
+    Return national household debt-to-income ratio via StatCan WDS (11-10-0065-01).
+
+    Non city-specific (Canada aggregate, quarterly).
+    Returns dict with keys: ratio_dette_revenu_pct, ratio_hypotheque_revenu_pct,
+    taux_epargne_pct, variation_dette_revenu_pct, periode, source.
+    Returns {} on any failure.
+    """
+    cache_path = cache_dir / "dette_revenu.json"
+    cached = _read_cache_ttl(cache_path, _DETTE_TTL)
+    if cached is not None:
+        return cached
+
+    try:
+        meta = _cube_metadata(_DETTE_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # Dim 0 = Adjustment type → prefer seasonally adjusted
+        adj_ord = _find_member_ordinal(dims, 0, _DETTE_ADJ_SEARCHES)
+        if adj_ord is None:
+            members0 = dims[0].get("member", [])
+            if not members0:
+                return {}
+            adj_ord = int(members0[0]["memberId"])
+
+        result: dict = {"source": "statcan-11-10-0065-01"}
+        periode = ""
+
+        for field_key, searches in _DETTE_INDICATORS.items():
+            ind_ord = _find_member_ordinal(dims, 1, searches)
+            if ind_ord is None:
+                continue
+            coord = _build_coordinate(adj_ord, ind_ord)
+            if not coord:
+                continue
+            try:
+                payload = [{"productId": _DETTE_TABLE, "coordinate": coord, "latestN": 5}]
+                rows = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if not rows:
+                    continue
+                pts = rows[0].get("object", {}).get("vectorDataPoint", [])
+                valid = [
+                    (p.get("refPer", ""), float(p["value"]))
+                    for p in pts
+                    if p.get("value") not in (None, "") and p.get("status") != "E"
+                ]
+                if not valid:
+                    continue
+                ref_per, latest_val = valid[-1]
+                result[field_key] = round(latest_val, 1)
+                if field_key == "ratio_dette_revenu_pct":
+                    if ref_per:
+                        periode = str(ref_per)[:7]
+                    # Annual variation: compare latest vs ~4 quarters ago
+                    if len(valid) >= 5:
+                        _, prior_val = valid[0]
+                        if prior_val > 0:
+                            result["variation_dette_revenu_pct"] = round(
+                                (latest_val - prior_val) / prior_val * 100, 1
+                            )
+            except Exception as exc:
+                logger.debug("dette_revenu %s skip: %s", field_key, exc)
+
+        if "ratio_dette_revenu_pct" not in result:
+            return {}
+
+        if periode:
+            result["periode"] = periode
+
+        _write_cache_ttl(cache_path, result, _DETTE_TTL)
+        logger.debug("dette_revenu injecté : ratio=%.1f%%",
+                     result.get("ratio_dette_revenu_pct", 0))
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("dette_revenu fetch failed: %s", exc)
+        return {}
 
 
 def fetch_mises_en_chantier(city_code: str, cache_dir: Path) -> dict:
@@ -2808,6 +2920,17 @@ def enrich_case(
                              taux.get("taux_directeur_pct", 0))
         except Exception as exc:
             logger.debug("taux_boc skip: %s", exc)
+
+    # ── Ratio dette/revenu ménages (StatCan 11-10-0065-01) ───────────────────
+    if not case.get("dette_revenu"):
+        try:
+            dette = fetch_dette_revenu(cache_dir)
+            if dette:
+                case["dette_revenu"] = dette
+                logger.debug("dette_revenu injecté : ratio=%.1f%%",
+                             dette.get("ratio_dette_revenu_pct", 0))
+        except Exception as exc:
+            logger.debug("dette_revenu skip: %s", exc)
 
     # ── SCHL rental market ────────────────────────────────────────────────────
     if not case.get("marche_locatif"):

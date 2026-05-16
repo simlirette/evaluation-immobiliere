@@ -4075,3 +4075,166 @@ class TestDataEnrichment_DistanceCBD:
         dc = case.get("distance_cbd", {})
         assert dc.get("distance_cbd_km") == 3.5
         assert dc.get("interpretation") == "centre-ville"
+
+
+# ── TestDataEnrichment_DetteRevenu ───────────────────────────────────────────
+
+class TestDataEnrichment_DetteRevenu:
+    """Tests for fetch_dette_revenu() via StatCan WDS 11-10-0065-01."""
+
+    def _meta(self, adj_labels, indicator_labels):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        return {"dims": [
+            {"member": members(adj_labels)},
+            {"member": members(indicator_labels)},
+        ]}
+
+    def _wds_5pts(self, values, period="2025-Q1"):
+        """5-quarter response for annual variation calc."""
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": str(v), "refPer": period, "status": ""}
+                    for v in values
+                ]
+            },
+        }]
+
+    def test_fetch_dette_revenu_success(self, tmp_path):
+        """Returns ratio_dette_revenu_pct, ratio_hypotheque_revenu_pct, taux_epargne_pct."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_dette_revenu
+
+        meta = self._meta(
+            ["Seasonally adjusted annual rates", "Unadjusted"],
+            [
+                "Credit market debt as a percentage of household disposable income",
+                "Mortgage liabilities",
+                "Net saving rate",
+                "Other indicator",
+            ],
+        )
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            coord = payload[0]["coordinate"]
+            # adj_ord=1, indicator_ord varies
+            if coord == "1.1":   # dette/revenu
+                return self._wds_5pts([174.0, 175.0, 176.0, 177.0, 178.5], "2024-Q4")
+            if coord == "1.2":   # hypothèque
+                return self._wds_5pts([100.0, 101.0, 102.0, 103.0, 104.0], "2024-Q4")
+            if coord == "1.3":   # épargne
+                return self._wds_5pts([3.5, 3.6, 3.7, 3.8, 3.9], "2024-Q4")
+            return []
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_dette_revenu(tmp_path)
+
+        assert result.get("source") == "statcan-11-10-0065-01"
+        assert result.get("ratio_dette_revenu_pct") == 178.5
+        assert result.get("ratio_hypotheque_revenu_pct") == 104.0
+        assert result.get("taux_epargne_pct") == 3.9
+        # Annual variation: (178.5 - 174.0) / 174.0 * 100 ≈ 2.6%
+        var = result.get("variation_dette_revenu_pct")
+        assert var is not None
+        assert abs(var - 2.6) < 0.2
+
+    def test_fetch_dette_revenu_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_dette_revenu
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_dette_revenu(tmp_path)
+
+        assert result == {}
+
+    def test_fetch_dette_revenu_missing_key_indicator(self, tmp_path):
+        """If ratio_dette_revenu_pct not found → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_dette_revenu
+
+        meta = self._meta(
+            ["Seasonally adjusted annual rates"],
+            ["Some other indicator", "Another series"],
+        )
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", return_value=[]):
+                result = fetch_dette_revenu(tmp_path)
+
+        assert result == {}
+
+    def test_fetch_dette_revenu_cache_hit(self, tmp_path):
+        """Cached result returned without WDS call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_dette_revenu
+
+        cached = {
+            "source": "statcan-11-10-0065-01",
+            "ratio_dette_revenu_pct": 177.0,
+            "periode": "2024-Q3",
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "dette_revenu.json").write_text(json.dumps(cached))
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_dette_revenu(tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result.get("ratio_dette_revenu_pct") == 177.0
+
+    def test_fetch_dette_revenu_adj_fallback(self, tmp_path):
+        """Falls back to first dim-0 member if no seasonally adjusted match."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_dette_revenu
+
+        meta = self._meta(
+            ["Unadjusted"],  # no "Seasonally adjusted" → fallback to first member
+            ["Credit market debt as a percentage of household disposable income"],
+        )
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return self._wds_5pts([180.0, 181.0, 182.0, 183.0, 184.0], "2024-Q4")
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_dette_revenu(tmp_path)
+
+        assert result.get("ratio_dette_revenu_pct") == 184.0
+
+    def test_enrich_case_injects_dette_revenu(self, tmp_path):
+        """enrich_case populates dette_revenu via fetch_dette_revenu."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        dette_data = {
+            "source": "statcan-11-10-0065-01",
+            "ratio_dette_revenu_pct": 182.5,
+            "ratio_hypotheque_revenu_pct": 105.3,
+            "taux_epargne_pct": 4.1,
+            "variation_dette_revenu_pct": 1.8,
+            "periode": "2024-Q4",
+        }
+
+        with mock.patch.object(de, "fetch_dette_revenu", return_value=dette_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-DETTE-TEST"}
+                enrich_case(case, display_name="100 rue Sherbrooke, Montréal",
+                            cache_dir=tmp_path)
+
+        dr = case.get("dette_revenu", {})
+        assert dr.get("ratio_dette_revenu_pct") == 182.5
+        assert dr.get("ratio_hypotheque_revenu_pct") == 105.3
+        assert dr.get("periode") == "2024-Q4"
