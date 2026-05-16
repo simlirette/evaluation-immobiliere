@@ -243,7 +243,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Seuils SCHL: <30% abordable, 30-40% modéré, ≥40% élevé
   - fiche_bien.json + section AMU "Coûts de possession totaux" (Critère 3)
   - 6 tests pass
-- 318 tests pass
+- B36 Ratio prix/loyer (calcul interne) ✓
+  - compute_ratio_prix_loyer(case): P/L = valeur / (loyer_mensuel * 12)
+  - Seuils SCHL/Economist: <15 avantage achat, 15-20 équilibré, 20-25 légère faveur loc., >25 forte faveur loc.
+  - ecart_loyer_marche_pct: delta (coûts possession vs loyer marché) si B35 disponible
+  - Fallback valeur: role_municipal.valeur_totale
+  - fiche_bien.json + section AMU "Ratio prix/loyer" (Critère 3)
+  - 6 tests pass
+- 324 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

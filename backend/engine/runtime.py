@@ -670,6 +670,12 @@ class RuntimeEngine:
                     k: v for k, v in couts.items()
                     if k not in ("source",) and v is not None
                 }
+            plr = case.get("ratio_prix_loyer")
+            if plr:
+                fb["ratio_prix_loyer"] = {
+                    k: v for k, v in plr.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1190,6 +1196,22 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build price-to-rent ratio section
+            plr_d = case.get("ratio_prix_loyer") or {}
+            if plr_d:
+                plr_ratio = plr_d.get("ratio_prix_loyer")
+                plr_signal = plr_d.get("signal", "")
+                plr_ecart = plr_d.get("ecart_loyer_marche_pct")
+                plr_esig = plr_d.get("ecart_signal", "")
+                plr_section = (
+                    "## Ratio prix/loyer (calcul interne)\n\n"
+                    + (f"Ratio P/L : **{plr_ratio:.1f}** (valeur ÷ loyers annuels)  \n" if plr_ratio else "")
+                    + (f"Signal marché : **{plr_signal}**  \n" if plr_signal else "")
+                    + (f"Écart posséder vs louer : **{plr_ecart:+.1f} %** — {plr_esig}  \n" if plr_ecart is not None else "")
+                    + "\n"
+                )
+            else:
+                plr_section = ""
             # Build ownership carrying costs section
             cp = case.get("couts_possession") or {}
             if cp:
@@ -1324,6 +1346,7 @@ class RuntimeEngine:
                 + crime_section
                 + taxes_section
                 + couts_section
+                + plr_section
                 + rendement_section
                 + invest_section
                 + score_marche_section

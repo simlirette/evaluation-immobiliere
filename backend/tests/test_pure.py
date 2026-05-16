@@ -5553,3 +5553,80 @@ class TestDataEnrichment_CoutsPossession:
         assert cp.get("source") == "calcul-interne"
         assert cp.get("total_mensuel") > 0
         assert cp.get("total_annuel") == pytest.approx(cp["total_mensuel"] * 12, abs=1)
+
+
+class TestDataEnrichment_RatioPrixLoyer:
+    """B36 — compute_ratio_prix_loyer (pure function)."""
+
+    def test_ratio_calcul(self):
+        """P/L = valeur / (loyer * 12)."""
+        from engine.data_enrichment import compute_ratio_prix_loyer
+        case = {
+            "evaluation_municipale_totale": 360_000,
+            "marche_locatif": {"loyer_moyen_total": 1_500},
+        }
+        r = compute_ratio_prix_loyer(case)
+        # 360000 / (1500*12) = 360000/18000 = 20.0
+        assert r["ratio_prix_loyer"] == pytest.approx(20.0, abs=0.1)
+
+    def test_signal_avantage_achat(self):
+        """Ratio < 15 → signal 'avantage achat'."""
+        from engine.data_enrichment import compute_ratio_prix_loyer
+        # 180000 / (1200*12) = 12.5
+        case = {
+            "evaluation_municipale_totale": 180_000,
+            "marche_locatif": {"loyer_moyen_total": 1_200},
+        }
+        r = compute_ratio_prix_loyer(case)
+        assert r["signal"] == "avantage achat"
+
+    def test_signal_forte_faveur_location(self):
+        """Ratio > 25 → 'forte faveur location'."""
+        from engine.data_enrichment import compute_ratio_prix_loyer
+        # 600000 / (1500*12) = 33.3
+        case = {
+            "evaluation_municipale_totale": 600_000,
+            "marche_locatif": {"loyer_moyen_total": 1_500},
+        }
+        r = compute_ratio_prix_loyer(case)
+        assert r["signal"] == "forte faveur location"
+
+    def test_ecart_loyer_marche(self):
+        """ecart_loyer_marche_pct calculé si couts_possession disponibles."""
+        from engine.data_enrichment import compute_ratio_prix_loyer
+        case = {
+            "evaluation_municipale_totale": 400_000,
+            "marche_locatif": {"loyer_moyen_total": 1_600},
+            "couts_possession": {"total_mensuel": 2_400},
+        }
+        r = compute_ratio_prix_loyer(case)
+        # (2400 - 1600) / 1600 * 100 = 50%
+        assert r["ecart_loyer_marche_pct"] == pytest.approx(50.0, abs=0.2)
+        assert r["ecart_signal"] == "posséder coûte significativement plus cher"
+
+    def test_missing_loyer_returns_empty(self):
+        """Sans loyer → dict vide."""
+        from engine.data_enrichment import compute_ratio_prix_loyer
+        assert compute_ratio_prix_loyer({"evaluation_municipale_totale": 400_000}) == {}
+
+    def test_enrich_case_injects_ratio(self, tmp_path):
+        """enrich_case injecte ratio_prix_loyer."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-PLR-TEST",
+            "evaluation_municipale_totale": 500_000,
+            "marche_locatif": {"loyer_moyen_total": 1_700},
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        plr = case.get("ratio_prix_loyer", {})
+        assert plr.get("source") == "calcul-interne"
+        assert plr.get("ratio_prix_loyer") is not None
+        assert plr.get("signal") in (
+            "avantage achat", "marché équilibré",
+            "légère faveur location", "forte faveur location"
+        )

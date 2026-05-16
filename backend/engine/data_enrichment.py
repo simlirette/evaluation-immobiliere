@@ -233,6 +233,13 @@ _POSSESSION_ASSURANCE_PCT  = 0.35  # % valeur/an : assurance habitation (estimat
 _POSSESSION_SEUIL_ELEVE    = 40.0  # % revenu : seuil coûts élevés (SCHL)
 _POSSESSION_SEUIL_MODERE   = 30.0  # % revenu : seuil modéré
 
+# ── Ratio prix/loyer (calcul interne) ─────────────────────────────────────────
+# Seuils standards (marché nord-américain, SCHL/Economist)
+_PLR_FAVEUR_ACHAT   = 15.0  # ratio < 15 → avantage à l'achat
+_PLR_EQUILIBRE      = 20.0  # 15-20 → marché équilibré
+_PLR_FAVEUR_LOCATION = 25.0  # 20-25 → légère faveur location
+                              # > 25 → forte faveur location (marché très cher)
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3851,6 +3858,75 @@ def compute_couts_possession(case: dict) -> dict:
     return result
 
 
+def compute_ratio_prix_loyer(case: dict) -> dict:
+    """
+    Compute the price-to-rent ratio (P/L) for the property.
+
+    Pure function — no external calls.  Uses:
+      - evaluation_municipale_totale (or role_municipal.valeur_totale) as price proxy
+      - marche_locatif.loyer_moyen_total (B5 — monthly CMA rent)
+
+    P/L = valeur / (loyer_mensuel × 12)
+
+    Interpretation thresholds (SCHL / Economist convention):
+      < 15  → avantage à l'achat
+      15-20 → marché équilibré
+      20-25 → légère faveur location
+      > 25  → forte faveur location (marché surcoté)
+
+    Also computes loyer_equivalent_mensuel: the monthly rent implied by
+    the property's carrying costs (from couts_possession.total_mensuel).
+
+    Returns {} if price or rent data unavailable.
+    """
+    valeur = case.get("evaluation_municipale_totale")
+    if not valeur:
+        valeur = (case.get("role_municipal") or {}).get("valeur_totale")
+    if not valeur or valeur <= 0:
+        return {}
+
+    loyer = (case.get("marche_locatif") or {}).get("loyer_moyen_total")
+    if not loyer or loyer <= 0:
+        return {}
+
+    ratio = round(valeur / (loyer * 12), 1)
+
+    if ratio < _PLR_FAVEUR_ACHAT:
+        signal = "avantage achat"
+    elif ratio < _PLR_EQUILIBRE:
+        signal = "marché équilibré"
+    elif ratio < _PLR_FAVEUR_LOCATION:
+        signal = "légère faveur location"
+    else:
+        signal = "forte faveur location"
+
+    result: dict = {
+        "valeur_reference": round(valeur, 0),
+        "loyer_mensuel_reference": round(loyer, 0),
+        "ratio_prix_loyer": ratio,
+        "signal": signal,
+        "source": "calcul-interne",
+    }
+
+    # Loyer équivalent depuis coûts de possession
+    total_m = (case.get("couts_possession") or {}).get("total_mensuel")
+    if total_m and total_m > 0:
+        result["loyer_equivalent_mensuel"] = round(total_m, 0)
+        ecart_pct = round((total_m - loyer) / loyer * 100, 1)
+        result["ecart_loyer_marche_pct"] = ecart_pct
+        if ecart_pct > 20:
+            result["ecart_signal"] = "posséder coûte significativement plus cher"
+        elif ecart_pct > 0:
+            result["ecart_signal"] = "posséder coûte légèrement plus cher"
+        elif ecart_pct > -20:
+            result["ecart_signal"] = "posséder coûte légèrement moins cher"
+        else:
+            result["ecart_signal"] = "posséder coûte significativement moins cher"
+
+    logger.debug("ratio_prix_loyer : %.1f (%s)", ratio, signal)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4281,3 +4357,14 @@ def enrich_case(
                              couts.get("interpretation"))
         except Exception as exc:
             logger.debug("couts_possession skip: %s", exc)
+
+    # ── Ratio prix/loyer (calcul interne, dépend B5 + évaluation) ─────────────
+    if not case.get("ratio_prix_loyer"):
+        try:
+            plr = compute_ratio_prix_loyer(case)
+            if plr:
+                case["ratio_prix_loyer"] = plr
+                logger.debug("ratio_prix_loyer : %.1f (%s)",
+                             plr.get("ratio_prix_loyer", 0), plr.get("signal"))
+        except Exception as exc:
+            logger.debug("ratio_prix_loyer skip: %s", exc)
