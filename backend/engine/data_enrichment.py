@@ -104,6 +104,18 @@ _SCHL_TO_DISPLAY: dict[str, str] = {
     "drummondville": "Drummondville",
 }
 
+# ── Taux d'inoccupation SCHL (StatCan 34-10-0131-01) ─────────────────────────
+_VACANCE_TABLE = 3410013101  # 34-10-0131-01 : Rental vacancy rates (October survey)
+
+# Same GEO labels as 34-10-0133-01 (same SCHL survey universe)
+_VACANCE_UNIT_SEARCHES: dict[str, list[str]] = {
+    "total":    ["total"],
+    "bachelor": ["bachelor", "studio"],
+    "1ch":      ["1 bedroom", "1 chambre"],
+    "2ch":      ["2 bedroom", "2 chambre"],
+    "3ch_plus": ["3 bedroom", "3 chambre", "3+"],
+}
+
 # ── NHPI — New Housing Price Index (StatCan 18-10-0205-01) ───────────────────
 _NHPI_TABLE = 1810020501  # table 18-10-0205-01
 
@@ -432,6 +444,79 @@ def fetch_rental_market(city_code: str, cache_dir: Path) -> dict:
 
     except Exception as exc:  # pragma: no cover
         logger.debug("SCHL fetch failed for %s: %s", city_code, exc)
+        return {}
+
+
+def fetch_vacancy_rate(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return SCHL rental vacancy rates for a QC city via StatCan WDS (34-10-0131-01).
+
+    Returns dict with keys: taux_total_pct, taux_bachelor_pct, taux_1ch_pct,
+    taux_2ch_pct, taux_3ch_plus_pct, annee, ville, source.
+    Returns {} on any failure or unsupported city.
+    """
+    geo_label = _SCHL_TO_STATCAN_GEO.get(city_code)
+    if not geo_label:
+        return {}
+
+    try:
+        meta = _cube_metadata(_VACANCE_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # dim 0 = GEO, dim 1 = Type of unit
+        geo_ord = _find_member_ordinal(dims, 0, [geo_label, city_code])
+        if geo_ord is None:
+            return {}
+
+        result: dict = {
+            "source": "statcan-34-10-0131-01",
+            "ville": _SCHL_TO_DISPLAY.get(city_code, city_code),
+        }
+
+        # Optional dim 2 (survey type) — take first member if present
+        extra_ord: list[int] = []
+        if len(dims) >= 3:
+            members = dims[2].get("member", [])
+            if members:
+                extra_ord = [int(members[0]["memberId"])]
+
+        for field_key, searches in _VACANCE_UNIT_SEARCHES.items():
+            unit_ord = _find_member_ordinal(dims, 1, searches)
+            coord = _build_coordinate(geo_ord, unit_ord, *extra_ord if extra_ord else [])
+            if coord:
+                val = _fetch_series(_VACANCE_TABLE, coord, cache_dir)
+                if val is not None:
+                    result[f"taux_{field_key}_pct"] = val
+
+        if len(result) <= 2:
+            return {}
+
+        # Try to capture reference period (year) from first successful series fetch
+        if "taux_total_pct" in result:
+            try:
+                coord_total = _build_coordinate(
+                    geo_ord,
+                    _find_member_ordinal(dims, 1, _VACANCE_UNIT_SEARCHES["total"]),
+                    *extra_ord if extra_ord else [],
+                )
+                if coord_total:
+                    payload = [{"productId": _VACANCE_TABLE, "coordinate": coord_total, "latestN": 1}]
+                    data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                    if isinstance(data, list) and data and data[0].get("status") == "SUCCESS":
+                        pts = data[0].get("object", {}).get("vectorDataPoint", [])
+                        if pts:
+                            ref = pts[0].get("refPer") or pts[0].get("refper") or ""
+                            if ref:
+                                result["annee"] = str(ref)[:4]
+            except Exception:
+                pass
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Vacancy rate fetch failed for %s: %s", city_code, exc)
         return {}
 
 
@@ -1860,6 +1945,17 @@ def enrich_case(
                 logger.debug("marche_locatif injecté : %s", rental.get("ville"))
         except Exception as exc:
             logger.debug("marche_locatif skip: %s", exc)
+
+    # ── Taux d'inoccupation SCHL ──────────────────────────────────────────────
+    if not case.get("taux_inoccupation"):
+        try:
+            vacance = fetch_vacancy_rate(city_code, cache_dir)
+            if vacance:
+                case["taux_inoccupation"] = vacance
+                logger.debug("taux_inoccupation injecté : %s total=%.1f%%",
+                             city_code, vacance.get("taux_total_pct", 0))
+        except Exception as exc:
+            logger.debug("taux_inoccupation skip: %s", exc)
 
     # ── NHPI (indice prix logement neuf) ──────────────────────────────────────
     if not case.get("indice_prix_logement"):

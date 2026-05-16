@@ -2402,6 +2402,138 @@ class TestDataEnrichment_Inondable:
         assert case["zone_inondable"] == {}
 
 
+# ── TestDataEnrichment_Vacance ────────────────────────────────────────────────
+
+class TestDataEnrichment_Vacance:
+    """Tests for fetch_vacancy_rate() via StatCan WDS 34-10-0131-01."""
+
+    def _meta(self, geo_labels, unit_labels, extra_dim=False):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        dims = [
+            {"member": members(geo_labels)},
+            {"member": members(unit_labels)},
+        ]
+        if extra_dim:
+            dims.append({"member": members(["Private apartments"])})
+        return {"dims": dims}
+
+    def test_fetch_vacance_success(self, tmp_path):
+        """Successful fetch returns vacancy rates by unit type."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_vacancy_rate
+
+        meta = self._meta(
+            ["Montréal, Quebec", "Québec, Quebec"],
+            ["total", "bachelor", "1 bedroom", "2 bedroom", "3 bedroom"],
+        )
+        rate_map = {
+            "1.1": 2.3,   # total
+            "1.2": 1.8,   # bachelor
+            "1.3": 2.1,   # 1ch
+            "1.4": 2.5,   # 2ch
+            "1.5": 3.0,   # 3ch+
+        }
+
+        def fake_fetch_series(pid, coord, cache_dir):
+            return rate_map.get(coord)
+
+        wds_response = [{
+            "status": "SUCCESS",
+            "object": {"vectorDataPoint": [{"value": "2.3", "refPer": "2024-10"}]},
+        }]
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_fetch_series", side_effect=fake_fetch_series):
+                with mock.patch.object(de, "_wds_post", return_value=wds_response):
+                    result = fetch_vacancy_rate("montreal", tmp_path)
+
+        assert result.get("ville") == "Montréal"
+        assert result.get("source") == "statcan-34-10-0131-01"
+        assert result.get("taux_total_pct") == 2.3
+        assert result.get("taux_1ch_pct") == 2.1
+        assert result.get("taux_2ch_pct") == 2.5
+        assert result.get("annee") == "2024"
+
+    def test_fetch_vacance_unsupported_city(self, tmp_path):
+        """Unsupported city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_vacancy_rate
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_vacancy_rate("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_vacance_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_vacancy_rate
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_vacancy_rate("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_vacance_geo_not_found(self, tmp_path):
+        """No GEO match → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_vacancy_rate
+
+        meta = self._meta(["Toronto", "Vancouver"], ["total", "1 bedroom"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_vacancy_rate("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_vacance_no_series_data(self, tmp_path):
+        """All series return None → {} (no meaningful data)."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_vacancy_rate
+
+        meta = self._meta(
+            ["Montréal, Quebec"],
+            ["total", "1 bedroom", "2 bedroom"],
+        )
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_fetch_series", return_value=None):
+                with mock.patch.object(de, "_wds_post", return_value=[]):
+                    result = fetch_vacancy_rate("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_taux_inoccupation(self, tmp_path):
+        """enrich_case populates taux_inoccupation via fetch_vacancy_rate."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        vacance_data = {
+            "ville": "Montréal",
+            "source": "statcan-34-10-0131-01",
+            "taux_total_pct": 2.4,
+            "taux_1ch_pct": 2.1,
+            "annee": "2024",
+        }
+
+        with mock.patch.object(de, "fetch_vacancy_rate", return_value=vacance_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-VAC-TEST"}
+                enrich_case(case, display_name="10 rue Sherbrooke, Montréal",
+                            cache_dir=tmp_path)
+
+        ti = case.get("taux_inoccupation", {})
+        assert ti.get("taux_total_pct") == 2.4
+        assert ti.get("annee") == "2024"
+
+
 # ── TestDataEnrichment_NHPI ───────────────────────────────────────────────────
 
 class TestDataEnrichment_NHPI:

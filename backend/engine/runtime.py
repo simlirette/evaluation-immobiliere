@@ -538,6 +538,12 @@ class RuntimeEngine:
                     k: v for k, v in inond.items()
                     if k not in ("source",) and v is not None
                 }
+            vacance = case.get("taux_inoccupation")
+            if vacance:
+                fb["taux_inoccupation"] = {
+                    k: v for k, v in vacance.items()
+                    if k not in ("source",) and v is not None
+                }
             nhpi = case.get("indice_prix_logement")
             if nhpi:
                 fb["indice_prix_logement"] = {
@@ -672,8 +678,9 @@ class RuntimeEngine:
             # Build market data section from enrichment (if available)
             ml = case.get("marche_locatif") or {}
             nhpi = case.get("indice_prix_logement") or {}
-            if ml or nhpi:
-                ville_ml = (ml or nhpi).get("ville", zone)
+            vacance = case.get("taux_inoccupation") or {}
+            if ml or nhpi or vacance:
+                ville_ml = (ml or nhpi or vacance).get("ville", zone)
                 loyer_1ch = ml.get("loyer_moyen_1ch")
                 loyer_2ch = ml.get("loyer_moyen_2ch")
                 loyer_total = ml.get("loyer_moyen_total")
@@ -681,6 +688,11 @@ class RuntimeEngine:
                 indice_total = nhpi.get("indice_total")
                 variation_pct = nhpi.get("variation_annuelle_pct")
                 source_nhpi = nhpi.get("source", "")
+                tx_total = vacance.get("taux_total_pct")
+                tx_1ch = vacance.get("taux_1ch_pct")
+                tx_2ch = vacance.get("taux_2ch_pct")
+                annee_vac = vacance.get("annee", "")
+                source_vac = vacance.get("source", "")
                 marche_section = (
                     f"## Données marché ({ville_ml})\n\n"
                     + (
@@ -689,6 +701,15 @@ class RuntimeEngine:
                         + (f"2 ch. : {loyer_2ch:,.0f} $/mois  \n" if loyer_2ch else "")
                         + (f"Total : {loyer_total:,.0f} $/mois  \n" if loyer_total else "")
                         if ml else ""
+                    )
+                    + (
+                        f"\n**Taux d'inoccupation (SCHL / {source_vac})"
+                        + (f" — {annee_vac}" if annee_vac else "")
+                        + "**  \n"
+                        + (f"Total : {tx_total:.1f} %  \n" if tx_total is not None else "")
+                        + (f"1 ch. : {tx_1ch:.1f} %  \n" if tx_1ch is not None else "")
+                        + (f"2 ch. : {tx_2ch:.1f} %  \n" if tx_2ch is not None else "")
+                        if vacance else ""
                     )
                     + (
                         f"\n**Indice des prix du logement neuf (NHPI / {source_nhpi})**  \n"
