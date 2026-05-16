@@ -272,6 +272,13 @@ _RISQUE_SEUIL_FAIBLE      = 8.0   # ≥ 8 → risque faible
 _RISQUE_SEUIL_MODERE      = 6.0   # ≥ 6 → risque modéré
 _RISQUE_SEUIL_ELEVE       = 4.0   # ≥ 4 → risque élevé (< 4 → risque très élevé)
 
+# ── Estimation de valeur indicative (calcul interne) ─────────────────────────
+# Poids des deux approches dans la synthèse
+_VALEUR_POIDS_COMPARABLE = 0.60  # approche comparative ajustée NHPI
+_VALEUR_POIDS_REVENU     = 0.40  # approche revenu (GRM)
+# Écart acceptable entre les deux approches avant avertissement
+_VALEUR_ECART_AVERTISSEMENT_PCT = 20.0  # % : écart > 20% → fiabilité réduite
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -4195,6 +4202,84 @@ def compute_score_risque(case: dict) -> dict:
     return result
 
 
+def compute_valeur_indicative(case: dict) -> dict:
+    """
+    Compute an indicative market value estimate using two approaches.
+
+    Pure function — no external calls.  Uses:
+      Approche 1 — Comparative ajustée (NHPI):
+        evaluation_municipale_totale × (1 + variation_nhpi/100)
+        Sources: evaluation_municipale_totale + indice_prix_logement.variation_annuelle_pct (B10)
+
+      Approche 2 — Revenu (GRM):
+        loyer_mensuel × 12 × ratio_P/L_marche
+        Sources: marche_locatif.loyer_moyen_total (B5) + ratio_prix_loyer.ratio_prix_loyer (B36)
+
+    Synthesises both when available (weighted 60/40).
+    Returns {} if no approach can be computed.
+    """
+    methodes: list[str] = []
+    valeurs: dict[str, float] = {}
+
+    # ── Approche 1 : comparable ajusté NHPI ──────────────────────────────────
+    eval_mun = case.get("evaluation_municipale_totale")
+    if not eval_mun:
+        eval_mun = (case.get("role_municipal") or {}).get("valeur_totale")
+
+    if eval_mun and eval_mun > 0:
+        nhpi_var = (case.get("indice_prix_logement") or {}).get("variation_annuelle_pct")
+        if nhpi_var is not None:
+            val_comp = round(eval_mun * (1 + nhpi_var / 100.0), 0)
+            ajust_label = f"{nhpi_var:+.1f}% NHPI"
+        else:
+            val_comp = round(float(eval_mun), 0)
+            ajust_label = "sans ajustement NHPI"
+        valeurs["comparable"] = val_comp
+        methodes.append(f"Comparative ajustée ({ajust_label})")
+
+    # ── Approche 2 : revenu GRM ───────────────────────────────────────────────
+    loyer = (case.get("marche_locatif") or {}).get("loyer_moyen_total")
+    grm = (case.get("ratio_prix_loyer") or {}).get("ratio_prix_loyer")
+    if loyer and loyer > 0 and grm and grm > 0:
+        val_revenu = round(loyer * 12 * grm, 0)
+        valeurs["revenu"] = val_revenu
+        methodes.append(f"Revenu GRM {grm:.1f}×")
+
+    if not valeurs:
+        return {}
+
+    # ── Synthèse pondérée ─────────────────────────────────────────────────────
+    if len(valeurs) == 2:
+        val_synth = round(
+            valeurs["comparable"] * _VALEUR_POIDS_COMPARABLE
+            + valeurs["revenu"] * _VALEUR_POIDS_REVENU,
+            0,
+        )
+        ecart_pct = abs(valeurs["comparable"] - valeurs["revenu"]) / valeurs["comparable"] * 100
+        fiabilite = "réduite" if ecart_pct > _VALEUR_ECART_AVERTISSEMENT_PCT else "bonne"
+    else:
+        val_synth = next(iter(valeurs.values()))
+        ecart_pct = None
+        fiabilite = "limitée (une seule approche)"
+
+    result: dict = {
+        "valeur_indicative_synthese": val_synth,
+        "methodes_utilisees": methodes,
+        "fiabilite": fiabilite,
+        "source": "calcul-interne",
+    }
+    if "comparable" in valeurs:
+        result["valeur_par_comparable_ajuste"] = valeurs["comparable"]
+    if "revenu" in valeurs:
+        result["valeur_par_revenu_grm"] = valeurs["revenu"]
+    if ecart_pct is not None:
+        result["ecart_methodes_pct"] = round(ecart_pct, 1)
+
+    logger.debug("valeur_indicative : synthèse=%d $ (%s) fiabilité=%s",
+                 val_synth, " + ".join(methodes), fiabilite)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4673,3 +4758,15 @@ def enrich_case(
                              len(risque.get("facteurs_risque", [])))
         except Exception as exc:
             logger.debug("score_risque skip: %s", exc)
+
+    # ── Estimation de valeur indicative (calcul interne, dépend B5+B10+B36) ──
+    if not case.get("valeur_indicative"):
+        try:
+            valeur = compute_valeur_indicative(case)
+            if valeur:
+                case["valeur_indicative"] = valeur
+                logger.debug("valeur_indicative : %d $ (%s)",
+                             valeur.get("valeur_indicative_synthese", 0),
+                             valeur.get("fiabilite"))
+        except Exception as exc:
+            logger.debug("valeur_indicative skip: %s", exc)

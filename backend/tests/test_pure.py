@@ -5851,3 +5851,74 @@ class TestDataEnrichment_ScoreRisque:
         assert rsk.get("categorie") in (
             "risque faible", "risque modéré", "risque élevé", "risque très élevé"
         )
+
+
+class TestDataEnrichment_ValeurIndicative:
+    """B40 — compute_valeur_indicative (pure function)."""
+
+    def test_comparable_only_no_nhpi(self):
+        """Sans NHPI → valeur comparable = evaluation brute."""
+        from engine.data_enrichment import compute_valeur_indicative
+        case = {"evaluation_municipale_totale": 400_000}
+        r = compute_valeur_indicative(case)
+        assert r["valeur_par_comparable_ajuste"] == pytest.approx(400_000, abs=1)
+        assert r["valeur_indicative_synthese"] == pytest.approx(400_000, abs=1)
+
+    def test_comparable_ajuste_nhpi(self):
+        """NHPI +5% → valeur comparable ajustée = eval * 1.05."""
+        from engine.data_enrichment import compute_valeur_indicative
+        case = {
+            "evaluation_municipale_totale": 400_000,
+            "indice_prix_logement": {"variation_annuelle_pct": 5.0},
+        }
+        r = compute_valeur_indicative(case)
+        assert r["valeur_par_comparable_ajuste"] == pytest.approx(420_000, abs=1)
+
+    def test_synthese_deux_approches(self):
+        """Deux approches → synthèse pondérée 60/40."""
+        from engine.data_enrichment import compute_valeur_indicative
+        case = {
+            "evaluation_municipale_totale": 400_000,
+            "marche_locatif": {"loyer_moyen_total": 1_500},
+            "ratio_prix_loyer": {"ratio_prix_loyer": 20.0},
+        }
+        r = compute_valeur_indicative(case)
+        # comparable=400k, revenu=1500*12*20=360k, synth=400k*0.6+360k*0.4=384k
+        assert r["valeur_par_revenu_grm"] == pytest.approx(360_000, abs=1)
+        assert r["valeur_indicative_synthese"] == pytest.approx(384_000, abs=1)
+
+    def test_ecart_methodes_calcule(self):
+        """ecart_methodes_pct = |comp - rev| / comp * 100."""
+        from engine.data_enrichment import compute_valeur_indicative
+        case = {
+            "evaluation_municipale_totale": 400_000,
+            "marche_locatif": {"loyer_moyen_total": 1_500},
+            "ratio_prix_loyer": {"ratio_prix_loyer": 20.0},
+        }
+        r = compute_valeur_indicative(case)
+        # |400k - 360k| / 400k * 100 = 10%
+        assert r["ecart_methodes_pct"] == pytest.approx(10.0, abs=0.2)
+
+    def test_no_data_returns_empty(self):
+        """Sans données → dict vide."""
+        from engine.data_enrichment import compute_valeur_indicative
+        assert compute_valeur_indicative({}) == {}
+
+    def test_enrich_case_injects_valeur_indicative(self, tmp_path):
+        """enrich_case injecte valeur_indicative quand données disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-VALEUR-TEST",
+            "evaluation_municipale_totale": 500_000,
+            "indice_prix_logement": {"variation_annuelle_pct": 3.0},
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        vi = case.get("valeur_indicative", {})
+        assert vi.get("source") == "calcul-interne"
+        assert vi.get("valeur_indicative_synthese") == pytest.approx(515_000, abs=1)
+        assert "Comparative" in " ".join(vi.get("methodes_utilisees", []))

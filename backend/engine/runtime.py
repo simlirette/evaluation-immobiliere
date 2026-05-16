@@ -694,6 +694,12 @@ class RuntimeEngine:
                     k: v for k, v in risque.items()
                     if k not in ("source",) and v is not None
                 }
+            val_ind = case.get("valeur_indicative")
+            if val_ind:
+                fb["valeur_indicative"] = {
+                    k: v for k, v in val_ind.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1214,6 +1220,28 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build indicative value section
+            vi = case.get("valeur_indicative") or {}
+            if vi:
+                vi_synth = vi.get("valeur_indicative_synthese")
+                vi_comp = vi.get("valeur_par_comparable_ajuste")
+                vi_rev = vi.get("valeur_par_revenu_grm")
+                vi_ecart = vi.get("ecart_methodes_pct")
+                vi_fiab = vi.get("fiabilite", "")
+                vi_meth = vi.get("methodes_utilisees") or []
+                valeur_indicative_section = (
+                    "## Estimation de valeur indicative (calcul interne)\n\n"
+                    + (f"**Valeur de synthèse : {vi_synth:,.0f} $**  \n" if vi_synth else "")
+                    + (f"Approche comparative ajustée : {vi_comp:,.0f} $  \n" if vi_comp else "")
+                    + (f"Approche revenu (GRM) : {vi_rev:,.0f} $  \n" if vi_rev else "")
+                    + (f"Écart entre approches : {vi_ecart:.1f} %  \n" if vi_ecart is not None else "")
+                    + (f"Fiabilité : **{vi_fiab}**  \n" if vi_fiab else "")
+                    + (f"Méthodes : {'; '.join(vi_meth)}  \n" if vi_meth else "")
+                    + "\n*Note : estimation indicative à titre informatif uniquement. "
+                    "L'évaluateur agréé doit exercer son jugement professionnel.*\n\n"
+                )
+            else:
+                valeur_indicative_section = ""
             # Build risk score section
             rsk = case.get("score_risque") or {}
             if rsk:
@@ -1424,6 +1452,7 @@ class RuntimeEngine:
                 + crime_section
                 + vetuste_section
                 + risque_section
+                + valeur_indicative_section
                 + qdv_section
                 + taxes_section
                 + couts_section

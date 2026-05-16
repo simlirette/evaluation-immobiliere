@@ -274,7 +274,16 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - catégorie: risque faible (≥8), modéré (≥6), élevé (≥4), très élevé
   - fiche_bien.json + section AMU "Score de risque global" (Critères 1+2)
   - 6 tests pass
-- 342 tests pass
+- B40 Estimation de valeur indicative (calcul interne) ✓
+  - compute_valeur_indicative(case): deux approches combinées
+  - Approche 1: evaluation_municipale_totale × (1 + NHPI_variation/100) — comparable ajusté
+  - Approche 2: loyer_mensuel × 12 × ratio_P/L — revenu GRM
+  - Synthèse pondérée 60/40 (comparable/revenu) si deux approches dispo
+  - ecart_methodes_pct + fiabilite (bonne si écart <20%, réduite sinon)
+  - Note disclaimer "à titre indicatif uniquement" dans AMU
+  - fiche_bien.json + section AMU "Estimation de valeur indicative" (Critère 4)
+  - 6 tests pass
+- 348 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
