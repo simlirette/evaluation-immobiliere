@@ -78,7 +78,11 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - {} = hors zone, dict = en zone (en_zone_inondable: True + recurrence_label)
   - Section AMU "ATTENTION" si en zone (impact financement hypothécaire + assurabilité)
   - Commit: eba96e3
-- 165 tests pass
+- B10 NHPI StatCan 18-10-0205-01 (indice prix logement neuf + variation annuelle %) ✓
+  - fetch_nhpi(): 7 villes QC, indice total/bâtiment/terrain + 13 périodes → variation %
+  - Section marché AMU unifiée (SCHL loyers + NHPI indice/variation)
+  - Commit: 5a07135
+- 170 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
