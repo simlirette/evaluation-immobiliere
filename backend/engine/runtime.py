@@ -568,6 +568,12 @@ class RuntimeEngine:
                     k: v for k, v in dette.items()
                     if k not in ("source",) and v is not None
                 }
+            absorb = case.get("unites_absorbees")
+            if absorb:
+                fb["unites_absorbees"] = {
+                    k: v for k, v in absorb.items()
+                    if k not in ("source",) and v is not None
+                }
             vacance = case.get("taux_inoccupation")
             if vacance:
                 fb["taux_inoccupation"] = {
@@ -924,6 +930,24 @@ class RuntimeEngine:
                     )
                     + "\n"
                 )
+                # Append absorbed units subsection if available
+                absorb = case.get("unites_absorbees") or {}
+                if absorb:
+                    ab_tot = absorb.get("unites_absorbees_total")
+                    ab_uni = absorb.get("unites_absorbees_unifamilial")
+                    ab_app = absorb.get("unites_absorbees_appartement")
+                    ab_var = absorb.get("variation_pct_4q")
+                    ab_per = absorb.get("periode", "")
+                    permis_section += (
+                        f"\n**Unités absorbées — marché neuf (StatCan 34-10-0149-01"
+                        + (f", {ab_per}" if ab_per else "")
+                        + ")**  \n"
+                        + (f"Total absorbées (trimestre) : **{ab_tot:,.0f}**  \n" if ab_tot is not None else "")
+                        + (f"Unifamilial : **{ab_uni:,.0f}**  \n" if ab_uni is not None else "")
+                        + (f"Appartement/condo : **{ab_app:,.0f}**  \n" if ab_app is not None else "")
+                        + (f"Variation annuelle : **{ab_var:+.1f} %**  \n" if ab_var is not None else "")
+                        + "\n"
+                    )
             else:
                 permis_section = ""
             # Build census socio-demographic section

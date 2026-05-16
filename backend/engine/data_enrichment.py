@@ -199,6 +199,32 @@ _DETTE_INDICATORS: dict[str, list[str]] = {
     ],
 }
 
+# ── Unités absorbées — marché neuf SCHL (StatCan 34-10-0149-01) ──────────────
+_ABSORB_TABLE = 3410014901  # 34-10-0149-01 : Absorbed housing units by type and price range
+_ABSORB_TTL = 90 * 86_400  # 90 jours (données trimestrielles)
+
+# city_code → GEO labels (CMA, same as chantier/neuf)
+_ABSORB_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal", "Montreal"],
+    "quebec":         ["Québec", "Quebec"],
+    "gatineau":       ["Ottawa - Gatineau", "Gatineau"],
+    "sherbrooke":     ["Sherbrooke"],
+    "saguenay":       ["Saguenay"],
+    "trois-rivieres": ["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville":  ["Drummondville"],
+    "laval":          ["Laval"],
+}
+
+# Dwelling type → field key (Dim 1)
+_ABSORB_TYPE_SEARCHES: dict[str, list[str]] = {
+    "unites_absorbees_total":        ["Total units", "Total"],
+    "unites_absorbees_unifamilial":  ["Single-detached", "Single detached", "Maisons individuelles"],
+    "unites_absorbees_appartement":  ["Apartment and other", "Apartments", "Appartements"],
+}
+
+# Price range → "Total" for all price ranges combined (Dim 2)
+_ABSORB_PRICE_TOTAL = ["Total, all price ranges", "All price ranges", "Total"]
+
 # ── Distance au CBD — coordonnées des centres-villes QC ──────────────────────
 # (lat, lng, nom_officiel)  — référence: place centrale de chaque CMA
 _CBD_COORDS: dict[str, tuple[float, float, str]] = {
@@ -1053,6 +1079,113 @@ def fetch_dette_revenu(cache_dir: Path) -> dict:
 
     except Exception as exc:  # pragma: no cover
         logger.debug("dette_revenu fetch failed: %s", exc)
+        return {}
+
+
+def fetch_unites_absorbees(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return absorbed (sold) housing units in new construction for a QC CMA via
+    StatCan WDS (34-10-0149-01).
+
+    Quarterly data by dwelling type (total / single-detached / apartment).
+    Returns dict with keys: unites_absorbees_total, unites_absorbees_unifamilial,
+    unites_absorbees_appartement, variation_pct_4q, periode, ville, source.
+    Returns {} if city not supported or data unavailable.
+    """
+    geo_labels = _ABSORB_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    cache_path = cache_dir / f"unites_absorbees_{city_code}.json"
+    cached = _read_cache_ttl(cache_path, _ABSORB_TTL)
+    if cached is not None:
+        return cached
+
+    try:
+        meta = _cube_metadata(_ABSORB_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if len(dims) < 2:
+            return {}
+
+        # Dim 0 = Geography
+        geo_ord = None
+        for lbl in geo_labels:
+            geo_ord = _find_member_ordinal(dims, 0, [lbl])
+            if geo_ord is not None:
+                break
+        if geo_ord is None:
+            return {}
+
+        # Dim 2 = Price range → "Total"
+        price_ord: int | None = None
+        if len(dims) >= 3:
+            price_ord = _find_member_ordinal(dims, 2, _ABSORB_PRICE_TOTAL)
+            if price_ord is None:
+                members2 = dims[2].get("member", [])
+                if members2:
+                    price_ord = int(members2[0]["memberId"])
+
+        result: dict = {
+            "source": "statcan-34-10-0149-01",
+            "ville": geo_labels[0],
+        }
+        periode = ""
+
+        for field_key, searches in _ABSORB_TYPE_SEARCHES.items():
+            type_ord = _find_member_ordinal(dims, 1, searches)
+            if type_ord is None:
+                continue
+
+            coord = (
+                _build_coordinate(geo_ord, type_ord, price_ord)
+                if price_ord is not None
+                else _build_coordinate(geo_ord, type_ord)
+            )
+            if not coord:
+                continue
+
+            try:
+                # 5 quarters for annual variation
+                payload = [{"productId": _ABSORB_TABLE, "coordinate": coord, "latestN": 5}]
+                rows = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if not rows:
+                    continue
+                pts = rows[0].get("object", {}).get("vectorDataPoint", [])
+                valid = [
+                    (p.get("refPer", ""), float(p["value"]))
+                    for p in pts
+                    if p.get("value") not in (None, "") and p.get("status") != "E"
+                    and float(p["value"]) > 0
+                ]
+                if not valid:
+                    continue
+                ref_per, latest_val = valid[-1]
+                result[field_key] = round(latest_val, 0)
+                if field_key == "unites_absorbees_total":
+                    if ref_per:
+                        periode = str(ref_per)[:7]
+                    if len(valid) >= 5:
+                        _, prior_val = valid[0]
+                        if prior_val > 0:
+                            result["variation_pct_4q"] = round(
+                                (latest_val - prior_val) / prior_val * 100, 1
+                            )
+            except Exception as exc:
+                logger.debug("unites_absorbees %s skip: %s", field_key, exc)
+
+        if "unites_absorbees_total" not in result:
+            return {}
+
+        if periode:
+            result["periode"] = periode
+
+        _write_cache_ttl(cache_path, result, _ABSORB_TTL)
+        logger.debug("unites_absorbees injecté : %s total=%s",
+                     city_code, result.get("unites_absorbees_total"))
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("unites_absorbees fetch failed: %s", exc)
         return {}
 
 
@@ -2931,6 +3064,17 @@ def enrich_case(
                              dette.get("ratio_dette_revenu_pct", 0))
         except Exception as exc:
             logger.debug("dette_revenu skip: %s", exc)
+
+    # ── Unités absorbées marché neuf (StatCan 34-10-0149-01) ─────────────────
+    if not case.get("unites_absorbees"):
+        try:
+            absorb = fetch_unites_absorbees(city_code, cache_dir)
+            if absorb:
+                case["unites_absorbees"] = absorb
+                logger.debug("unites_absorbees injecté : %s total=%s",
+                             city_code, absorb.get("unites_absorbees_total"))
+        except Exception as exc:
+            logger.debug("unites_absorbees skip: %s", exc)
 
     # ── SCHL rental market ────────────────────────────────────────────────────
     if not case.get("marche_locatif"):

@@ -153,6 +153,12 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B25 Unités absorbées marché neuf (StatCan 34-10-0149-01) ✓
+  - fetch_unites_absorbees(city_code, cache_dir): WDS trimestriel, 90j cache
+  - unites_absorbees_total/unifamilial/appartement, variation_pct_4q (annuel)
+  - 8 villes QC, 3 dims (geo × type × prix), fallback premier membre prix
+  - fiche_bien.json + sous-section AMU dans "Activité de construction"
+  - 6 tests pass
 - B24 Ratio dette/revenu ménages (StatCan 11-10-0065-01) ✓
   - fetch_dette_revenu(cache_dir): WDS national, quarterly, 90j cache
   - ratio_dette_revenu_pct, ratio_hypotheque_revenu_pct, taux_epargne_pct
@@ -160,7 +166,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 251 tests pass
+- 257 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

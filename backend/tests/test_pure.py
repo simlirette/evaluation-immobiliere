@@ -4238,3 +4238,157 @@ class TestDataEnrichment_DetteRevenu:
         assert dr.get("ratio_dette_revenu_pct") == 182.5
         assert dr.get("ratio_hypotheque_revenu_pct") == 105.3
         assert dr.get("periode") == "2024-Q4"
+
+
+# ── TestDataEnrichment_UnitesAbsorbees ───────────────────────────────────────
+
+class TestDataEnrichment_UnitesAbsorbees:
+    """Tests for fetch_unites_absorbees() via StatCan WDS 34-10-0149-01."""
+
+    def _meta(self, geo_labels, type_labels, price_labels=None):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        dims = [
+            {"member": members(geo_labels)},
+            {"member": members(type_labels)},
+        ]
+        if price_labels is not None:
+            dims.append({"member": members(price_labels)})
+        return {"dims": dims}
+
+    def _wds_5pts(self, values, period="2025-Q1"):
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": str(v), "refPer": period, "status": ""}
+                    for v in values
+                ]
+            },
+        }]
+
+    def test_fetch_unites_absorbees_success(self, tmp_path):
+        """Returns total, unifamilial, appartement counts and annual variation."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_unites_absorbees
+
+        meta = self._meta(
+            ["Montréal", "Québec"],
+            ["Total units", "Single-detached", "Apartment and other"],
+            ["Total, all price ranges", "Under $300,000"],
+        )
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            coord = payload[0]["coordinate"]
+            # geo_ord=1, price_ord=1
+            if coord == "1.1.1":  # total
+                return self._wds_5pts([800.0, 820.0, 850.0, 870.0, 900.0], "2025-Q1")
+            if coord == "1.2.1":  # unifamilial
+                return self._wds_5pts([300.0, 310.0, 320.0, 330.0, 340.0], "2025-Q1")
+            if coord == "1.3.1":  # appartement
+                return self._wds_5pts([400.0, 410.0, 420.0, 430.0, 450.0], "2025-Q1")
+            return []
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_unites_absorbees("montreal", tmp_path)
+
+        assert result.get("source") == "statcan-34-10-0149-01"
+        assert result.get("ville") == "Montréal"
+        assert result.get("unites_absorbees_total") == 900.0
+        assert result.get("unites_absorbees_unifamilial") == 340.0
+        assert result.get("unites_absorbees_appartement") == 450.0
+        # variation: (900 - 800) / 800 * 100 = 12.5%
+        var = result.get("variation_pct_4q")
+        assert var is not None
+        assert abs(var - 12.5) < 0.2
+
+    def test_fetch_unites_absorbees_unsupported_city(self, tmp_path):
+        """Unknown city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_unites_absorbees
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_unites_absorbees("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_unites_absorbees_geo_not_found(self, tmp_path):
+        """GEO label not in dim 0 → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_unites_absorbees
+
+        meta = self._meta(
+            ["Toronto", "Vancouver"],
+            ["Total units"],
+            ["Total, all price ranges"],
+        )
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_unites_absorbees("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_unites_absorbees_cache_hit(self, tmp_path):
+        """Cached result returned without WDS call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_unites_absorbees
+
+        cached = {
+            "source": "statcan-34-10-0149-01",
+            "ville": "Montréal",
+            "unites_absorbees_total": 750.0,
+            "periode": "2024-Q4",
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "unites_absorbees_montreal.json").write_text(json.dumps(cached))
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_unites_absorbees("montreal", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result.get("unites_absorbees_total") == 750.0
+
+    def test_fetch_unites_absorbees_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_unites_absorbees
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_unites_absorbees("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_enrich_case_injects_unites_absorbees(self, tmp_path):
+        """enrich_case populates unites_absorbees via fetch_unites_absorbees."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        absorb_data = {
+            "source": "statcan-34-10-0149-01",
+            "ville": "Montréal",
+            "unites_absorbees_total": 920.0,
+            "unites_absorbees_unifamilial": 350.0,
+            "unites_absorbees_appartement": 460.0,
+            "variation_pct_4q": 8.5,
+            "periode": "2025-Q1",
+        }
+
+        with mock.patch.object(de, "fetch_unites_absorbees", return_value=absorb_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-ABSORB-TEST"}
+                enrich_case(case, display_name="200 rue Notre-Dame, Montréal",
+                            cache_dir=tmp_path)
+
+        ua = case.get("unites_absorbees", {})
+        assert ua.get("unites_absorbees_total") == 920.0
+        assert ua.get("variation_pct_4q") == 8.5
