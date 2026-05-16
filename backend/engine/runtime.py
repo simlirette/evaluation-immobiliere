@@ -646,6 +646,12 @@ class RuntimeEngine:
                     k: v for k, v in score_m.items()
                     if k not in ("source",) and v is not None
                 }
+            rend = case.get("rendement_locatif")
+            if rend:
+                fb["rendement_locatif"] = {
+                    k: v for k, v in rend.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1166,6 +1172,25 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build rental yield section
+            rend_loc = case.get("rendement_locatif") or {}
+            if rend_loc:
+                rl_brut = rend_loc.get("taux_capitalisation_brut_pct")
+                rl_net = rend_loc.get("taux_capitalisation_net_estime_pct")
+                rl_interp = rend_loc.get("interpretation", "")
+                rl_valeur = rend_loc.get("valeur_reference")
+                rl_loyer = rend_loc.get("loyer_mensuel_reference")
+                rendement_section = (
+                    "## Rendement locatif estimé (calcul interne)\n\n"
+                    + (f"Valeur de référence : **{rl_valeur:,.0f} $**  \n" if rl_valeur else "")
+                    + (f"Loyer médian CMA : **{rl_loyer:,.0f} $/mois**  \n" if rl_loyer else "")
+                    + (f"Taux de capitalisation brut : **{rl_brut:.2f} %**  \n" if rl_brut is not None else "")
+                    + (f"Taux de capitalisation net estimé : **{rl_net:.2f} %**  \n" if rl_net is not None else "")
+                    + (f"Évaluation : **{rl_interp}**  \n" if rl_interp else "")
+                    + "\n"
+                )
+            else:
+                rendement_section = ""
             # Build market score section
             score_m = case.get("score_marche") or {}
             if score_m:
@@ -1216,6 +1241,7 @@ class RuntimeEngine:
                 + nuisances_section
                 + climat_section
                 + crime_section
+                + rendement_section
                 + score_marche_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

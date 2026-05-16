@@ -5252,3 +5252,81 @@ class TestDataEnrichment_ScoreMarche:
         assert sm.get("source") == "calcul-interne"
         assert sm.get("score_marche") is not None
         assert sm.get("score_marche") >= 7.0  # all positive → high score
+
+
+class TestDataEnrichment_RendementLocatif:
+    """B32 — compute_rendement_locatif (pure function)."""
+
+    def test_basic_computation(self):
+        """Correct taux brut and net from evaluation + loyer."""
+        from engine.data_enrichment import compute_rendement_locatif
+        case = {
+            "evaluation_municipale_totale": 500_000,
+            "marche_locatif": {"loyer_moyen_total": 1_500},
+        }
+        r = compute_rendement_locatif(case)
+        # revenus = 1500*12 = 18000; brut = 18000/500000*100 = 3.6
+        assert r["taux_capitalisation_brut_pct"] == pytest.approx(3.6, abs=0.01)
+        # net = 3.6 * (1 - 0.35) = 2.34
+        assert r["taux_capitalisation_net_estime_pct"] == pytest.approx(2.34, abs=0.01)
+
+    def test_excellent_interpretation(self):
+        """Taux >= 8 % → interprétation 'excellent'."""
+        from engine.data_enrichment import compute_rendement_locatif
+        # valeur 100k, loyer 750/mois → brut = 9000/100000*100 = 9 %
+        case = {
+            "evaluation_municipale_totale": 100_000,
+            "marche_locatif": {"loyer_moyen_total": 750},
+        }
+        r = compute_rendement_locatif(case)
+        assert r["interpretation"] == "excellent"
+
+    def test_bon_interpretation(self):
+        """Taux entre 5 et 8 % → interprétation 'bon'."""
+        from engine.data_enrichment import compute_rendement_locatif
+        # valeur 300k, loyer 1800/mois → brut = 21600/300000*100 = 7.2 %
+        case = {
+            "evaluation_municipale_totale": 300_000,
+            "marche_locatif": {"loyer_moyen_total": 1_800},
+        }
+        r = compute_rendement_locatif(case)
+        assert r["interpretation"] == "bon"
+
+    def test_fallback_to_role_municipal(self):
+        """Quand evaluation_municipale_totale absent → utilise role_municipal.valeur_totale."""
+        from engine.data_enrichment import compute_rendement_locatif
+        case = {
+            "role_municipal": {"valeur_totale": 400_000},
+            "marche_locatif": {"loyer_moyen_total": 1_200},
+        }
+        r = compute_rendement_locatif(case)
+        assert r["valeur_reference"] == 400_000
+        expected_brut = 1_200 * 12 / 400_000 * 100
+        assert r["taux_capitalisation_brut_pct"] == pytest.approx(expected_brut, abs=0.01)
+
+    def test_missing_valeur_returns_empty(self):
+        """Pas de valeur de référence → dict vide."""
+        from engine.data_enrichment import compute_rendement_locatif
+        case = {"marche_locatif": {"loyer_moyen_total": 1_500}}
+        assert compute_rendement_locatif(case) == {}
+
+    def test_enrich_case_injects_rendement_locatif(self, tmp_path):
+        """enrich_case injecte rendement_locatif quand données disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-REND-TEST",
+            "evaluation_municipale_totale": 500_000,
+            "marche_locatif": {"loyer_moyen_total": 1_600},
+        }
+
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        rend = case.get("rendement_locatif", {})
+        assert rend.get("source") == "calcul-interne"
+        assert rend.get("taux_capitalisation_brut_pct") is not None
+        assert rend.get("taux_capitalisation_net_estime_pct") is not None
+        assert rend.get("interpretation") in ("excellent", "bon", "acceptable", "faible")

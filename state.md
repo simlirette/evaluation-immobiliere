@@ -211,7 +211,16 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 293 tests pass
+- B32 Rendement locatif / taux de capitalisation (calcul interne) ✓
+  - compute_rendement_locatif(case): pure function, zéro appel externe
+  - Inputs: evaluation_municipale_totale (ou role_municipal.valeur_totale) + B5 loyer médian CMA
+  - taux_capitalisation_brut_pct = revenus_bruts_annuels / valeur * 100
+  - taux_capitalisation_net_estime_pct = brut * (1 - 35%) — frais opération estimés
+  - interpretation: excellent (≥8%), bon (≥5%), acceptable (≥3%), faible (<3%)
+  - Fallback valeur: role_municipal.valeur_totale si evaluation_municipale_totale absent
+  - fiche_bien.json + section AMU "Rendement locatif estimé" (avant Critère 4)
+  - 6 tests pass
+- 299 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

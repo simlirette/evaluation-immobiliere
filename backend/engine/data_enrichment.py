@@ -194,6 +194,12 @@ _MARCHE_CHOMAGE_MOYEN        = 7.0   # % : chômage modéré
 _MARCHE_POP_FORTE            = 1.0   # % : croissance démo forte
 _MARCHE_CRIME_BAS            = 4000  # /100k : seuil criminalité faible QC
 
+# ── Taux de capitalisation / rendement locatif (calcul interne) ───────────────
+_CAPRATE_FRAIS_OPERATION = 0.35   # 35 % des revenus bruts (taxes + assurance + entretien)
+_CAPRATE_EXCELLENT = 8.0          # % : taux cap brut excellent
+_CAPRATE_BON       = 5.0          # % : bon rendement
+_CAPRATE_FAIBLE    = 3.0          # % : faible mais acceptable (marché tendu QC)
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3550,6 +3556,65 @@ def compute_indice_abordabilite(case: dict) -> dict:
     return result
 
 
+def compute_rendement_locatif(case: dict) -> dict:
+    """
+    Compute gross and estimated net capitalization rate (cap rate) for the property.
+
+    Pure function — no external calls, no cache.  Uses:
+      - evaluation_municipale_totale  (case-level field, or role_municipal.valeur_totale)
+      - marche_locatif.loyer_moyen_total  (B5 — median monthly rent for the CMA)
+
+    Returns dict with keys:
+      valeur_reference, loyer_mensuel_reference,
+      revenus_locatifs_bruts_annuels,
+      taux_capitalisation_brut_pct,
+      taux_capitalisation_net_estime_pct,
+      frais_operation_pct, interpretation, source.
+    Returns {} if minimum inputs are unavailable.
+    """
+    # ── Valeur de référence ───────────────────────────────────────────────────
+    valeur = case.get("evaluation_municipale_totale")
+    if not valeur:
+        valeur = (case.get("role_municipal") or {}).get("valeur_totale")
+    if not valeur or valeur <= 0:
+        return {}
+
+    # ── Loyer de référence (loyer médian CMA) ─────────────────────────────────
+    loyer = (case.get("marche_locatif") or {}).get("loyer_moyen_total")
+    if not loyer or loyer <= 0:
+        return {}
+
+    # ── Calcul ───────────────────────────────────────────────────────────────
+    revenus_bruts = loyer * 12
+    taux_brut = revenus_bruts / valeur * 100
+    frais_pct = _CAPRATE_FRAIS_OPERATION * 100
+    taux_net = taux_brut * (1 - _CAPRATE_FRAIS_OPERATION)
+
+    if taux_brut >= _CAPRATE_EXCELLENT:
+        interpretation = "excellent"
+    elif taux_brut >= _CAPRATE_BON:
+        interpretation = "bon"
+    elif taux_brut >= _CAPRATE_FAIBLE:
+        interpretation = "acceptable"
+    else:
+        interpretation = "faible"
+
+    result = {
+        "valeur_reference": round(valeur, 0),
+        "loyer_mensuel_reference": round(loyer, 0),
+        "revenus_locatifs_bruts_annuels": round(revenus_bruts, 0),
+        "taux_capitalisation_brut_pct": round(taux_brut, 2),
+        "frais_operation_pct": round(frais_pct, 1),
+        "taux_capitalisation_net_estime_pct": round(taux_net, 2),
+        "interpretation": interpretation,
+        "source": "calcul-interne",
+    }
+
+    logger.debug("rendement_locatif : taux_brut=%.2f%% taux_net=%.2f%% (%s)",
+                 taux_brut, taux_net, interpretation)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -3930,3 +3995,16 @@ def enrich_case(
                              score.get("score_marche", 0), score.get("interpretation"))
         except Exception as exc:
             logger.debug("score_marche skip: %s", exc)
+
+    # ── Rendement locatif / taux de capitalisation (calcul interne) ───────────
+    if not case.get("rendement_locatif"):
+        try:
+            rend = compute_rendement_locatif(case)
+            if rend:
+                case["rendement_locatif"] = rend
+                logger.debug("rendement_locatif : brut=%.2f%% net=%.2f%% (%s)",
+                             rend.get("taux_capitalisation_brut_pct", 0),
+                             rend.get("taux_capitalisation_net_estime_pct", 0),
+                             rend.get("interpretation"))
+        except Exception as exc:
+            logger.debug("rendement_locatif skip: %s", exc)
