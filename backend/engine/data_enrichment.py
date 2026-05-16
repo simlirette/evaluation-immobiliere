@@ -184,6 +184,16 @@ _ABORD_SEUIL_LIMITE    = 40.0   # 30–40 % → limite
 _ABORD_AMORT_MOIS = 300         # 25 ans × 12 mois
 _ABORD_MISE_DE_FONDS = 0.20     # 20 % de mise de fonds
 
+# ── Score marché synthétique (calcul interne) ─────────────────────────────────
+# Seuils pour attribution des points par indicateur
+_MARCHE_INOCCUPATION_TENDU  = 3.0    # % : taux inoccupation locative tendu
+_MARCHE_INOCCUPATION_NORMAL = 5.0    # % : taux normal
+_MARCHE_NHPI_FORT            = 3.0   # % : croissance prix neuf forte
+_MARCHE_CHOMAGE_BAS          = 5.0   # % : chômage faible
+_MARCHE_CHOMAGE_MOYEN        = 7.0   # % : chômage modéré
+_MARCHE_POP_FORTE            = 1.0   # % : croissance démo forte
+_MARCHE_CRIME_BAS            = 4000  # /100k : seuil criminalité faible QC
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3349,6 +3359,125 @@ def lookup_inondable(lat: float, lng: float, cache_dir: Path) -> dict | None:
     }
 
 
+def compute_score_marche(case: dict) -> dict:
+    """
+    Synthesize available market indicators into an actionable market score (0–10).
+
+    Pure function — no external calls, no cache.  Inputs (all optional):
+      - taux_inoccupation.taux_total_pct      (B14)
+      - indice_prix_logement.variation_annuelle_pct  (B10)
+      - marche_travail.taux_chomage_pct       (B17)
+      - population_cma.variation_annuelle_pct (B16)
+      - mises_en_chantier.variation_pct_6m    (B19)
+      - crime_stats.taux_criminalite_total    (B21)
+
+    Returns dict with keys: score_marche, score_max, indicateurs_utilises,
+    tension_locative, interpretation, source.
+    Returns {} if fewer than 2 indicators available.
+    """
+    points = 0
+    max_possible = 0
+    indicateurs: list[str] = []
+
+    # ── Taux d'inoccupation (B14) — marché locatif ───────────────────────────
+    tx_inoc = (case.get("taux_inoccupation") or {}).get("taux_total_pct")
+    if tx_inoc is not None:
+        max_possible += 2
+        indicateurs.append("inoccupation")
+        if tx_inoc < _MARCHE_INOCCUPATION_TENDU:
+            points += 2  # marché très tendu = favorable au vendeur/proprio
+        elif tx_inoc < _MARCHE_INOCCUPATION_NORMAL:
+            points += 1
+
+    # ── NHPI variation (B10) — croissance prix logement neuf ─────────────────
+    nhpi_var = (case.get("indice_prix_logement") or {}).get("variation_annuelle_pct")
+    if nhpi_var is not None:
+        max_possible += 2
+        indicateurs.append("nhpi_variation")
+        if nhpi_var >= _MARCHE_NHPI_FORT:
+            points += 2
+        elif nhpi_var >= 0:
+            points += 1
+
+    # ── Marché du travail (B17) — taux de chômage ────────────────────────────
+    chomage = (case.get("marche_travail") or {}).get("taux_chomage_pct")
+    if chomage is not None:
+        max_possible += 2
+        indicateurs.append("marche_travail")
+        if chomage < _MARCHE_CHOMAGE_BAS:
+            points += 2
+        elif chomage < _MARCHE_CHOMAGE_MOYEN:
+            points += 1
+
+    # ── Croissance démographique CMA (B16) ────────────────────────────────────
+    pop_var = (case.get("population_cma") or {}).get("variation_annuelle_pct")
+    if pop_var is not None:
+        max_possible += 2
+        indicateurs.append("population")
+        if pop_var >= _MARCHE_POP_FORTE:
+            points += 2
+        elif pop_var >= 0:
+            points += 1
+
+    # ── Mises en chantier tendance (B19) — dynamisme offre ───────────────────
+    chantier_var = (case.get("mises_en_chantier") or {}).get("variation_pct_6m")
+    if chantier_var is not None:
+        max_possible += 1
+        indicateurs.append("mises_en_chantier")
+        if chantier_var > 0:
+            points += 1  # offre en croissance = économie active
+
+    # ── Criminalité (B21) — attractivité du secteur ───────────────────────────
+    crime_total = (case.get("crime_stats") or {}).get("taux_criminalite_total")
+    if crime_total is not None:
+        max_possible += 1
+        indicateurs.append("crime")
+        if crime_total < _MARCHE_CRIME_BAS:
+            points += 1
+
+    if len(indicateurs) < 2:
+        return {}
+
+    # Normalize to 0–10
+    score_norm = round(points / max_possible * 10, 1) if max_possible > 0 else 0.0
+
+    # Tension locative label
+    if tx_inoc is not None:
+        if tx_inoc < _MARCHE_INOCCUPATION_TENDU:
+            tension = "marché locatif tendu"
+        elif tx_inoc < _MARCHE_INOCCUPATION_NORMAL:
+            tension = "marché équilibré"
+        else:
+            tension = "marché locatif détendu"
+    else:
+        tension = "données inoccupation indisponibles"
+
+    # Overall interpretation
+    if score_norm >= 8.0:
+        interp = "marché très favorable — conditions idéales pour la valorisation"
+    elif score_norm >= 6.0:
+        interp = "marché favorable — bonne dynamique globale"
+    elif score_norm >= 4.0:
+        interp = "marché modéré — conditions mixtes"
+    else:
+        interp = "marché difficile — vigilance recommandée"
+
+    result = {
+        "source": "calcul-interne",
+        "score_marche": score_norm,
+        "score_max": 10.0,
+        "points_bruts": points,
+        "points_max_bruts": max_possible,
+        "indicateurs_utilises": indicateurs,
+        "tension_locative": tension,
+        "interpretation": interp,
+    }
+
+    logger.debug("score_marche : %.1f/10 (%d indicateurs) — %s",
+                 score_norm, len(indicateurs), interp)
+    return result
+
+
 def compute_indice_abordabilite(case: dict) -> dict:
     """
     Compute a housing affordability index from already-enriched case data.
@@ -3790,3 +3919,14 @@ def enrich_case(
                              abord.get("ratio_mensualite_revenu_pct"))
         except Exception as exc:
             logger.debug("indice_abordabilite skip: %s", exc)
+
+    # ── Score marché synthétique (calcul interne, dépend B10+B14+B16+B17+B19+B21)
+    if not case.get("score_marche"):
+        try:
+            score = compute_score_marche(case)
+            if score:
+                case["score_marche"] = score
+                logger.debug("score_marche : %.1f/10 (%s)",
+                             score.get("score_marche", 0), score.get("interpretation"))
+        except Exception as exc:
+            logger.debug("score_marche skip: %s", exc)

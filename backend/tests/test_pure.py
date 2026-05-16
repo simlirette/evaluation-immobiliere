@@ -5154,3 +5154,101 @@ class TestDataEnrichment_IndiceAbordabilite:
         assert ab.get("source") == "calcul-interne"
         assert ab.get("ratio_loyer_revenu_pct") is not None
         assert ab.get("versement_mensuel_estime") is not None
+
+
+# ── TestDataEnrichment_ScoreMarche ────────────────────────────────────────────
+
+class TestDataEnrichment_ScoreMarche:
+    """Tests for compute_score_marche() — pure derived synthesis function."""
+
+    def _case_ideal(self):
+        """Case with all indicators strongly positive."""
+        return {
+            "taux_inoccupation":    {"taux_total_pct": 1.5},   # très tendu → +2
+            "indice_prix_logement": {"variation_annuelle_pct": 5.0},  # fort → +2
+            "marche_travail":       {"taux_chomage_pct": 4.0}, # bas → +2
+            "population_cma":       {"variation_annuelle_pct": 1.5},  # fort → +2
+            "mises_en_chantier":    {"variation_pct_6m": 3.0}, # +1
+            "crime_stats":          {"taux_criminalite_total": 3_500}, # bas → +1
+        }
+
+    def test_compute_score_marche_ideal(self):
+        """All indicators positive → score ≥ 9."""
+        from engine.data_enrichment import compute_score_marche
+
+        result = compute_score_marche(self._case_ideal())
+
+        assert result.get("source") == "calcul-interne"
+        assert result.get("score_marche") == pytest.approx(10.0, abs=0.5)
+        assert result.get("tension_locative") == "marché locatif tendu"
+        assert "favorable" in result.get("interpretation", "")
+        assert len(result.get("indicateurs_utilises", [])) == 6
+
+    def test_compute_score_marche_difficile(self):
+        """All indicators negative → score ≤ 2."""
+        from engine.data_enrichment import compute_score_marche
+
+        case = {
+            "taux_inoccupation":    {"taux_total_pct": 8.0},   # détendu → +0
+            "indice_prix_logement": {"variation_annuelle_pct": -2.0},  # négatif → +0
+            "marche_travail":       {"taux_chomage_pct": 9.0}, # élevé → +0
+            "population_cma":       {"variation_annuelle_pct": -0.5},  # déclin → +0
+        }
+        result = compute_score_marche(case)
+
+        assert result.get("score_marche") == pytest.approx(0.0, abs=0.5)
+        assert "difficile" in result.get("interpretation", "")
+
+    def test_compute_score_marche_insufficient_indicators(self):
+        """Only 1 indicator → {} (minimum 2 required)."""
+        from engine.data_enrichment import compute_score_marche
+
+        case = {"taux_inoccupation": {"taux_total_pct": 2.0}}
+        result = compute_score_marche(case)
+
+        assert result == {}
+
+    def test_compute_score_marche_no_data(self):
+        """Empty case → {}."""
+        from engine.data_enrichment import compute_score_marche
+
+        assert compute_score_marche({}) == {}
+
+    def test_compute_score_marche_partial(self):
+        """Partial indicators → valid normalized score."""
+        from engine.data_enrichment import compute_score_marche
+
+        # Only inoccupation (tendu +2) + chômage (moyen +1)
+        case = {
+            "taux_inoccupation": {"taux_total_pct": 2.0},   # tendu → +2
+            "marche_travail":    {"taux_chomage_pct": 6.0}, # moyen → +1
+        }
+        result = compute_score_marche(case)
+
+        assert result.get("score_marche") is not None
+        # points=3, max=4 → 7.5/10
+        assert result.get("score_marche") == pytest.approx(7.5, abs=0.3)
+        assert "indicateurs_utilises" in result
+
+    def test_enrich_case_injects_score_marche(self, tmp_path):
+        """enrich_case computes and injects score_marche after B-sources."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case: dict = {
+            "dossier_id": "D-SCORE-TEST",
+            # Pre-populate source data that score_marche reads
+            "taux_inoccupation":    {"taux_total_pct": 2.5},
+            "indice_prix_logement": {"variation_annuelle_pct": 4.0},
+            "marche_travail":       {"taux_chomage_pct": 4.5},
+            "population_cma":       {"variation_annuelle_pct": 1.2},
+        }
+
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        sm = case.get("score_marche", {})
+        assert sm.get("source") == "calcul-interne"
+        assert sm.get("score_marche") is not None
+        assert sm.get("score_marche") >= 7.0  # all positive → high score

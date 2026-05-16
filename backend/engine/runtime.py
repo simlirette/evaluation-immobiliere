@@ -640,6 +640,12 @@ class RuntimeEngine:
                     k: v for k, v in abord.items()
                     if k not in ("source",) and v is not None
                 }
+            score_m = case.get("score_marche")
+            if score_m:
+                fb["score_marche"] = {
+                    k: v for k, v in score_m.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1160,6 +1166,24 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build market score section
+            score_m = case.get("score_marche") or {}
+            if score_m:
+                sm_score = score_m.get("score_marche")
+                sm_interp = score_m.get("interpretation", "")
+                sm_tension = score_m.get("tension_locative", "")
+                sm_indic = score_m.get("indicateurs_utilises", [])
+                n_indic = len(sm_indic)
+                score_marche_section = (
+                    "## Score de marché synthétique (calcul interne)\n\n"
+                    + (f"Score : **{sm_score:.1f} / 10** ({n_indic} indicateurs)  \n"
+                       if sm_score is not None else "")
+                    + (f"Tension locative : **{sm_tension}**  \n" if sm_tension else "")
+                    + (f"Évaluation globale : **{sm_interp}**  \n" if sm_interp else "")
+                    + "\n"
+                )
+            else:
+                score_marche_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -1192,6 +1216,7 @@ class RuntimeEngine:
                 + nuisances_section
                 + climat_section
                 + crime_section
+                + score_marche_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"

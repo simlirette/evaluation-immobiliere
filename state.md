@@ -153,6 +153,13 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B31 Score de marché synthétique (calcul interne) ✓
+  - compute_score_marche(case): synthèse B10+B14+B16+B17+B19+B21
+  - score_marche 0-10 normalisé, points_bruts/max, indicateurs_utilises
+  - tension_locative (tendu/équilibré/détendu), interpretation (4 niveaux)
+  - Minimum 2 indicateurs requis, sinon {}
+  - fiche_bien.json + section AMU "Score de marché" (avant Critère 4)
+  - 6 tests pass (3.71s, pur calcul)
 - B30 Indice d'abordabilité du logement (calcul interne) ✓
   - compute_indice_abordabilite(case): pure function, zéro appel externe
   - Inputs: B5 (loyer) + B11 (revenu/valeur médians) + B15 (taux hypo)
@@ -204,7 +211,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 287 tests pass
+- 293 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
