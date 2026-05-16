@@ -532,6 +532,12 @@ class RuntimeEngine:
                     k: v for k, v in pat.items()
                     if k not in ("source",) and v is not None
                 }
+            inond = case.get("zone_inondable")
+            if inond is not None:
+                fb["zone_inondable"] = {
+                    k: v for k, v in inond.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -618,6 +624,19 @@ class RuntimeEngine:
                 )
             else:
                 patrimoine_section = ""
+            # Build zone inondable section if data available
+            inond = case.get("zone_inondable")
+            if inond:  # non-empty = en zone inondable
+                rec_label = inond.get("recurrence_label") or inond.get("recurrence") or "—"
+                inond_section = (
+                    f"## Zone inondable (MELCC)\n\n"
+                    f"**ATTENTION : bien situé en zone inondable.**  \n"
+                    f"Récurrence : **{rec_label}**  \n"
+                    "\nNote : impact sur la valeur, le financement hypothécaire et l'assurabilité. "
+                    "Analyser selon les nouvelles normes 2024 (cartographie MELCC).\n\n"
+                )
+            else:
+                inond_section = ""
             # Build CPTAQ section if relevant
             za = case.get("zone_agricole") or {}
             if za:
@@ -660,6 +679,7 @@ class RuntimeEngine:
                 f"**Zone :** {zone_code}\n\n"
                 + zonage_section
                 + patrimoine_section
+                + inond_section
                 + cptaq_section
                 + f"## Critere 1 — Legalement permis\n\n"
                 f"L'usage de type {type_bien} est conforme au zonage {zone_code}. "

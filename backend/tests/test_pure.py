@@ -2125,3 +2125,166 @@ class TestDataEnrichment_Patrimoine:
         # Key present but empty (checked, not listed)
         assert "patrimoine_culturel" in case
         assert case["patrimoine_culturel"] == {}
+
+
+# ── TestDataEnrichment_Inondable ──────────────────────────────────────────────
+
+class TestDataEnrichment_Inondable:
+    """Tests for MELCC zones inondables lookup."""
+
+    def _make_geojson(self, ring: list, props: dict) -> dict:
+        return {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": props,
+                "geometry": {"type": "Polygon", "coordinates": [ring]},
+            }],
+        }
+
+    def test_build_index(self, tmp_path):
+        """build_inondable_index creates valid index."""
+        import json
+        from engine.data_enrichment import build_inondable_index
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "zones_inondables.geojson"
+        gj_path.write_text(json.dumps(self._make_geojson(ring, {"RECURRENCE": "0_20"})),
+                            encoding="utf-8")
+
+        idx_path = tmp_path / "inondable_index.json"
+        count = build_inondable_index(gj_path, idx_path)
+        assert count == 1
+        data = json.loads(idx_path.read_text(encoding="utf-8"))
+        assert data["zones"][0]["props"]["RECURRENCE"] == "0_20"
+
+    def test_lookup_inside(self, tmp_path):
+        """Point in flood zone → en_zone_inondable: True + recurrence."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_inondable_index, lookup_inondable
+
+        de._INONDABLE_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "zones_inondables.geojson"
+        gj_path.write_text(json.dumps(self._make_geojson(ring, {"RECURRENCE": "20_100"})),
+                            encoding="utf-8")
+        build_inondable_index(gj_path, tmp_path / "inondable_index.json")
+
+        result = lookup_inondable(45.55, -73.55, tmp_path)
+        assert result is not None
+        assert result["en_zone_inondable"] is True
+        assert result["recurrence"] == "20_100"
+        assert "centennale" in result.get("recurrence_label", "")
+        assert result["source"] == "melcc-zones-inondables"
+
+    def test_lookup_outside(self, tmp_path):
+        """Point outside flood zone → {}."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_inondable_index, lookup_inondable
+
+        de._INONDABLE_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "zones_inondables.geojson"
+        gj_path.write_text(json.dumps(self._make_geojson(ring, {"RECURRENCE": "0_20"})),
+                            encoding="utf-8")
+        build_inondable_index(gj_path, tmp_path / "inondable_index.json")
+
+        result = lookup_inondable(45.40, -74.0, tmp_path)
+        assert result == {}
+
+    def test_lookup_most_restrictive(self, tmp_path):
+        """Multiple overlapping zones → returns smallest recurrence (highest risk)."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_inondable_index, lookup_inondable
+
+        de._INONDABLE_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"RECURRENCE": "20_100"},
+                    "geometry": {"type": "Polygon", "coordinates": [ring]},
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"RECURRENCE": "0_20"},
+                    "geometry": {"type": "Polygon", "coordinates": [ring]},
+                },
+            ],
+        }
+        gj_path = tmp_path / "zones_inondables.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+        build_inondable_index(gj_path, tmp_path / "inondable_index.json")
+
+        result = lookup_inondable(45.55, -73.55, tmp_path)
+        # Should pick 0_20 (more restrictive / higher risk)
+        assert result["recurrence"] == "0_20"
+
+    def test_lookup_no_data(self, tmp_path):
+        """No data → None."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import lookup_inondable
+
+        de._INONDABLE_INDEX_CACHE = None
+        with mock.patch.object(de, "download_inondable", return_value=None):
+            result = lookup_inondable(45.55, -73.55, tmp_path)
+        assert result is None
+
+    def test_enrich_case_injects_inondable(self, tmp_path):
+        """enrich_case injects zone_inondable when point in flood zone."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_inondable_index
+
+        de._INONDABLE_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "zones_inondables.geojson"
+        gj_path.write_text(
+            json.dumps(self._make_geojson(ring, {"RECURRENCE": "0_20"})),
+            encoding="utf-8",
+        )
+        build_inondable_index(gj_path, tmp_path / "inondable_index.json")
+
+        with mock.patch.object(de, "geocode_address", return_value=(45.55, -73.55)):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-INOND-TEST"}
+                enrich_case(case, display_name="1 chemin de la Berge, Laval", cache_dir=tmp_path)
+
+        assert case.get("zone_inondable", {}).get("en_zone_inondable") is True
+        assert case["zone_inondable"]["recurrence"] == "0_20"
+
+    def test_enrich_case_empty_when_outside(self, tmp_path):
+        """enrich_case sets zone_inondable = {} when checked but outside."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_inondable_index
+
+        de._INONDABLE_INDEX_CACHE = None
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj_path = tmp_path / "zones_inondables.geojson"
+        gj_path.write_text(
+            json.dumps(self._make_geojson(ring, {"RECURRENCE": "20_100"})),
+            encoding="utf-8",
+        )
+        build_inondable_index(gj_path, tmp_path / "inondable_index.json")
+
+        with mock.patch.object(de, "geocode_address", return_value=(45.40, -74.0)):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-INOND-OUT"}
+                enrich_case(case, display_name="1000 boul. Laurentien, Montréal", cache_dir=tmp_path)
+
+        assert "zone_inondable" in case
+        assert case["zone_inondable"] == {}

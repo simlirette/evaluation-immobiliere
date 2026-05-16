@@ -1258,6 +1258,191 @@ def lookup_patrimoine(lat: float, lng: float, cache_dir: Path) -> dict | None:
     return {}
 
 
+# ── Zones inondables (MELCC / GeoQuébec) ─────────────────────────────────────
+
+# module-level cache
+_INONDABLE_INDEX_CACHE: list | None = None
+
+# MELCC WFS — zones de contrainte (inondation 0-20 ans, 20-100 ans)
+# Source: Atlas des zones inondables du MELCC
+_INONDABLE_WFS_URLS: list[str] = [
+    (
+        "https://geoegl.msp.gouv.qc.ca/apis/wss/complet.fcgi"
+        "?SERVICE=WFS&REQUEST=GetFeature"
+        "&TYPENAME=ms:igo_inondation"
+        "&OUTPUTFORMAT=geojson&SRSNAME=EPSG:4326"
+    ),
+    # Alternate: direct MELCC GeoServer
+    (
+        "https://geoserver.environnement.gouv.qc.ca/geoserver/ows"
+        "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
+        "&TYPENAMES=MELCC:zone_inondable"
+        "&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326"
+    ),
+]
+
+# Récurrence → label FR
+_RECURRENCE_LABELS: dict[str, str] = {
+    "0_20": "0-20 ans (grand courant)",
+    "20_100": "20-100 ans (crue centennale)",
+    "100": "100+ ans",
+    "2": "2 ans",
+    "20": "20 ans",
+    "100_500": "100-500 ans",
+}
+
+
+def download_inondable(cache_dir: Path, force: bool = False) -> Path | None:
+    """
+    Download MELCC zones inondables GeoJSON (tout le Québec, WFS).
+    Returns local path or None if unavailable.
+    """
+    geojson_path = cache_dir / "zones_inondables.geojson"
+    if geojson_path.exists() and not force:
+        return geojson_path
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    for url in _INONDABLE_WFS_URLS:
+        try:
+            logger.info("Downloading zones inondables MELCC (WFS GeoJSON)…")
+            _download_file(url, geojson_path, timeout=600)
+            logger.info("Zones inondables downloaded: %.1f MB",
+                        geojson_path.stat().st_size / 1e6)
+            return geojson_path
+        except Exception as exc:
+            logger.debug("Zones inondables WFS failed: %s", exc)
+            if geojson_path.exists():
+                geojson_path.unlink()
+
+    logger.debug("Zones inondables unavailable — place zones_inondables.geojson in data_cache/")
+    return None
+
+
+def build_inondable_index(geojson_path: Path, index_path: Path) -> int:
+    """
+    Build compact spatial index from zones inondables GeoJSON.
+    Keeps récurrence/type fields for risk classification.
+    Returns number of polygons indexed.
+    """
+    data = json.loads(geojson_path.read_text(encoding="utf-8"))
+    features = data.get("features") or []
+    zones: list[dict] = []
+
+    _KEEP_PROPS = {
+        "RECURRENCE", "TYPE_ZONE", "NM_ZONE", "DESCRIPTION",
+        "CLASSE", "SOURCE", "MRC", "MUNICIPALITE",
+        # alternate field names from different WFS schemas
+        "RECURR", "TYPE", "STATUT",
+    }
+
+    for feat in features:
+        geom = feat.get("geometry") or {}
+        props = feat.get("properties") or {}
+        gtype = geom.get("type", "")
+        keep = {k: v for k, v in props.items() if k.upper() in _KEEP_PROPS and v}
+
+        if gtype == "Polygon":
+            polys = [geom["coordinates"]]
+        elif gtype == "MultiPolygon":
+            polys = geom["coordinates"]
+        else:
+            continue
+
+        for poly in polys:
+            if not poly:
+                continue
+            exterior = poly[0]
+            if len(exterior) < 3:
+                continue
+            xs = [p[0] for p in exterior]
+            ys = [p[1] for p in exterior]
+            zones.append({
+                "props": keep,
+                "bbox": [min(xs), min(ys), max(xs), max(ys)],
+                "ring": _simplify_ring(exterior, max_pts=150),
+            })
+
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps({"zones": zones, "_built_at": time.time(), "_count": len(zones)},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Zones inondables index built: %d zones → %s (%.1f MB)",
+                len(zones), index_path.name, index_path.stat().st_size / 1e6)
+    return len(zones)
+
+
+def lookup_inondable(lat: float, lng: float, cache_dir: Path) -> dict | None:
+    """
+    Return first zone inondable containing (lat, lng).
+
+    Returns dict with source + récurrence if in flood zone,
+    {} if outside all zones, None if data unavailable.
+    """
+    global _INONDABLE_INDEX_CACHE
+
+    index_path = cache_dir / "inondable_index.json"
+
+    if not index_path.exists():
+        geojson_path = cache_dir / "zones_inondables.geojson"
+        if not geojson_path.exists():
+            try:
+                geojson_path = download_inondable(cache_dir)
+            except Exception as exc:
+                logger.debug("Zones inondables download skip: %s", exc)
+                return None
+        if geojson_path and geojson_path.exists():
+            try:
+                build_inondable_index(geojson_path, index_path)
+            except Exception as exc:
+                logger.debug("Inondable index build skip: %s", exc)
+                return None
+
+    if not index_path.exists():
+        return None
+
+    if _INONDABLE_INDEX_CACHE is None:
+        try:
+            data = json.loads(index_path.read_text(encoding="utf-8"))
+            _INONDABLE_INDEX_CACHE = data.get("zones", [])
+        except Exception as exc:
+            logger.debug("Inondable index load failed: %s", exc)
+            return None
+
+    # Return the most restrictive zone (smallest recurrence period = highest risk)
+    hits: list[dict] = []
+    for zone in _INONDABLE_INDEX_CACHE:
+        bbox = zone["bbox"]
+        if not (bbox[0] <= lng <= bbox[2] and bbox[1] <= lat <= bbox[3]):
+            continue
+        if _pip_exterior(lng, lat, zone["ring"]):
+            hits.append(zone["props"])
+
+    if not hits:
+        return {}
+
+    # Prefer zone with smallest recurrence number (highest risk)
+    def _risk_key(props: dict) -> int:
+        rec = str(props.get("RECURRENCE") or props.get("RECURR") or "999")
+        try:
+            return int(rec.split("_")[0].split("-")[0])
+        except ValueError:
+            return 999
+
+    best = sorted(hits, key=_risk_key)[0]
+    rec = best.get("RECURRENCE") or best.get("RECURR") or ""
+    label = _RECURRENCE_LABELS.get(rec, rec)
+    return {
+        "source": "melcc-zones-inondables",
+        "en_zone_inondable": True,
+        "recurrence": rec,
+        "recurrence_label": label,
+        **{k: v for k, v in best.items() if k not in ("RECURRENCE", "RECURR")},
+    }
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -1274,6 +1459,7 @@ def enrich_case(
       - case["zonage_urbanisme"]    : official zone code + description (open data GeoJSON)
       - case["zone_agricole"]       : CPTAQ agricultural zone status (bool + MRC info)
       - case["patrimoine_culturel"] : {} if not listed, dict with statut/nom if found
+      - case["zone_inondable"]      : {} if outside, dict with recurrence if in flood zone
 
     Never raises — all failures logged at DEBUG level.
     """
@@ -1334,12 +1520,13 @@ def enrich_case(
                 case["evaluation_municipale_totale"] = role["valeur_totale"]
             logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
 
-    # ── Geocode (shared by zonage + CPTAQ + patrimoine) ──────────────────────
+    # ── Geocode (shared by zonage + CPTAQ + patrimoine + inondable) ─────────
     _coords: tuple[float, float] | None = None
     if display_name and (
         not case.get("zonage_urbanisme")
         or not case.get("zone_agricole")
         or not case.get("patrimoine_culturel")
+        or "zone_inondable" not in case
     ):
         try:
             _coords = geocode_address(display_name, cache_dir)
@@ -1379,3 +1566,16 @@ def enrich_case(
                     logger.debug("patrimoine_culturel injecté : %s", pat.get("NOM") or pat.get("NM_BIEN"))
         except Exception as exc:
             logger.debug("patrimoine skip: %s", exc)
+
+    # ── Zones inondables (MELCC) ──────────────────────────────────────────────
+    if "zone_inondable" not in case and _coords:
+        try:
+            lat, lng = _coords
+            inond = lookup_inondable(lat, lng, cache_dir)
+            if inond is not None:
+                case["zone_inondable"] = inond  # {} = hors zone, dict = en zone
+                if inond:
+                    logger.debug("zone_inondable injectée : récurrence=%s",
+                                 inond.get("recurrence"))
+        except Exception as exc:
+            logger.debug("inondable skip: %s", exc)
