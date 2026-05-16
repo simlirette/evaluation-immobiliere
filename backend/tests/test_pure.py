@@ -5630,3 +5630,66 @@ class TestDataEnrichment_RatioPrixLoyer:
             "avantage achat", "marché équilibré",
             "légère faveur location", "forte faveur location"
         )
+
+
+class TestDataEnrichment_VetusteBatiment:
+    """B37 — compute_vetuste_batiment (pure function)."""
+
+    def test_age_et_depreciation(self):
+        """Bâtiment 1985 → 40 ans → 50% dépréciation (40/80*100)."""
+        from engine.data_enrichment import compute_vetuste_batiment
+        case = {"annee_construction": 1985}
+        r = compute_vetuste_batiment(case)
+        assert r["age_ans"] == 40
+        assert r["taux_depreciation_pct"] == pytest.approx(50.0, abs=0.2)
+        assert r["valeur_residuelle_pct"] == pytest.approx(50.0, abs=0.2)
+
+    def test_categorie_neuf(self):
+        """Bâtiment < 10 ans → catégorie 'neuf'."""
+        from engine.data_enrichment import compute_vetuste_batiment
+        case = {"annee_construction": 2020}
+        r = compute_vetuste_batiment(case)
+        assert r["categorie"] == "neuf"
+        assert r["renovation_recommandee"] is False
+
+    def test_categorie_tres_vieux(self):
+        """Bâtiment > 60 ans → catégorie 'très vieux'."""
+        from engine.data_enrichment import compute_vetuste_batiment
+        case = {"annee_construction": 1950}
+        r = compute_vetuste_batiment(case)
+        assert r["categorie"] == "très vieux"
+        assert r["renovation_recommandee"] is True
+
+    def test_depreciation_max_capped(self):
+        """Dépréciation plafonnée à 80% même si âge > 80 ans."""
+        from engine.data_enrichment import compute_vetuste_batiment
+        case = {"annee_construction": 1900}
+        r = compute_vetuste_batiment(case)
+        assert r["taux_depreciation_pct"] == pytest.approx(80.0, abs=0.1)
+
+    def test_fallback_role_municipal(self):
+        """Utilise role_municipal.annee_construction si case manquant."""
+        from engine.data_enrichment import compute_vetuste_batiment
+        case = {"role_municipal": {"annee_construction": 2000}}
+        r = compute_vetuste_batiment(case)
+        assert r["annee_construction"] == 2000
+        assert r["age_ans"] == 25
+
+    def test_enrich_case_injects_vetuste(self, tmp_path):
+        """enrich_case injecte vetuste_batiment si annee_construction présente."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-VET-TEST",
+            "annee_construction": 1990,
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        vet = case.get("vetuste_batiment", {})
+        assert vet.get("source") == "calcul-interne"
+        assert vet.get("age_ans") == 35
+        assert vet.get("categorie") == "mi-vie"
+        assert vet.get("renovation_recommandee") is True

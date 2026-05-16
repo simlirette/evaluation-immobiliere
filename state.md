@@ -250,7 +250,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback valeur: role_municipal.valeur_totale
   - fiche_bien.json + section AMU "Ratio prix/loyer" (Critère 3)
   - 6 tests pass
-- 324 tests pass
+- B37 Vétusté du bâtiment (calcul interne) ✓
+  - compute_vetuste_batiment(case): dépréciation linéaire 1.25%/an (vie utile 80 ans, SCHL)
+  - Inputs: annee_construction (fallback: role_municipal.annee_construction)
+  - age_ans, categorie (neuf/récent/mi-vie/vieux/très vieux), taux_depreciation_pct (plafond 80%)
+  - valeur_residuelle_pct, renovation_recommandee (≥ 25 ans)
+  - fiche_bien.json + section AMU "Vétusté du bâtiment" (Critère 2)
+  - 6 tests pass
+- 330 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

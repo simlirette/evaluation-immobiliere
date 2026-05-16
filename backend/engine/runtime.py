@@ -676,6 +676,12 @@ class RuntimeEngine:
                     k: v for k, v in plr.items()
                     if k not in ("source",) and v is not None
                 }
+            vet = case.get("vetuste_batiment")
+            if vet:
+                fb["vetuste_batiment"] = {
+                    k: v for k, v in vet.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1196,6 +1202,26 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build building age / depreciation section
+            vet_d = case.get("vetuste_batiment") or {}
+            if vet_d:
+                vet_age = vet_d.get("age_ans")
+                vet_annee = vet_d.get("annee_construction")
+                vet_cat = vet_d.get("categorie", "")
+                vet_depr = vet_d.get("taux_depreciation_pct")
+                vet_resid = vet_d.get("valeur_residuelle_pct")
+                vet_renov = vet_d.get("renovation_recommandee")
+                vetuste_section = (
+                    "## Vétusté du bâtiment (calcul interne)\n\n"
+                    + (f"Année de construction : **{vet_annee}** ({vet_age} ans)  \n" if vet_annee else "")
+                    + (f"Catégorie : **{vet_cat}**  \n" if vet_cat else "")
+                    + (f"Dépréciation physique estimée : **{vet_depr:.1f} %**  \n" if vet_depr is not None else "")
+                    + (f"Valeur résiduelle estimée : **{vet_resid:.1f} %**  \n" if vet_resid is not None else "")
+                    + (f"Rénovation majeure recommandée : **{'Oui' if vet_renov else 'Non'}**  \n" if vet_renov is not None else "")
+                    + "\n"
+                )
+            else:
+                vetuste_section = ""
             # Build price-to-rent ratio section
             plr_d = case.get("ratio_prix_loyer") or {}
             if plr_d:
@@ -1344,6 +1370,7 @@ class RuntimeEngine:
                 + nuisances_section
                 + climat_section
                 + crime_section
+                + vetuste_section
                 + taxes_section
                 + couts_section
                 + plr_section

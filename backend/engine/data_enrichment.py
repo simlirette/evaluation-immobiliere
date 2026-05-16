@@ -240,6 +240,16 @@ _PLR_EQUILIBRE      = 20.0  # 15-20 → marché équilibré
 _PLR_FAVEUR_LOCATION = 25.0  # 20-25 → légère faveur location
                               # > 25 → forte faveur location (marché très cher)
 
+# ── Analyse de vieillissement du bâtiment (calcul interne) ───────────────────
+_VETUSTE_VIE_UTILE         = 80   # ans : vie utile standard résidentiel (SCHL)
+_VETUSTE_DEPRECIATION_MAX  = 80.0 # % : dépréciation physique maximale retenue
+_VETUSTE_SEUIL_NEUF        = 10   # < 10 ans = neuf
+_VETUSTE_SEUIL_RECENT      = 20   # 10-20 ans = récent
+_VETUSTE_SEUIL_MOYEN       = 40   # 20-40 ans = mi-vie
+_VETUSTE_SEUIL_VIEUX       = 60   # 40-60 ans = vieux (> 60 = très vieux)
+_VETUSTE_RENOVATION_ANS    = 25   # seuil : rénovation majeure généralement requise
+_ANNEE_REFERENCE           = 2025 # année de calcul (fixe, reproductible)
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3927,6 +3937,65 @@ def compute_ratio_prix_loyer(case: dict) -> dict:
     return result
 
 
+def compute_vetuste_batiment(case: dict) -> dict:
+    """
+    Estimate building age, physical depreciation, and renovation needs.
+
+    Pure function — no external calls.  Uses:
+      - case["annee_construction"]  (or role_municipal.annee_construction as fallback)
+
+    Depreciation: linear, 1.25 %/year (100 % / 80-year useful life), capped at
+    _VETUSTE_DEPRECIATION_MAX (80 %).
+
+    Returns dict with keys:
+      annee_construction, age_ans, categorie, taux_depreciation_pct,
+      valeur_residuelle_pct, renovation_recommandee, source.
+    Returns {} if construction year unavailable.
+    """
+    annee = case.get("annee_construction")
+    if not annee:
+        annee = (case.get("role_municipal") or {}).get("annee_construction")
+    if not annee:
+        return {}
+
+    try:
+        annee = int(annee)
+    except (ValueError, TypeError):
+        return {}
+
+    if annee < 1800 or annee > _ANNEE_REFERENCE:
+        return {}
+
+    age = _ANNEE_REFERENCE - annee
+    taux_depr = min(age / _VETUSTE_VIE_UTILE * 100.0, _VETUSTE_DEPRECIATION_MAX)
+    valeur_residuelle = round(100.0 - taux_depr, 1)
+
+    if age < _VETUSTE_SEUIL_NEUF:
+        categorie = "neuf"
+    elif age < _VETUSTE_SEUIL_RECENT:
+        categorie = "récent"
+    elif age < _VETUSTE_SEUIL_MOYEN:
+        categorie = "mi-vie"
+    elif age < _VETUSTE_SEUIL_VIEUX:
+        categorie = "vieux"
+    else:
+        categorie = "très vieux"
+
+    result = {
+        "annee_construction": annee,
+        "age_ans": age,
+        "categorie": categorie,
+        "taux_depreciation_pct": round(taux_depr, 1),
+        "valeur_residuelle_pct": valeur_residuelle,
+        "renovation_recommandee": age >= _VETUSTE_RENOVATION_ANS,
+        "source": "calcul-interne",
+    }
+
+    logger.debug("vetuste_batiment : %d ans (%s) deprec=%.1f%%",
+                 age, categorie, taux_depr)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4368,3 +4437,16 @@ def enrich_case(
                              plr.get("ratio_prix_loyer", 0), plr.get("signal"))
         except Exception as exc:
             logger.debug("ratio_prix_loyer skip: %s", exc)
+
+    # ── Vétusté du bâtiment (calcul interne, depuis annee_construction) ───────
+    if not case.get("vetuste_batiment"):
+        try:
+            vetuste = compute_vetuste_batiment(case)
+            if vetuste:
+                case["vetuste_batiment"] = vetuste
+                logger.debug("vetuste_batiment : %d ans (%s) deprec=%.1f%%",
+                             vetuste.get("age_ans", 0),
+                             vetuste.get("categorie"),
+                             vetuste.get("taux_depreciation_pct", 0))
+        except Exception as exc:
+            logger.debug("vetuste_batiment skip: %s", exc)
