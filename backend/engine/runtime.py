@@ -700,6 +700,12 @@ class RuntimeEngine:
                     k: v for k, v in val_ind.items()
                     if k not in ("source",) and v is not None
                 }
+            sg = case.get("score_global")
+            if sg:
+                fb["score_global"] = {
+                    k: v for k, v in sg.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1418,11 +1424,24 @@ class RuntimeEngine:
                 )
             else:
                 score_marche_section = ""
+            # Build global score header
+            sg_d = case.get("score_global") or {}
+            if sg_d:
+                sg_score = sg_d.get("score_global")
+                sg_grade = sg_d.get("grade", "")
+                sg_reco = sg_d.get("recommandation_finale", "")
+                score_global_header = (
+                    f"> **Score global : {sg_score:.2f} / 10 — Grade {sg_grade}**  \n"
+                    f"> {sg_reco}\n\n"
+                ) if sg_score is not None else ""
+            else:
+                score_global_header = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
                 f"**Type de bien :** {type_bien}  \n"
                 f"**Zone :** {zone_code}\n\n"
+                + score_global_header
                 + zonage_section
                 + patrimoine_section
                 + inond_section

@@ -283,7 +283,16 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Note disclaimer "à titre indicatif uniquement" dans AMU
   - fiche_bien.json + section AMU "Estimation de valeur indicative" (Critère 4)
   - 6 tests pass
-- 348 tests pass
+- B41 Score global de synthèse (calcul interne — capstone) ✓
+  - compute_score_global(case): synthèse B33+B38+B39
+  - Poids: score_investissement 35%, score_risque 35%, indice_qualite_vie 30%
+  - Re-normalisé si composante absente (≥2 requises)
+  - grade: A (≥8.0) / B (≥6.5) / C (≥5.0) / D (≥3.5) / F (<3.5)
+  - recommandation_finale: texte actionnable par grade
+  - Score global affiché en en-tête du rapport AMU (blockquote)
+  - fiche_bien.json + header AMU
+  - 6 tests pass
+- 354 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

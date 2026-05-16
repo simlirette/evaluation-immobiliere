@@ -5922,3 +5922,75 @@ class TestDataEnrichment_ValeurIndicative:
         assert vi.get("source") == "calcul-interne"
         assert vi.get("valeur_indicative_synthese") == pytest.approx(515_000, abs=1)
         assert "Comparative" in " ".join(vi.get("methodes_utilisees", []))
+
+
+class TestDataEnrichment_ScoreGlobal:
+    """B41 — compute_score_global (pure function, capstone)."""
+
+    def _full_case(self):
+        return {
+            "score_investissement": {"score_investissement": 8.0},
+            "indice_qualite_vie":   {"indice_qualite_vie": 7.5},
+            "score_risque":         {"score_risque": 8.5},
+        }
+
+    def test_score_range(self):
+        """Score entre 0 et 10."""
+        from engine.data_enrichment import compute_score_global
+        r = compute_score_global(self._full_case())
+        assert 0.0 <= r["score_global"] <= 10.0
+
+    def test_grade_A(self):
+        """Inputs ≥ 8 → grade A."""
+        from engine.data_enrichment import compute_score_global
+        r = compute_score_global(self._full_case())
+        assert r["grade"] == "A"
+
+    def test_grade_F(self):
+        """Inputs très bas → grade F."""
+        from engine.data_enrichment import compute_score_global
+        case = {
+            "score_investissement": {"score_investissement": 1.0},
+            "score_risque":         {"score_risque": 1.0},
+        }
+        r = compute_score_global(case)
+        assert r["grade"] == "F"
+
+    def test_weighted_average(self):
+        """Score pondéré correct avec 2 composantes."""
+        from engine.data_enrichment import compute_score_global
+        # 35% invest + 35% risque = 70% total → re-normalisé sur 100%
+        case = {
+            "score_investissement": {"score_investissement": 10.0},
+            "score_risque":         {"score_risque": 0.0},
+        }
+        r = compute_score_global(case)
+        # (10*0.35 + 0*0.35) / 0.70 = 5.0
+        assert r["score_global"] == pytest.approx(5.0, abs=0.1)
+
+    def test_fewer_than_two_returns_empty(self):
+        """Moins de 2 composantes → dict vide."""
+        from engine.data_enrichment import compute_score_global
+        case = {"score_investissement": {"score_investissement": 7.0}}
+        assert compute_score_global(case) == {}
+
+    def test_enrich_case_injects_score_global(self, tmp_path):
+        """enrich_case injecte score_global quand B33+B38+B39 disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-GLOBAL-TEST",
+            "score_investissement": {"score_investissement": 7.0},
+            "indice_qualite_vie":   {"indice_qualite_vie": 6.5},
+            "score_risque":         {"score_risque": 8.0},
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        sg = case.get("score_global", {})
+        assert sg.get("source") == "calcul-interne"
+        assert sg.get("score_global") is not None
+        assert sg.get("grade") in ("A", "B", "C", "D", "F")
+        assert sg.get("recommandation_finale")

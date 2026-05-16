@@ -279,6 +279,17 @@ _VALEUR_POIDS_REVENU     = 0.40  # approche revenu (GRM)
 # Écart acceptable entre les deux approches avant avertissement
 _VALEUR_ECART_AVERTISSEMENT_PCT = 20.0  # % : écart > 20% → fiabilité réduite
 
+# ── Score global de synthèse (calcul interne) ─────────────────────────────────
+_GLOBAL_POIDS_INVESTISSEMENT = 0.35
+_GLOBAL_POIDS_QUALITE_VIE   = 0.30
+_GLOBAL_POIDS_RISQUE        = 0.35
+
+_GLOBAL_GRADE_A = 8.0   # ≥ 8.0 → A (excellent)
+_GLOBAL_GRADE_B = 6.5   # ≥ 6.5 → B (bon)
+_GLOBAL_GRADE_C = 5.0   # ≥ 5.0 → C (acceptable)
+_GLOBAL_GRADE_D = 3.5   # ≥ 3.5 → D (faible)
+                         # < 3.5 → F (déconseillé)
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -4280,6 +4291,70 @@ def compute_valeur_indicative(case: dict) -> dict:
     return result
 
 
+def compute_score_global(case: dict) -> dict:
+    """
+    Compute a single composite score (0–10) and letter grade for the property.
+
+    Pure function — no external calls.  Synthesizes:
+      - score_investissement.score_investissement  (B33) — weight 35 %
+      - indice_qualite_vie.indice_qualite_vie       (B38) — weight 30 %
+      - score_risque.score_risque                  (B39) — weight 35 %
+
+    Returns {} if fewer than 2 components available.
+
+    Returns dict with:
+      score_global, grade (A–F), recommandation_finale, composantes, poids, source.
+    """
+    composantes: dict[str, float] = {}
+
+    invest = (case.get("score_investissement") or {}).get("score_investissement")
+    if invest is not None and 0 <= invest <= 10:
+        composantes["score_investissement"] = float(invest)
+
+    qdv = (case.get("indice_qualite_vie") or {}).get("indice_qualite_vie")
+    if qdv is not None and 0 <= qdv <= 10:
+        composantes["indice_qualite_vie"] = float(qdv)
+
+    risque = (case.get("score_risque") or {}).get("score_risque")
+    if risque is not None and 0 <= risque <= 10:
+        composantes["score_risque"] = float(risque)
+
+    if len(composantes) < 2:
+        return {}
+
+    poids_map = {
+        "score_investissement": _GLOBAL_POIDS_INVESTISSEMENT,
+        "indice_qualite_vie":   _GLOBAL_POIDS_QUALITE_VIE,
+        "score_risque":         _GLOBAL_POIDS_RISQUE,
+    }
+    score_num   = sum(composantes[k] * poids_map[k] for k in composantes)
+    poids_total = sum(poids_map[k] for k in composantes)
+    score_final = round(score_num / poids_total, 2)
+
+    if score_final >= _GLOBAL_GRADE_A:
+        grade, recommandation = "A", "Excellent dossier — priorité haute"
+    elif score_final >= _GLOBAL_GRADE_B:
+        grade, recommandation = "B", "Bon dossier — recommandé"
+    elif score_final >= _GLOBAL_GRADE_C:
+        grade, recommandation = "C", "Dossier acceptable — analyse approfondie conseillée"
+    elif score_final >= _GLOBAL_GRADE_D:
+        grade, recommandation = "D", "Dossier faible — risques importants à documenter"
+    else:
+        grade, recommandation = "F", "Dossier déconseillé — risques majeurs identifiés"
+
+    result = {
+        "score_global": score_final,
+        "grade": grade,
+        "recommandation_finale": recommandation,
+        "composantes": composantes,
+        "poids": {k: poids_map[k] for k in composantes},
+        "source": "calcul-interne",
+    }
+
+    logger.debug("score_global : %.2f/10 grade=%s (%s)", score_final, grade, recommandation)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4770,3 +4845,15 @@ def enrich_case(
                              valeur.get("fiabilite"))
         except Exception as exc:
             logger.debug("valeur_indicative skip: %s", exc)
+
+    # ── Score global de synthèse (calcul interne, dépend B33+B38+B39) ─────────
+    if not case.get("score_global"):
+        try:
+            global_score = compute_score_global(case)
+            if global_score:
+                case["score_global"] = global_score
+                logger.debug("score_global : %.2f/10 grade=%s",
+                             global_score.get("score_global", 0),
+                             global_score.get("grade"))
+        except Exception as exc:
+            logger.debug("score_global skip: %s", exc)
