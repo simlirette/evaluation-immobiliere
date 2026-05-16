@@ -128,6 +128,27 @@ _BOC_SERIES: dict[str, str] = {
     "V122496":      "taux_hypo_1an_pct",          # 1-year conventional mortgage
 }
 
+# ── Marché du travail CMA (StatCan 14-10-0096-01) ────────────────────────────
+_TRAVAIL_TABLE = 1410009601  # 14-10-0096-01 : Labour force characteristics by CMA (SA)
+
+# city_code → StatCan GEO labels (CMA, EN)
+_TRAVAIL_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal", "Montreal"],
+    "quebec":         ["Québec", "Quebec"],
+    "gatineau":       ["Ottawa - Gatineau", "Gatineau"],
+    "sherbrooke":     ["Sherbrooke"],
+    "saguenay":       ["Saguenay"],
+    "trois-rivieres": ["Trois-Rivières", "Trois-Rivieres"],
+    "drummondville":  ["Drummondville"],
+}
+
+# Labour force characteristics to extract (dim 1 member search terms)
+_TRAVAIL_INDICATORS: dict[str, list[str]] = {
+    "taux_chomage_pct":    ["Unemployment rate"],
+    "taux_emploi_pct":     ["Employment rate"],
+    "taux_participation_pct": ["Participation rate"],
+}
+
 # ── Population CMA (StatCan 17-10-0135-01) ───────────────────────────────────
 _POP_TABLE = 1710013501  # 17-10-0135-01 : Estimations de population par CMA
 
@@ -362,10 +383,21 @@ def _cube_metadata(pid: int, cache_dir: Path) -> dict:
 
 
 def _find_member_ordinal(dims: list[dict], dim_idx: int, search_terms: list[str]) -> int | None:
-    """Return ordinal of best-matching member in dimension dim_idx."""
+    """Return ordinal of best-matching member in dimension dim_idx.
+
+    Tries exact match first, then substring match — avoids false positives
+    like "employment rate" matching inside "unemployment rate".
+    """
     if dim_idx >= len(dims):
         return None
     members = dims[dim_idx].get("member", [])
+    # Pass 1: exact match
+    for term in search_terms:
+        t = _norm(term)
+        for m in members:
+            if t == _norm(str(m.get("memberNameEn", ""))):
+                return int(m["memberId"])
+    # Pass 2: substring match (fallback)
     for term in search_terms:
         t = _norm(term)
         for m in members:
@@ -459,6 +491,76 @@ def fetch_taux_boc(cache_dir: Path) -> dict:
                  result.get("taux_directeur_pct", 0),
                  result.get("taux_hypo_5ans_conv_pct", 0))
     return result
+
+
+def fetch_marche_travail(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return labour market indicators for a QC CMA via StatCan WDS (14-10-0096-01).
+
+    Returns dict with keys: taux_chomage_pct, taux_emploi_pct,
+    taux_participation_pct, periode, ville, source.
+    Returns {} on any failure or unsupported city.
+    """
+    geo_labels = _TRAVAIL_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    try:
+        meta = _cube_metadata(_TRAVAIL_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # Dim 0 = GEO
+        geo_ord = _find_member_ordinal(dims, 0, geo_labels)
+        if geo_ord is None:
+            return {}
+
+        # Optional dim 2 (sex) → Both sexes / Total
+        sex_ord: int | None = None
+        if len(dims) >= 3:
+            sex_ord = _find_member_ordinal(dims, 2,
+                                           ["Both sexes", "Total - sex", "Total"])
+            if sex_ord is None:
+                members = dims[2].get("member", [])
+                if members:
+                    sex_ord = int(members[0]["memberId"])
+
+        result: dict = {
+            "source": "statcan-14-10-0096-01",
+            "ville": _SCHL_TO_DISPLAY.get(city_code, city_code),
+        }
+
+        for field_key, searches in _TRAVAIL_INDICATORS.items():
+            ind_ord = _find_member_ordinal(dims, 1, searches)
+            coord = _build_coordinate(geo_ord, ind_ord,
+                                      *([] if sex_ord is None else [sex_ord]))
+            if coord:
+                # latestN=1 for current value
+                payload = [{"productId": _TRAVAIL_TABLE,
+                            "coordinate": coord, "latestN": 1}]
+                data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if (isinstance(data, list) and data
+                        and data[0].get("status") == "SUCCESS"):
+                    pts = data[0].get("object", {}).get("vectorDataPoint", [])
+                    if pts:
+                        try:
+                            result[field_key] = float(pts[0]["value"])
+                            if "periode" not in result:
+                                ref = pts[0].get("refPer") or pts[0].get("refper") or ""
+                                if ref:
+                                    result["periode"] = str(ref)[:7]
+                        except (TypeError, ValueError):
+                            pass
+
+        if len(result) <= 2:
+            return {}
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Marché travail fetch failed for %s: %s", city_code, exc)
+        return {}
 
 
 def fetch_population_growth(city_code: str, cache_dir: Path) -> dict:
@@ -2103,6 +2205,17 @@ def enrich_case(
 
     zone = str(case.get("zone", ""))
     city_code = detect_city(display_name, zone)
+
+    # ── Marché du travail CMA ─────────────────────────────────────────────────
+    if not case.get("marche_travail"):
+        try:
+            travail = fetch_marche_travail(city_code, cache_dir)
+            if travail:
+                case["marche_travail"] = travail
+                logger.debug("marche_travail injecté : %s chômage=%.1f%%",
+                             city_code, travail.get("taux_chomage_pct", 0))
+        except Exception as exc:
+            logger.debug("marche_travail skip: %s", exc)
 
     # ── Croissance démographique CMA ──────────────────────────────────────────
     if not case.get("population_cma"):

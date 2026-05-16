@@ -538,6 +538,12 @@ class RuntimeEngine:
                     k: v for k, v in inond.items()
                     if k not in ("source",) and v is not None
                 }
+            travail = case.get("marche_travail")
+            if travail:
+                fb["marche_travail"] = {
+                    k: v for k, v in travail.items()
+                    if k not in ("source",) and v is not None
+                }
             pop_cma = case.get("population_cma")
             if pop_cma:
                 fb["population_cma"] = {
@@ -687,19 +693,35 @@ class RuntimeEngine:
                 )
             else:
                 cptaq_section = ""
-            # Build population / demographic growth section
+            # Build population + labour market section
             pop_cma = case.get("population_cma") or {}
-            if pop_cma:
+            travail = case.get("marche_travail") or {}
+            if pop_cma or travail:
+                ville_demo = (pop_cma or travail).get("ville", zone)
                 pop_val = pop_cma.get("population")
                 pop_var = pop_cma.get("variation_annuelle_pct")
                 pop_annee = pop_cma.get("annee", "")
+                tx_chom = travail.get("taux_chomage_pct")
+                tx_empl = travail.get("taux_emploi_pct")
+                tx_part = travail.get("taux_participation_pct")
+                periode_trav = travail.get("periode", "")
                 pop_section = (
-                    f"## Démographie — CMA {pop_cma.get('ville', '')}"
-                    + (f" ({pop_annee})" if pop_annee else "")
-                    + "\n\n"
-                    + (f"Population CMA : **{pop_val:,.0f}**  \n" if pop_val else "")
-                    + (f"Croissance annuelle : **{pop_var:+.2f} %**  \n" if pop_var is not None else "")
-                    + "\n"
+                    f"## Démographie et marché du travail — CMA {ville_demo}\n\n"
+                    + (
+                        f"**Population ({pop_annee})**  \n"
+                        + (f"Population : **{pop_val:,.0f}**  \n" if pop_val else "")
+                        + (f"Croissance annuelle : **{pop_var:+.2f} %**  \n" if pop_var is not None else "")
+                        + "\n"
+                        if pop_cma else ""
+                    )
+                    + (
+                        f"**Marché du travail ({periode_trav})**  \n"
+                        + (f"Taux de chômage : **{tx_chom:.1f} %**  \n" if tx_chom is not None else "")
+                        + (f"Taux d'emploi : **{tx_empl:.1f} %**  \n" if tx_empl is not None else "")
+                        + (f"Taux de participation : **{tx_part:.1f} %**  \n" if tx_part is not None else "")
+                        + "\n"
+                        if travail else ""
+                    )
                 )
             else:
                 pop_section = ""

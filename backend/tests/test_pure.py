@@ -2402,6 +2402,139 @@ class TestDataEnrichment_Inondable:
         assert case["zone_inondable"] == {}
 
 
+# ── TestDataEnrichment_Travail ────────────────────────────────────────────────
+
+class TestDataEnrichment_Travail:
+    """Tests for fetch_marche_travail() via StatCan WDS 14-10-0096-01."""
+
+    def _meta(self, geo_labels, indicator_labels, sex_labels=None):
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+        dims = [
+            {"member": members(geo_labels)},
+            {"member": members(indicator_labels)},
+        ]
+        if sex_labels:
+            dims.append({"member": members(sex_labels)})
+        return {"dims": dims}
+
+    def _wds_latest(self, value, period="2025-01"):
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [{"value": str(value), "refPer": period}]
+            },
+        }]
+
+    def test_fetch_travail_success(self, tmp_path):
+        """Three indicators extracted correctly."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_travail
+
+        meta = self._meta(
+            ["Montréal", "Québec"],
+            ["Unemployment rate", "Employment rate", "Participation rate"],
+        )
+        indicator_values = {"1.1": 6.2, "1.2": 61.8, "1.3": 66.0}
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            coord = payload[0]["coordinate"]
+            return self._wds_latest(indicator_values.get(coord, 0.0))
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_marche_travail("montreal", tmp_path)
+
+        assert result.get("ville") == "Montréal"
+        assert result.get("source") == "statcan-14-10-0096-01"
+        assert result.get("taux_chomage_pct") == 6.2
+        assert result.get("taux_emploi_pct") == 61.8
+        assert result.get("taux_participation_pct") == 66.0
+        assert result.get("periode") == "2025-01"
+
+    def test_fetch_travail_unsupported_city(self, tmp_path):
+        """Unknown city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_travail
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_marche_travail("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_travail_no_meta(self, tmp_path):
+        """Empty metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_travail
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_marche_travail("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_travail_geo_not_found(self, tmp_path):
+        """No GEO match → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_travail
+
+        meta = self._meta(["Toronto", "Vancouver"], ["Unemployment rate"])
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_marche_travail("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_travail_with_sex_dim(self, tmp_path):
+        """3-dim table (with sex dim) extracts correctly."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_marche_travail
+
+        meta = self._meta(
+            ["Montréal"],
+            ["Unemployment rate", "Employment rate", "Participation rate"],
+            ["Both sexes", "Male", "Female"],
+        )
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return self._wds_latest(5.9)
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                result = fetch_marche_travail("montreal", tmp_path)
+
+        assert result.get("taux_chomage_pct") == 5.9
+
+    def test_enrich_case_injects_marche_travail(self, tmp_path):
+        """enrich_case populates marche_travail via fetch_marche_travail."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        travail_data = {
+            "ville": "Montréal",
+            "source": "statcan-14-10-0096-01",
+            "taux_chomage_pct": 6.1,
+            "taux_emploi_pct": 62.3,
+            "periode": "2025-02",
+        }
+
+        with mock.patch.object(de, "fetch_marche_travail", return_value=travail_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-TRAV-TEST"}
+                enrich_case(case, display_name="800 boul. René-Lévesque, Montréal",
+                            cache_dir=tmp_path)
+
+        mt = case.get("marche_travail", {})
+        assert mt.get("taux_chomage_pct") == 6.1
+        assert mt.get("taux_emploi_pct") == 62.3
+
+
 # ── TestDataEnrichment_Population ────────────────────────────────────────────
 
 class TestDataEnrichment_Population:
