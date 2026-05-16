@@ -682,6 +682,12 @@ class RuntimeEngine:
                     k: v for k, v in vet.items()
                     if k not in ("source",) and v is not None
                 }
+            qdv = case.get("indice_qualite_vie")
+            if qdv:
+                fb["indice_qualite_vie"] = {
+                    k: v for k, v in qdv.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1202,6 +1208,28 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build quality-of-life index section
+            qdv_d = case.get("indice_qualite_vie") or {}
+            if qdv_d:
+                qdv_score = qdv_d.get("indice_qualite_vie")
+                qdv_interp = qdv_d.get("interpretation", "")
+                qdv_comp = qdv_d.get("composantes") or {}
+                qdv_section = (
+                    "## Indice de qualité de vie (calcul interne)\n\n"
+                    + (f"Score : **{qdv_score:.2f} / 10** — {qdv_interp}  \n" if qdv_score is not None else "")
+                    + (
+                        "Composantes : "
+                        + ", ".join(
+                            f"{k.replace('_', ' ')} {v:.1f}/10"
+                            for k, v in qdv_comp.items()
+                        )
+                        + "  \n"
+                        if qdv_comp else ""
+                    )
+                    + "\n"
+                )
+            else:
+                qdv_section = ""
             # Build building age / depreciation section
             vet_d = case.get("vetuste_batiment") or {}
             if vet_d:
@@ -1371,6 +1399,7 @@ class RuntimeEngine:
                 + climat_section
                 + crime_section
                 + vetuste_section
+                + qdv_section
                 + taxes_section
                 + couts_section
                 + plr_section

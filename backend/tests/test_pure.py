@@ -5693,3 +5693,82 @@ class TestDataEnrichment_VetusteBatiment:
         assert vet.get("age_ans") == 35
         assert vet.get("categorie") == "mi-vie"
         assert vet.get("renovation_recommandee") is True
+
+
+class TestDataEnrichment_IndiceQualiteVie:
+    """B38 — compute_indice_qualite_vie (pure function)."""
+
+    def _full_case(self):
+        return {
+            "crime_stats": {"taux_criminalite_total": 2_000},
+            "nuisances_environnementales": {"score_nuisances": 0},
+            "proximite_services": {
+                "ecoles_1km": 3,
+                "arrets_transport_500m": 5,
+                "epiceries_500m": 2,
+                "parcs_1km": 4,
+            },
+            "enseignement_postsecondaire": {"total_postsecondaire": 3},
+        }
+
+    def test_score_range(self):
+        """Score entre 0 et 10."""
+        from engine.data_enrichment import compute_indice_qualite_vie
+        r = compute_indice_qualite_vie(self._full_case())
+        assert 0.0 <= r["indice_qualite_vie"] <= 10.0
+
+    def test_excellent_interpretation(self):
+        """Inputs optimaux → interprétation 'excellent'."""
+        from engine.data_enrichment import compute_indice_qualite_vie
+        r = compute_indice_qualite_vie(self._full_case())
+        assert r["interpretation"] == "excellent"
+
+    def test_faible_interpretation(self):
+        """Crime élevé + nuisances max + zéro services → 'faible'."""
+        from engine.data_enrichment import compute_indice_qualite_vie
+        case = {
+            "crime_stats": {"taux_criminalite_total": 8_000},
+            "nuisances_environnementales": {"score_nuisances": 4},
+            "proximite_services": {
+                "ecoles_1km": 0, "arrets_transport_500m": 0,
+                "epiceries_500m": 0, "parcs_1km": 0,
+            },
+        }
+        r = compute_indice_qualite_vie(case)
+        assert r["interpretation"] == "faible"
+
+    def test_composantes_keys(self):
+        """Toutes composantes présentes dans le dict."""
+        from engine.data_enrichment import compute_indice_qualite_vie
+        r = compute_indice_qualite_vie(self._full_case())
+        for k in ("securite", "environnement", "services", "education"):
+            assert k in r["composantes"]
+
+    def test_fewer_than_two_returns_empty(self):
+        """Moins de 2 composantes → dict vide."""
+        from engine.data_enrichment import compute_indice_qualite_vie
+        case = {"crime_stats": {"taux_criminalite_total": 3_000}}
+        assert compute_indice_qualite_vie(case) == {}
+
+    def test_enrich_case_injects_qdv(self, tmp_path):
+        """enrich_case injecte indice_qualite_vie quand données dispo."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-QDV-TEST",
+            "crime_stats": {"taux_criminalite_total": 3_500},
+            "nuisances_environnementales": {"score_nuisances": 1},
+            "proximite_services": {
+                "ecoles_1km": 2, "arrets_transport_500m": 4,
+                "epiceries_500m": 1, "parcs_1km": 3,
+            },
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        qdv = case.get("indice_qualite_vie", {})
+        assert qdv.get("source") == "calcul-interne"
+        assert qdv.get("indice_qualite_vie") is not None
+        assert qdv.get("interpretation") in ("excellent", "bon", "acceptable", "faible")

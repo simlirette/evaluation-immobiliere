@@ -250,6 +250,17 @@ _VETUSTE_SEUIL_VIEUX       = 60   # 40-60 ans = vieux (> 60 = très vieux)
 _VETUSTE_RENOVATION_ANS    = 25   # seuil : rénovation majeure généralement requise
 _ANNEE_REFERENCE           = 2025 # année de calcul (fixe, reproductible)
 
+# ── Indice de qualité de vie (calcul interne) ─────────────────────────────────
+_QDV_POIDS_SECURITE      = 0.30  # crime_stats (B21)
+_QDV_POIDS_ENVIRONNEMENT = 0.25  # nuisances_environnementales (B28)
+_QDV_POIDS_SERVICES      = 0.30  # proximite_services (B20)
+_QDV_POIDS_EDUCATION     = 0.15  # enseignement_postsecondaire (B27)
+
+_QDV_CRIME_MAX     = 8_000.0  # /100k : taux maximal utilisé pour normaliser (0 pt)
+_QDV_SEUIL_EXCELLENT = 8.0
+_QDV_SEUIL_BON       = 6.0
+_QDV_SEUIL_ACCEPTABLE = 4.0
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3996,6 +4007,86 @@ def compute_vetuste_batiment(case: dict) -> dict:
     return result
 
 
+def compute_indice_qualite_vie(case: dict) -> dict:
+    """
+    Compute a composite quality-of-life index (0–10) for the property location.
+
+    Pure function — no external calls.  Synthesizes:
+      - crime_stats.taux_criminalite_total  (B21) — sécurité (weight 30 %)
+      - nuisances_environnementales.score_nuisances  (B28) — env. (weight 25 %)
+      - proximite_services  (B20) — accès services (weight 30 %)
+      - enseignement_postsecondaire.total_postsecondaire  (B27) — éducation (15 %)
+
+    Each component normalised to [0, 10] before weighting.
+    Returns {} if fewer than 2 components available.
+    """
+    composantes: dict[str, float] = {}
+
+    # ── Sécurité (crime inversé) ──────────────────────────────────────────────
+    crime = (case.get("crime_stats") or {}).get("taux_criminalite_total")
+    if crime is not None and crime >= 0:
+        sec_norm = max(0.0, min(10.0, (_QDV_CRIME_MAX - crime) / _QDV_CRIME_MAX * 10.0))
+        composantes["securite"] = round(sec_norm, 2)
+
+    # ── Environnement (nuisances inversées, 0-4 → 10-0) ──────────────────────
+    nuisances_score = (case.get("nuisances_environnementales") or {}).get("score_nuisances")
+    if nuisances_score is not None and 0 <= nuisances_score <= 4:
+        env_norm = (4.0 - nuisances_score) / 4.0 * 10.0
+        composantes["environnement"] = round(env_norm, 2)
+
+    # ── Services (présence de 4 catégories → 0-10) ───────────────────────────
+    prox = case.get("proximite_services") or {}
+    if prox:
+        indicateurs = [
+            (prox.get("ecoles_1km") or 0) > 0,
+            (prox.get("arrets_transport_500m") or 0) > 0,
+            (prox.get("epiceries_500m") or 0) > 0,
+            (prox.get("parcs_1km") or 0) > 0,
+        ]
+        services_norm = sum(indicateurs) / len(indicateurs) * 10.0
+        composantes["services"] = round(services_norm, 2)
+
+    # ── Éducation post-secondaire (0-3+ établissements → 0-10) ───────────────
+    total_postsec = (case.get("enseignement_postsecondaire") or {}).get("total_postsecondaire")
+    if total_postsec is not None and total_postsec >= 0:
+        educ_norm = min(float(total_postsec) / 3.0 * 10.0, 10.0)
+        composantes["education"] = round(educ_norm, 2)
+
+    if len(composantes) < 2:
+        return {}
+
+    poids_map = {
+        "securite":      _QDV_POIDS_SECURITE,
+        "environnement": _QDV_POIDS_ENVIRONNEMENT,
+        "services":      _QDV_POIDS_SERVICES,
+        "education":     _QDV_POIDS_EDUCATION,
+    }
+    score_num = sum(composantes[k] * poids_map[k] for k in composantes)
+    poids_total = sum(poids_map[k] for k in composantes)
+    score_final = round(score_num / poids_total, 2)
+
+    if score_final >= _QDV_SEUIL_EXCELLENT:
+        interpretation = "excellent"
+    elif score_final >= _QDV_SEUIL_BON:
+        interpretation = "bon"
+    elif score_final >= _QDV_SEUIL_ACCEPTABLE:
+        interpretation = "acceptable"
+    else:
+        interpretation = "faible"
+
+    result = {
+        "indice_qualite_vie": score_final,
+        "composantes": composantes,
+        "poids": {k: poids_map[k] for k in composantes},
+        "interpretation": interpretation,
+        "source": "calcul-interne",
+    }
+
+    logger.debug("indice_qualite_vie : %.2f/10 (%s) — %d composantes",
+                 score_final, interpretation, len(composantes))
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4450,3 +4541,14 @@ def enrich_case(
                              vetuste.get("taux_depreciation_pct", 0))
         except Exception as exc:
             logger.debug("vetuste_batiment skip: %s", exc)
+
+    # ── Indice de qualité de vie (calcul interne, dépend B20+B21+B27+B28) ────
+    if not case.get("indice_qualite_vie"):
+        try:
+            qdv = compute_indice_qualite_vie(case)
+            if qdv:
+                case["indice_qualite_vie"] = qdv
+                logger.debug("indice_qualite_vie : %.2f/10 (%s)",
+                             qdv.get("indice_qualite_vie", 0), qdv.get("interpretation"))
+        except Exception as exc:
+            logger.debug("indice_qualite_vie skip: %s", exc)

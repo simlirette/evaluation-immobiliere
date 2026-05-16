@@ -257,7 +257,15 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - valeur_residuelle_pct, renovation_recommandee (≥ 25 ans)
   - fiche_bien.json + section AMU "Vétusté du bâtiment" (Critère 2)
   - 6 tests pass
-- 330 tests pass
+- B38 Indice de qualité de vie (calcul interne) ✓
+  - compute_indice_qualite_vie(case): synthèse B20+B21+B27+B28
+  - Poids: sécurité 30%, services 30%, environnement 25%, éducation 15%
+  - Normalisation: crime 0-8000/100k→0-10, nuisances 4-0→0-10, services 4 catégories, postsec 0-3+→0-10
+  - interpretation: excellent (≥8), bon (≥6), acceptable (≥4), faible
+  - Minimum 2 composantes requis, sinon {}
+  - fiche_bien.json + section AMU "Indice de qualité de vie" (Critère 2/3)
+  - 6 tests pass
+- 336 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
