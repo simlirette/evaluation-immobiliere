@@ -610,6 +610,12 @@ class RuntimeEngine:
                     k: v for k, v in prox.items()
                     if k not in ("source",) and v is not None
                 }
+            routes = case.get("proximite_routes")
+            if routes:
+                fb["proximite_routes"] = {
+                    k: v for k, v in routes.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -990,6 +996,23 @@ class RuntimeEngine:
                 )
             else:
                 proximite_section = ""
+            # Build road proximity section
+            routes = case.get("proximite_routes") or {}
+            if routes:
+                r_auto = routes.get("autoroute_km")
+                r_nat = routes.get("route_nationale_km")
+                r_art = routes.get("artere_km")
+                r_interp = routes.get("interpretation", "")
+                routes_section = (
+                    "## Accès aux axes routiers (OpenStreetMap)\n\n"
+                    + (f"Autoroute la plus proche : **{r_auto:.1f} km**  \n" if r_auto is not None else "")
+                    + (f"Route nationale (trunk) : **{r_nat:.1f} km**  \n" if r_nat is not None else "")
+                    + (f"Artère principale : **{r_art:.1f} km**  \n" if r_art is not None else "")
+                    + (f"Évaluation : **{r_interp}**  \n" if r_interp else "")
+                    + "\n"
+                )
+            else:
+                routes_section = ""
             # Build crime statistics section
             crime = case.get("crime_stats") or {}
             if crime:
@@ -1050,6 +1073,7 @@ class RuntimeEngine:
                 + permis_section
                 + census_section
                 + proximite_section
+                + routes_section
                 + crime_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

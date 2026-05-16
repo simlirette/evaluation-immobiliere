@@ -4392,3 +4392,167 @@ class TestDataEnrichment_UnitesAbsorbees:
         ua = case.get("unites_absorbees", {})
         assert ua.get("unites_absorbees_total") == 920.0
         assert ua.get("variation_pct_4q") == 8.5
+
+
+# ── TestDataEnrichment_ProximiteRoutes ───────────────────────────────────────
+
+class TestDataEnrichment_ProximiteRoutes:
+    """Tests for fetch_proximite_routes() via OSM Overpass API."""
+
+    def _overpass_way(self, center_lat: float, center_lon: float) -> dict:
+        """Fake Overpass response with one way (center point)."""
+        return {
+            "elements": [
+                {
+                    "type": "way",
+                    "id": 12345,
+                    "center": {"lat": center_lat, "lon": center_lon},
+                }
+            ]
+        }
+
+    def test_fetch_proximite_routes_success(self, tmp_path):
+        """Returns distances to autoroute, route_nationale, artere + interpretation."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_routes
+
+        # Property at (45.51, -73.56) — MTL downtown
+        # Mock: autoroute 1km away, trunk 3km, primary 0.3km
+        call_count = [0]
+
+        def fake_urlopen(req, timeout=25):
+            call_count[0] += 1
+            query = req.data.decode()
+            if "motorway" in query:
+                body = self._overpass_way(45.5188, -73.5600)  # ~1 km north
+            elif "trunk" in query:
+                body = self._overpass_way(45.5380, -73.5600)  # ~3 km north
+            else:  # primary
+                body = self._overpass_way(45.5130, -73.5600)  # ~0.3 km north
+            import io
+            return io.BytesIO(json.dumps(body).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_proximite_routes(45.51, -73.56, tmp_path)
+
+        assert result.get("source") == "openstreetmap-overpass-routes"
+        assert result.get("autoroute_km") is not None
+        assert result.get("artere_km") is not None
+        # autoroute ~1km → "excellent accès autoroutier"
+        assert result.get("interpretation") == "excellent accès autoroutier"
+
+    def test_fetch_proximite_routes_no_roads(self, tmp_path):
+        """No roads within radius → {} (only source+lat+lng+interpretation = 4 keys)."""
+        import unittest.mock as mock
+        import io
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_routes
+
+        def fake_urlopen(req, timeout=25):
+            return io.BytesIO(json.dumps({"elements": []}).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_proximite_routes(45.51, -73.56, tmp_path)
+
+        assert result == {}
+
+    def test_fetch_proximite_routes_cache_hit(self, tmp_path):
+        """Cached result returned without Overpass call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_routes
+
+        cached = {
+            "source": "openstreetmap-overpass-routes",
+            "lat": 45.51,
+            "lng": -73.56,
+            "autoroute_km": 1.2,
+            "artere_km": 0.4,
+            "interpretation": "excellent accès autoroutier",
+            "_ts": time.time() + 1_000,
+        }
+        (tmp_path / "routes_45.51_-73.56.json").write_text(json.dumps(cached))
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_proximite_routes(45.51, -73.56, tmp_path)
+
+        mock_url.assert_not_called()
+        assert result.get("autoroute_km") == 1.2
+
+    def test_fetch_proximite_routes_interpretation_modere(self, tmp_path):
+        """Autoroute 7km, no primary nearby → 'accès modéré'."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_routes
+
+        def fake_urlopen(req, timeout=25):
+            query = req.data.decode()
+            if "motorway" in query:
+                # 7km north of property (45.51 → 45.573)
+                body = self._overpass_way(45.573, -73.56)
+            else:
+                body = {"elements": []}
+            return io.BytesIO(json.dumps(body).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_proximite_routes(45.51, -73.56, tmp_path)
+
+        assert result.get("interpretation") == "accès modéré"
+
+    def test_fetch_proximite_routes_partial_failure(self, tmp_path):
+        """Network error on one road type → partial result still returned."""
+        import json
+        import unittest.mock as mock
+        import io
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_proximite_routes
+
+        call_n = [0]
+
+        def fake_urlopen(req, timeout=25):
+            call_n[0] += 1
+            query = req.data.decode()
+            if "motorway" in query:
+                body = self._overpass_way(45.515, -73.56)  # ~0.5 km
+                return io.BytesIO(json.dumps(body).encode())
+            raise OSError("network timeout")
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = fetch_proximite_routes(45.51, -73.56, tmp_path)
+
+        # autoroute found, trunk/primary skipped → still have autoroute_km
+        assert result.get("autoroute_km") is not None
+        assert result.get("source") == "openstreetmap-overpass-routes"
+
+    def test_enrich_case_injects_proximite_routes(self, tmp_path):
+        """enrich_case populates proximite_routes via fetch_proximite_routes."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        routes_data = {
+            "source": "openstreetmap-overpass-routes",
+            "lat": 45.51,
+            "lng": -73.56,
+            "autoroute_km": 1.5,
+            "artere_km": 0.3,
+            "interpretation": "excellent accès autoroutier",
+        }
+
+        with mock.patch.object(de, "fetch_proximite_routes", return_value=routes_data):
+            with mock.patch.object(de, "geocode_address", return_value=(45.51, -73.56)):
+                with mock.patch.object(de, "detect_city", return_value="montreal"):
+                    case: dict = {"dossier_id": "D-ROUTES-TEST"}
+                    enrich_case(case, display_name="500 rue Sherbrooke, Montréal",
+                                cache_dir=tmp_path)
+
+        pr = case.get("proximite_routes", {})
+        assert pr.get("autoroute_km") == 1.5
+        assert pr.get("interpretation") == "excellent accès autoroutier"

@@ -144,6 +144,17 @@ _OVERPASS_QUERIES: list[tuple[str, int, str]] = [
     ("pharmacies_500m",        500, '["amenity"="pharmacy"]'),
 ]
 
+# ── Proximité axes routiers (OSM Overpass) ────────────────────────────────────
+# Reuses _OVERPASS_URL and _OVERPASS_TTL from services section above.
+# highway values ordered from most to least impactful for real estate.
+_ROUTE_TYPES: list[tuple[str, str]] = [
+    # (field_key,            OSM highway= value)
+    ("autoroute_km",         "motorway"),
+    ("route_nationale_km",   "trunk"),
+    ("artere_km",            "primary"),
+]
+_ROUTES_SEARCH_RADIUS_M = 15_000  # 15 km max search radius
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -789,6 +800,84 @@ def fetch_proximite_services(lat: float, lng: float, cache_dir: Path) -> dict:
     _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
     logger.debug("proximite_services injecté : écoles=%s transports=%s",
                  result.get("ecoles_1km"), result.get("arrets_transport_500m"))
+    return result
+
+
+def fetch_proximite_routes(lat: float, lng: float, cache_dir: Path) -> dict:
+    """
+    Return distance to nearest major road axes (motorway / trunk / primary) via
+    OSM Overpass API.
+
+    Uses 'out 1 center;' to retrieve the nearest way's bounding-box centre, then
+    Haversine for distance. Cache keyed by rounded coordinates (4 dp ≈ 11 m).
+    Returns dict with keys: autoroute_km, route_nationale_km, artere_km,
+    interpretation, source, lat, lng. Absent key = no road of that type within
+    15 km. Returns {} on total failure (non-blocking).
+    """
+    import urllib.request
+    import urllib.parse
+
+    lat_r = round(lat, 4)
+    lng_r = round(lng, 4)
+    cache_path = cache_dir / f"routes_{lat_r}_{lng_r}.json"
+    cached = _read_cache_ttl(cache_path, _OVERPASS_TTL)
+    if cached is not None:
+        return cached
+
+    result: dict = {
+        "source": "openstreetmap-overpass-routes",
+        "lat": lat_r,
+        "lng": lng_r,
+    }
+
+    for field_key, hw_value in _ROUTE_TYPES:
+        query = (
+            f"[out:json][timeout:20];"
+            f"way[\"highway\"=\"{hw_value}\"]"
+            f"(around:{_ROUTES_SEARCH_RADIUS_M},{lat_r},{lng_r});"
+            f"out 1 center;"
+        )
+        try:
+            data_enc = urllib.parse.urlencode({"data": query}).encode()
+            req = urllib.request.Request(
+                _OVERPASS_URL,
+                data=data_enc,
+                headers={"User-Agent": "eval-immo/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+            elements = resp_data.get("elements", [])
+            if elements:
+                center = elements[0].get("center", {})
+                c_lat = center.get("lat")
+                c_lon = center.get("lon")
+                if c_lat is not None and c_lon is not None:
+                    dist_km = _haversine_km(lat_r, lng_r, float(c_lat), float(c_lon))
+                    result[field_key] = round(dist_km, 2)
+        except Exception as exc:
+            logger.debug("Overpass routes %s skip: %s", field_key, exc)
+
+    # Interpretation based on nearest autoroute distance
+    auto_km = result.get("autoroute_km")
+    artere_km = result.get("artere_km")
+    if auto_km is not None and auto_km <= 2.0:
+        interpretation = "excellent accès autoroutier"
+    elif auto_km is not None and auto_km <= 5.0:
+        interpretation = "bon accès autoroutier"
+    elif artere_km is not None and artere_km <= 1.0:
+        interpretation = "bon accès artériel"
+    elif auto_km is not None and auto_km <= 10.0:
+        interpretation = "accès modéré"
+    else:
+        interpretation = "accès éloigné des grands axes"
+    result["interpretation"] = interpretation
+
+    if len(result) <= 4:  # only source + lat + lng + interpretation
+        return {}
+
+    _write_cache_ttl(cache_path, result, _OVERPASS_TTL)
+    logger.debug("proximite_routes injecté : autoroute=%.1f km, artere=%.1f km",
+                 result.get("autoroute_km", 0), result.get("artere_km", 0))
     return result
 
 
@@ -3289,3 +3378,15 @@ def enrich_case(
                              prox.get("ecoles_1km"), prox.get("arrets_transport_500m"))
         except Exception as exc:
             logger.debug("proximite_services skip: %s", exc)
+
+    # ── Proximité axes routiers (OSM Overpass) ────────────────────────────────
+    if not case.get("proximite_routes") and _coords:
+        try:
+            lat, lng = _coords
+            routes = fetch_proximite_routes(lat, lng, cache_dir)
+            if routes:
+                case["proximite_routes"] = routes
+                logger.debug("proximite_routes injecté : autoroute=%.1f km interp=%s",
+                             routes.get("autoroute_km", 0), routes.get("interpretation"))
+        except Exception as exc:
+            logger.debug("proximite_routes skip: %s", exc)

@@ -153,6 +153,13 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B26 Proximité axes routiers (OSM Overpass) ✓
+  - fetch_proximite_routes(lat, lng, cache_dir): Overpass QL, 3 types (motorway/trunk/primary)
+  - out 1 center; → Haversine distance au centroïde du way le plus proche
+  - autoroute_km, route_nationale_km, artere_km, interpretation (4 niveaux)
+  - 7j cache, non-bloquant, résultats partiels supportés
+  - fiche_bien.json + section AMU "Accès aux axes routiers" (Critère 2/3)
+  - 6 tests pass
 - B25 Unités absorbées marché neuf (StatCan 34-10-0149-01) ✓
   - fetch_unites_absorbees(city_code, cache_dir): WDS trimestriel, 90j cache
   - unites_absorbees_total/unifamilial/appartement, variation_pct_4q (annuel)
@@ -166,7 +173,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 257 tests pass
+- 263 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
