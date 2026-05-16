@@ -634,6 +634,12 @@ class RuntimeEngine:
                     k: v for k, v in climat.items()
                     if k not in ("source",) and v is not None
                 }
+            abord = case.get("indice_abordabilite")
+            if abord:
+                fb["indice_abordabilite"] = {
+                    k: v for k, v in abord.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -836,6 +842,38 @@ class RuntimeEngine:
                 )
             else:
                 dette_section = ""
+            # Build affordability index section
+            abord = case.get("indice_abordabilite") or {}
+            if abord:
+                a_loyer_r  = abord.get("ratio_loyer_revenu_pct")
+                a_loyer_s  = abord.get("seuil_loyer", "")
+                a_mens     = abord.get("versement_mensuel_estime")
+                a_mens_r   = abord.get("ratio_mensualite_revenu_pct")
+                a_prop_s   = abord.get("seuil_propriete", "")
+                a_prop_rev = abord.get("ratio_propriete_revenu")
+                a_revenu   = abord.get("revenu_median_menage")
+                abord_section = (
+                    "## Indice d'abordabilité du logement (calcul interne)\n\n"
+                    + (f"Revenu médian ménages : **{a_revenu:,.0f} $**  \n" if a_revenu else "")
+                    + (
+                        f"\n**Location**  \n"
+                        + (f"Ratio loyer/revenu mensuel : **{a_loyer_r:.1f} %** — {a_loyer_s}  \n"
+                           if a_loyer_r is not None else "")
+                        if a_loyer_r is not None else ""
+                    )
+                    + (
+                        f"\n**Accession à la propriété**  \n"
+                        + (f"Multiple valeur/revenu : **{a_prop_rev:.1f}×**  \n" if a_prop_rev else "")
+                        + (f"Mensualité estimée (25 ans, 20 % MDP) : **{a_mens:,.0f} $/mois**  \n"
+                           if a_mens else "")
+                        + (f"Ratio mensualité/revenu : **{a_mens_r:.1f} %** — {a_prop_s}  \n"
+                           if a_mens_r is not None else "")
+                        if a_mens is not None else ""
+                    )
+                    + "\n"
+                )
+            else:
+                abord_section = ""
             # Build IPC / inflation section
             ipc = case.get("ipc_logement") or {}
             if ipc:
@@ -1143,6 +1181,7 @@ class RuntimeEngine:
                 + pop_section
                 + financement_section
                 + dette_section
+                + abord_section
                 + ipc_section
                 + marche_section
                 + permis_section

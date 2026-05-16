@@ -5042,3 +5042,115 @@ class TestDataEnrichment_DonneesClimatiques:
         dc = case.get("donnees_climatiques", {})
         assert dc.get("temperature_moyenne_annuelle") == 7.8
         assert dc.get("jours_gel") == 105
+
+
+# ── TestDataEnrichment_IndiceAbordabilite ─────────────────────────────────────
+
+class TestDataEnrichment_IndiceAbordabilite:
+    """Tests for compute_indice_abordabilite() — pure derived function."""
+
+    def _case_with_data(self, revenu=80_000, loyer=1_500, valeur=450_000,
+                        taux_hypo=5.5):
+        return {
+            "donnees_sociodemographiques": {
+                "revenu_median_menage": revenu,
+                "valeur_mediane_logement": valeur,
+            },
+            "marche_locatif": {
+                "loyer_moyen_total": loyer,
+            },
+            "taux_bancaires": {
+                "taux_hypo_5ans_conv_pct": taux_hypo,
+            },
+        }
+
+    def test_compute_abordabilite_success(self):
+        """All inputs present → ratios and seuils computed."""
+        from engine.data_enrichment import compute_indice_abordabilite
+
+        case = self._case_with_data(revenu=80_000, loyer=1_500,
+                                    valeur=450_000, taux_hypo=5.5)
+        result = compute_indice_abordabilite(case)
+
+        assert result.get("source") == "calcul-interne"
+        # Ratio loyer: 1500 / (80000/12) * 100 = 22.5 %
+        assert result.get("ratio_loyer_revenu_pct") == pytest.approx(22.5, abs=0.2)
+        assert result.get("seuil_loyer") == "abordable"
+        # Multiple: 450000 / 80000 = 5.625
+        assert result.get("ratio_propriete_revenu") == pytest.approx(5.6, abs=0.2)
+        # Mensualité 25 ans, 20% MDP, 5.5%/12 mensuel
+        assert result.get("versement_mensuel_estime") is not None
+        assert 2_000 < result.get("versement_mensuel_estime") < 3_000
+        assert result.get("ratio_mensualite_revenu_pct") is not None
+        assert result.get("seuil_propriete") in ("abordable", "limite", "non abordable")
+
+    def test_compute_abordabilite_no_revenu(self):
+        """No revenu_median_menage → {}."""
+        from engine.data_enrichment import compute_indice_abordabilite
+
+        result = compute_indice_abordabilite({})
+        assert result == {}
+
+    def test_compute_abordabilite_loyer_non_abordable(self):
+        """High rent relative to low income → 'non abordable'."""
+        from engine.data_enrichment import compute_indice_abordabilite
+
+        case = self._case_with_data(revenu=36_000, loyer=1_800, valeur=300_000)
+        result = compute_indice_abordabilite(case)
+
+        # Ratio loyer: 1800 / (36000/12) * 100 = 60%
+        assert result.get("ratio_loyer_revenu_pct") == pytest.approx(60.0, abs=0.5)
+        assert result.get("seuil_loyer") == "non abordable"
+
+    def test_compute_abordabilite_limite(self):
+        """~35 % loyer/revenu → 'limite'."""
+        from engine.data_enrichment import compute_indice_abordabilite
+
+        # Revenu=60k, loyer=1750 → 35%
+        case = self._case_with_data(revenu=60_000, loyer=1_750, valeur=350_000)
+        result = compute_indice_abordabilite(case)
+
+        ratio = result.get("ratio_loyer_revenu_pct")
+        assert 30 <= ratio <= 40
+        assert result.get("seuil_loyer") == "limite"
+
+    def test_compute_abordabilite_no_taux_hypo(self):
+        """No taux_hypo → ratio_loyer still computed, mensualité absent."""
+        from engine.data_enrichment import compute_indice_abordabilite
+
+        case = {
+            "donnees_sociodemographiques": {
+                "revenu_median_menage": 80_000,
+                "valeur_mediane_logement": 400_000,
+            },
+            "marche_locatif": {"loyer_moyen_total": 1_400},
+        }
+        result = compute_indice_abordabilite(case)
+
+        assert result.get("ratio_loyer_revenu_pct") is not None
+        assert "versement_mensuel_estime" not in result
+
+    def test_enrich_case_injects_abordabilite(self, tmp_path):
+        """enrich_case computes and injects indice_abordabilite."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case: dict = {
+            "dossier_id": "D-ABORD-TEST",
+            "donnees_sociodemographiques": {
+                "revenu_median_menage": 75_000,
+                "valeur_mediane_logement": 480_000,
+            },
+            "marche_locatif": {"loyer_moyen_total": 1_600},
+            "taux_bancaires": {"taux_hypo_5ans_conv_pct": 5.0},
+        }
+
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            with mock.patch.object(de, "fetch_rental_market", return_value={}):
+                enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        ab = case.get("indice_abordabilite", {})
+        assert ab.get("source") == "calcul-interne"
+        assert ab.get("ratio_loyer_revenu_pct") is not None
+        assert ab.get("versement_mensuel_estime") is not None

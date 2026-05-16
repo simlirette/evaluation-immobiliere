@@ -176,6 +176,14 @@ _ROUTE_TYPES: list[tuple[str, str]] = [
 ]
 _ROUTES_SEARCH_RADIUS_M = 15_000  # 15 km max search radius
 
+# ── Indice d'abordabilité (calcul interne) ────────────────────────────────────
+# Seuils standards (SCHL / CMHC) pour l'abordabilité du logement
+_ABORD_SEUIL_ABORDABLE = 30.0   # < 30 % du revenu brut → abordable
+_ABORD_SEUIL_LIMITE    = 40.0   # 30–40 % → limite
+# > 40 % → non abordable
+_ABORD_AMORT_MOIS = 300         # 25 ans × 12 mois
+_ABORD_MISE_DE_FONDS = 0.20     # 20 % de mise de fonds
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3341,6 +3349,78 @@ def lookup_inondable(lat: float, lng: float, cache_dir: Path) -> dict | None:
     }
 
 
+def compute_indice_abordabilite(case: dict) -> dict:
+    """
+    Compute a housing affordability index from already-enriched case data.
+
+    Pure function — no external calls, no cache.  Uses:
+      - marche_locatif.loyer_moyen_total  (B5)
+      - donnees_sociodemographiques.revenu_median_menage  (B11)
+      - donnees_sociodemographiques.valeur_mediane_logement  (B11)
+      - taux_bancaires.taux_hypo_5ans_conv_pct  (B15)
+
+    Returns dict with keys:
+      ratio_loyer_revenu_pct, ratio_propriete_revenu,
+      versement_mensuel_estime, ratio_mensualite_revenu_pct,
+      seuil_loyer, seuil_propriete, source.
+    Returns {} if minimum inputs are unavailable.
+    """
+    revenu = (case.get("donnees_sociodemographiques") or {}).get("revenu_median_menage")
+    if not revenu or revenu <= 0:
+        return {}
+
+    revenu_mensuel = revenu / 12.0
+    result: dict = {
+        "source": "calcul-interne",
+        "revenu_median_menage": revenu,
+    }
+
+    # ── Ratio loyer / revenu ──────────────────────────────────────────────────
+    loyer = (case.get("marche_locatif") or {}).get("loyer_moyen_total")
+    if loyer and loyer > 0:
+        ratio_loyer = round(loyer / revenu_mensuel * 100, 1)
+        result["ratio_loyer_revenu_pct"] = ratio_loyer
+        if ratio_loyer < _ABORD_SEUIL_ABORDABLE:
+            result["seuil_loyer"] = "abordable"
+        elif ratio_loyer < _ABORD_SEUIL_LIMITE:
+            result["seuil_loyer"] = "limite"
+        else:
+            result["seuil_loyer"] = "non abordable"
+
+    # ── Ratio valeur propriété / revenu annuel ────────────────────────────────
+    valeur = (case.get("donnees_sociodemographiques") or {}).get("valeur_mediane_logement")
+    if valeur and valeur > 0:
+        ratio_prop = round(valeur / revenu, 1)
+        result["ratio_propriete_revenu"] = ratio_prop
+
+        # Mensualité hypothécaire estimée (25 ans, 20 % mise de fonds, taux B15)
+        taux_annuel = (case.get("taux_bancaires") or {}).get("taux_hypo_5ans_conv_pct")
+        if taux_annuel and taux_annuel > 0:
+            principal = valeur * (1 - _ABORD_MISE_DE_FONDS)
+            r = taux_annuel / 100 / 12  # taux mensuel
+            n = _ABORD_AMORT_MOIS
+            # Formule annuité constante: M = P × r(1+r)^n / ((1+r)^n - 1)
+            facteur = (1 + r) ** n
+            mensualite = principal * r * facteur / (facteur - 1)
+            result["versement_mensuel_estime"] = round(mensualite, 0)
+            ratio_mens = round(mensualite / revenu_mensuel * 100, 1)
+            result["ratio_mensualite_revenu_pct"] = ratio_mens
+            if ratio_mens < _ABORD_SEUIL_ABORDABLE:
+                result["seuil_propriete"] = "abordable"
+            elif ratio_mens < _ABORD_SEUIL_LIMITE:
+                result["seuil_propriete"] = "limite"
+            else:
+                result["seuil_propriete"] = "non abordable"
+
+    if len(result) <= 2:  # only source + revenu
+        return {}
+
+    logger.debug("indice_abordabilite : loyer=%s%% proprio=%s%%",
+                 result.get("ratio_loyer_revenu_pct"),
+                 result.get("ratio_mensualite_revenu_pct"))
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -3698,3 +3778,15 @@ def enrich_case(
                              climat.get("jours_gel", 0))
         except Exception as exc:
             logger.debug("donnees_climatiques skip: %s", exc)
+
+    # ── Indice d'abordabilité (calcul interne, dépend B5+B11+B15) ────────────
+    if not case.get("indice_abordabilite"):
+        try:
+            abord = compute_indice_abordabilite(case)
+            if abord:
+                case["indice_abordabilite"] = abord
+                logger.debug("indice_abordabilite : loyer=%s%% mensualite=%s%%",
+                             abord.get("ratio_loyer_revenu_pct"),
+                             abord.get("ratio_mensualite_revenu_pct"))
+        except Exception as exc:
+            logger.debug("indice_abordabilite skip: %s", exc)

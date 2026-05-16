@@ -153,6 +153,15 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - 1 an cache, 8 villes QC
   - fiche_bien.json + section AMU "Profil de sécurité"
   - Commit: 8661a4a
+- B30 Indice d'abordabilité du logement (calcul interne) ✓
+  - compute_indice_abordabilite(case): pure function, zéro appel externe
+  - Inputs: B5 (loyer) + B11 (revenu/valeur médians) + B15 (taux hypo)
+  - ratio_loyer_revenu_pct + seuil (abordable/limite/non abordable)
+  - versement_mensuel_estime: annuité 25 ans, 20% MDP, taux B15
+  - ratio_mensualite_revenu_pct + seuil_propriete
+  - Seuils SCHL: <30% abordable, 30-40% limite, >40% non abordable
+  - fiche_bien.json + section AMU "Indice d'abordabilité" (Critère 3)
+  - 6 tests pass (3.97s, pur calcul)
 - B29 Données climatiques historiques (Open-Meteo archive) ✓
   - fetch_donnees_climatiques(lat, lng, cache_dir): API archive-api.open-meteo.com
   - Année 2023 (stable), daily tmax/tmin/precip → agrégats annuels
@@ -195,7 +204,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
   - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
   - 6 tests pass
-- 281 tests pass
+- 287 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
