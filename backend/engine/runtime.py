@@ -526,6 +526,12 @@ class RuntimeEngine:
                     k: v for k, v in za.items()
                     if k not in ("source",) and v is not None
                 }
+            pat = case.get("patrimoine_culturel")
+            if pat is not None:  # include even empty dict (means "checked, not listed")
+                fb["patrimoine_culturel"] = {
+                    k: v for k, v in pat.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -595,6 +601,23 @@ class RuntimeEngine:
             else:
                 zone_code = zone
                 zonage_section = ""
+            # Build patrimoine culturel section if data available
+            pat = case.get("patrimoine_culturel")
+            if pat:  # non-empty dict = listed
+                pat_nom = pat.get("NOM") or pat.get("NM_BIEN") or "—"
+                pat_statut = pat.get("STATUT") or pat.get("NM_STATUT") or "désigné"
+                pat_categorie = pat.get("CATEGORIE") or pat.get("NM_CATEGORIE") or ""
+                patrimoine_section = (
+                    f"## Patrimoine culturel\n\n"
+                    f"**ATTENTION : bien répertorié au patrimoine culturel.**  \n"
+                    f"Nom : {pat_nom}  \n"
+                    f"Statut : {pat_statut}  \n"
+                    + (f"Catégorie : {pat_categorie}  \n" if pat_categorie else "")
+                    + "\nNote : modifications soumises à autorisation du Ministre de la Culture. "
+                    "Impact sur la valeur à analyser selon les restrictions applicables.\n\n"
+                )
+            else:
+                patrimoine_section = ""
             # Build CPTAQ section if relevant
             za = case.get("zone_agricole") or {}
             if za:
@@ -636,6 +659,7 @@ class RuntimeEngine:
                 f"**Type de bien :** {type_bien}  \n"
                 f"**Zone :** {zone_code}\n\n"
                 + zonage_section
+                + patrimoine_section
                 + cptaq_section
                 + f"## Critere 1 — Legalement permis\n\n"
                 f"L'usage de type {type_bien} est conforme au zonage {zone_code}. "

@@ -1970,3 +1970,158 @@ class TestDataEnrichment_CPTAQ:
                 enrich_case(case, display_name="1000 rue Sherbrooke, Montréal", cache_dir=tmp_path)
 
         assert case.get("zone_agricole", {}).get("en_zone_agricole") is False
+
+
+# ── TestDataEnrichment_Patrimoine ─────────────────────────────────────────────
+
+class TestDataEnrichment_Patrimoine:
+    """Tests for patrimoine culturel lookup."""
+
+    def _make_point_geojson(self, lng: float, lat: float, props: dict) -> dict:
+        return {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": props,
+                "geometry": {"type": "Point", "coordinates": [lng, lat]},
+            }],
+        }
+
+    def _make_polygon_geojson(self, ring: list, props: dict) -> dict:
+        return {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": props,
+                "geometry": {"type": "Polygon", "coordinates": [ring]},
+            }],
+        }
+
+    def test_build_index_point(self, tmp_path):
+        """build_patrimoine_index handles Point geometry → tiny bbox."""
+        import json
+        from engine.data_enrichment import build_patrimoine_index
+
+        gj = self._make_point_geojson(-73.55, 45.55,
+                                       {"NOM": "Maison Dupont", "STATUT": "classe"})
+        gj_path = tmp_path / "patrimoine_culturel.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+
+        idx_path = tmp_path / "patrimoine_index.json"
+        count = build_patrimoine_index(gj_path, idx_path)
+        assert count == 1
+        data = json.loads(idx_path.read_text(encoding="utf-8"))
+        feat = data["zones"][0]
+        assert feat["props"]["NOM"] == "Maison Dupont"
+        assert "point" in feat
+
+    def test_build_index_polygon(self, tmp_path):
+        """build_patrimoine_index handles Polygon geometry → ring."""
+        import json
+        from engine.data_enrichment import build_patrimoine_index
+
+        ring = [[-73.6, 45.5], [-73.5, 45.5], [-73.5, 45.6], [-73.6, 45.6], [-73.6, 45.5]]
+        gj = self._make_polygon_geojson(ring, {"NOM": "Site historique", "STATUT": "reconnu"})
+        gj_path = tmp_path / "patrimoine_culturel.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+
+        idx_path = tmp_path / "patrimoine_index.json"
+        count = build_patrimoine_index(gj_path, idx_path)
+        assert count == 1
+        data = json.loads(idx_path.read_text(encoding="utf-8"))
+        assert "ring" in data["zones"][0]
+
+    def test_lookup_point_found(self, tmp_path):
+        """Point near patrimoine point feature → returns props."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_patrimoine_index, lookup_patrimoine
+
+        de._PATRIMOINE_INDEX_CACHE = None
+
+        gj = self._make_point_geojson(-73.55, 45.55,
+                                       {"NOM": "Vieux Moulin", "STATUT": "classe"})
+        gj_path = tmp_path / "patrimoine_culturel.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+        build_patrimoine_index(gj_path, tmp_path / "patrimoine_index.json")
+
+        # Point very close to the feature
+        result = lookup_patrimoine(45.55, -73.55, tmp_path)
+        assert result is not None
+        assert result.get("NOM") == "Vieux Moulin"
+        assert result["source"] == "patrimoine-culturel"
+
+    def test_lookup_point_not_found(self, tmp_path):
+        """Point far from all features → {}."""
+        import json
+        from engine import data_enrichment as de
+        from engine.data_enrichment import build_patrimoine_index, lookup_patrimoine
+
+        de._PATRIMOINE_INDEX_CACHE = None
+
+        gj = self._make_point_geojson(-73.55, 45.55,
+                                       {"NOM": "Vieux Moulin"})
+        gj_path = tmp_path / "patrimoine_culturel.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+        build_patrimoine_index(gj_path, tmp_path / "patrimoine_index.json")
+
+        result = lookup_patrimoine(45.40, -74.0, tmp_path)
+        assert result == {}
+
+    def test_lookup_no_data(self, tmp_path):
+        """No data available → None."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import lookup_patrimoine
+
+        de._PATRIMOINE_INDEX_CACHE = None
+        with mock.patch.object(de, "download_patrimoine", return_value=None):
+            result = lookup_patrimoine(45.55, -73.55, tmp_path)
+        assert result is None
+
+    def test_enrich_case_injects_patrimoine(self, tmp_path):
+        """enrich_case injects patrimoine_culturel when building found nearby."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_patrimoine_index
+
+        de._PATRIMOINE_INDEX_CACHE = None
+
+        gj = self._make_point_geojson(-73.55, 45.55,
+                                       {"NOM": "Édifice Holt", "STATUT": "cite"})
+        gj_path = tmp_path / "patrimoine_culturel.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+        build_patrimoine_index(gj_path, tmp_path / "patrimoine_index.json")
+
+        with mock.patch.object(de, "geocode_address", return_value=(45.55, -73.55)):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-PAT-TEST"}
+                enrich_case(case, display_name="100 rue Holt, Montréal", cache_dir=tmp_path)
+
+        assert case.get("patrimoine_culturel", {}).get("NOM") == "Édifice Holt"
+        assert case["patrimoine_culturel"]["source"] == "patrimoine-culturel"
+
+    def test_enrich_case_empty_when_not_listed(self, tmp_path):
+        """enrich_case sets patrimoine_culturel = {} when checked but not found."""
+        import json
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case, build_patrimoine_index
+
+        de._PATRIMOINE_INDEX_CACHE = None
+
+        # Feature far from test point
+        gj = self._make_point_geojson(-74.0, 46.0, {"NOM": "Elsewhere"})
+        gj_path = tmp_path / "patrimoine_culturel.geojson"
+        gj_path.write_text(json.dumps(gj), encoding="utf-8")
+        build_patrimoine_index(gj_path, tmp_path / "patrimoine_index.json")
+
+        with mock.patch.object(de, "geocode_address", return_value=(45.55, -73.55)):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case = {"dossier_id": "D-PAT-EMPTY"}
+                enrich_case(case, display_name="999 rue Quelconque, Montréal", cache_dir=tmp_path)
+
+        # Key present but empty (checked, not listed)
+        assert "patrimoine_culturel" in case
+        assert case["patrimoine_culturel"] == {}

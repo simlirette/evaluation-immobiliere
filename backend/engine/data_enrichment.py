@@ -1085,6 +1085,179 @@ def lookup_cptaq(lat: float, lng: float, cache_dir: Path) -> dict | None:
     return {"source": "cptaq", "en_zone_agricole": False}
 
 
+# ── Patrimoine culturel (Répertoire du patrimoine culturel du Québec) ─────────
+
+# module-level cache
+_PATRIMOINE_INDEX_CACHE: list | None = None
+
+# Known WFS endpoint types for patrimoine culturel QC
+_PATRIMOINE_WFS_URLS: list[str] = [
+    # Immeubles patrimoniaux (bâtiments classés/cités/reconnus)
+    (
+        "https://geoegl.msp.gouv.qc.ca/apis/wss/patrimoine.fcgi"
+        "?SERVICE=WFS&REQUEST=GetFeature"
+        "&TYPENAME=ms:immeuble_patrimonial"
+        "&OUTPUTFORMAT=geojson&SRSNAME=EPSG:4326"
+    ),
+    # Alternate: données.gouv.qc.ca package
+]
+
+
+def download_patrimoine(cache_dir: Path, force: bool = False) -> Path | None:
+    """
+    Download the Répertoire du patrimoine culturel du Québec GeoJSON (WFS).
+
+    Covers immeubles patrimoniaux (classés, cités, reconnus).
+    Returns local path or None if unavailable.
+    """
+    geojson_path = cache_dir / "patrimoine_culturel.geojson"
+    if geojson_path.exists() and not force:
+        return geojson_path
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    for url in _PATRIMOINE_WFS_URLS:
+        try:
+            logger.info("Downloading patrimoine culturel (WFS GeoJSON)…")
+            _download_file(url, geojson_path, timeout=300)
+            logger.info("Patrimoine culturel downloaded: %.1f MB",
+                        geojson_path.stat().st_size / 1e6)
+            return geojson_path
+        except Exception as exc:
+            logger.debug("Patrimoine WFS download failed: %s", exc)
+            if geojson_path.exists():
+                geojson_path.unlink()
+
+    logger.debug("Patrimoine download unavailable — place patrimoine_culturel.geojson in data_cache/")
+    return None
+
+
+def build_patrimoine_index(geojson_path: Path, index_path: Path) -> int:
+    """
+    Build compact spatial index from patrimoine culturel GeoJSON.
+
+    For Point geometries (common for individual buildings): store as tiny bbox.
+    For Polygon/MultiPolygon: same as CPTAQ.
+    Returns number of features indexed.
+    """
+    data = json.loads(geojson_path.read_text(encoding="utf-8"))
+    features = data.get("features") or []
+    zones: list[dict] = []
+
+    _KEEP_PROPS = {
+        "NOM", "NM_BIEN", "STATUT", "CATEGORIE", "TYPE_BIEN",
+        "COTE_PATRIMONIALE", "MUNICIPALITE", "MRC", "REGION",
+        "NM_STATUT", "NM_CATEGORIE",
+    }
+
+    for feat in features:
+        geom = feat.get("geometry") or {}
+        props = feat.get("properties") or {}
+        gtype = geom.get("type", "")
+        keep = {k: v for k, v in props.items() if k.upper() in _KEEP_PROPS and v}
+
+        if gtype == "Point":
+            lng, lat = geom["coordinates"][0], geom["coordinates"][1]
+            # Small buffer ~50m in degrees at QC latitude
+            buf = 0.0005
+            zones.append({
+                "props": keep,
+                "bbox": [lng - buf, lat - buf, lng + buf, lat + buf],
+                "point": [lng, lat],
+            })
+        elif gtype == "Polygon":
+            polys = [geom["coordinates"]]
+        elif gtype == "MultiPolygon":
+            polys = geom["coordinates"]
+        else:
+            continue
+
+        if gtype in ("Polygon", "MultiPolygon"):
+            for poly in polys:
+                if not poly:
+                    continue
+                exterior = poly[0]
+                if len(exterior) < 3:
+                    continue
+                xs = [p[0] for p in exterior]
+                ys = [p[1] for p in exterior]
+                zones.append({
+                    "props": keep,
+                    "bbox": [min(xs), min(ys), max(xs), max(ys)],
+                    "ring": _simplify_ring(exterior, max_pts=100),
+                })
+
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps({"zones": zones, "_built_at": time.time(), "_count": len(zones)},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Patrimoine index built: %d features → %s (%.1f MB)",
+                len(zones), index_path.name, index_path.stat().st_size / 1e6)
+    return len(zones)
+
+
+def _point_near(lng: float, lat: float, feat_lng: float, feat_lat: float,
+                threshold_deg: float = 0.0005) -> bool:
+    """Return True if (lng, lat) is within threshold degrees of a point feature."""
+    return abs(lng - feat_lng) <= threshold_deg and abs(lat - feat_lat) <= threshold_deg
+
+
+def lookup_patrimoine(lat: float, lng: float, cache_dir: Path) -> dict | None:
+    """
+    Return first patrimoine culturel feature near/containing (lat, lng).
+
+    Returns dict with source + props if found, {} if not found,
+    None if data unavailable.
+    """
+    global _PATRIMOINE_INDEX_CACHE
+
+    index_path = cache_dir / "patrimoine_index.json"
+
+    if not index_path.exists():
+        geojson_path = cache_dir / "patrimoine_culturel.geojson"
+        if not geojson_path.exists():
+            try:
+                geojson_path = download_patrimoine(cache_dir)
+            except Exception as exc:
+                logger.debug("Patrimoine download skip: %s", exc)
+                return None
+        if geojson_path and geojson_path.exists():
+            try:
+                build_patrimoine_index(geojson_path, index_path)
+            except Exception as exc:
+                logger.debug("Patrimoine index build skip: %s", exc)
+                return None
+
+    if not index_path.exists():
+        return None
+
+    if _PATRIMOINE_INDEX_CACHE is None:
+        try:
+            data = json.loads(index_path.read_text(encoding="utf-8"))
+            _PATRIMOINE_INDEX_CACHE = data.get("zones", [])
+        except Exception as exc:
+            logger.debug("Patrimoine index load failed: %s", exc)
+            return None
+
+    for feat in _PATRIMOINE_INDEX_CACHE:
+        bbox = feat["bbox"]
+        if not (bbox[0] <= lng <= bbox[2] and bbox[1] <= lat <= bbox[3]):
+            continue
+        # Point feature: proximity check
+        if "point" in feat:
+            fl, flat = feat["point"]
+            if _point_near(lng, lat, fl, flat):
+                return {"source": "patrimoine-culturel", **feat["props"]}
+        # Polygon feature: PiP
+        elif "ring" in feat:
+            if _pip_exterior(lng, lat, feat["ring"]):
+                return {"source": "patrimoine-culturel", **feat["props"]}
+
+    return {}
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -1098,8 +1271,9 @@ def enrich_case(
     Injects (when available) :
       - case["marche_locatif"]    : SCHL rental market data (StatCan WDS)
       - case["role_municipal"]    : building characteristics + valeurs foncières
-      - case["zonage_urbanisme"]  : official zone code + description (open data GeoJSON)
-      - case["zone_agricole"]     : CPTAQ agricultural zone status (bool + MRC info)
+      - case["zonage_urbanisme"]    : official zone code + description (open data GeoJSON)
+      - case["zone_agricole"]       : CPTAQ agricultural zone status (bool + MRC info)
+      - case["patrimoine_culturel"] : {} if not listed, dict with statut/nom if found
 
     Never raises — all failures logged at DEBUG level.
     """
@@ -1160,10 +1334,12 @@ def enrich_case(
                 case["evaluation_municipale_totale"] = role["valeur_totale"]
             logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
 
-    # ── Geocode (shared by zonage + CPTAQ) ───────────────────────────────────
+    # ── Geocode (shared by zonage + CPTAQ + patrimoine) ──────────────────────
     _coords: tuple[float, float] | None = None
     if display_name and (
-        not case.get("zonage_urbanisme") or not case.get("zone_agricole")
+        not case.get("zonage_urbanisme")
+        or not case.get("zone_agricole")
+        or not case.get("patrimoine_culturel")
     ):
         try:
             _coords = geocode_address(display_name, cache_dir)
@@ -1191,3 +1367,15 @@ def enrich_case(
                 logger.debug("zone_agricole injecté : en_zone=%s", cptaq.get("en_zone_agricole"))
         except Exception as exc:
             logger.debug("cptaq skip: %s", exc)
+
+    # ── Patrimoine culturel ───────────────────────────────────────────────────
+    if not case.get("patrimoine_culturel") and _coords:
+        try:
+            lat, lng = _coords
+            pat = lookup_patrimoine(lat, lng, cache_dir)
+            if pat is not None:
+                case["patrimoine_culturel"] = pat  # {} = not listed, dict = found
+                if pat:
+                    logger.debug("patrimoine_culturel injecté : %s", pat.get("NOM") or pat.get("NM_BIEN"))
+        except Exception as exc:
+            logger.debug("patrimoine skip: %s", exc)
