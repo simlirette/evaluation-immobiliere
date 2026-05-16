@@ -116,6 +116,18 @@ _VACANCE_UNIT_SEARCHES: dict[str, list[str]] = {
     "3ch_plus": ["3 bedroom", "3 chambre", "3+"],
 }
 
+# ── Taux Bank of Canada (Valet API) ──────────────────────────────────────────
+_BOC_VALET_BASE = "https://www.bankofcanada.ca/valet/observations"
+_BOC_TTL = 86_400  # 24 h (taux changent peu souvent)
+
+# Series IDs → field key  (Bank of Canada Valet series codes)
+_BOC_SERIES: dict[str, str] = {
+    "CAOVRNIGH":    "taux_directeur_pct",        # Overnight rate (taux directeur)
+    "V80691311":    "taux_preferentiel_pct",      # Prime business loan rate
+    "V122495":      "taux_hypo_5ans_conv_pct",    # 5-year conventional mortgage
+    "V122496":      "taux_hypo_1an_pct",          # 1-year conventional mortgage
+}
+
 # ── NHPI — New Housing Price Index (StatCan 18-10-0205-01) ───────────────────
 _NHPI_TABLE = 1810020501  # table 18-10-0205-01
 
@@ -378,6 +390,60 @@ def _fetch_series(pid: int, coordinate: str, cache_dir: Path) -> float | None:
     result = {"_ts": time.time(), "value": val}
     _write_cache(cache_path, result)
     return val
+
+
+def fetch_taux_boc(cache_dir: Path) -> dict:
+    """
+    Fetch current Bank of Canada key rates via Valet REST API.
+
+    Returns dict with keys: taux_directeur_pct, taux_preferentiel_pct,
+    taux_hypo_5ans_conv_pct, taux_hypo_1an_pct, date, source.
+    Returns {} on any failure (non-blocking).
+    """
+    import urllib.request
+
+    cache_path = cache_dir / "boc_rates.json"
+    cached = _read_cache_ttl(cache_path, _BOC_TTL)
+    if cached is not None:
+        return cached
+
+    result: dict = {"source": "bankofcanada-valet"}
+
+    # Fetch all series in one call: /observations/S1,S2,...?recent=1
+    series_ids = ",".join(_BOC_SERIES.keys())
+    url = f"{_BOC_VALET_BASE}/{series_ids}/json?recent=1"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "eval-immo/1.0"})
+        with urllib.request.urlopen(req, timeout=int(_HTTP_TIMEOUT)) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        logger.debug("BOC Valet fetch error: %s", exc)
+        return {}
+
+    observations = data.get("observations", [])
+    if not observations:
+        return {}
+
+    latest = observations[-1]
+    result["date"] = str(latest.get("d", ""))[:10]
+
+    for series_id, field_key in _BOC_SERIES.items():
+        entry = latest.get(series_id, {})
+        raw = entry.get("v") if isinstance(entry, dict) else None
+        if raw is not None:
+            try:
+                result[field_key] = float(raw)
+            except (TypeError, ValueError):
+                pass
+
+    if len(result) <= 2:  # only source + date
+        return {}
+
+    _write_cache_ttl(cache_path, result, _BOC_TTL)
+    logger.debug("taux_boc injecté : directeur=%.2f%% hypo5=%.2f%%",
+                 result.get("taux_directeur_pct", 0),
+                 result.get("taux_hypo_5ans_conv_pct", 0))
+    return result
 
 
 _BEDROOM_SEARCHES: dict[str, list[str]] = {
@@ -1935,6 +2001,17 @@ def enrich_case(
 
     zone = str(case.get("zone", ""))
     city_code = detect_city(display_name, zone)
+
+    # ── Taux Bank of Canada (nationaux, non spécifiques à la ville) ──────────
+    if not case.get("taux_bancaires"):
+        try:
+            taux = fetch_taux_boc(cache_dir)
+            if taux:
+                case["taux_bancaires"] = taux
+                logger.debug("taux_bancaires injecté : directeur=%.2f%%",
+                             taux.get("taux_directeur_pct", 0))
+        except Exception as exc:
+            logger.debug("taux_boc skip: %s", exc)
 
     # ── SCHL rental market ────────────────────────────────────────────────────
     if not case.get("marche_locatif"):

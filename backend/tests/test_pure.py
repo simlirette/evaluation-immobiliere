@@ -2402,6 +2402,135 @@ class TestDataEnrichment_Inondable:
         assert case["zone_inondable"] == {}
 
 
+# ── TestDataEnrichment_BOC ────────────────────────────────────────────────────
+
+class TestDataEnrichment_BOC:
+    """Tests for fetch_taux_boc() — Bank of Canada Valet API."""
+
+    _BOC_RESPONSE = {
+        "observations": [
+            {
+                "d": "2025-03-05",
+                "CAOVRNIGH": {"v": "2.75"},
+                "V80691311": {"v": "4.95"},
+                "V122495":   {"v": "5.14"},
+                "V122496":   {"v": "4.89"},
+            }
+        ]
+    }
+
+    def _mock_urlopen(self, payload):
+        import io
+        import json
+        import unittest.mock as mock
+        body = json.dumps(payload).encode("utf-8")
+        cm = mock.MagicMock()
+        cm.__enter__ = mock.Mock(return_value=io.BytesIO(body))
+        cm.__exit__ = mock.Mock(return_value=False)
+        return cm
+
+    def test_fetch_taux_boc_success(self, tmp_path):
+        """All four rates extracted from Valet response."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_taux_boc
+
+        with mock.patch("urllib.request.urlopen",
+                        return_value=self._mock_urlopen(self._BOC_RESPONSE)):
+            result = fetch_taux_boc(tmp_path)
+
+        assert result.get("source") == "bankofcanada-valet"
+        assert result.get("date") == "2025-03-05"
+        assert result.get("taux_directeur_pct") == 2.75
+        assert result.get("taux_preferentiel_pct") == 4.95
+        assert result.get("taux_hypo_5ans_conv_pct") == 5.14
+        assert result.get("taux_hypo_1an_pct") == 4.89
+
+    def test_fetch_taux_boc_empty_observations(self, tmp_path):
+        """Empty observations list → {}."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_taux_boc
+
+        with mock.patch("urllib.request.urlopen",
+                        return_value=self._mock_urlopen({"observations": []})):
+            result = fetch_taux_boc(tmp_path)
+
+        assert result == {}
+
+    def test_fetch_taux_boc_network_error(self, tmp_path):
+        """Network error → {} without raising."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_taux_boc
+
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("network")):
+            result = fetch_taux_boc(tmp_path)
+
+        assert result == {}
+
+    def test_fetch_taux_boc_partial_series(self, tmp_path):
+        """Missing series in response are skipped gracefully."""
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_taux_boc
+
+        partial = {
+            "observations": [
+                {"d": "2025-03-05", "CAOVRNIGH": {"v": "2.75"}}
+            ]
+        }
+        with mock.patch("urllib.request.urlopen",
+                        return_value=self._mock_urlopen(partial)):
+            result = fetch_taux_boc(tmp_path)
+
+        assert result.get("taux_directeur_pct") == 2.75
+        assert "taux_preferentiel_pct" not in result
+        assert "taux_hypo_5ans_conv_pct" not in result
+
+    def test_fetch_taux_boc_cache_hit(self, tmp_path):
+        """Cached result returned without network call."""
+        import json
+        import time
+        import unittest.mock as mock
+        from engine.data_enrichment import fetch_taux_boc
+
+        cached = {
+            "source": "bankofcanada-valet",
+            "date": "2025-03-01",
+            "taux_directeur_pct": 3.0,
+            "_ts": time.time(),
+        }
+        (tmp_path / "boc_rates.json").write_text(
+            json.dumps(cached), encoding="utf-8"
+        )
+
+        with mock.patch("urllib.request.urlopen") as mock_url:
+            result = fetch_taux_boc(tmp_path)
+
+        mock_url.assert_not_called()
+        assert result.get("taux_directeur_pct") == 3.0
+
+    def test_enrich_case_injects_taux_bancaires(self, tmp_path):
+        """enrich_case populates taux_bancaires from fetch_taux_boc."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        boc_data = {
+            "source": "bankofcanada-valet",
+            "date": "2025-03-05",
+            "taux_directeur_pct": 2.75,
+            "taux_hypo_5ans_conv_pct": 5.14,
+        }
+
+        with mock.patch.object(de, "fetch_taux_boc", return_value=boc_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-BOC-TEST"}
+                enrich_case(case, display_name="50 rue King, Montréal",
+                            cache_dir=tmp_path)
+
+        tb = case.get("taux_bancaires", {})
+        assert tb.get("taux_directeur_pct") == 2.75
+        assert tb.get("taux_hypo_5ans_conv_pct") == 5.14
+
+
 # ── TestDataEnrichment_Vacance ────────────────────────────────────────────────
 
 class TestDataEnrichment_Vacance:

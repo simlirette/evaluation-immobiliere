@@ -538,6 +538,12 @@ class RuntimeEngine:
                     k: v for k, v in inond.items()
                     if k not in ("source",) and v is not None
                 }
+            taux_boc = case.get("taux_bancaires")
+            if taux_boc:
+                fb["taux_bancaires"] = {
+                    k: v for k, v in taux_boc.items()
+                    if k not in ("source",) and v is not None
+                }
             vacance = case.get("taux_inoccupation")
             if vacance:
                 fb["taux_inoccupation"] = {
@@ -675,6 +681,25 @@ class RuntimeEngine:
                 )
             else:
                 cptaq_section = ""
+            # Build Bank of Canada rates section
+            taux_boc = case.get("taux_bancaires") or {}
+            if taux_boc:
+                td = taux_boc.get("taux_directeur_pct")
+                tp = taux_boc.get("taux_preferentiel_pct")
+                th5 = taux_boc.get("taux_hypo_5ans_conv_pct")
+                th1 = taux_boc.get("taux_hypo_1an_pct")
+                date_boc = taux_boc.get("date", "")
+                financement_section = (
+                    f"## Contexte financier (Banque du Canada)\n\n"
+                    + (f"Date : {date_boc}  \n" if date_boc else "")
+                    + (f"Taux directeur : **{td:.2f} %**  \n" if td is not None else "")
+                    + (f"Taux préférentiel : **{tp:.2f} %**  \n" if tp is not None else "")
+                    + (f"Taux hypothécaire 5 ans (conventionnel) : **{th5:.2f} %**  \n" if th5 is not None else "")
+                    + (f"Taux hypothécaire 1 an (conventionnel) : **{th1:.2f} %**  \n" if th1 is not None else "")
+                    + "\n"
+                )
+            else:
+                financement_section = ""
             # Build market data section from enrichment (if available)
             ml = case.get("marche_locatif") or {}
             nhpi = case.get("indice_prix_logement") or {}
@@ -779,6 +804,7 @@ class RuntimeEngine:
                 f"compatibles avec l'usage de type {type_bien}.\n\n"
                 f"## Critere 3 — Financierement faisable\n\n"
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
+                + financement_section
                 + marche_section
                 + permis_section
                 + census_section
