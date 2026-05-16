@@ -220,7 +220,16 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback valeur: role_municipal.valeur_totale si evaluation_municipale_totale absent
   - fiche_bien.json + section AMU "Rendement locatif estimé" (avant Critère 4)
   - 6 tests pass
-- 299 tests pass
+- B33 Score composite d'investissement (calcul interne) ✓
+  - compute_score_investissement(case): synthèse B30+B31+B32
+  - Poids: score_marché 40%, rendement_locatif 35%, abordabilité 25%
+  - Normalisation: rendement 0-12%→0-10, abordabilité ratio inversé (50%-0%→0-10)
+  - score_investissement 0-10, re-normalisé si composantes manquantes
+  - recommandation: fort potentiel (≥7), potentiel modéré (≥5), potentiel faible (≥3), déconseillé
+  - Minimum 2 composantes requis, sinon {}
+  - fiche_bien.json + section AMU "Score composite d'investissement"
+  - 7 tests pass (incl. enrich_case injection)
+- 306 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

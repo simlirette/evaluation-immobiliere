@@ -200,6 +200,18 @@ _CAPRATE_EXCELLENT = 8.0          # % : taux cap brut excellent
 _CAPRATE_BON       = 5.0          # % : bon rendement
 _CAPRATE_FAIBLE    = 3.0          # % : faible mais acceptable (marché tendu QC)
 
+# ── Score composite d'investissement (calcul interne) ─────────────────────────
+# Poids des trois composantes (total = 1.0)
+_INVEST_POIDS_MARCHE      = 0.40   # score_marche (B31) — dynamique du marché
+_INVEST_POIDS_RENDEMENT   = 0.35   # rendement_locatif (B32) — rentabilité immédiate
+_INVEST_POIDS_ABORDABILITE = 0.25  # indice_abordabilite (B30) — pression demand/abord.
+
+# Seuils recommandation (sur 10)
+_INVEST_SEUIL_FORT   = 7.0   # ≥ 7 → "fort potentiel"
+_INVEST_SEUIL_MODERE = 5.0   # ≥ 5 → "potentiel modéré"
+_INVEST_SEUIL_FAIBLE = 3.0   # ≥ 3 → "potentiel faible"
+                              # < 3 → "déconseillé"
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3615,6 +3627,87 @@ def compute_rendement_locatif(case: dict) -> dict:
     return result
 
 
+def compute_score_investissement(case: dict) -> dict:
+    """
+    Compute a composite investment-attractiveness score (0–10).
+
+    Pure function — no external calls, no cache.  Synthesizes:
+      - score_marche (B31)          — market momentum (weight 40 %)
+      - rendement_locatif (B32)     — rental yield (weight 35 %)
+      - indice_abordabilite (B30)   — demand pressure / affordability (weight 25 %)
+
+    Each component is normalised to [0, 10] before weighting.
+    Returns {} if fewer than 2 components are available.
+
+    Returns dict with keys:
+      score_investissement, composantes, poids, recommandation, source.
+    """
+    composantes: dict[str, float] = {}
+
+    # ── Composante 1 : score de marché (déjà 0-10) ───────────────────────────
+    score_m = case.get("score_marche") or {}
+    sm_val = score_m.get("score_marche")
+    if sm_val is not None and 0 <= sm_val <= 10:
+        composantes["score_marche"] = float(sm_val)
+
+    # ── Composante 2 : rendement locatif (normalise taux brut 0-12% → 0-10) ──
+    rend = case.get("rendement_locatif") or {}
+    taux_brut = rend.get("taux_capitalisation_brut_pct")
+    if taux_brut is not None and taux_brut >= 0:
+        # 0 % = 0 pts / 12 % (plafond réaliste QC) = 10 pts, linéaire, capped
+        rend_norm = min(taux_brut / 12.0 * 10.0, 10.0)
+        composantes["rendement_locatif"] = round(rend_norm, 2)
+
+    # ── Composante 3 : abordabilité inversée (ratio loyer/revenu) ────────────
+    # Ratio bas = abordable = attractif pour locataires → score élevé
+    # 0 % ratio = 10 pts (idéal) / ≥ 50 % = 0 pt, linéaire
+    abord = case.get("indice_abordabilite") or {}
+    ratio_loyer = abord.get("ratio_loyer_revenu_pct")
+    if ratio_loyer is not None and ratio_loyer >= 0:
+        abord_norm = max(0.0, min(10.0, (50.0 - ratio_loyer) / 50.0 * 10.0))
+        composantes["abordabilite"] = round(abord_norm, 2)
+
+    if len(composantes) < 2:
+        return {}
+
+    # ── Score pondéré ─────────────────────────────────────────────────────────
+    poids_map = {
+        "score_marche":    _INVEST_POIDS_MARCHE,
+        "rendement_locatif": _INVEST_POIDS_RENDEMENT,
+        "abordabilite":    _INVEST_POIDS_ABORDABILITE,
+    }
+    score_num = 0.0
+    poids_total = 0.0
+    for cle, val in composantes.items():
+        p = poids_map[cle]
+        score_num += val * p
+        poids_total += p
+
+    # Re-normalise si composantes manquantes
+    score_final = round(score_num / poids_total * 10.0 / 10.0, 2) if poids_total else 0.0
+
+    if score_final >= _INVEST_SEUIL_FORT:
+        recommandation = "fort potentiel"
+    elif score_final >= _INVEST_SEUIL_MODERE:
+        recommandation = "potentiel modéré"
+    elif score_final >= _INVEST_SEUIL_FAIBLE:
+        recommandation = "potentiel faible"
+    else:
+        recommandation = "déconseillé"
+
+    result = {
+        "score_investissement": score_final,
+        "composantes": composantes,
+        "poids": {k: poids_map[k] for k in composantes},
+        "recommandation": recommandation,
+        "source": "calcul-interne",
+    }
+
+    logger.debug("score_investissement : %.2f/10 → %s (%d composantes)",
+                 score_final, recommandation, len(composantes))
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4008,3 +4101,15 @@ def enrich_case(
                              rend.get("interpretation"))
         except Exception as exc:
             logger.debug("rendement_locatif skip: %s", exc)
+
+    # ── Score composite d'investissement (calcul interne, dépend B30+B31+B32) ─
+    if not case.get("score_investissement"):
+        try:
+            invest = compute_score_investissement(case)
+            if invest:
+                case["score_investissement"] = invest
+                logger.debug("score_investissement : %.2f/10 → %s",
+                             invest.get("score_investissement", 0),
+                             invest.get("recommandation"))
+        except Exception as exc:
+            logger.debug("score_investissement skip: %s", exc)

@@ -5330,3 +5330,92 @@ class TestDataEnrichment_RendementLocatif:
         assert rend.get("taux_capitalisation_brut_pct") is not None
         assert rend.get("taux_capitalisation_net_estime_pct") is not None
         assert rend.get("interpretation") in ("excellent", "bon", "acceptable", "faible")
+
+
+class TestDataEnrichment_ScoreInvestissement:
+    """B33 — compute_score_investissement (pure function)."""
+
+    def _good_case(self):
+        return {
+            "score_marche": {"score_marche": 8.0},
+            "rendement_locatif": {"taux_capitalisation_brut_pct": 7.0},
+            "indice_abordabilite": {"ratio_loyer_revenu_pct": 25.0},
+        }
+
+    def test_basic_score_range(self):
+        """Score entre 0 et 10."""
+        from engine.data_enrichment import compute_score_investissement
+        r = compute_score_investissement(self._good_case())
+        assert 0.0 <= r["score_investissement"] <= 10.0
+
+    def test_fort_potentiel(self):
+        """Inputs très élevés → recommandation 'fort potentiel'."""
+        from engine.data_enrichment import compute_score_investissement
+        case = {
+            "score_marche": {"score_marche": 9.0},
+            "rendement_locatif": {"taux_capitalisation_brut_pct": 10.0},
+            "indice_abordabilite": {"ratio_loyer_revenu_pct": 15.0},
+        }
+        r = compute_score_investissement(case)
+        assert r["recommandation"] == "fort potentiel"
+
+    def test_deconseille(self):
+        """Inputs très bas → recommandation 'déconseillé'."""
+        from engine.data_enrichment import compute_score_investissement
+        case = {
+            "score_marche": {"score_marche": 1.0},
+            "rendement_locatif": {"taux_capitalisation_brut_pct": 0.5},
+            "indice_abordabilite": {"ratio_loyer_revenu_pct": 48.0},
+        }
+        r = compute_score_investissement(case)
+        assert r["recommandation"] == "déconseillé"
+
+    def test_composantes_present(self):
+        """Dict composantes contient les clés calculées."""
+        from engine.data_enrichment import compute_score_investissement
+        r = compute_score_investissement(self._good_case())
+        assert "score_marche" in r["composantes"]
+        assert "rendement_locatif" in r["composantes"]
+        assert "abordabilite" in r["composantes"]
+
+    def test_missing_one_component_still_works(self):
+        """Deux composantes suffisent (une absente)."""
+        from engine.data_enrichment import compute_score_investissement
+        case = {
+            "score_marche": {"score_marche": 7.0},
+            "rendement_locatif": {"taux_capitalisation_brut_pct": 6.0},
+            # pas de indice_abordabilite
+        }
+        r = compute_score_investissement(case)
+        assert r["score_investissement"] > 0
+        assert "abordabilite" not in r["composantes"]
+
+    def test_fewer_than_two_components_returns_empty(self):
+        """Moins de 2 composantes → dict vide."""
+        from engine.data_enrichment import compute_score_investissement
+        case = {"score_marche": {"score_marche": 8.0}}
+        assert compute_score_investissement(case) == {}
+
+    def test_enrich_case_injects_score_investissement(self, tmp_path):
+        """enrich_case injecte score_investissement quand B30+B31+B32 disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-INVEST-TEST",
+            "evaluation_municipale_totale": 500_000,
+            "marche_locatif": {"loyer_moyen_total": 1_600},
+            "score_marche": {"score_marche": 7.5},
+            "indice_abordabilite": {"ratio_loyer_revenu_pct": 28.0},
+        }
+
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        inv = case.get("score_investissement", {})
+        assert inv.get("source") == "calcul-interne"
+        assert inv.get("score_investissement") is not None
+        assert inv.get("recommandation") in (
+            "fort potentiel", "potentiel modéré", "potentiel faible", "déconseillé"
+        )

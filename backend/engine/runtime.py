@@ -652,6 +652,12 @@ class RuntimeEngine:
                     k: v for k, v in rend.items()
                     if k not in ("source",) and v is not None
                 }
+            invest = case.get("score_investissement")
+            if invest:
+                fb["score_investissement"] = {
+                    k: v for k, v in invest.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1172,6 +1178,29 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build composite investment score section
+            inv = case.get("score_investissement") or {}
+            if inv:
+                inv_score = inv.get("score_investissement")
+                inv_reco = inv.get("recommandation", "")
+                inv_comp = inv.get("composantes") or {}
+                invest_section = (
+                    "## Score composite d'investissement (calcul interne)\n\n"
+                    + (f"Score : **{inv_score:.2f} / 10**  \n" if inv_score is not None else "")
+                    + (f"Recommandation : **{inv_reco}**  \n" if inv_reco else "")
+                    + (
+                        "Composantes : "
+                        + ", ".join(
+                            f"{k.replace('_', ' ')} {v:.1f}/10"
+                            for k, v in inv_comp.items()
+                        )
+                        + "  \n"
+                        if inv_comp else ""
+                    )
+                    + "\n"
+                )
+            else:
+                invest_section = ""
             # Build rental yield section
             rend_loc = case.get("rendement_locatif") or {}
             if rend_loc:
@@ -1242,6 +1271,7 @@ class RuntimeEngine:
                 + climat_section
                 + crime_section
                 + rendement_section
+                + invest_section
                 + score_marche_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
