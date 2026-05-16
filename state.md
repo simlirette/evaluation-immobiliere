@@ -72,11 +72,17 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - {} = non répertorié, dict = trouvé, None = données absentes
   - Section AMU "ATTENTION" si bien répertorié (statut + note légale Ministre Culture)
   - Commit: 2b375d4
-- 158 tests pass
+- B9 zones inondables MELCC (WFS PiP + sélection zone la plus restrictive) ✓
+  - download_inondable() + build_inondable_index() + lookup_inondable()
+  - Récurrence: 0_20 / 20_100 / 100 ans — libellés FR + sélection plus restrictive si chevauchement
+  - {} = hors zone, dict = en zone (en_zone_inondable: True + recurrence_label)
+  - Section AMU "ATTENTION" si en zone (impact financement hypothécaire + assurabilité)
+  - Commit: eba96e3
+- 165 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
-- Sources données actives : 8 autres (StatCan census, centris, patrimoine culturel, etc.) — prochaines phases
+- Sources données actives : 6 autres (StatCan census, centris, indice prix logement, etc.) — prochaines phases
 - Pour activer rôle municipal : download_role_mtl() (Mtl CSV) ou download_role_xml('quebec') etc.
 - Mobile/responsive : absent
 - CI/CD : GitHub Actions + Playwright E2E non configurés
