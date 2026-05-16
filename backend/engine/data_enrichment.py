@@ -290,6 +290,18 @@ _GLOBAL_GRADE_C = 5.0   # ≥ 5.0 → C (acceptable)
 _GLOBAL_GRADE_D = 3.5   # ≥ 3.5 → D (faible)
                          # < 3.5 → F (déconseillé)
 
+# ── Coût estimé de rénovation (calcul interne) ────────────────────────────────
+# Coûts en $/m² selon catégorie de vétusté (marché QC 2024, source APCHQ/CAA-Québec)
+# Fourchette min-max; médiane = (min+max)/2
+_RENOV_COUTS_PAR_CATEGORIE: dict[str, tuple[float, float, str]] = {
+    # catégorie: ($/m² min, $/m² max, type_travaux)
+    "neuf":      (0,    200,  "entretien courant"),
+    "récent":    (200,  600,  "cosmétique"),
+    "mi-vie":    (600,  1_200, "modérée"),
+    "vieux":     (1_200, 2_200, "majeure"),
+    "très vieux": (2_200, 3_500, "complète"),
+}
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -4355,6 +4367,56 @@ def compute_score_global(case: dict) -> dict:
     return result
 
 
+def compute_cout_renovation(case: dict) -> dict:
+    """
+    Estimate renovation cost range based on building age category and floor area.
+
+    Pure function — no external calls.  Uses:
+      - vetuste_batiment.categorie  (B37) — determines cost tier
+      - case["surface"]  or  role_municipal.superficie_batiment_m2 — floor area
+
+    Cost ranges (QC 2024, APCHQ/CAA-Québec):
+      neuf       →   0–200 $/m²   (entretien courant)
+      récent     → 200–600 $/m²   (cosmétique)
+      mi-vie     → 600–1200 $/m²  (modérée)
+      vieux      → 1200–2200 $/m² (majeure)
+      très vieux → 2200–3500 $/m² (complète)
+
+    Returns dict with:
+      surface_m2, categorie_vetuste, type_travaux,
+      cout_min, cout_max, cout_median, source.
+    Returns {} if category or surface unavailable.
+    """
+    categorie = (case.get("vetuste_batiment") or {}).get("categorie")
+    if not categorie or categorie not in _RENOV_COUTS_PAR_CATEGORIE:
+        return {}
+
+    surface = case.get("surface")
+    if not surface:
+        surface = (case.get("role_municipal") or {}).get("superficie_batiment_m2")
+    if not surface or surface <= 0:
+        return {}
+
+    cout_min_m2, cout_max_m2, type_travaux = _RENOV_COUTS_PAR_CATEGORIE[categorie]
+    cout_median_m2 = (cout_min_m2 + cout_max_m2) / 2.0
+
+    result = {
+        "surface_m2": float(surface),
+        "categorie_vetuste": categorie,
+        "type_travaux": type_travaux,
+        "cout_min_m2": cout_min_m2,
+        "cout_max_m2": cout_max_m2,
+        "cout_min": round(surface * cout_min_m2, 0),
+        "cout_max": round(surface * cout_max_m2, 0),
+        "cout_median": round(surface * cout_median_m2, 0),
+        "source": "calcul-interne",
+    }
+
+    logger.debug("cout_renovation : %s %.0f m² → %d$–%d$ (%s)",
+                 categorie, surface, result["cout_min"], result["cout_max"], type_travaux)
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4857,3 +4919,16 @@ def enrich_case(
                              global_score.get("grade"))
         except Exception as exc:
             logger.debug("score_global skip: %s", exc)
+
+    # ── Coût estimé de rénovation (calcul interne, dépend B37 + surface) ──────
+    if not case.get("cout_renovation"):
+        try:
+            cout = compute_cout_renovation(case)
+            if cout:
+                case["cout_renovation"] = cout
+                logger.debug("cout_renovation : %s → %d$–%d$",
+                             cout.get("categorie_vetuste"),
+                             cout.get("cout_min", 0),
+                             cout.get("cout_max", 0))
+        except Exception as exc:
+            logger.debug("cout_renovation skip: %s", exc)

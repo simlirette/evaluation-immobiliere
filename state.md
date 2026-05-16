@@ -292,7 +292,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Score global affiché en en-tête du rapport AMU (blockquote)
   - fiche_bien.json + header AMU
   - 6 tests pass
-- 354 tests pass
+- B42 Coût estimé de rénovation (calcul interne) ✓
+  - compute_cout_renovation(case): barèmes APCHQ/CAA-Québec 2024 par catégorie vétusté
+  - Inputs: vetuste_batiment.categorie (B37) + surface (ou role_municipal.superficie_batiment_m2)
+  - neuf: 0-200$/m², récent: 200-600, mi-vie: 600-1200, vieux: 1200-2200, très vieux: 2200-3500
+  - cout_min, cout_max, cout_median + type_travaux
+  - fiche_bien.json + section AMU "Coût estimé de rénovation" (Critère 2)
+  - 6 tests pass
+- 360 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

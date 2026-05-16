@@ -5994,3 +5994,72 @@ class TestDataEnrichment_ScoreGlobal:
         assert sg.get("score_global") is not None
         assert sg.get("grade") in ("A", "B", "C", "D", "F")
         assert sg.get("recommandation_finale")
+
+
+class TestDataEnrichment_CoutRenovation:
+    """B42 — compute_cout_renovation (pure function)."""
+
+    def test_mi_vie_calcul(self):
+        """Bâtiment mi-vie, 100 m² → coûts cohérents avec barème 600-1200$/m²."""
+        from engine.data_enrichment import compute_cout_renovation
+        case = {
+            "vetuste_batiment": {"categorie": "mi-vie"},
+            "surface": 100,
+        }
+        r = compute_cout_renovation(case)
+        assert r["cout_min"] == pytest.approx(60_000, abs=1)
+        assert r["cout_max"] == pytest.approx(120_000, abs=1)
+        assert r["cout_median"] == pytest.approx(90_000, abs=1)
+        assert r["type_travaux"] == "modérée"
+
+    def test_neuf_cout_min_zero(self):
+        """Bâtiment neuf → coût min = 0."""
+        from engine.data_enrichment import compute_cout_renovation
+        case = {"vetuste_batiment": {"categorie": "neuf"}, "surface": 80}
+        r = compute_cout_renovation(case)
+        assert r["cout_min"] == 0
+        assert r["type_travaux"] == "entretien courant"
+
+    def test_tres_vieux_cout_eleve(self):
+        """Très vieux → barème complet 2200-3500$/m²."""
+        from engine.data_enrichment import compute_cout_renovation
+        case = {"vetuste_batiment": {"categorie": "très vieux"}, "surface": 120}
+        r = compute_cout_renovation(case)
+        assert r["cout_min"] == pytest.approx(120 * 2_200, abs=1)
+        assert r["cout_max"] == pytest.approx(120 * 3_500, abs=1)
+
+    def test_fallback_surface_role_municipal(self):
+        """Utilise role_municipal.superficie_batiment_m2 si surface absente."""
+        from engine.data_enrichment import compute_cout_renovation
+        case = {
+            "vetuste_batiment": {"categorie": "vieux"},
+            "role_municipal": {"superficie_batiment_m2": 90},
+        }
+        r = compute_cout_renovation(case)
+        assert r["surface_m2"] == 90.0
+        assert r["cout_min"] == pytest.approx(90 * 1_200, abs=1)
+
+    def test_missing_categorie_returns_empty(self):
+        """Sans vétusté → dict vide."""
+        from engine.data_enrichment import compute_cout_renovation
+        assert compute_cout_renovation({"surface": 100}) == {}
+
+    def test_enrich_case_injects_cout_renovation(self, tmp_path):
+        """enrich_case injecte cout_renovation si vetuste + surface disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-RENOV-TEST",
+            "annee_construction": 1975,
+            "surface": 110,
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        cr = case.get("cout_renovation", {})
+        assert cr.get("source") == "calcul-interne"
+        assert cr.get("surface_m2") == 110.0
+        assert cr.get("cout_min") > 0
+        assert cr.get("cout_max") >= cr.get("cout_min")

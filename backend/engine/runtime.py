@@ -706,6 +706,12 @@ class RuntimeEngine:
                     k: v for k, v in sg.items()
                     if k not in ("source",) and v is not None
                 }
+            cout_ren = case.get("cout_renovation")
+            if cout_ren:
+                fb["cout_renovation"] = {
+                    k: v for k, v in cout_ren.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1288,6 +1294,24 @@ class RuntimeEngine:
                 )
             else:
                 qdv_section = ""
+            # Build renovation cost section
+            cr_d = case.get("cout_renovation") or {}
+            if cr_d:
+                cr_min = cr_d.get("cout_min")
+                cr_max = cr_d.get("cout_max")
+                cr_med = cr_d.get("cout_median")
+                cr_type = cr_d.get("type_travaux", "")
+                cr_surf = cr_d.get("surface_m2")
+                renov_section = (
+                    "## Coût estimé de rénovation (calcul interne)\n\n"
+                    + (f"Surface de référence : **{cr_surf:.0f} m²**  \n" if cr_surf else "")
+                    + (f"Type de travaux : **{cr_type}**  \n" if cr_type else "")
+                    + (f"Fourchette estimée : **{cr_min:,.0f} $ – {cr_max:,.0f} $**  \n" if cr_min is not None else "")
+                    + (f"Valeur médiane : **{cr_med:,.0f} $**  \n" if cr_med else "")
+                    + "\n*Source : barèmes APCHQ/CAA-Québec 2024 — estimation indicative.*\n\n"
+                )
+            else:
+                renov_section = ""
             # Build building age / depreciation section
             vet_d = case.get("vetuste_batiment") or {}
             if vet_d:
@@ -1470,6 +1494,7 @@ class RuntimeEngine:
                 + climat_section
                 + crime_section
                 + vetuste_section
+                + renov_section
                 + risque_section
                 + valeur_indicative_section
                 + qdv_section
