@@ -125,6 +125,28 @@ _NHPI_TYPE_SEARCHES: dict[str, list[str]] = {
     "terrain":  ["Land", "Terrain"],
 }
 
+# ── Permis de construction (StatCan 34-10-0066-01) ────────────────────────────
+_PERMIS_TABLE = 3410006601  # 34-10-0066-01 : Building permits by type of structure and work
+
+# city_code → StatCan GEO labels (CMA level, EN)
+_PERMIS_GEO_LABELS: dict[str, list[str]] = {
+    "montreal":       ["Montréal, Quebec", "Montréal"],
+    "quebec":         ["Québec, Quebec", "Québec"],
+    "gatineau":       ["Ottawa - Gatineau, Quebec part, Quebec", "Gatineau, Quebec part",
+                       "Ottawa-Gatineau, Quebec part"],
+    "sherbrooke":     ["Sherbrooke, Quebec", "Sherbrooke"],
+    "saguenay":       ["Saguenay, Quebec", "Saguenay"],
+    "trois-rivieres": ["Trois-Rivières, Quebec", "Trois-Rivières"],
+    "drummondville":  ["Drummondville, Quebec", "Drummondville"],
+    "laval":          ["Laval, Quebec", "Laval"],
+}
+
+_PERMIS_STRUCTURE_SEARCHES = ["Residential", "Résidentiel"]
+_PERMIS_WORK_SEARCHES_NEW  = ["New construction", "Nouvelle construction"]
+_PERMIS_WORK_SEARCHES_ALL  = ["All work", "Toutes catégories", "Total"]
+_PERMIS_UNIT_SEARCHES      = ["Number of units", "Units", "Unités"]
+_PERMIS_VALUE_SEARCHES     = ["Value of permits", "Value", "Valeur"]
+
 # ── Census Profile 2021 (StatCan REST) ───────────────────────────────────────
 _CENSUS_BASE = "https://www12.statcan.gc.ca/rest/census-recensement/CR2021/fr/json"
 _CENSUS_TTL = 30 * 86_400  # 30 jours — données stables (recensement 2021)
@@ -475,6 +497,118 @@ def fetch_nhpi(city_code: str, cache_dir: Path) -> dict:
 
     except Exception as exc:  # pragma: no cover
         logger.debug("NHPI fetch failed for %s: %s", city_code, exc)
+        return {}
+
+
+def fetch_permis_construction(city_code: str, cache_dir: Path) -> dict:
+    """
+    Return building permit activity for a QC city via StatCan WDS (34-10-0066-01).
+
+    Returns dict with keys:
+      - unites_residentielles_mois  : latest month (new residential units)
+      - unites_residentielles_12mois: rolling 12-month sum
+      - variation_pct_6m            : (avg last 6m / avg prior 6m - 1) × 100
+      - valeur_permis_k_mois        : latest month value (k$) if available
+      - periode                     : YYYY-MM label of latest data point
+      - ville, source
+    Returns {} on any failure or unsupported city.
+    """
+    geo_labels = _PERMIS_GEO_LABELS.get(city_code)
+    if not geo_labels:
+        return {}
+
+    try:
+        meta = _cube_metadata(_PERMIS_TABLE, cache_dir)
+        dims = meta.get("dims", [])
+        if not dims:
+            return {}
+
+        # Dim 0 = GEO
+        geo_ord = _find_member_ordinal(dims, 0, geo_labels)
+        if geo_ord is None:
+            return {}
+
+        # Dim 1 = Type of structure  →  Residential
+        struct_ord = _find_member_ordinal(dims, 1, _PERMIS_STRUCTURE_SEARCHES)
+        if struct_ord is None:
+            return {}
+
+        # Dim 2 = Type of work  →  New construction (preferred) or All work
+        work_ord_new = _find_member_ordinal(dims, 2, _PERMIS_WORK_SEARCHES_NEW)
+        work_ord_all = _find_member_ordinal(dims, 2, _PERMIS_WORK_SEARCHES_ALL)
+        work_ord = work_ord_new if work_ord_new is not None else work_ord_all
+        if work_ord is None:
+            return {}
+
+        # Optional dim 3 = measure (units vs value)
+        unit_ord: int | None = None
+        value_ord: int | None = None
+        if len(dims) >= 4:
+            unit_ord  = _find_member_ordinal(dims, 3, _PERMIS_UNIT_SEARCHES)
+            value_ord = _find_member_ordinal(dims, 3, _PERMIS_VALUE_SEARCHES)
+
+        # Build coordinates
+        coord_units = _build_coordinate(geo_ord, struct_ord, work_ord, unit_ord)
+        coord_value = _build_coordinate(geo_ord, struct_ord, work_ord, value_ord)
+
+        # Fallback: 3-dim coordinate if dim 3 not present
+        if coord_units is None:
+            coord_units = _build_coordinate(geo_ord, struct_ord, work_ord)
+        if coord_value is None and value_ord is not None:
+            coord_value = _build_coordinate(geo_ord, struct_ord, work_ord_all, value_ord)
+
+        result: dict = {
+            "source": "statcan-34-10-0066-01",
+            "ville": _SCHL_TO_DISPLAY.get(city_code, city_code),
+        }
+
+        # Fetch 12-month series for units
+        if coord_units:
+            try:
+                payload = [{"productId": _PERMIS_TABLE, "coordinate": coord_units, "latestN": 12}]
+                data = _wds_post("getDataFromCubePidCoordAndLatestNPeriods", payload)
+                if isinstance(data, list) and data and data[0].get("status") == "SUCCESS":
+                    pts = data[0].get("object", {}).get("vectorDataPoint", [])
+                    values = []
+                    for pt in pts:
+                        try:
+                            values.append(float(pt["value"]))
+                        except (TypeError, ValueError):
+                            pass
+                    if values:
+                        result["unites_residentielles_mois"] = values[0]
+                        result["unites_residentielles_12mois"] = round(sum(values), 0)
+                        # Ref period label from first point
+                        ref = pts[0].get("refPer") or pts[0].get("refper") or ""
+                        if ref:
+                            result["periode"] = str(ref)[:7]  # YYYY-MM
+                        # 6-month variation
+                        if len(values) >= 12:
+                            avg_rec  = sum(values[:6]) / 6
+                            avg_prev = sum(values[6:12]) / 6
+                            if avg_prev > 0:
+                                result["variation_pct_6m"] = round(
+                                    (avg_rec - avg_prev) / avg_prev * 100, 1
+                                )
+            except Exception:
+                pass
+
+        # Fetch latest value of permits (k$)
+        if coord_value:
+            try:
+                val = _fetch_series(_PERMIS_TABLE, coord_value, cache_dir)
+                if val is not None:
+                    result["valeur_permis_k_mois"] = val
+            except Exception:
+                pass
+
+        if len(result) <= 2:
+            return {}
+
+        return result
+
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Permis construction fetch failed for %s: %s", city_code, exc)
         return {}
 
 
@@ -1747,6 +1881,17 @@ def enrich_case(
                 logger.debug("donnees_sociodemographiques injecté : %s", city_code)
         except Exception as exc:
             logger.debug("census skip: %s", exc)
+
+    # ── Permis de construction (StatCan 34-10-0066-01) ────────────────────────
+    if not case.get("permis_construction"):
+        try:
+            permis = fetch_permis_construction(city_code, cache_dir)
+            if permis:
+                case["permis_construction"] = permis
+                logger.debug("permis_construction injecté : %s unités/mois=%.0f",
+                             city_code, permis.get("unites_residentielles_mois", 0))
+        except Exception as exc:
+            logger.debug("permis_construction skip: %s", exc)
 
     # ── Rôle municipal ────────────────────────────────────────────────────────
     if not case.get("role_municipal"):

@@ -550,6 +550,12 @@ class RuntimeEngine:
                     k: v for k, v in census.items()
                     if k not in ("source", "_ts") and v is not None
                 }
+            permis = case.get("permis_construction")
+            if permis:
+                fb["permis_construction"] = {
+                    k: v for k, v in permis.items()
+                    if k not in ("source",) and v is not None
+                }
             payload.update(fb)
 
         if step == "data-facts" and artifact == "timeline_faits.json":
@@ -697,6 +703,25 @@ class RuntimeEngine:
                     "## Données marché\n\n"
                     "Données de marché non disponibles pour ce secteur (sources externes non connectées).\n\n"
                 )
+            # Build building permits section
+            permis = case.get("permis_construction") or {}
+            if permis:
+                u_mois = permis.get("unites_residentielles_mois")
+                u_12m  = permis.get("unites_residentielles_12mois")
+                val_k  = permis.get("valeur_permis_k_mois")
+                var_6m = permis.get("variation_pct_6m")
+                periode = permis.get("periode", "")
+                permis_section = (
+                    f"## Activité de construction ({permis.get('ville', '')})\n\n"
+                    + (f"Période : {periode}  \n" if periode else "")
+                    + (f"Unités résidentielles autorisées (mois) : **{u_mois:,.0f}**  \n" if u_mois else "")
+                    + (f"Total 12 mois glissants : **{u_12m:,.0f} unités**  \n" if u_12m else "")
+                    + (f"Valeur des permis (mois) : **{val_k:,.0f} k$**  \n" if val_k else "")
+                    + (f"Variation 6 mois vs 6 mois précédents : **{var_6m:+.1f} %**  \n" if var_6m is not None else "")
+                    + "\n"
+                )
+            else:
+                permis_section = ""
             # Build census socio-demographic section
             census = case.get("donnees_sociodemographiques") or {}
             if census:
@@ -734,6 +759,7 @@ class RuntimeEngine:
                 f"## Critere 3 — Financierement faisable\n\n"
                 f"Le marche supporte l'usage de type {type_bien} dans ce secteur.\n\n"
                 + marche_section
+                + permis_section
                 + census_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "

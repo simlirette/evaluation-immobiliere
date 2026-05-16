@@ -2647,3 +2647,156 @@ class TestDataEnrichment_Census:
         sd = case.get("donnees_sociodemographiques", {})
         assert sd.get("pct_proprietaires") == 1_100_000.0
         assert sd.get("revenu_median_menage") == 72_000.0
+
+
+# ── TestDataEnrichment_Permis ─────────────────────────────────────────────────
+
+class TestDataEnrichment_Permis:
+    """Unit tests for fetch_permis_construction() and enrich_case() injection."""
+
+    def _meta(self, geo_labels, struct_labels, work_labels, measure_labels=None):
+        """Build fake WDS cube metadata with specified member lists."""
+        def members(labels):
+            return [{"memberId": str(i + 1), "memberNameEn": lbl}
+                    for i, lbl in enumerate(labels)]
+
+        dims = [
+            {"member": members(geo_labels)},    # dim 0: GEO
+            {"member": members(struct_labels)}, # dim 1: structure
+            {"member": members(work_labels)},   # dim 2: work type
+        ]
+        if measure_labels:
+            dims.append({"member": members(measure_labels)})  # dim 3: measure
+        return {"dims": dims}
+
+    def _series_12(self, values):
+        """Build a 12-period WDS response."""
+        return [{
+            "status": "SUCCESS",
+            "object": {
+                "vectorDataPoint": [
+                    {"value": str(v), "refPer": f"2025-{(12 - i):02d}"}
+                    for i, v in enumerate(values)
+                ]
+            },
+        }]
+
+    def test_fetch_permis_success_3dim(self, tmp_path):
+        """3-dim table (no measure dim): units fetched from new construction series."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_permis_construction
+
+        meta = self._meta(
+            ["Montréal, Quebec", "Québec, Quebec"],
+            ["Residential", "Non-residential"],
+            ["New construction", "All work"],
+        )
+        # 12 monthly values (most recent first)
+        monthly = [450.0] * 6 + [380.0] * 6
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return self._series_12(monthly)
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                with mock.patch.object(de, "_fetch_series", return_value=None):
+                    result = fetch_permis_construction("montreal", tmp_path)
+
+        assert result.get("ville") == "Montréal"
+        assert result.get("source") == "statcan-34-10-0066-01"
+        assert result.get("unites_residentielles_mois") == 450.0
+        assert result.get("unites_residentielles_12mois") == 4980.0  # sum(monthly)
+        assert result.get("periode") == "2025-12"
+        # variation: avg(450×6) vs avg(380×6) = (450-380)/380 ≈ 18.4%
+        import pytest
+        assert result.get("variation_pct_6m") == pytest.approx(18.4, abs=0.2)
+
+    def test_fetch_permis_unsupported_city(self, tmp_path):
+        """Unsupported city → {} without WDS call."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_permis_construction
+
+        with mock.patch.object(de, "_cube_metadata") as mock_meta:
+            result = fetch_permis_construction("rimouski", tmp_path)
+
+        mock_meta.assert_not_called()
+        assert result == {}
+
+    def test_fetch_permis_no_meta(self, tmp_path):
+        """Empty WDS metadata → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_permis_construction
+
+        with mock.patch.object(de, "_cube_metadata", return_value={}):
+            result = fetch_permis_construction("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_permis_geo_not_found(self, tmp_path):
+        """GEO dimension has no match for city → {}."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_permis_construction
+
+        meta = self._meta(
+            ["Toronto", "Vancouver"],
+            ["Residential"],
+            ["New construction"],
+        )
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            result = fetch_permis_construction("montreal", tmp_path)
+
+        assert result == {}
+
+    def test_fetch_permis_4dim_with_measure(self, tmp_path):
+        """4-dim table: unit_ord and value_ord extracted from dim 3."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import fetch_permis_construction
+
+        meta = self._meta(
+            ["Montréal, Quebec"],
+            ["Residential"],
+            ["New construction", "All work"],
+            ["Number of units", "Value of permits"],  # dim 3
+        )
+        monthly = [300.0] * 12
+
+        def fake_wds_post(endpoint, payload, timeout=8.0):
+            return self._series_12(monthly)
+
+        with mock.patch.object(de, "_cube_metadata", return_value=meta):
+            with mock.patch.object(de, "_wds_post", side_effect=fake_wds_post):
+                with mock.patch.object(de, "_fetch_series", return_value=5_200.0):
+                    result = fetch_permis_construction("montreal", tmp_path)
+
+        assert result.get("unites_residentielles_mois") == 300.0
+        assert result.get("valeur_permis_k_mois") == 5_200.0
+
+    def test_enrich_case_injects_permis(self, tmp_path):
+        """enrich_case populates permis_construction via fetch_permis_construction."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        permis_data = {
+            "ville": "Montréal",
+            "source": "statcan-34-10-0066-01",
+            "unites_residentielles_mois": 520.0,
+            "unites_residentielles_12mois": 5_800.0,
+            "variation_pct_6m": 12.5,
+            "periode": "2025-11",
+        }
+
+        with mock.patch.object(de, "fetch_permis_construction", return_value=permis_data):
+            with mock.patch.object(de, "detect_city", return_value="montreal"):
+                case: dict = {"dossier_id": "D-PERMIS-TEST"}
+                enrich_case(case, display_name="200 rue Sainte-Catherine, Montréal",
+                            cache_dir=tmp_path)
+
+        pc = case.get("permis_construction", {})
+        assert pc.get("unites_residentielles_mois") == 520.0
+        assert pc.get("variation_pct_6m") == 12.5
