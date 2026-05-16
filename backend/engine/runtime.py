@@ -688,6 +688,12 @@ class RuntimeEngine:
                     k: v for k, v in qdv.items()
                     if k not in ("source",) and v is not None
                 }
+            risque = case.get("score_risque")
+            if risque:
+                fb["score_risque"] = {
+                    k: v for k, v in risque.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1208,6 +1214,24 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build risk score section
+            rsk = case.get("score_risque") or {}
+            if rsk:
+                rsk_score = rsk.get("score_risque")
+                rsk_cat = rsk.get("categorie", "")
+                rsk_facteurs = rsk.get("facteurs_risque") or []
+                risque_section = (
+                    "## Score de risque global (calcul interne)\n\n"
+                    + (f"Score : **{rsk_score:.2f} / 10** — {rsk_cat}  \n" if rsk_score is not None else "")
+                    + (
+                        "Facteurs de risque identifiés :\n"
+                        + "".join(f"- {f}  \n" for f in rsk_facteurs)
+                        if rsk_facteurs else "Aucun facteur de risque majeur identifié.  \n"
+                    )
+                    + "\n"
+                )
+            else:
+                risque_section = ""
             # Build quality-of-life index section
             qdv_d = case.get("indice_qualite_vie") or {}
             if qdv_d:
@@ -1399,6 +1423,7 @@ class RuntimeEngine:
                 + climat_section
                 + crime_section
                 + vetuste_section
+                + risque_section
                 + qdv_section
                 + taxes_section
                 + couts_section

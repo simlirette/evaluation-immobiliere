@@ -265,7 +265,16 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Minimum 2 composantes requis, sinon {}
   - fiche_bien.json + section AMU "Indice de qualité de vie" (Critère 2/3)
   - 6 tests pass
-- 336 tests pass
+- B39 Score de risque global (calcul interne) ✓
+  - compute_score_risque(case): synthèse B8+B9+B21+B28+B37
+  - Poids: zone inondable 25%, nuisances 20%, vétusté 20%, crime 20%, patrimoine 15%
+  - Logique: zone_inondable absente={} skip; en zone=0pt; hors zone=10pt
+  - patrimoine répertorié=3pt (contraintes réelles, pas disqualifiant); hors=10pt
+  - facteurs_risque: liste des risques identifiés avec détails
+  - catégorie: risque faible (≥8), modéré (≥6), élevé (≥4), très élevé
+  - fiche_bien.json + section AMU "Score de risque global" (Critères 1+2)
+  - 6 tests pass
+- 342 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

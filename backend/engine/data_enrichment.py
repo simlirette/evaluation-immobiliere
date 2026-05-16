@@ -261,6 +261,17 @@ _QDV_SEUIL_EXCELLENT = 8.0
 _QDV_SEUIL_BON       = 6.0
 _QDV_SEUIL_ACCEPTABLE = 4.0
 
+# ── Score de risque global (calcul interne) ───────────────────────────────────
+_RISQUE_POIDS_INONDABLE   = 0.25  # zone_inondable (B9) — risque financier majeur
+_RISQUE_POIDS_NUISANCES   = 0.20  # nuisances_environnementales (B28)
+_RISQUE_POIDS_VETUSTE     = 0.20  # vetuste_batiment (B37)
+_RISQUE_POIDS_CRIME       = 0.20  # crime_stats (B21)
+_RISQUE_POIDS_PATRIMOINE  = 0.15  # patrimoine_culturel (B8) — contraintes légales
+
+_RISQUE_SEUIL_FAIBLE      = 8.0   # ≥ 8 → risque faible
+_RISQUE_SEUIL_MODERE      = 6.0   # ≥ 6 → risque modéré
+_RISQUE_SEUIL_ELEVE       = 4.0   # ≥ 4 → risque élevé (< 4 → risque très élevé)
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -4087,6 +4098,103 @@ def compute_indice_qualite_vie(case: dict) -> dict:
     return result
 
 
+def compute_score_risque(case: dict) -> dict:
+    """
+    Compute a composite risk score (0–10, higher = lower risk) for the property.
+
+    Pure function — no external calls.  Synthesizes:
+      - zone_inondable          (B9)  — flood risk        (weight 25 %)
+      - nuisances_environnementales (B28) — env. nuisances (weight 20 %)
+      - vetuste_batiment        (B37) — physical condition (weight 20 %)
+      - crime_stats             (B21) — security           (weight 20 %)
+      - patrimoine_culturel     (B8)  — heritage constraints (weight 15 %)
+
+    Each component normalised to [0, 10] (10 = no risk).
+    Returns {} if fewer than 2 components available.
+
+    Returns dict with:
+      score_risque, composantes, poids, categorie, facteurs_risque, source.
+    """
+    composantes: dict[str, float] = {}
+    facteurs: list[str] = []
+
+    # ── Zone inondable (présence = risque majeur) ─────────────────────────────
+    inond = case.get("zone_inondable")
+    if inond is not None:  # {} = hors zone, dict avec clés = en zone
+        if inond and inond.get("en_zone_inondable"):
+            composantes["inondable"] = 0.0
+            recurrence = inond.get("recurrence_label", "inconnue")
+            facteurs.append(f"Zone inondable ({recurrence})")
+        else:
+            composantes["inondable"] = 10.0
+
+    # ── Nuisances environnementales (score 0-4 → risque 0-10 inversé) ────────
+    nuisances_score = (case.get("nuisances_environnementales") or {}).get("score_nuisances")
+    if nuisances_score is not None and 0 <= nuisances_score <= 4:
+        composantes["nuisances"] = round((4.0 - nuisances_score) / 4.0 * 10.0, 2)
+        if nuisances_score >= 2:
+            facteurs.append(f"Nuisances environnementales significatives (score {nuisances_score}/4)")
+
+    # ── Vétusté (valeur résiduelle → risque structurel) ───────────────────────
+    resid = (case.get("vetuste_batiment") or {}).get("valeur_residuelle_pct")
+    if resid is not None and 0 <= resid <= 100:
+        composantes["vetuste"] = round(resid / 100.0 * 10.0, 2)
+        if resid < 40:
+            facteurs.append(f"Bâtiment très vétuste (résiduel {resid:.0f} %)")
+
+    # ── Crime (taux /100k → risque inversé) ──────────────────────────────────
+    crime = (case.get("crime_stats") or {}).get("taux_criminalite_total")
+    if crime is not None and crime >= 0:
+        composantes["crime"] = round(max(0.0, (_QDV_CRIME_MAX - crime) / _QDV_CRIME_MAX * 10.0), 2)
+        if crime > 6_000:
+            facteurs.append(f"Criminalité élevée ({crime:.0f}/100k hab.)")
+
+    # ── Patrimoine culturel (répertorié = contraintes légales) ───────────────
+    pat = case.get("patrimoine_culturel")
+    if pat is not None:
+        if pat:  # dict non vide = bien répertorié
+            composantes["patrimoine"] = 3.0   # pénalité: contraintes réelles mais not catastrophic
+            facteurs.append("Bien répertorié au patrimoine culturel (contraintes Loi culture)")
+        else:
+            composantes["patrimoine"] = 10.0
+
+    if len(composantes) < 2:
+        return {}
+
+    poids_map = {
+        "inondable":  _RISQUE_POIDS_INONDABLE,
+        "nuisances":  _RISQUE_POIDS_NUISANCES,
+        "vetuste":    _RISQUE_POIDS_VETUSTE,
+        "crime":      _RISQUE_POIDS_CRIME,
+        "patrimoine": _RISQUE_POIDS_PATRIMOINE,
+    }
+    score_num = sum(composantes[k] * poids_map[k] for k in composantes)
+    poids_total = sum(poids_map[k] for k in composantes)
+    score_final = round(score_num / poids_total, 2)
+
+    if score_final >= _RISQUE_SEUIL_FAIBLE:
+        categorie = "risque faible"
+    elif score_final >= _RISQUE_SEUIL_MODERE:
+        categorie = "risque modéré"
+    elif score_final >= _RISQUE_SEUIL_ELEVE:
+        categorie = "risque élevé"
+    else:
+        categorie = "risque très élevé"
+
+    result = {
+        "score_risque": score_final,
+        "composantes": composantes,
+        "poids": {k: poids_map[k] for k in composantes},
+        "categorie": categorie,
+        "facteurs_risque": facteurs,
+        "source": "calcul-interne",
+    }
+
+    logger.debug("score_risque : %.2f/10 (%s) — %d facteurs",
+                 score_final, categorie, len(facteurs))
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4552,3 +4660,16 @@ def enrich_case(
                              qdv.get("indice_qualite_vie", 0), qdv.get("interpretation"))
         except Exception as exc:
             logger.debug("indice_qualite_vie skip: %s", exc)
+
+    # ── Score de risque global (calcul interne, dépend B8+B9+B21+B28+B37) ────
+    if not case.get("score_risque"):
+        try:
+            risque = compute_score_risque(case)
+            if risque:
+                case["score_risque"] = risque
+                logger.debug("score_risque : %.2f/10 (%s) — %d facteurs",
+                             risque.get("score_risque", 0),
+                             risque.get("categorie"),
+                             len(risque.get("facteurs_risque", [])))
+        except Exception as exc:
+            logger.debug("score_risque skip: %s", exc)

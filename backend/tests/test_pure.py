@@ -5772,3 +5772,82 @@ class TestDataEnrichment_IndiceQualiteVie:
         assert qdv.get("source") == "calcul-interne"
         assert qdv.get("indice_qualite_vie") is not None
         assert qdv.get("interpretation") in ("excellent", "bon", "acceptable", "faible")
+
+
+class TestDataEnrichment_ScoreRisque:
+    """B39 — compute_score_risque (pure function)."""
+
+    def test_hors_zone_inondable_score_max(self):
+        """Hors zone inondable + zéro nuisances → composante inondable = 10."""
+        from engine.data_enrichment import compute_score_risque
+        case = {
+            "zone_inondable": {},  # hors zone
+            "nuisances_environnementales": {"score_nuisances": 0},
+        }
+        r = compute_score_risque(case)
+        assert r["composantes"]["inondable"] == 10.0
+        assert r["composantes"]["nuisances"] == 10.0
+
+    def test_en_zone_inondable_penalite(self):
+        """En zone inondable → composante inondable = 0, facteur listé."""
+        from engine.data_enrichment import compute_score_risque
+        case = {
+            "zone_inondable": {"en_zone_inondable": True, "recurrence_label": "0-20 ans"},
+            "nuisances_environnementales": {"score_nuisances": 0},
+        }
+        r = compute_score_risque(case)
+        assert r["composantes"]["inondable"] == 0.0
+        assert any("inondable" in f.lower() for f in r["facteurs_risque"])
+
+    def test_patrimoine_penalite(self):
+        """Bien répertorié au patrimoine → composante = 3.0."""
+        from engine.data_enrichment import compute_score_risque
+        case = {
+            "patrimoine_culturel": {"NOM": "Maison Dupont", "statut": "classe"},
+            "crime_stats": {"taux_criminalite_total": 3_000},
+        }
+        r = compute_score_risque(case)
+        assert r["composantes"]["patrimoine"] == 3.0
+        assert any("patrimoine" in f.lower() for f in r["facteurs_risque"])
+
+    def test_categorie_risque_faible(self):
+        """Toutes conditions favorables → catégorie 'risque faible'."""
+        from engine.data_enrichment import compute_score_risque
+        case = {
+            "zone_inondable": {},
+            "nuisances_environnementales": {"score_nuisances": 0},
+            "vetuste_batiment": {"valeur_residuelle_pct": 90.0},
+            "crime_stats": {"taux_criminalite_total": 1_000},
+            "patrimoine_culturel": {},
+        }
+        r = compute_score_risque(case)
+        assert r["categorie"] == "risque faible"
+        assert r["score_risque"] >= 8.0
+
+    def test_fewer_than_two_returns_empty(self):
+        """Moins de 2 composantes → dict vide."""
+        from engine.data_enrichment import compute_score_risque
+        case = {"zone_inondable": {}}
+        assert compute_score_risque(case) == {}
+
+    def test_enrich_case_injects_score_risque(self, tmp_path):
+        """enrich_case injecte score_risque quand données disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-RISQUE-TEST",
+            "zone_inondable": {},
+            "nuisances_environnementales": {"score_nuisances": 1},
+            "crime_stats": {"taux_criminalite_total": 4_000},
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        rsk = case.get("score_risque", {})
+        assert rsk.get("source") == "calcul-interne"
+        assert rsk.get("score_risque") is not None
+        assert rsk.get("categorie") in (
+            "risque faible", "risque modéré", "risque élevé", "risque très élevé"
+        )
