@@ -664,6 +664,12 @@ class RuntimeEngine:
                     k: v for k, v in taxes.items()
                     if k not in ("source",) and v is not None
                 }
+            couts = case.get("couts_possession")
+            if couts:
+                fb["couts_possession"] = {
+                    k: v for k, v in couts.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1184,6 +1190,29 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
+            # Build ownership carrying costs section
+            cp = case.get("couts_possession") or {}
+            if cp:
+                cp_total_m = cp.get("total_mensuel")
+                cp_total_a = cp.get("total_annuel")
+                cp_hypo = cp.get("versement_hypothecaire_mensuel")
+                cp_taxes = cp.get("taxes_mensuelles")
+                cp_entretien = cp.get("entretien_mensuel")
+                cp_assurance = cp.get("assurance_mensuelle")
+                cp_ratio = cp.get("ratio_revenu_pct")
+                cp_interp = cp.get("interpretation", "")
+                couts_section = (
+                    "## Coûts de possession totaux (calcul interne)\n\n"
+                    + (f"Versement hypothécaire estimé : **{cp_hypo:,.0f} $/mois**  \n" if cp_hypo else "")
+                    + (f"Taxes municipales : **{cp_taxes:,.0f} $/mois**  \n" if cp_taxes else "")
+                    + (f"Entretien estimé (1 %/an) : **{cp_entretien:,.0f} $/mois**  \n" if cp_entretien else "")
+                    + (f"Assurance estimée (0,35 %/an) : **{cp_assurance:,.0f} $/mois**  \n" if cp_assurance else "")
+                    + (f"**Total mensuel : {cp_total_m:,.0f} $** ({cp_total_a:,.0f} $/an)  \n" if cp_total_m else "")
+                    + (f"Ratio coûts/revenu médian : **{cp_ratio:.1f} %** — {cp_interp}  \n" if cp_ratio else "")
+                    + "\n"
+                )
+            else:
+                couts_section = ""
             # Build municipal taxes section
             tx = case.get("taxes_municipales") or {}
             if tx:
@@ -1294,6 +1323,7 @@ class RuntimeEngine:
                 + climat_section
                 + crime_section
                 + taxes_section
+                + couts_section
                 + rendement_section
                 + invest_section
                 + score_marche_section

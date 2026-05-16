@@ -227,6 +227,12 @@ _TAXES_TAUX_PCT: dict[str, float] = {
 }
 _TAXES_MOYENNE_QC_PCT = 0.95   # Moyenne provinciale QC estimée (toutes municipalités)
 
+# ── Coûts de possession totaux (calcul interne) ───────────────────────────────
+_POSSESSION_ENTRETIEN_PCT  = 1.0   # % valeur/an : entretien courant (norme SCHL/APCHQ)
+_POSSESSION_ASSURANCE_PCT  = 0.35  # % valeur/an : assurance habitation (estimation QC)
+_POSSESSION_SEUIL_ELEVE    = 40.0  # % revenu : seuil coûts élevés (SCHL)
+_POSSESSION_SEUIL_MODERE   = 30.0  # % revenu : seuil modéré
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -3773,6 +3779,78 @@ def compute_taxes_municipales(case: dict, city_code: str) -> dict:
     return result
 
 
+def compute_couts_possession(case: dict) -> dict:
+    """
+    Estimate total monthly and annual ownership carrying costs.
+
+    Pure function — no external calls.  Synthesizes:
+      - indice_abordabilite.versement_mensuel_estime  (B30 — mortgage payment)
+      - taxes_municipales.taxes_mensuelles_estimees    (B34 — property tax)
+      - evaluation_municipale_totale / role_municipal.valeur_totale
+        → entretien  (_POSSESSION_ENTRETIEN_PCT %/an)
+        → assurance  (_POSSESSION_ASSURANCE_PCT %/an)
+      - donnees_sociodemographiques.revenu_median_menage (B11 — for ratio)
+
+    Returns dict with:
+      versement_hypothecaire_mensuel, taxes_mensuelles, entretien_mensuel,
+      assurance_mensuelle, total_mensuel, total_annuel,
+      ratio_revenu_pct (optional), interpretation, source.
+    Returns {} if no cost component can be computed.
+    """
+    composantes: dict[str, float] = {}
+
+    # ── Versement hypothécaire (B30) ─────────────────────────────────────────
+    hypo = (case.get("indice_abordabilite") or {}).get("versement_mensuel_estime")
+    if hypo and hypo > 0:
+        composantes["versement_hypothecaire_mensuel"] = float(hypo)
+
+    # ── Taxes municipales (B34) ───────────────────────────────────────────────
+    taxes_m = (case.get("taxes_municipales") or {}).get("taxes_mensuelles_estimees")
+    if taxes_m and taxes_m > 0:
+        composantes["taxes_mensuelles"] = float(taxes_m)
+
+    # ── Valeur de référence pour entretien + assurance ────────────────────────
+    valeur = case.get("evaluation_municipale_totale")
+    if not valeur:
+        valeur = (case.get("role_municipal") or {}).get("valeur_totale")
+
+    if valeur and valeur > 0:
+        composantes["entretien_mensuel"] = round(valeur * _POSSESSION_ENTRETIEN_PCT / 100 / 12, 0)
+        composantes["assurance_mensuelle"] = round(valeur * _POSSESSION_ASSURANCE_PCT / 100 / 12, 0)
+
+    if not composantes:
+        return {}
+
+    total_mensuel = round(sum(composantes.values()), 0)
+    total_annuel = round(total_mensuel * 12, 0)
+
+    result: dict = {
+        **{k: round(v, 0) for k, v in composantes.items()},
+        "total_mensuel": total_mensuel,
+        "total_annuel": total_annuel,
+        "source": "calcul-interne",
+    }
+
+    # ── Ratio coûts / revenu ──────────────────────────────────────────────────
+    revenu = (case.get("donnees_sociodemographiques") or {}).get("revenu_median_menage")
+    if revenu and revenu > 0:
+        revenu_mensuel = revenu / 12.0
+        ratio = round(total_mensuel / revenu_mensuel * 100, 1)
+        result["ratio_revenu_pct"] = ratio
+        if ratio >= _POSSESSION_SEUIL_ELEVE:
+            result["interpretation"] = "coûts élevés"
+        elif ratio >= _POSSESSION_SEUIL_MODERE:
+            result["interpretation"] = "coûts modérés"
+        else:
+            result["interpretation"] = "coûts abordables"
+    else:
+        result["interpretation"] = "données revenu indisponibles"
+
+    logger.debug("couts_possession : total=%d $/mois ratio=%s%%",
+                 total_mensuel, result.get("ratio_revenu_pct", "n/a"))
+    return result
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -4191,3 +4269,15 @@ def enrich_case(
                              taxes.get("taxes_annuelles_estimees", 0))
         except Exception as exc:
             logger.debug("taxes_municipales skip: %s", exc)
+
+    # ── Coûts de possession totaux (calcul interne, dépend B30+B34) ──────────
+    if not case.get("couts_possession"):
+        try:
+            couts = compute_couts_possession(case)
+            if couts:
+                case["couts_possession"] = couts
+                logger.debug("couts_possession : total=%d $/mois (%s)",
+                             couts.get("total_mensuel", 0),
+                             couts.get("interpretation"))
+        except Exception as exc:
+            logger.debug("couts_possession skip: %s", exc)

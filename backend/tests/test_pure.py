@@ -5480,3 +5480,76 @@ class TestDataEnrichment_TaxesMunicipales:
         assert tx.get("source") == "calcul-interne"
         assert tx.get("taux_taxation_pct") == pytest.approx(1.087, abs=0.001)
         assert tx.get("taxes_annuelles_estimees") > 0
+
+
+class TestDataEnrichment_CoutsPossession:
+    """B35 — compute_couts_possession (pure function)."""
+
+    def _full_case(self):
+        return {
+            "evaluation_municipale_totale": 500_000,
+            "indice_abordabilite": {"versement_mensuel_estime": 2_000},
+            "taxes_municipales": {"taxes_mensuelles_estimees": 291},
+            "donnees_sociodemographiques": {"revenu_median_menage": 72_000},
+        }
+
+    def test_total_mensuel_sum(self):
+        """total_mensuel = hypo + taxes + entretien + assurance."""
+        from engine.data_enrichment import compute_couts_possession
+        r = compute_couts_possession(self._full_case())
+        # entretien = 500000 * 1% / 12 = 416.67, assurance = 500000 * 0.35% / 12 = 145.83
+        expected = 2_000 + 291 + round(500_000 * 0.01 / 12) + round(500_000 * 0.0035 / 12)
+        assert r["total_mensuel"] == pytest.approx(expected, abs=2)
+
+    def test_total_annuel(self):
+        """total_annuel = total_mensuel * 12."""
+        from engine.data_enrichment import compute_couts_possession
+        r = compute_couts_possession(self._full_case())
+        assert r["total_annuel"] == pytest.approx(r["total_mensuel"] * 12, abs=1)
+
+    def test_ratio_revenu(self):
+        """ratio_revenu_pct = total_mensuel / (revenu/12) * 100."""
+        from engine.data_enrichment import compute_couts_possession
+        r = compute_couts_possession(self._full_case())
+        revenu_mensuel = 72_000 / 12
+        expected_ratio = r["total_mensuel"] / revenu_mensuel * 100
+        assert r["ratio_revenu_pct"] == pytest.approx(expected_ratio, abs=0.2)
+
+    def test_interpretation_eleve(self):
+        """Ratio >= 40% → 'coûts élevés'."""
+        from engine.data_enrichment import compute_couts_possession
+        # revenu bas → ratio élevé
+        case = {
+            "evaluation_municipale_totale": 800_000,
+            "indice_abordabilite": {"versement_mensuel_estime": 4_000},
+            "taxes_municipales": {"taxes_mensuelles_estimees": 560},
+            "donnees_sociodemographiques": {"revenu_median_menage": 48_000},
+        }
+        r = compute_couts_possession(case)
+        assert r["interpretation"] == "coûts élevés"
+
+    def test_no_value_returns_empty(self):
+        """Sans valeur propriété ni composantes → dict vide."""
+        from engine.data_enrichment import compute_couts_possession
+        assert compute_couts_possession({}) == {}
+
+    def test_enrich_case_injects_couts_possession(self, tmp_path):
+        """enrich_case injecte couts_possession quand données disponibles."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-COUTS-TEST",
+            "evaluation_municipale_totale": 500_000,
+            "indice_abordabilite": {"versement_mensuel_estime": 2_100},
+            "taxes_municipales": {"taxes_mensuelles_estimees": 292},
+        }
+
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        cp = case.get("couts_possession", {})
+        assert cp.get("source") == "calcul-interne"
+        assert cp.get("total_mensuel") > 0
+        assert cp.get("total_annuel") == pytest.approx(cp["total_mensuel"] * 12, abs=1)

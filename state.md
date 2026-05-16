@@ -236,7 +236,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - Fallback: role_municipal.valeur_totale si evaluation_municipale_totale absent
   - fiche_bien.json + section AMU "Profil fiscal municipal" (Critère 3)
   - 6 tests pass
-- 312 tests pass
+- B35 Coûts de possession totaux (calcul interne) ✓
+  - compute_couts_possession(case): synthèse B30 (hypo) + B34 (taxes) + valeur (entretien/assurance)
+  - Entretien 1%/an + assurance 0.35%/an de la valeur d'évaluation
+  - total_mensuel, total_annuel, ratio_revenu_pct, interpretation (abordable/modéré/élevé)
+  - Seuils SCHL: <30% abordable, 30-40% modéré, ≥40% élevé
+  - fiche_bien.json + section AMU "Coûts de possession totaux" (Critère 3)
+  - 6 tests pass
+- 318 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
