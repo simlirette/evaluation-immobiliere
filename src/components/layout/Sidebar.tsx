@@ -8,7 +8,7 @@ import SidebarFooter from './SidebarFooter'
 import ContextMenu from './ContextMenu'
 import Toast from '@/components/shared/Toast'
 import { useContextMenu } from '@/hooks/useContextMenu'
-import { fetchDossiers, deleteDossier } from '@/lib/supabase/queries/dossiers'
+import { fetchDossiers, deleteDossier, renameDossier } from '@/lib/supabase/queries/dossiers'
 import { togglePin } from '@/lib/supabase/queries/pins'
 import type { Dossier, TabId } from '@/types'
 
@@ -55,6 +55,14 @@ export default function Sidebar({
     ))
     togglePin(dossier.id, pinned)
     setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
+  }
+
+  function handleRename(name: string, newName: string) {
+    const dossier = dossiers.find(d => d.address === name)
+    if (!dossier) return
+    setDossiers(prev => prev.map(d => d.address === name ? { ...d, address: newName } : d))
+    renameDossier(dossier.slug, newName)
+    setToast('Dossier renommé')
   }
 
   function handleDelete(name: string) {
@@ -168,6 +176,7 @@ export default function Sidebar({
         target={ctx.target}
         onClose={ctx.close}
         onPin={handlePin}
+        onRename={handleRename}
         onDelete={handleDelete}
       />
 

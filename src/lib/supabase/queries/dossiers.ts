@@ -77,6 +77,18 @@ export async function createDossier(input: CreateDossierInput): Promise<Dossier>
   return dossier
 }
 
+export async function renameDossier(slug: string, newAddress: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('dossiers')
+    .update({ address: newAddress })
+    .eq('slug', slug)
+
+  if (error) {
+    console.error('[renameDossier]', error.message)
+  }
+}
+
 export async function deleteDossier(id: string): Promise<void> {
   // `id` is the slug in this app (panels pass dossierId = slug)
   const supabase = createClient()
