@@ -1,6 +1,7 @@
 import type { Adjustment } from '@/types'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { computeNetAdjustment } from '@/lib/compute-net-adjustment'
+import { computeMedianIndicatedValue } from '@/lib/compute-median-indicated-value'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 
 function formatAdj(value: number): string {
@@ -27,6 +28,7 @@ function AdjCell({ value }: { value: number }) {
 
 export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
   const summary = summarizeAdjustments(rows)
+  const median = computeMedianIndicatedValue(rows)
   return (
     <div className="mt-2.5 overflow-x-auto">
       <table className="w-full border-collapse text-xs">
@@ -70,6 +72,16 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
                 {formatPrice(summary.avg)}
               </td>
             </tr>
+            {median !== null && (
+              <tr className="bg-black/[.015]">
+                <td className="px-2.5 py-[7px] text-[10px] text-[#8a8780] uppercase tracking-[.06em] text-left" colSpan={7}>
+                  Médiane
+                </td>
+                <td className="px-2.5 py-[7px] text-right font-medium text-[12px] text-[#1a1916]">
+                  {formatPrice(median)}
+                </td>
+              </tr>
+            )}
           </tfoot>
         )}
       </table>
