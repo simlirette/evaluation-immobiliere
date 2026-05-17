@@ -13,6 +13,7 @@ import { computeComparableRanking } from './compute-comparable-ranking'
 import { computeValuationConclusion } from './compute-valuation-conclusion'
 import { computeDataQualityReport } from './compute-data-quality-report'
 import { computeMarketPositioning } from './compute-market-positioning'
+import { computeAdjustmentNetEffect } from './compute-adjustment-net-effect'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -146,12 +147,19 @@ export function buildAnalyseHtml(
     const outliers = detectOutlierComparables(adjustments)
     const outlierMap = new Map(outliers.map(o => [o.id, o]))
     const reconciledWeights = adjustments.length > 1 ? (computeReconciledValue(adjustments)?.weights ?? {}) : {}
+    const netEffects = computeAdjustmentNetEffect(adjustments)
+    const netEffectMap = new Map(netEffects.map(e => [e.comparableId, e]))
     const rows = adjustments.map(a => {
       const outlier = outlierMap.get(a.id)
       const weightPct = reconciledWeights[a.id]
+      const netEffect = netEffectMap.get(a.comparable_id)
       const subLines: string[] = []
       if (outlier?.isOutlier) subLines.push(`<span style="font-size:8pt;font-weight:400;color:#b45309;">${outlier.deviationFromMedianPct > 0 ? '+' : ''}${fmt(outlier.deviationFromMedianPct)} % vs méd.</span>`)
       if (weightPct != null) subLines.push(`<span style="font-size:8pt;font-weight:400;color:#8a8780;">poids ${weightPct} %</span>`)
+      if (netEffect && netEffect.direction !== 'neutre') {
+        const netColor = netEffect.direction === 'positif' ? '#1f7a5c' : '#b91c1c'
+        subLines.push(`<span style="font-size:8pt;font-weight:400;color:${netColor};">net ${netEffect.netPct > 0 ? '+' : ''}${fmt(netEffect.netPct, 1)} % (${netEffect.magnitude})</span>`)
+      }
       const adjustedCell = `<td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}${subLines.length > 0 ? '<br>' + subLines.join('<br>') : ''}</td>`
       return `
       <tr>
