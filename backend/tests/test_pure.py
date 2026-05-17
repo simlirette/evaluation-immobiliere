@@ -6538,3 +6538,147 @@ class TestBuildFinancierSocioDemo:
         assert r is not None
         assert r["total_mensuel"] is None  # couts_possession absent
         assert r["revenu_median_menage"] == 65_000
+
+# Batch 17 — score_marche/marche_neuf + enseignement/routes + dette_revenu + cout_renovation
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildMarcheViewExtra:
+    """score_marche + marche_neuf + unites_absorbees added to _build_marche_view."""
+
+    def test_score_marche_extracted(self):
+        """score_marche → score_marche, tension_locative, marche_interpretation."""
+        from api import _build_marche_view
+        fb = {
+            "score_marche": {
+                "score_marche": 7.3,
+                "tension_locative": "tendu",
+                "interpretation": "marché favorable à l'achat",
+            }
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["score_marche"] == pytest.approx(7.3)
+        assert r["tension_locative"] == "tendu"
+        assert r["marche_interpretation"] == "marché favorable à l'achat"
+
+    def test_marche_neuf_extracted(self):
+        """marche_neuf → completions_12m, unites_en_construction, taux_absorption_pct."""
+        from api import _build_marche_view
+        fb = {
+            "marche_neuf": {
+                "completions_12mois": 1_250,
+                "unites_en_construction": 4_800,
+                "taux_absorption_pct": 92.5,
+            }
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["completions_12m"] == 1_250
+        assert r["unites_en_construction"] == 4_800
+        assert r["taux_absorption_pct"] == pytest.approx(92.5)
+
+    def test_unites_absorbees_extracted(self):
+        """unites_absorbees → unites_absorbees_total, variation_absorbees_pct_4q."""
+        from api import _build_marche_view
+        fb = {
+            "unites_absorbees": {
+                "unites_absorbees_total": 320,
+                "variation_pct_4q": 8.5,
+            }
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["unites_absorbees_total"] == 320
+        assert r["variation_absorbees_pct_4q"] == pytest.approx(8.5)
+
+
+class TestBuildLocalisationExtra:
+    """enseignement_postsecondaire + proximite_routes added to _build_localisation_view."""
+
+    def test_enseignement_postsecondaire_extracted(self):
+        """postsec → cegep_5km, universite_10km, postsec_interpretation."""
+        from api import _build_localisation_view
+        fb = {
+            "enseignement_postsecondaire": {
+                "cegep_5km": 2,
+                "universite_10km": 1,
+                "interpretation": "bonne desserte académique",
+            }
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["cegep_5km"] == 2
+        assert r["universite_10km"] == 1
+        assert r["postsec_interpretation"] == "bonne desserte académique"
+
+    def test_proximite_routes_extracted(self):
+        """routes → autoroute_km, route_nationale_km, artere_km, routes_interpretation."""
+        from api import _build_localisation_view
+        fb = {
+            "proximite_routes": {
+                "autoroute_km": 1.8,
+                "route_nationale_km": 0.9,
+                "artere_km": 0.4,
+                "interpretation": "excellent accès autoroutier",
+            }
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["autoroute_km"] == pytest.approx(1.8)
+        assert r["route_nationale_km"] == pytest.approx(0.9)
+        assert r["routes_interpretation"] == "excellent accès autoroutier"
+
+
+class TestBuildFinancierDette:
+    """dette_revenu added to _build_financier_view."""
+
+    def test_dette_revenu_extracted(self):
+        """dette_revenu → ratio_dette_revenu_pct, variation_dette_revenu_pct."""
+        from api import _build_financier_view
+        fb = {
+            "dette_revenu": {
+                "ratio_dette_revenu_pct": 184.5,
+                "variation_dette_revenu_pct": 1.3,
+            }
+        }
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["ratio_dette_revenu_pct"] == pytest.approx(184.5)
+        assert r["variation_dette_revenu_pct"] == pytest.approx(1.3)
+
+    def test_dette_revenu_absent_is_none(self):
+        """dette_revenu absent → fields are None."""
+        from api import _build_financier_view
+        fb = {"donnees_sociodemographiques": {"revenu_median_menage": 70_000}}
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["ratio_dette_revenu_pct"] is None
+        assert r["variation_dette_revenu_pct"] is None
+
+
+class TestBuildEnrichmentViewCoutRenovation:
+    """cout_renovation added to _build_enrichment_view."""
+
+    def test_cout_renovation_extracted(self):
+        """cout_renovation → cout_min, cout_max, cout_median, type_travaux."""
+        from api import _build_enrichment_view
+        fb = {
+            "cout_renovation": {
+                "cout_min": 50_000,
+                "cout_max": 120_000,
+                "cout_median": 85_000,
+                "type_travaux": "rénovation majeure",
+            }
+        }
+        r = _build_enrichment_view(fb)
+        assert r["cout_renovation"] is not None
+        assert r["cout_renovation"]["cout_min"] == 50_000
+        assert r["cout_renovation"]["cout_max"] == 120_000
+        assert r["cout_renovation"]["type_travaux"] == "rénovation majeure"
+
+    def test_cout_renovation_absent_is_none(self):
+        """cout_renovation absent (but other data present) → None."""
+        from api import _build_enrichment_view
+        fb = {"score_global": {"score_global": 7.0, "grade": "B", "recommandation_finale": "ok"}}
+        r = _build_enrichment_view(fb)
+        assert r["cout_renovation"] is None

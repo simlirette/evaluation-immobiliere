@@ -84,6 +84,17 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
     rows.push({ label: 'Propriétaires / locataires', value: `${fmt(f.pct_proprietaires, 0)} % / ${fmt(f.pct_locataires ?? null, 0)} %` })
   if (f.valeur_mediane_logement != null)
     rows.push({ label: 'Valeur médiane logement (2021)', value: formatPrice(f.valeur_mediane_logement) })
+  if (f.ratio_dette_revenu_pct != null)
+    rows.push({
+      label: 'Ratio dette / revenu (Canada)',
+      value: `${fmt(f.ratio_dette_revenu_pct)} %`,
+      sub: f.variation_dette_revenu_pct != null
+        ? `${f.variation_dette_revenu_pct >= 0 ? '+' : ''}${fmt(f.variation_dette_revenu_pct)} % /an`
+        : undefined,
+      colorClass: f.ratio_dette_revenu_pct > 175 ? 'text-red-600 dark:text-red-400'
+        : f.ratio_dette_revenu_pct > 150 ? 'text-amber-600 dark:text-amber-400'
+        : undefined,
+    })
 
   if (rows.length === 0) return null
 

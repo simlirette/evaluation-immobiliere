@@ -989,6 +989,7 @@ def _build_enrichment_view(fb: dict) -> dict:
     tx = fb.get("taxes_municipales") or {}
     plr = fb.get("ratio_prix_loyer") or {}
     vet = fb.get("vetuste_batiment") or {}
+    renov = fb.get("cout_renovation") or {}
     return {
         "score_global": {
             "score": sg.get("score_global"),
@@ -1042,6 +1043,12 @@ def _build_enrichment_view(fb: dict) -> dict:
             "categorie": vet.get("categorie"),
             "depreciation_pct": vet.get("taux_depreciation_pct"),
         } if vet.get("categorie") else None,
+        "cout_renovation": {
+            "cout_min": renov.get("cout_min"),
+            "cout_max": renov.get("cout_max"),
+            "cout_median": renov.get("cout_median"),
+            "type_travaux": renov.get("type_travaux"),
+        } if renov.get("cout_min") is not None else None,
         "marche": _build_marche_view(fb),
         "financier": _build_financier_view(fb),
         "localisation": _build_localisation_view(fb),
@@ -1049,7 +1056,7 @@ def _build_enrichment_view(fb: dict) -> dict:
 
 
 def _build_localisation_view(fb: dict) -> dict | None:
-    """Extract B6-B9+B20+B21+B23+B28 location context from fiche_bien.json."""
+    """Extract B6-B9+B20+B21+B23+B26+B27+B28 location context from fiche_bien.json."""
     cbd = fb.get("distance_cbd") or {}
     inond = fb.get("zone_inondable") or {}
     agri = fb.get("zone_agricole") or {}
@@ -1058,7 +1065,9 @@ def _build_localisation_view(fb: dict) -> dict | None:
     nuis = fb.get("nuisances_environnementales") or {}
     crime = fb.get("crime_stats") or {}
     pat = fb.get("patrimoine_culturel")  # {} = checked/not listed; dict with keys = listed
-    if not any([cbd, inond, agri, zu, prox, nuis, crime, pat is not None]):
+    postsec = fb.get("enseignement_postsecondaire") or {}
+    routes = fb.get("proximite_routes") or {}
+    if not any([cbd, inond, agri, zu, prox, nuis, crime, pat is not None, postsec, routes]):
         return None
     return {
         "distance_cbd_km": cbd.get("distance_cbd_km"),
@@ -1077,15 +1086,23 @@ def _build_localisation_view(fb: dict) -> dict | None:
         "patrimoine_nom": (pat or {}).get("NOM") or (pat or {}).get("NM_BIEN"),
         "crime_taux_total": crime.get("taux_criminalite_total"),
         "crime_taux_violents": crime.get("taux_crimes_violents"),
+        "cegep_5km": postsec.get("cegep_5km"),
+        "universite_10km": postsec.get("universite_10km"),
+        "postsec_interpretation": postsec.get("interpretation"),
+        "autoroute_km": routes.get("autoroute_km"),
+        "route_nationale_km": routes.get("route_nationale_km"),
+        "artere_km": routes.get("artere_km"),
+        "routes_interpretation": routes.get("interpretation"),
     }
 
 
 def _build_financier_view(fb: dict) -> dict | None:
-    """Extract B11+B30+B35 financial context from fiche_bien.json."""
+    """Extract B11+B24+B30+B35 financial context from fiche_bien.json."""
     cp = fb.get("couts_possession") or {}
     ab = fb.get("indice_abordabilite") or {}
     census = fb.get("donnees_sociodemographiques") or {}
-    if not cp and not ab and not census:
+    dette = fb.get("dette_revenu") or {}
+    if not cp and not ab and not census and not dette:
         return None
     return {
         "total_mensuel": cp.get("total_mensuel"),
@@ -1101,6 +1118,8 @@ def _build_financier_view(fb: dict) -> dict | None:
         "pct_proprietaires": census.get("pct_proprietaires"),
         "pct_locataires": census.get("pct_locataires"),
         "valeur_mediane_logement": census.get("valeur_mediane_logement"),
+        "ratio_dette_revenu_pct": dette.get("ratio_dette_revenu_pct"),
+        "variation_dette_revenu_pct": dette.get("variation_dette_revenu_pct"),
     }
 
 
@@ -1113,7 +1132,10 @@ def _build_marche_view(fb: dict) -> dict | None:
     permis = fb.get("permis_construction") or {}
     travail = fb.get("marche_travail") or {}
     pop = fb.get("population_cma") or {}
-    if not any([inoc, nhpi, boc, chantier, permis, travail, pop]):
+    sm = fb.get("score_marche") or {}
+    neuf = fb.get("marche_neuf") or {}
+    absorb = fb.get("unites_absorbees") or {}
+    if not any([inoc, nhpi, boc, chantier, permis, travail, pop, sm, neuf, absorb]):
         return None
     return {
         "taux_inoccupation_pct": inoc.get("taux_total_pct"),
@@ -1128,6 +1150,14 @@ def _build_marche_view(fb: dict) -> dict | None:
         "taux_chomage_pct": travail.get("taux_chomage_pct"),
         "population": pop.get("population"),
         "population_variation_pct": pop.get("variation_annuelle_pct"),
+        "score_marche": sm.get("score_marche"),
+        "tension_locative": sm.get("tension_locative"),
+        "marche_interpretation": sm.get("interpretation"),
+        "completions_12m": neuf.get("completions_12mois"),
+        "unites_en_construction": neuf.get("unites_en_construction"),
+        "taux_absorption_pct": neuf.get("taux_absorption_pct"),
+        "unites_absorbees_total": absorb.get("unites_absorbees_total"),
+        "variation_absorbees_pct_4q": absorb.get("variation_pct_4q"),
     }
 
 

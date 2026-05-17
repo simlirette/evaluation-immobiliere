@@ -29,6 +29,12 @@ function MarketChip({ label, value, unit = '' }: { label: string; value: string;
   )
 }
 
+const TENSION_COLOR: Record<string, string> = {
+  'tendu':      'text-red-600 dark:text-red-400',
+  'équilibré':  'text-amber-600 dark:text-amber-400',
+  'détendu':    'text-emerald-600 dark:text-emerald-400',
+}
+
 function MarcheContexte({ m }: { m: EnrichmentMarche }) {
   const chips: Array<{ label: string; value: string; unit?: string }> = []
   if (m.taux_inoccupation_pct != null) chips.push({ label: 'Inoccupation', value: fmt(m.taux_inoccupation_pct), unit: '%' })
@@ -37,13 +43,36 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
   if (m.taux_directeur_pct != null)    chips.push({ label: 'Taux directeur', value: fmt(m.taux_directeur_pct), unit: '%' })
   if (m.taux_chomage_pct != null)      chips.push({ label: 'Chômage CMA', value: fmt(m.taux_chomage_pct), unit: '%' })
   if (m.mises_en_chantier_12m != null) chips.push({ label: 'Mises en chantier', value: fmt(m.mises_en_chantier_12m, 0), unit: '/an' })
-  if (chips.length === 0) return null
+  if (m.completions_12m != null)       chips.push({ label: 'Complétions neuf', value: fmt(m.completions_12m, 0), unit: '/an' })
+  if (m.unites_en_construction != null) chips.push({ label: 'En construction', value: fmt(m.unites_en_construction, 0), unit: 'unités' })
+  if (m.taux_absorption_pct != null)   chips.push({ label: 'Absorption', value: fmt(m.taux_absorption_pct), unit: '%' })
+  if (m.unites_absorbees_total != null) chips.push({ label: 'Unités absorbées', value: fmt(m.unites_absorbees_total, 0) })
+  if (chips.length === 0 && !m.score_marche) return null
   return (
     <div className="mt-2 mb-1">
-      <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Contexte de marché</div>
-      <div className="flex flex-wrap gap-2">
-        {chips.map(c => <MarketChip key={c.label} label={c.label} value={c.value} unit={c.unit} />)}
-      </div>
+      {m.score_marche != null && (
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[11px] uppercase tracking-widest text-[#8a8780]">Score de marché</div>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-[#1a1916] dark:text-white">
+              {fmt(m.score_marche)}<span className="text-[11px] font-normal text-[#8a8780]">/10</span>
+            </span>
+            {m.tension_locative && (
+              <span className={`text-[11px] font-medium ${TENSION_COLOR[m.tension_locative] ?? 'text-[#6a6763]'}`}>
+                {m.tension_locative}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {chips.length > 0 && (
+        <>
+          <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Contexte de marché</div>
+          <div className="flex flex-wrap gap-2">
+            {chips.map(c => <MarketChip key={c.label} label={c.label} value={c.value} unit={c.unit} />)}
+          </div>
+        </>
+      )}
     </div>
   )
 }

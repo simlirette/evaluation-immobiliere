@@ -153,7 +153,7 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
     )
   }
 
-  const { score_global, alertes, score_investissement, indice_qualite_vie, score_risque, projection_valeur, rendement_locatif, valeur_indicative, taxes_municipales, ratio_prix_loyer, vetuste_batiment } = enrichment
+  const { score_global, alertes, score_investissement, indice_qualite_vie, score_risque, projection_valeur, rendement_locatif, valeur_indicative, taxes_municipales, ratio_prix_loyer, vetuste_batiment, cout_renovation } = enrichment
 
   return (
     <div className="absolute inset-0 overflow-y-auto px-6 pb-10 pt-5">
@@ -250,6 +250,15 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
               <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-1">Vétusté</div>
               <div className="font-semibold text-[#1a1916] dark:text-white">{vetuste_batiment.age_ans} ans</div>
               <div className="text-[12px] text-[#6a6763] dark:text-[#9a9790]">{vetuste_batiment.categorie}</div>
+            </div>
+          )}
+          {cout_renovation && (
+            <div className="p-4 rounded-xl bg-[rgba(255,255,255,.55)] dark:bg-[rgba(30,28,25,.55)] ring-1 ring-[rgba(0,0,0,.07)]">
+              <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-1">Rénovation estimée</div>
+              <div className="font-semibold text-[#1a1916] dark:text-white">
+                {fmtMoney(cout_renovation.cout_min)}–{fmtMoney(cout_renovation.cout_max)}
+              </div>
+              <div className="text-[12px] text-[#6a6763] dark:text-[#9a9790]">{cout_renovation.type_travaux}</div>
             </div>
           )}
         </div>

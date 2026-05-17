@@ -515,6 +515,19 @@ function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
     items.push({ label: 'Nuisances env.', value: `Score ${loc.score_nuisances}/4 — ${loc.nuisances_interpretation ?? ''}`, warn: (loc.score_nuisances ?? 0) >= 2 })
   if (loc.crime_taux_total != null)
     items.push({ label: 'Criminalité CMA', value: `${Math.round(loc.crime_taux_total).toLocaleString('fr-CA')} / 100 k hab.`, warn: loc.crime_taux_total > 6000 })
+  if (loc.cegep_5km != null || loc.universite_10km != null) {
+    const parts = [
+      loc.cegep_5km != null ? `${loc.cegep_5km} cégep(s) ≤5 km` : null,
+      loc.universite_10km != null ? `${loc.universite_10km} univ. ≤10 km` : null,
+    ].filter(Boolean)
+    if (parts.length > 0) items.push({ label: 'Enseignement sup.', value: (loc.postsec_interpretation ? `${loc.postsec_interpretation} — ` : '') + parts.join(' · ') })
+  }
+  if (loc.routes_interpretation)
+    items.push({ label: 'Accès axes routiers', value: [
+      loc.routes_interpretation,
+      loc.autoroute_km != null ? `A-${loc.autoroute_km.toFixed(1)} km` : null,
+      loc.artere_km != null ? `artère ${loc.artere_km.toFixed(1)} km` : null,
+    ].filter(Boolean).join(' · ') })
 
   if (items.length === 0) return null
 

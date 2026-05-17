@@ -21,6 +21,14 @@ export interface EnrichmentMarche {
   taux_chomage_pct: number | null
   population: number | null
   population_variation_pct: number | null
+  score_marche: number | null
+  tension_locative: string | null
+  marche_interpretation: string | null
+  completions_12m: number | null
+  unites_en_construction: number | null
+  taux_absorption_pct: number | null
+  unites_absorbees_total: number | null
+  variation_absorbees_pct_4q: number | null
 }
 
 export interface EnrichmentLocalisation {
@@ -40,6 +48,13 @@ export interface EnrichmentLocalisation {
   patrimoine_nom: string | null
   crime_taux_total: number | null
   crime_taux_violents: number | null
+  cegep_5km: number | null
+  universite_10km: number | null
+  postsec_interpretation: string | null
+  autoroute_km: number | null
+  route_nationale_km: number | null
+  artere_km: number | null
+  routes_interpretation: string | null
 }
 
 export interface EnrichmentFinancier {
@@ -56,6 +71,8 @@ export interface EnrichmentFinancier {
   pct_proprietaires: number | null
   pct_locataires: number | null
   valeur_mediane_logement: number | null
+  ratio_dette_revenu_pct: number | null
+  variation_dette_revenu_pct: number | null
 }
 
 export interface Enrichment {
@@ -70,6 +87,7 @@ export interface Enrichment {
   taxes_municipales: { taux_pct: number; annuel: number } | null
   ratio_prix_loyer: { ratio: number; signal: string } | null
   vetuste_batiment: { age_ans: number; categorie: string; depreciation_pct: number } | null
+  cout_renovation: { cout_min: number; cout_max: number; cout_median: number; type_travaux: string } | null
   marche: EnrichmentMarche | null
   financier: EnrichmentFinancier | null
   localisation: EnrichmentLocalisation | null
