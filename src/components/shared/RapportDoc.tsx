@@ -1,5 +1,6 @@
 import type { Comparable, Adjustment, FactChip } from '@/types'
 import RapportEditor from '@/components/shared/RapportEditor'
+import { formatCAD } from '@/lib/format-number'
 
 interface Props {
   address?: string
@@ -26,9 +27,7 @@ const APPROACH_LABELS: Record<string, string> = {
   approche_revenu: 'Approche par le revenu',
 }
 
-function fmtPrice(v: number) {
-  return new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(v)
-}
+function fmtPrice(v: number) { return formatCAD(v) }
 
 function fmtDate(iso: string) {
   if (!iso) return '—'

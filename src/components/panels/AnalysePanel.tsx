@@ -13,6 +13,7 @@ import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
+import { formatCAD, fmtNum } from '@/lib/format-number'
 import type { Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
@@ -33,17 +34,8 @@ function statusLabel(raw: string): string {
   return VALUATION_STATUS_LABELS[raw] ?? raw.replace(/_/g, ' ')
 }
 
-function formatPrice(n: number) {
-  return new Intl.NumberFormat('fr-CA', {
-    style: 'currency',
-    currency: 'CAD',
-    maximumFractionDigits: 0,
-  }).format(n).replace('CA', '').trim()
-}
-
-function fmt(n: number | null | undefined, digits = 1): string {
-  return n != null ? new Intl.NumberFormat('fr-CA', { maximumFractionDigits: digits }).format(n) : '—'
-}
+function formatPrice(n: number) { return formatCAD(n) }
+function fmt(n: number | null | undefined, digits = 1): string { return fmtNum(n, digits) }
 
 const SEUIL_COLOR: Record<string, string> = {
   'abordable': 'text-emerald-600 dark:text-emerald-400',

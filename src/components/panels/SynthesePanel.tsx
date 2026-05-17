@@ -6,6 +6,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildSyntheseHtml } from '@/lib/synthese-html'
+import { formatCAD, fmtNum } from '@/lib/format-number'
 import type { Enrichment, EnrichmentAlerte } from '@/types'
 
 interface Props {
@@ -14,16 +15,10 @@ interface Props {
   onCritiqueFound?: (count: number) => void
 }
 
-function fmt(n: number | null | undefined, digits = 0): string {
-  if (n == null) return '—'
-  return new Intl.NumberFormat('fr-CA', { maximumFractionDigits: digits }).format(n)
-}
-
+function fmt(n: number | null | undefined, digits = 0): string { return fmtNum(n, digits) }
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return '—'
-  return new Intl.NumberFormat('fr-CA', {
-    style: 'currency', currency: 'CAD', maximumFractionDigits: 0,
-  }).format(n).replace('CA', '').trim()
+  return formatCAD(n)
 }
 
 // ── Score global badge ────────────────────────────────────────────────────────

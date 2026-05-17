@@ -12,6 +12,7 @@ import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
 import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
+import { fmtNum } from '@/lib/format-number'
 import type { Comparable, EnrichmentMarche } from '@/types'
 
 interface Props {
@@ -19,9 +20,7 @@ interface Props {
   address?: string
 }
 
-function fmt(n: number | null | undefined, digits = 1): string {
-  return n != null ? new Intl.NumberFormat('fr-CA', { maximumFractionDigits: digits }).format(n) : '—'
-}
+function fmt(n: number | null | undefined, digits = 1): string { return fmtNum(n, digits) }
 
 function MarketChip({ label, value, unit = '' }: { label: string; value: string; unit?: string }) {
   return (

@@ -1,19 +1,16 @@
 import type { Adjustment } from '@/types'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
+import { formatCAD, fmtNum } from '@/lib/format-number'
 
 function formatAdj(value: number): string {
   if (value === 0) return '-'
-  const abs = new Intl.NumberFormat('fr-CA').format(Math.abs(value))
+  const abs = fmtNum(Math.abs(value), 0)
   return value > 0 ? `+${abs}` : `-${abs}`
 }
 
 function formatPrice(value: number): string {
   if (value === 0) return '-'
-  return new Intl.NumberFormat('fr-CA', {
-    style: 'currency',
-    currency: 'CAD',
-    maximumFractionDigits: 0,
-  }).format(value).replace('CA', '').trim()
+  return formatCAD(value)
 }
 
 function AdjCell({ value }: { value: number }) {
