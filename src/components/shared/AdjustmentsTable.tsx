@@ -1,6 +1,7 @@
 import type { Adjustment } from '@/types'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
-import { formatCAD, fmtNum } from '@/lib/format-number'
+import { computeNetAdjustment } from '@/lib/compute-net-adjustment'
+import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 
 function formatAdj(value: number): string {
   if (value === 0) return '-'
@@ -31,7 +32,7 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr>
-            {['Comparable', 'Prix vente', 'Surface', 'Temps', 'Condition', 'Garage', 'Prix ajusté'].map(h => (
+            {['Comparable', 'Prix vente', 'Surface', 'Temps', 'Condition', 'Garage', 'Net adj.', 'Prix ajusté'].map(h => (
               <th key={h}
                 className={`px-2.5 py-[7px] text-[10px] font-medium text-[#b5b2ac] uppercase tracking-[.06em] border-b border-black/[.07] ${h === 'Comparable' ? 'text-left' : 'text-right'}`}>
                 {h}
@@ -40,22 +41,29 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-[12px] text-[#8a8780] text-left">{row.comparableLabel}</td>
-              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right">{formatPrice(row.salePrice)}</td>
-              <AdjCell value={row.surface_adj} />
-              <AdjCell value={row.year_adj} />
-              <AdjCell value={row.condition_adj} />
-              <AdjCell value={row.garage_adj} />
-              <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right font-medium">{formatPrice(row.adjusted)}</td>
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const { net, netPct, absPct } = computeNetAdjustment(row)
+            const netColor = absPct >= 25 ? 'text-[#c0392b]' : absPct >= 15 ? 'text-amber-600' : 'text-[#6a6763]'
+            return (
+              <tr key={i}>
+                <td className="px-2.5 py-[9px] border-b border-black/[.04] text-[12px] text-[#8a8780] text-left">{row.comparableLabel}</td>
+                <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right">{formatPrice(row.salePrice)}</td>
+                <AdjCell value={row.surface_adj} />
+                <AdjCell value={row.year_adj} />
+                <AdjCell value={row.condition_adj} />
+                <AdjCell value={row.garage_adj} />
+                <td className={`px-2.5 py-[9px] border-b border-black/[.04] text-right whitespace-nowrap text-[11px] ${netColor}`}>
+                  {net !== 0 ? `${net > 0 ? '+' : ''}${fmtNum(net, 0)} (${formatPct(netPct, 1)})` : '-'}
+                </td>
+                <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right font-medium">{formatPrice(row.adjusted)}</td>
+              </tr>
+            )
+          })}
         </tbody>
         {summary && rows.length > 1 && (
           <tfoot>
             <tr className="bg-black/[.025]">
-              <td className="px-2.5 py-[8px] text-[10px] text-[#8a8780] uppercase tracking-[.06em] text-left" colSpan={6}>
+              <td className="px-2.5 py-[8px] text-[10px] text-[#8a8780] uppercase tracking-[.06em] text-left" colSpan={7}>
                 Moyenne ({rows.length} comp.) — écart {formatPrice(summary.spread)}
               </td>
               <td className="px-2.5 py-[8px] text-right font-semibold text-[12px] text-[#1a1916]">
