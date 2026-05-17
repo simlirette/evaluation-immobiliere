@@ -2,6 +2,7 @@ import type { Comparable, Adjustment } from '@/types'
 import { checkComparableMinimum } from './check-comparable-minimum'
 import { validateComparableDate } from './validate-comparable-date'
 import { computeNetAdjustment } from './compute-net-adjustment'
+import { computeGrossAdjustment } from './compute-gross-adjustment'
 
 export interface OEAQCheck {
   id: string
@@ -49,6 +50,17 @@ export function buildOEAQChecklist(
     pass: largeAdjs.length === 0,
     message: largeAdjs.length > 0
       ? `${largeAdjs.length} comparable${largeAdjs.length > 1 ? 's' : ''} avec ajustement net > 25 % — fiabilité réduite.`
+      : null,
+  })
+
+  // 4. Gross adjustment magnitude (> 40% = reliability concern)
+  const largeGrossAdjs = adjustments.filter(a => computeGrossAdjustment(a).grossPct > 40)
+  checks.push({
+    id: 'gross-adjustment',
+    rule: 'Amplitude des ajustements bruts (≤ 40 %)',
+    pass: largeGrossAdjs.length === 0,
+    message: largeGrossAdjs.length > 0
+      ? `${largeGrossAdjs.length} comparable${largeGrossAdjs.length > 1 ? 's' : ''} avec ajustement brut > 40 % — justification requise (OEAQ).`
       : null,
   })
 

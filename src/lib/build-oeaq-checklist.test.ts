@@ -88,10 +88,33 @@ describe('buildOEAQChecklist', () => {
     expect(check.message).toBeNull()
   })
 
-  it('returns exactly 3 checks with correct ids', () => {
+  it('returns exactly 4 checks with correct ids', () => {
     const checks = buildOEAQChecklist([], [], TODAY)
-    expect(checks).toHaveLength(3)
-    expect(checks.map(c => c.id)).toEqual(['min-comparables', 'stale-dates', 'adjustment-magnitude'])
+    expect(checks).toHaveLength(4)
+    expect(checks.map(c => c.id)).toEqual(['min-comparables', 'stale-dates', 'adjustment-magnitude', 'gross-adjustment'])
+  })
+
+  it('gross-adjustment fails when grossPct > 40', () => {
+    const comps = ['a', 'b', 'c'].map(id => mkComp(id))
+    // gross = |160000| + |10000| = 170000 on 400000 = 42.5% > 40
+    const adjs = [
+      { ...mkAdj('a', 0), surface_adj: 160000, year_adj: 10000 },
+      mkAdj('b', 5000),
+      mkAdj('c', 0),
+    ]
+    const checks = buildOEAQChecklist(comps, adjs, TODAY)
+    const check = checks.find(c => c.id === 'gross-adjustment')!
+    expect(check.pass).toBe(false)
+    expect(check.message).toContain('1')
+  })
+
+  it('gross-adjustment passes when all grossPct ≤ 40', () => {
+    const comps = ['a', 'b', 'c'].map(id => mkComp(id))
+    const adjs = ['a', 'b', 'c'].map(id => mkAdj(id, 10000))
+    const checks = buildOEAQChecklist(comps, adjs, TODAY)
+    const check = checks.find(c => c.id === 'gross-adjustment')!
+    expect(check.pass).toBe(true)
+    expect(check.message).toBeNull()
   })
 
   it('today param defaults without error', () => {

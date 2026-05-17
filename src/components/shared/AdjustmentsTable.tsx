@@ -1,6 +1,7 @@
 import type { Adjustment } from '@/types'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { computeNetAdjustment } from '@/lib/compute-net-adjustment'
+import { computeGrossAdjustment } from '@/lib/compute-gross-adjustment'
 import { computeMedianIndicatedValue } from '@/lib/compute-median-indicated-value'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 
@@ -45,7 +46,9 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
         <tbody>
           {rows.map((row, i) => {
             const { net, netPct, absPct } = computeNetAdjustment(row)
+            const { grossPct } = computeGrossAdjustment(row)
             const netColor = absPct >= 25 ? 'text-[#c0392b]' : absPct >= 15 ? 'text-amber-600' : 'text-[#6a6763]'
+            const grossColor = grossPct >= 40 ? 'text-[#c0392b]' : grossPct >= 25 ? 'text-amber-600' : 'text-[#b5b2ac]'
             return (
               <tr key={i}>
                 <td className="px-2.5 py-[9px] border-b border-black/[.04] text-[12px] text-[#8a8780] text-left">{row.comparableLabel}</td>
@@ -56,6 +59,11 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
                 <AdjCell value={row.garage_adj} />
                 <td className={`px-2.5 py-[9px] border-b border-black/[.04] text-right whitespace-nowrap text-[11px] ${netColor}`}>
                   {net !== 0 ? `${net > 0 ? '+' : ''}${fmtNum(net, 0)} (${formatPct(netPct, 1)})` : '-'}
+                  {grossPct > 0 && (
+                    <div className={`text-[10px] leading-tight ${grossColor}`}>
+                      brut {formatPct(grossPct, 1)}
+                    </div>
+                  )}
                 </td>
                 <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right font-medium">{formatPrice(row.adjusted)}</td>
               </tr>
