@@ -13,6 +13,7 @@ import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
 import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
 import { filterComparablesByQuery } from '@/lib/filter-comparables'
+import { formatListCount } from '@/lib/format-list-count'
 import { fmtNum } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
@@ -138,12 +139,15 @@ export default function MarchePanel({ dossierId, address }: Props) {
   if (!dossierId || loading) return <PanelLoader />
   if (error) return <PanelError onRetry={load} />
 
+  const visibleComps = sortComparables(filterComparablesByQuery(comparables, query), sortKey)
+  const countLabel = formatListCount(visibleComps.length, comparables.length)
+
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div ref={scrollRef} className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
         <AgentMessage agentName="Agent Marché">
-          {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparables</strong>{' depuis les art\u00e9facts du backend.'}
+          {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparable{comparables.length !== 1 ? 's' : ''}</strong>{' depuis les art\u00e9facts du backend.'}
           {marche && <MarcheContexte m={marche} />}
           {comparables.length > 0 && (
             <div className="mt-2.5 mb-1 flex flex-col gap-2">
@@ -190,17 +194,15 @@ export default function MarchePanel({ dossierId, address }: Props) {
               )}
             </div>
           )}
-          {(() => {
-            const visible = sortComparables(filterComparablesByQuery(comparables, query), sortKey)
-            return (
-              <div className="flex flex-col gap-2 mt-1">
-                {visible.length > 0
-                  ? visible.map(c => <ComparableItem key={c.id} comp={c} />)
-                  : query && <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
-                }
-              </div>
-            )
-          })()}
+          {countLabel && (
+            <div className="text-[11px] text-[#b5b2ac] mt-1 mb-0.5">{countLabel}</div>
+          )}
+          <div className="flex flex-col gap-2 mt-1">
+            {visibleComps.length > 0
+              ? visibleComps.map(c => <ComparableItem key={c.id} comp={c} />)
+              : query && <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
+            }
+          </div>
         </AgentMessage>
         {comparables.length > 0 && (
           <AgentMessage agentName="Agent Marché" last={replies.length === 0 && !asking}>
@@ -222,7 +224,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
         <div className="w-full max-w-[640px] flex justify-end mb-3">
           <button
             type="button"
-            onClick={() => printWindow(buildMarcheHtml(comparables, marche, address), address ?? 'Marché')}
+            onClick={() => printWindow(buildMarcheHtml(visibleComps, marche, address), address ?? 'Marché')}
             className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
           >
             🖨 Imprimer le rapport marché
