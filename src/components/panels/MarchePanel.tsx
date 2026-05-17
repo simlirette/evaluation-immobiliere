@@ -16,6 +16,7 @@ import { filterComparablesByQuery } from '@/lib/filter-comparables'
 import { formatListCount } from '@/lib/format-list-count'
 import { checkComparableMinimum } from '@/lib/check-comparable-minimum'
 import { computeComparableStats } from '@/lib/compute-comparable-stats'
+import { detectDuplicateComparables } from '@/lib/detect-duplicate-comparables'
 import { fmtNum, formatCAD } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
@@ -144,6 +145,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const visibleComps = sortComparables(filterComparablesByQuery(comparables, query), sortKey)
   const countLabel = formatListCount(visibleComps.length, comparables.length)
   const minimumCheck = checkComparableMinimum(comparables)
+  const duplicates = detectDuplicateComparables(comparables)
   const stats = computeComparableStats(comparables)
 
   return (
@@ -227,6 +229,13 @@ export default function MarchePanel({ dossierId, address }: Props) {
           <AgentMessage agentName="Agent Marché">
             <div className="rounded-[8px] bg-amber-50/80 border border-amber-200/60 px-3 py-2 text-[11px] text-amber-800">
               {minimumCheck.warning}
+            </div>
+          </AgentMessage>
+        )}
+        {duplicates.length > 0 && (
+          <AgentMessage agentName="Agent Marché">
+            <div className="rounded-[8px] bg-amber-50/80 border border-amber-200/60 px-3 py-2 text-[11px] text-amber-800">
+              {`${duplicates.length} doublon${duplicates.length > 1 ? 's' : ''} potentiel${duplicates.length > 1 ? 's' : ''} détecté${duplicates.length > 1 ? 's' : ''} — vérifier les sources avant validation.`}
             </div>
           </AgentMessage>
         )}
