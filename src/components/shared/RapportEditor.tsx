@@ -63,6 +63,7 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
   const [isGenerating, setIsGenerating] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [toast, setToast] = useState('')
+  const [wordCount, setWordCount] = useState(0)
 
   const editor = useEditor({
     extensions: [
@@ -73,7 +74,11 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
       TableHeader,
     ],
     content: '',
-    onUpdate: () => setIsEdited(true),
+    onUpdate: ({ editor: e }) => {
+      setIsEdited(true)
+      const text = e.getText()
+      setWordCount(text.split(/\s+/).filter(s => s.length > 0).length)
+    },
     editorProps: {
       attributes: {
         class: 'focus:outline-none min-h-[200px]',
@@ -86,6 +91,8 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
     const html = String(marked.parse(initialMarkdown))
     editor.commands.setContent(html, { emitUpdate: false })
     setIsEdited(false)
+    const text = editor.getText()
+    setWordCount(text.split(/\s+/).filter(s => s.length > 0).length)
   }, [editor, initialMarkdown])
 
   const handleSave = useCallback(async () => {
@@ -150,6 +157,17 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
     await onSaveVersion(markdown)
   }, [editor, onSaveVersion])
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [handleSave])
+
   if (!editor) return null
 
   return (
@@ -159,6 +177,25 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
         className="flex items-center gap-1 px-3 py-2 border-b border-black/[.06] flex-shrink-0"
         style={{ background: 'rgba(255,255,255,.70)' }}
       >
+        <ToolbarButton
+          onClick={() => editor.chain().focus().undo().run()}
+          active={false}
+          title="Annuler (Ctrl+Z)"
+        >
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>
+          </svg>
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().redo().run()}
+          active={false}
+          title="Rétablir (Ctrl+Y)"
+        >
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/>
+          </svg>
+        </ToolbarButton>
+        <div className="w-px h-4 bg-black/[.10] mx-1" />
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive('bold')}
@@ -266,6 +303,13 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
         >
           {isGenerating ? 'Génération...' : 'Forme complète →'}
         </button>
+        <div className="flex-1" />
+        {wordCount > 0 && (
+          <span className="text-[10px] text-[#c5c2bc] tabular-nums" title="Nombre de mots">
+            {wordCount} mot{wordCount !== 1 ? 's' : ''}
+          </span>
+        )}
+        <span className="text-[10px] text-[#c5c2bc]" title="Raccourci clavier">Ctrl+S</span>
       </div>
     </div>
   )
