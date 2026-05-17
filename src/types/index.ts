@@ -29,6 +29,8 @@ export interface EnrichmentMarche {
   taux_absorption_pct: number | null
   unites_absorbees_total: number | null
   variation_absorbees_pct_4q: number | null
+  ipc_variation_logement_pct: number | null
+  ipc_logement_indice: number | null
 }
 
 export interface EnrichmentLocalisation {
@@ -55,6 +57,10 @@ export interface EnrichmentLocalisation {
   route_nationale_km: number | null
   artere_km: number | null
   routes_interpretation: string | null
+  temperature_moy_c: number | null
+  precipitations_mm: number | null
+  jours_gel: number | null
+  jours_chaleur_extreme: number | null
 }
 
 export interface EnrichmentFinancier {

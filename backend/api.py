@@ -1056,7 +1056,7 @@ def _build_enrichment_view(fb: dict) -> dict:
 
 
 def _build_localisation_view(fb: dict) -> dict | None:
-    """Extract B6-B9+B20+B21+B23+B26+B27+B28 location context from fiche_bien.json."""
+    """Extract B6-B9+B20+B21+B23+B26+B27+B28+B29 location context from fiche_bien.json."""
     cbd = fb.get("distance_cbd") or {}
     inond = fb.get("zone_inondable") or {}
     agri = fb.get("zone_agricole") or {}
@@ -1067,7 +1067,8 @@ def _build_localisation_view(fb: dict) -> dict | None:
     pat = fb.get("patrimoine_culturel")  # {} = checked/not listed; dict with keys = listed
     postsec = fb.get("enseignement_postsecondaire") or {}
     routes = fb.get("proximite_routes") or {}
-    if not any([cbd, inond, agri, zu, prox, nuis, crime, pat is not None, postsec, routes]):
+    climat = fb.get("donnees_climatiques") or {}
+    if not any([cbd, inond, agri, zu, prox, nuis, crime, pat is not None, postsec, routes, climat]):
         return None
     return {
         "distance_cbd_km": cbd.get("distance_cbd_km"),
@@ -1093,6 +1094,10 @@ def _build_localisation_view(fb: dict) -> dict | None:
         "route_nationale_km": routes.get("route_nationale_km"),
         "artere_km": routes.get("artere_km"),
         "routes_interpretation": routes.get("interpretation"),
+        "temperature_moy_c": climat.get("temperature_moyenne_annuelle"),
+        "precipitations_mm": climat.get("precipitations_annuelles_mm"),
+        "jours_gel": climat.get("jours_gel"),
+        "jours_chaleur_extreme": climat.get("jours_chaleur_extreme"),
     }
 
 
@@ -1135,7 +1140,8 @@ def _build_marche_view(fb: dict) -> dict | None:
     sm = fb.get("score_marche") or {}
     neuf = fb.get("marche_neuf") or {}
     absorb = fb.get("unites_absorbees") or {}
-    if not any([inoc, nhpi, boc, chantier, permis, travail, pop, sm, neuf, absorb]):
+    ipc = fb.get("ipc_logement") or {}
+    if not any([inoc, nhpi, boc, chantier, permis, travail, pop, sm, neuf, absorb, ipc]):
         return None
     return {
         "taux_inoccupation_pct": inoc.get("taux_total_pct"),
@@ -1158,6 +1164,8 @@ def _build_marche_view(fb: dict) -> dict | None:
         "taux_absorption_pct": neuf.get("taux_absorption_pct"),
         "unites_absorbees_total": absorb.get("unites_absorbees_total"),
         "variation_absorbees_pct_4q": absorb.get("variation_pct_4q"),
+        "ipc_variation_logement_pct": ipc.get("variation_logement_pct"),
+        "ipc_logement_indice": ipc.get("ipc_logement"),
     }
 
 

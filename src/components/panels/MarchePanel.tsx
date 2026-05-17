@@ -47,6 +47,7 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
   if (m.unites_en_construction != null) chips.push({ label: 'En construction', value: fmt(m.unites_en_construction, 0), unit: 'unités' })
   if (m.taux_absorption_pct != null)   chips.push({ label: 'Absorption', value: fmt(m.taux_absorption_pct), unit: '%' })
   if (m.unites_absorbees_total != null) chips.push({ label: 'Unités absorbées', value: fmt(m.unites_absorbees_total, 0) })
+  if (m.ipc_variation_logement_pct != null) chips.push({ label: 'IPC logement', value: (m.ipc_variation_logement_pct >= 0 ? '+' : '') + fmt(m.ipc_variation_logement_pct), unit: '%/an' })
   if (chips.length === 0 && !m.score_marche) return null
   return (
     <div className="mt-2 mb-1">

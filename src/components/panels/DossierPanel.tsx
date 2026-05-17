@@ -528,6 +528,15 @@ function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
       loc.autoroute_km != null ? `A-${loc.autoroute_km.toFixed(1)} km` : null,
       loc.artere_km != null ? `artère ${loc.artere_km.toFixed(1)} km` : null,
     ].filter(Boolean).join(' · ') })
+  if (loc.temperature_moy_c != null || loc.jours_gel != null) {
+    const parts = [
+      loc.temperature_moy_c != null ? `T moy ${loc.temperature_moy_c.toFixed(1)}°C` : null,
+      loc.precipitations_mm != null ? `${Math.round(loc.precipitations_mm)} mm/an` : null,
+      loc.jours_gel != null ? `${loc.jours_gel} j gel` : null,
+      loc.jours_chaleur_extreme != null ? `${loc.jours_chaleur_extreme} j canicule` : null,
+    ].filter(Boolean)
+    if (parts.length > 0) items.push({ label: 'Climat (2023)', value: parts.join(' · ') })
+  }
 
   if (items.length === 0) return null
 

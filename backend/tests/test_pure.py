@@ -6682,3 +6682,63 @@ class TestBuildEnrichmentViewCoutRenovation:
         fb = {"score_global": {"score_global": 7.0, "grade": "B", "recommandation_finale": "ok"}}
         r = _build_enrichment_view(fb)
         assert r["cout_renovation"] is None
+
+# Batch 18 — donnees_climatiques + ipc_logement
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildLocalisationClimat:
+    """donnees_climatiques added to _build_localisation_view."""
+
+    def test_climat_extracted(self):
+        """donnees_climatiques → temperature_moy_c, precipitations_mm, jours_gel."""
+        from api import _build_localisation_view
+        fb = {
+            "donnees_climatiques": {
+                "temperature_moyenne_annuelle": 6.4,
+                "precipitations_annuelles_mm": 952.0,
+                "jours_gel": 137,
+                "jours_chaleur_extreme": 8,
+            }
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["temperature_moy_c"] == pytest.approx(6.4)
+        assert r["precipitations_mm"] == pytest.approx(952.0)
+        assert r["jours_gel"] == 137
+        assert r["jours_chaleur_extreme"] == 8
+
+    def test_climat_absent_returns_none_fields(self):
+        """donnees_climatiques absent + other data → climate fields are None."""
+        from api import _build_localisation_view
+        fb = {"distance_cbd": {"distance_cbd_km": 5.0, "interpretation": "péri-central"}}
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["temperature_moy_c"] is None
+        assert r["jours_gel"] is None
+
+
+class TestBuildMarcheViewIPC:
+    """ipc_logement added to _build_marche_view."""
+
+    def test_ipc_variation_extracted(self):
+        """ipc_logement → ipc_variation_logement_pct, ipc_logement_indice."""
+        from api import _build_marche_view
+        fb = {
+            "ipc_logement": {
+                "variation_logement_pct": 4.2,
+                "ipc_logement": 158.3,
+            }
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["ipc_variation_logement_pct"] == pytest.approx(4.2)
+        assert r["ipc_logement_indice"] == pytest.approx(158.3)
+
+    def test_ipc_absent_returns_none(self):
+        """ipc_logement absent + other data → IPC fields are None."""
+        from api import _build_marche_view
+        fb = {"taux_inoccupation": {"taux_total_pct": 2.5, "annee": 2023}}
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["ipc_variation_logement_pct"] is None
+        assert r["ipc_logement_indice"] is None
