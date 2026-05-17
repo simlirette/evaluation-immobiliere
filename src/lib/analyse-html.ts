@@ -1,5 +1,7 @@
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
 import { buildOEAQChecklist } from './build-oeaq-checklist'
+import { computeSubjectContext } from './compute-subject-context'
+import { computeMedianIndicatedValue } from './compute-median-indicated-value'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -52,10 +54,18 @@ export function buildAnalyseHtml(
 
   // Conclusion
   if (conclusion !== null) {
+    const ctx = adjustments.length > 0 ? computeSubjectContext(conclusion, adjustments) : null
+    const median = computeMedianIndicatedValue(adjustments)
+    const contextNote = ctx
+      ? ctx.withinRange
+        ? `Conclusion dans la fourchette des valeurs indiquées${Math.abs(ctx.deviationFromMedianPct) >= 1 ? ` (${ctx.deviationFromMedianPct > 0 ? '+' : ''}${fmt(ctx.deviationFromMedianPct)} % vs médiane${median != null ? '&nbsp;' + fmtMoney(median) : ''})` : ', en ligne avec la médiane'}.`
+        : `⚠ Conclusion hors de la fourchette des valeurs indiquées (${ctx.deviationFromMedianPct > 0 ? '+' : ''}${fmt(ctx.deviationFromMedianPct)} % vs médiane${median != null ? '&nbsp;' + fmtMoney(median) : ''}) — justification requise.`
+      : null
     sections.push(`
       <h2>Conclusion de valeur proposée</h2>
       <p style="font-size:20pt;font-weight:700;color:#1a1916;">${fmtMoney(conclusion)}</p>
       <p style="font-size:10pt;color:#6a6763;">Statut&nbsp;: ${statusLabel}</p>
+      ${contextNote ? `<p style="font-size:10pt;color:${ctx?.withinRange ? '#6a6763' : '#b45309'};">${contextNote}</p>` : ''}
       <blockquote>À titre indicatif uniquement — validation et signature par un évaluateur agréé requises avant toute diffusion.</blockquote>
     `)
   }

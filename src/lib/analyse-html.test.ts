@@ -76,4 +76,18 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
     expect(html).not.toContain('Conformité OEAQ')
   })
+
+  it('includes subject context note when conclusion within range', () => {
+    // adjs adjusted values: 422000 and 404000 → median 413000, conclusion at median
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('médiane')
+    expect(html).toContain('fourchette')
+  })
+
+  it('includes out-of-range warning when conclusion outside range', () => {
+    // adjs range 404000–422000; conclusion 600000 is outside
+    const html = buildAnalyseHtml(adjs, 600000, 'PRET_REVUE', null)
+    expect(html).toContain('hors de la fourchette')
+    expect(html).toContain('justification requise')
+  })
 })
