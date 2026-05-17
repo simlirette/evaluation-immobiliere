@@ -35,6 +35,9 @@ import { computeReconciledValueBracket } from './compute-reconciled-value-bracke
 import { computeReconciliationConcentration } from './compute-reconciliation-concentration'
 import { computeAdjustmentOutlierByType } from './compute-adjustment-outlier-by-type'
 import { computeOEAQBracketingSummary } from './compute-oeaq-bracketing-summary'
+import { computeWeightedAdjustedMean } from './compute-weighted-adjusted-mean'
+import { computeGrossAdjustmentTrend } from './compute-gross-adjustment-trend'
+import { computeAdjustmentSummaryByComp } from './compute-adjustment-summary-by-comp'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -103,6 +106,7 @@ export function buildAnalyseHtml(
       ...((() => { const nc = comparables && comparables.length > 0 ? computeNeighborhoodComparability(comparables, adjustments) : null; return nc ? [[`Comparabilité voisinage`, `<span style="color:${nc.strength === 'forte' ? '#1f7a5c' : nc.strength === 'modérée' ? '#b45309' : '#b91c1c'};">${nc.strength} (${nc.score}/100)</span>`]] : [] })()),
       ...((() => { const vrc = conclusion !== null && adjustments.length >= 2 ? computeValueRangeConfidence(adjustments, conclusion) : null; return vrc ? [[`Intervalle confiance (±1σ)`, `${fmtMoney(vrc.band1Sigma.low)} – ${fmtMoney(vrc.band1Sigma.high)}<br><span style="font-size:8pt;font-weight:400;color:#8a8780;">confiance conclusion&nbsp;: <strong style="color:${vrc.conclusionConfidence === 'haute' ? '#1f7a5c' : vrc.conclusionConfidence === 'modérée' ? '#b45309' : '#b91c1c'};">${vrc.conclusionConfidence}</strong></span>`]] : [] })()),
       ...((() => { const wm = adjustments.length >= 2 ? computeAdjustmentWeightedMedian(adjustments) : null; return wm && Math.abs(wm.deltaPct) >= 0.5 ? [[`Médiane pondérée`, `${fmtMoney(wm.weightedMedian)} <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${wm.deltaPct > 0 ? '+' : ''}${fmt(wm.deltaPct, 1)} % vs médiane simple)</span>`]] : [] })()),
+      ...((() => { const wam = adjustments.length >= 2 ? computeWeightedAdjustedMean(adjustments) : null; if (!wam || Math.abs(wam.deltaVsSimplePct) < 0.5) return []; const color = wam.deltaVsSimplePct > 0 ? '#1f7a5c' : '#b91c1c'; return [[`Moyenne pondérée vs simple`, `<span style="color:${color};">${fmtMoney(wam.weightedMean)}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${wam.deltaVsSimplePct > 0 ? '+' : ''}${fmt(wam.deltaVsSimplePct, 1)} % vs ${fmtMoney(wam.simpleMean)})</span>`]] })()),
       ...((() => { const lp = financier?.valeur_mediane_logement != null ? computeLocationPremium(valuationConclusion.reconciledValue, financier.valeur_mediane_logement) : null; if (!lp) return []; const color = lp.signal === 'prime' ? '#b45309' : lp.signal === 'escompte' ? '#0369a1' : '#1f7a5c'; return [[`Prime de localisation`, `<span style="color:${color};font-weight:600;">${lp.signal}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${lp.deltaPct > 0 ? '+' : ''}${fmt(lp.deltaPct, 1)} % vs médiane&nbsp;${fmtMoney(financier!.valeur_mediane_logement!)})</span>`]] })()),
       ...((() => { const db = adjustments.length >= 2 ? computeAdjustmentDirectionBalance(adjustments) : null; if (!db || db.balanced) return []; const color = '#b45309'; const dirLabel = db.direction === 'upward' ? 'positifs' : 'négatifs'; const dirPct = db.direction === 'upward' ? db.upPct : db.downPct; return [[`Biais d'ajustement`, `<span style="color:${color};">${fmt(dirPct, 0)} % ${dirLabel}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${db.upCount}↑ ${db.downCount}↓ ${db.neutralCount}=)</span>`]] })()),
       ...((() => { const vm = subjectHabM2 != null && subjectHabM2 > 0 ? computeValuePerM2Conclusion(valuationConclusion.reconciledValue, subjectHabM2, comparables ?? []) : null; if (!vm) return []; const color = vm.signal === 'haut' ? '#b45309' : vm.signal === 'bas' ? '#0369a1' : '#1f7a5c'; const vsNote = vm.vsMedianPct != null ? ` <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${vm.vsMedianPct > 0 ? '+' : ''}${fmt(vm.vsMedianPct, 1)} % vs médiane comparables ${vm.medianCompM2 != null ? fmt(vm.medianCompM2, 0) + ' $/m²' : ''})</span>` : ''; return [[`Valeur au m² (sujet)`, `<span style="color:${color};font-weight:600;">${fmt(vm.pricePerM2, 0)} $/m²${vm.signal ? ` — ${vm.signal}` : ''}</span>${vsNote}`]] })()),
@@ -471,6 +475,22 @@ export function buildAnalyseHtml(
           </p>
         `)
       }
+
+      // B144: gross adjustment trend vs age
+      if (comparables.length >= 3) {
+        const adjTrend = computeGrossAdjustmentTrend(comparables, adjustments)
+        if (adjTrend?.significant && adjTrend.direction !== 'stable') {
+          const color = adjTrend.direction === 'increasing' ? '#b45309' : '#0369a1'
+          const sign = adjTrend.slopePerMonth > 0 ? '+' : ''
+          sections.push(`
+            <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+              Tendance ajustements bruts&nbsp;:
+              <span style="color:${color};font-weight:600;">${adjTrend.direction === 'increasing' ? '↑ croissants avec l\'ancienneté' : '↓ décroissants avec l\'ancienneté'}</span>
+              <span style="font-size:9pt;color:#8a8780;"> (${sign}${fmt(adjTrend.slopePerMonth, 2)} %/mois, R²=${fmt(adjTrend.r2, 2)})</span>
+            </p>
+          `)
+        }
+      }
     }
   }
 
@@ -489,6 +509,31 @@ export function buildAnalyseHtml(
         <table>
           <thead><tr><th>#</th><th>Comparable</th><th style="text-align:right;">Qualité</th><th style="text-align:right;">Poids</th></tr></thead>
           <tbody>${rankRows}</tbody>
+        </table>
+      `)
+    }
+  }
+
+  // B145: adjustment summary by comparable
+  if (adjustments.length > 0) {
+    const summaries = computeAdjustmentSummaryByComp(adjustments)
+    if (summaries.length > 0) {
+      const sumRows = summaries.map(s => {
+        const dirColor = s.direction === 'upward' ? '#1f7a5c' : s.direction === 'downward' ? '#b91c1c' : '#8a8780'
+        const grossColor = s.grossPct > 25 ? '#b91c1c' : s.grossPct > 15 ? '#b45309' : '#6a6763'
+        return `<tr>
+          <td>${s.comparableLabel}</td>
+          <td style="text-align:right;color:${grossColor};font-weight:600;">${fmt(s.grossPct, 1)} %</td>
+          <td style="text-align:right;color:${dirColor};font-weight:600;">${s.netPct > 0 ? '+' : ''}${fmt(s.netPct, 1)} %</td>
+          <td style="text-align:right;font-size:9pt;color:${dirColor};">${fmtAdj(s.netAmount)}</td>
+          <td style="text-align:right;font-size:9pt;color:#8a8780;">${s.magnitude}</td>
+        </tr>`
+      }).join('')
+      sections.push(`
+        <h2>Sommaire par comparable</h2>
+        <table>
+          <thead><tr><th>Comparable</th><th style="text-align:right;">Brut %</th><th style="text-align:right;">Net %</th><th style="text-align:right;">Net $</th><th style="text-align:right;">Magnitude</th></tr></thead>
+          <tbody>${sumRows}</tbody>
         </table>
       `)
     }

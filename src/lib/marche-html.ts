@@ -24,6 +24,8 @@ import { computeComparableSelectionSummary } from './compute-comparable-selectio
 import { computePricePerM2Trend } from './compute-price-per-m2-trend'
 import { computeComparablePriceSkew } from './compute-comparable-price-skew'
 import { computePriceIndexationSummary } from './compute-price-indexation-summary'
+import { computeSalePricePerTerrainM2 } from './compute-sale-price-per-terrain-m2'
+import { computeComparableFieldCoverage } from './compute-comparable-field-coverage'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -108,6 +110,11 @@ export function buildMarcheHtml(
     const m2DistRow = m2Dist
       ? `<tr><td style="color:#6a6763;">Dispersion $/m² (CV)</td><td style="font-weight:600;text-align:right;">${fmt(m2Dist.cv, 1)} % <span style="font-weight:400;font-size:9pt;color:#8a8780;">(min ${fmt(m2Dist.min, 0)} – max ${fmt(m2Dist.max, 0)} $/m²)</span></td></tr>`
       : ''
+    // B142: $/terrain m²
+    const terrainM2 = computeSalePricePerTerrainM2(comparables)
+    const terrainM2Row = terrainM2
+      ? `<tr><td style="color:#6a6763;">Prix médian au m² terrain</td><td style="font-weight:600;text-align:right;">${fmt(terrainM2.median, 0)} $/m² <span style="font-weight:400;font-size:9pt;color:#8a8780;">(${fmt(terrainM2.min, 0)} – ${fmt(terrainM2.max, 0)}${terrainM2.missingCount > 0 ? ` · ${terrainM2.missingCount} sans données` : ''})</span></td></tr>`
+      : ''
     // B131: subject size range bracket
     const sizeRange = subject?.hab_m2 != null ? computeComparableSizeRange(comparables, subject.hab_m2) : null
     const sizeRangeRow = sizeRange
@@ -177,7 +184,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${timeRateRow}${ppm2TrendRow}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -365,6 +372,23 @@ export function buildMarcheHtml(
     }
   } else {
     sections.push('<p>Aucun comparable chargé.</p>')
+  }
+
+  // B143: field coverage summary
+  if (comparables.length > 0) {
+    const fieldCov = computeComparableFieldCoverage(comparables)
+    if (fieldCov && fieldCov.sparseFieldCount > 0) {
+      const sparseFields = fieldCov.fields
+        .filter(f => f.coveragePct < 50)
+        .map(f => `${f.label} (${f.coveragePct} %)`)
+        .join(', ')
+      sections.push(`
+        <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+          ⚠ Données manquantes&nbsp;: <strong>${sparseFields}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — couverture globale ${fieldCov.overallScore} %</span>
+        </p>
+      `)
+    }
   }
 
   // Data quality report
