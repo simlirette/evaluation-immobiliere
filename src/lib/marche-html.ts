@@ -8,6 +8,7 @@ import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 import { computeComparableRanking } from './compute-comparable-ranking'
 import { computeDataQualityReport } from './compute-data-quality-report'
 import { computePricePerM2Distribution } from './compute-price-per-m2-distribution'
+import { computeSalesPressureIndex } from './compute-sales-pressure-index'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -172,19 +173,25 @@ export function buildMarcheHtml(
   if (marche?.taux_absorption_pct != null) chips.push(['Taux absorption', `${fmt(marche.taux_absorption_pct)} %`])
   if (marche?.ipc_variation_logement_pct != null) chips.push(['IPC logement', `${marche.ipc_variation_logement_pct >= 0 ? '+' : ''}${fmt(marche.ipc_variation_logement_pct)} %/an`])
 
-  if (chips.length > 0) {
+  if (chips.length > 0 || marche != null) {
+    const pressureIndex = marche ? computeSalesPressureIndex(marche) : null
+    const pressureRow = pressureIndex
+      ? `<tr><td style="color:#6a6763;">Pression du marché</td><td style="font-weight:600;text-align:right;color:${pressureIndex.regime === 'vendeur' ? '#b45309' : pressureIndex.regime === 'acheteur' ? '#0369a1' : '#1f7a5c'};">${pressureIndex.regime} (indice ${pressureIndex.index}/100)</td></tr>`
+      : ''
     const rows = chips.map(([label, val]) => `
       <tr>
         <td style="color:#6a6763;">${label}</td>
         <td style="font-weight:600;text-align:right;">${val}</td>
       </tr>
     `).join('')
-    sections.push(`
-      <h2>Contexte de marché</h2>
-      <table>
-        <tbody>${rows}</tbody>
-      </table>
-    `)
+    if (chips.length > 0 || pressureRow) {
+      sections.push(`
+        <h2>Contexte de marché</h2>
+        <table>
+          <tbody>${pressureRow}${rows}</tbody>
+        </table>
+      `)
+    }
   }
 
   return sections.join('\n')

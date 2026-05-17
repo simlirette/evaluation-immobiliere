@@ -25,6 +25,7 @@ import { computePricePerM2Stats } from '@/lib/compute-price-per-m2-stats'
 import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { computeComparableCompleteness } from '@/lib/compute-comparable-completeness'
 import { computeDataQualityReport } from '@/lib/compute-data-quality-report'
+import { computeSalesPressureIndex } from '@/lib/compute-sales-pressure-index'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
@@ -169,6 +170,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
     ? Math.round(completeness.reduce((s, c) => s + c.completenessPct, 0) / completeness.length)
     : null
   const dataQuality = comparables.length > 0 ? computeDataQualityReport(comparables, adjustments) : null
+  const pressureIndex = marche ? computeSalesPressureIndex(marche) : null
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -208,6 +210,15 @@ export default function MarchePanel({ dossierId, address }: Props) {
               {timeRate && (
                 <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap" title={`Taux implicite — confiance ${timeRate.confidence}`}>
                   {timeRate.annualRatePct > 0 ? '+' : ''}{fmtNum(timeRate.annualRatePct, 1)} %/an <span className="text-[9px]">impl.</span>
+                </span>
+              )}
+              {pressureIndex && (
+                <span className={`text-[10px] rounded-full px-2.5 py-1 whitespace-nowrap ${
+                  pressureIndex.regime === 'vendeur' ? 'text-amber-700 bg-amber-50/80 dark:bg-amber-900/20'
+                  : pressureIndex.regime === 'acheteur' ? 'text-sky-600 bg-sky-50/80 dark:bg-sky-900/20'
+                  : 'text-[#b5b2ac] bg-black/[.04]'
+                }`} title={pressureIndex.label}>
+                  {pressureIndex.regime} · {pressureIndex.index}
                 </span>
               )}
             </div>
