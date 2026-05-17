@@ -18,6 +18,7 @@ import { checkComparableMinimum } from '@/lib/check-comparable-minimum'
 import { computeComparableStats } from '@/lib/compute-comparable-stats'
 import { detectDuplicateComparables } from '@/lib/detect-duplicate-comparables'
 import { buildComparablesCsv } from '@/lib/build-comparables-csv'
+import { computeMarketPriceTrend } from '@/lib/compute-market-price-trend'
 import { fmtNum, formatCAD } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
@@ -148,6 +149,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const minimumCheck = checkComparableMinimum(comparables)
   const duplicates = detectDuplicateComparables(comparables)
   const stats = computeComparableStats(comparables)
+  const trend = computeMarketPriceTrend(comparables)
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -167,6 +169,16 @@ export default function MarchePanel({ dossierId, address }: Props) {
               {stats.priceM2Min !== null && stats.priceM2Max !== null && (
                 <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
                   {fmtNum(stats.priceM2Min, 0)} – {fmtNum(stats.priceM2Max, 0)} $/m²
+                </span>
+              )}
+              {trend && (
+                <span className={`text-[10px] rounded-full px-2.5 py-1 whitespace-nowrap ${
+                  trend.direction === 'hausse' ? 'text-emerald-600 bg-emerald-50/80 dark:bg-emerald-900/20'
+                  : trend.direction === 'baisse' ? 'text-red-500 bg-red-50/80 dark:bg-red-900/20'
+                  : 'text-[#b5b2ac] bg-black/[.04]'
+                }`}>
+                  {trend.direction === 'hausse' ? '↑' : trend.direction === 'baisse' ? '↓' : '→'}{' '}
+                  {trend.annualizedPct > 0 ? '+' : ''}{fmtNum(trend.annualizedPct, 1)} %/an
                 </span>
               )}
             </div>
