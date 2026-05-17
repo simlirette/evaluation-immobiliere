@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Comparable } from '@/types'
 import { computePricePerM2, formatPricePerM2 } from '@/lib/comparable-utils'
 import { validateComparableDate } from '@/lib/validate-comparable-date'
+import { formatComparableAge } from '@/lib/format-comparable-age'
 
 export default function ComparableItem({ comp }: { comp: Comparable }) {
   const [expanded, setExpanded] = useState(false)
@@ -45,7 +46,12 @@ export default function ComparableItem({ comp }: { comp: Comparable }) {
         <div className="text-right flex items-center gap-2">
           <div>
             <div className="text-[13px] font-medium text-[#1a1916]">{comp.price}</div>
-            <div className="text-[11px] text-[#8a8780] mt-0.5">{comp.date}</div>
+            <div className="text-[11px] text-[#8a8780] mt-0.5">
+              {comp.date}
+              <span className={`ml-1.5 ${dateValidation.stale ? 'text-amber-600' : 'text-[#b5b2ac]'}`}>
+                · {formatComparableAge(dateValidation.ageMonths)}
+              </span>
+            </div>
           </div>
           {details.length > 0 && (
             <svg
