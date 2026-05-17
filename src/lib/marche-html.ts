@@ -1,6 +1,8 @@
-import type { Comparable, EnrichmentMarche } from '@/types'
+import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
 import { computeComparableStats } from './compute-comparable-stats'
 import { checkComparableMinimum } from './check-comparable-minimum'
+import { computeMarketPriceTrend } from './compute-market-price-trend'
+import { computeComparableQualityScore } from './compute-comparable-quality-score'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -21,6 +23,7 @@ export function buildMarcheHtml(
   comparables: Comparable[],
   marche: EnrichmentMarche | null,
   address?: string,
+  adjustments?: Adjustment[],
 ): string {
   const sections: string[] = []
   const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -65,9 +68,14 @@ export function buildMarcheHtml(
         <td style="font-weight:600;text-align:right;">${val}</td>
       </tr>
     `).join('')
+    // Price trend
+    const trend = computeMarketPriceTrend(comparables)
+    const trendRow = trend
+      ? `<tr><td style="color:#6a6763;">Tendance de prix annualisée</td><td style="font-weight:600;text-align:right;color:${trend.direction === 'hausse' ? '#1f7a5c' : trend.direction === 'baisse' ? '#b91c1c' : '#6a6763'};">${trend.annualizedPct > 0 ? '+' : ''}${fmt(trend.annualizedPct, 1)} %/an (${trend.direction})</td></tr>`
+      : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}</tbody></table>
+      <table><tbody>${statRows}${trendRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
   } else if (minCheck.warning) {
@@ -76,15 +84,22 @@ export function buildMarcheHtml(
 
   // Comparables table
   if (comparables.length > 0) {
-    const rows = comparables.map(c => `
+    const qualityScores = adjustments ? computeComparableQualityScore(comparables, adjustments) : []
+    const qualityMap = new Map(qualityScores.map(q => [q.comparableId, q.label]))
+    const rows = comparables.map(c => {
+      const ql = qualityMap.get(c.id)
+      const qlColor = ql === 'excellent' ? '#1f7a5c' : ql === 'bon' ? '#0369a1' : ql === 'acceptable' ? '#b45309' : ql === 'faible' ? '#b91c1c' : '#8a8780'
+      return `
       <tr>
         <td>${c.rank}</td>
         <td>${c.address}</td>
         <td style="text-align:right;">${fmtMoney(c.sale_price)}</td>
         <td style="text-align:right;">${c.date}</td>
+        ${ql ? `<td style="color:${qlColor};font-size:9pt;font-weight:600;">${ql}</td>` : '<td></td>'}
         <td style="color:#6a6763;font-size:10pt;">${c.meta}</td>
       </tr>
-    `).join('')
+    `
+    }).join('')
     sections.push(`
       <h2>${comparables.length} comparable${comparables.length !== 1 ? 's' : ''} retenus</h2>
       <table>
@@ -94,6 +109,7 @@ export function buildMarcheHtml(
             <th>Adresse</th>
             <th style="text-align:right;">Prix de vente</th>
             <th style="text-align:right;">Date</th>
+            <th>Qualité</th>
             <th>Notes</th>
           </tr>
         </thead>

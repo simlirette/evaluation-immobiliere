@@ -78,4 +78,19 @@ describe('buildMarcheHtml', () => {
     const html = buildMarcheHtml([], null)
     expect(html).not.toContain('Synthèse des comparables')
   })
+
+  it('includes price trend row when comparables have different dates', () => {
+    const html = buildMarcheHtml(comps, null)
+    expect(html).toContain('Tendance de prix')
+    expect(html).toContain('%/an')
+  })
+
+  it('includes quality column header when adjustments provided', () => {
+    const adjs = [
+      { id: 'a1', comparable_id: 'c1', comparableLabel: '10 rue Laval', salePrice: 420000, surface_adj: 0, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 420000 },
+      { id: 'a2', comparable_id: 'c2', comparableLabel: '25 av. Cartier', salePrice: 395000, surface_adj: 0, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 395000 },
+    ]
+    const html = buildMarcheHtml(comps, null, undefined, adjs)
+    expect(html).toContain('Qualité')
+  })
 })

@@ -295,7 +295,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => printWindow(buildMarcheHtml(visibleComps, marche, address), address ?? 'Marché')}
+            onClick={() => printWindow(buildMarcheHtml(visibleComps, marche, address, adjustments), address ?? 'Marché')}
             className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
           >
             🖨 Imprimer le rapport marché
