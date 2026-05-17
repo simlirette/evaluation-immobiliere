@@ -718,6 +718,12 @@ class RuntimeEngine:
                     k: v for k, v in proj_val.items()
                     if k not in ("source", "source_taux") and v is not None
                 }
+            alrt = case.get("alertes")
+            if alrt:
+                fb["alertes"] = {
+                    k: v for k, v in alrt.items()
+                    if k not in ("source",) and v is not None
+                }
             crime = case.get("crime_stats")
             if crime:
                 fb["crime_stats"] = {
@@ -1493,6 +1499,29 @@ class RuntimeEngine:
                 ) if sg_score is not None else ""
             else:
                 score_global_header = ""
+            # Build alerts section
+            alrt_d = case.get("alertes") or {}
+            alrt_list = alrt_d.get("alertes") or []
+            if alrt_list:
+                niveau_icon = {
+                    "critique": "🔴",
+                    "attention": "🟡",
+                    "info": "🔵",
+                }
+                alrt_lines = "\n".join(
+                    f"- {niveau_icon.get(a.get('niveau',''), '•')} **[{a.get('niveau','').upper()}]** "
+                    f"*{a.get('categorie','')}* — {a.get('message','')}"
+                    for a in alrt_list
+                )
+                alertes_section = (
+                    "## Alertes et signaux de risque\n\n"
+                    + (f"{alrt_d.get('nb_alertes_critiques',0)} critique(s) · "
+                       f"{alrt_d.get('nb_alertes_attention',0)} attention(s) · "
+                       f"{alrt_d.get('nb_alertes_info',0)} info(s)  \n\n")
+                    + alrt_lines + "\n\n"
+                )
+            else:
+                alertes_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
@@ -1538,6 +1567,7 @@ class RuntimeEngine:
                 + invest_section
                 + projection_section
                 + score_marche_section
+                + alertes_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"

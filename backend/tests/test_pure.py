@@ -6132,3 +6132,88 @@ class TestDataEnrichment_ProjectionValeur:
         assert pv.get("valeur_base") > 0
         assert pv.get("taux_base_pct") == pytest.approx(3.5, abs=0.01)
         assert pv["projections"]["base"]["an5"] > pv["valeur_base"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# B44 — Alertes consolidées
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDataEnrichment_Alertes:
+    """compute_alertes — B44 consolidated alert scanner."""
+
+    def test_no_alerts_clean_case(self):
+        """Case sans aucun signal → alertes liste vide, compteurs à 0."""
+        from engine.data_enrichment import compute_alertes
+        case = {}
+        r = compute_alertes(case)
+        assert isinstance(r["alertes"], list)
+        assert r["alertes"] == []
+        assert r["nb_alertes_critiques"] == 0
+        assert r["nb_alertes_attention"] == 0
+        assert r["nb_alertes_info"] == 0
+
+    def test_zone_inondable_critique(self):
+        """Zone inondable → alerte critique catégorie zone_inondable."""
+        from engine.data_enrichment import compute_alertes
+        case = {
+            "zone_inondable": {
+                "en_zone_inondable": True,
+                "recurrence_label": "100 ans",
+            }
+        }
+        r = compute_alertes(case)
+        assert r["nb_alertes_critiques"] == 1
+        crits = [a for a in r["alertes"] if a["niveau"] == "critique"]
+        assert any(a["categorie"] == "zone_inondable" for a in crits)
+
+    def test_zone_agricole_critique(self):
+        """Zone agricole → alerte critique catégorie zone_agricole."""
+        from engine.data_enrichment import compute_alertes
+        case = {
+            "zone_agricole": {
+                "en_zone_agricole": True,
+                "NM_MRC": "Les Jardins-de-Napierville",
+            }
+        }
+        r = compute_alertes(case)
+        assert r["nb_alertes_critiques"] == 1
+        assert any(a["categorie"] == "zone_agricole" for a in r["alertes"])
+
+    def test_crime_eleve_attention(self):
+        """Taux criminalité > 6000 → alerte attention criminalite."""
+        from engine.data_enrichment import compute_alertes
+        case = {
+            "crime_stats": {"taux_criminalite_total": 7500.0}
+        }
+        r = compute_alertes(case)
+        assert r["nb_alertes_attention"] >= 1
+        assert any(a["categorie"] == "criminalite" for a in r["alertes"])
+
+    def test_inoccupation_marche_mole_attention(self):
+        """Taux inoccupation > 7% → alerte attention inoccupation."""
+        from engine.data_enrichment import compute_alertes
+        case = {
+            "taux_inoccupation": {"taux_total_pct": 9.5}
+        }
+        r = compute_alertes(case)
+        assert any(
+            a["categorie"] == "inoccupation" and a["niveau"] == "attention"
+            for a in r["alertes"]
+        )
+
+    def test_enrich_case_injects_alertes(self, tmp_path):
+        """enrich_case injecte alertes avec zone_inondable active → critique."""
+        import unittest.mock as mock
+        from engine import data_enrichment as de
+        from engine.data_enrichment import enrich_case
+
+        case = {
+            "dossier_id": "D-ALRT-TEST",
+            "zone_inondable": {"en_zone_inondable": True, "recurrence_label": "20 ans"},
+        }
+        with mock.patch.object(de, "detect_city", return_value="montreal"):
+            enrich_case(case, display_name="", cache_dir=tmp_path)
+
+        alrt = case.get("alertes", {})
+        assert alrt.get("source") == "calcul-interne"
+        assert alrt.get("nb_alertes_critiques", 0) >= 1

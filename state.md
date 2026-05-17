@@ -307,7 +307,17 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - fiche_bien.json + section AMU "Projection de valeur" (Critère 4)
   - Fix test: valeur_base = valeur_indicative ajustée NHPI (pas eval brute)
   - 6 tests pass
-- 366 tests pass
+- B44 Alertes consolidées (calcul interne — scan tous B-sources) ✓
+  - compute_alertes(case): scan tous les B-sources enrichis, liste {niveau, catégorie, message}
+  - Niveaux: critique | attention | info
+  - Détecte: zone_inondable (critique), zone_agricole (critique), score_risque très élevé (critique)
+  - Détecte: patrimoine_culturel (attention), nuisances≥2 (attention), vétusté très vieux (attention)
+  - Détecte: crime >6000/100k (attention), PLR >30 (attention), inoccupation >7% (attention)
+  - Détecte: inoccupation <1.5% (info), coûts possession >45% revenu (attention)
+  - nb_alertes_critiques, nb_alertes_attention, nb_alertes_info exposés
+  - fiche_bien.json + section AMU "Alertes et signaux de risque" (avant Critère 4)
+  - 6 tests pass
+- 372 tests pass
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré

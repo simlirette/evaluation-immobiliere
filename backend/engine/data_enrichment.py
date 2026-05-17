@@ -309,6 +309,18 @@ _PROJ_MULT_PESSIMISTE   = 0.3           # ×taux_base pour scénario pessimiste 
 _PROJ_TAUX_BASE_DEFAUT  = 2.0           # % annuel si NHPI indisponible (LT QC)
 _PROJ_TAUX_PLANCHER     = 0.0           # % : plancher scénario pessimiste
 
+# ── Résumé des alertes (calcul interne) ───────────────────────────────────────
+_ALERTE_CRITIQUE   = "critique"   # rouge — impact majeur sur financement/légal
+_ALERTE_ATTENTION  = "attention"  # orange — à documenter dans le rapport
+_ALERTE_INFO       = "info"       # bleu — contexte à mentionner
+
+# Seuils pour les alertes
+_ALERTE_CRIME_ELEVE       = 6_000   # /100k : seuil criminalité élevée
+_ALERTE_PLR_SURCOTÉ       = 30.0    # ratio P/L : marché très surcoté
+_ALERTE_INOCCUPATION_TENDU = 1.5   # % : marché locatif extrêmement tendu
+_ALERTE_INOCCUPATION_MOLE  = 7.0   # % : marché locatif détendu
+_ALERTE_RATIO_COUTS_ELEVE  = 45.0  # % revenu : coûts possession très élevés
+
 # ── Statistiques criminelles par CMA (StatCan 35-10-0078-01) ─────────────────
 _CRIME_TABLE = 3510007801  # 35-10-0078-01 : Police-reported crime statistics, by CMA
 _CRIME_TTL = 365 * 86_400  # 1 an (données annuelles)
@@ -4483,6 +4495,112 @@ def compute_projection_valeur(case: dict) -> dict:
     return result
 
 
+def compute_alertes(case: dict) -> dict:
+    """
+    Scan all enriched case data and produce a consolidated list of alerts.
+
+    Pure function — no external calls.  Inspects all B-source keys in case.
+
+    Alert structure: {"niveau": str, "categorie": str, "message": str}
+    Levels: "critique" | "attention" | "info"
+
+    Returns dict with:
+      alertes (list), nb_alertes_critiques, nb_alertes_attention,
+      nb_alertes_info, source.
+    Always returns a non-empty dict (may have empty alertes list).
+    """
+    alertes: list[dict] = []
+
+    def add(niveau: str, categorie: str, message: str) -> None:
+        alertes.append({"niveau": niveau, "categorie": categorie, "message": message})
+
+    # ── Zone inondable ────────────────────────────────────────────────────────
+    inond = case.get("zone_inondable")
+    if inond and inond.get("en_zone_inondable"):
+        rec = inond.get("recurrence_label", "récurrence inconnue")
+        add(_ALERTE_CRITIQUE, "zone_inondable",
+            f"Bien situé en zone inondable ({rec}) — impact sur assurance et financement hypothécaire")
+
+    # ── Zone agricole ─────────────────────────────────────────────────────────
+    agri = case.get("zone_agricole")
+    if agri and agri.get("en_zone_agricole"):
+        mrc = agri.get("NM_MRC", "")
+        add(_ALERTE_CRITIQUE, "zone_agricole",
+            f"Bien en zone agricole protégée CPTAQ{f' ({mrc})' if mrc else ''} — usages fortement limités")
+
+    # ── Patrimoine culturel ───────────────────────────────────────────────────
+    pat = case.get("patrimoine_culturel")
+    if pat and isinstance(pat, dict) and pat:
+        nom = pat.get("NOM") or pat.get("NM_BIEN", "bien répertorié")
+        add(_ALERTE_ATTENTION, "patrimoine_culturel",
+            f"Bien répertorié au patrimoine culturel : {nom} — contraintes Loi sur le patrimoine culturel")
+
+    # ── Nuisances environnementales ───────────────────────────────────────────
+    nuis = case.get("nuisances_environnementales") or {}
+    nuis_score = nuis.get("score_nuisances")
+    if nuis_score is not None and nuis_score >= 2:
+        nuis_interp = nuis.get("interpretation", "")
+        add(_ALERTE_ATTENTION, "nuisances_environnementales",
+            f"Nuisances environnementales significatives (score {nuis_score}/4 — {nuis_interp})")
+
+    # ── Vétusté ───────────────────────────────────────────────────────────────
+    vet = case.get("vetuste_batiment") or {}
+    if vet.get("categorie") == "très vieux":
+        add(_ALERTE_ATTENTION, "vetuste",
+            f"Bâtiment très vieux ({vet.get('age_ans', '?')} ans) — inspection structurale recommandée")
+    elif vet.get("renovation_recommandee"):
+        add(_ALERTE_INFO, "vetuste",
+            f"Bâtiment de {vet.get('age_ans', '?')} ans ({vet.get('categorie', '')}) — rénovation majeure probable")
+
+    # ── Criminalité ───────────────────────────────────────────────────────────
+    crime_taux = (case.get("crime_stats") or {}).get("taux_criminalite_total")
+    if crime_taux is not None and crime_taux > _ALERTE_CRIME_ELEVE:
+        add(_ALERTE_ATTENTION, "criminalite",
+            f"Taux de criminalité élevé ({crime_taux:.0f}/100k hab.) — impact sur valeur locative")
+
+    # ── Ratio prix/loyer surcoté ──────────────────────────────────────────────
+    plr = (case.get("ratio_prix_loyer") or {}).get("ratio_prix_loyer")
+    if plr is not None and plr > _ALERTE_PLR_SURCOTÉ:
+        add(_ALERTE_ATTENTION, "ratio_prix_loyer",
+            f"Ratio P/L très élevé ({plr:.1f}×) — marché surcoté, risque de correction")
+
+    # ── Taux d'inoccupation ───────────────────────────────────────────────────
+    inoc = (case.get("taux_inoccupation") or {}).get("taux_total_pct")
+    if inoc is not None:
+        if inoc < _ALERTE_INOCCUPATION_TENDU:
+            add(_ALERTE_INFO, "inoccupation",
+                f"Marché locatif extrêmement tendu (inoccupation {inoc:.1f}%) — risque de surloyer réglementé")
+        elif inoc > _ALERTE_INOCCUPATION_MOLE:
+            add(_ALERTE_ATTENTION, "inoccupation",
+                f"Marché locatif détendu (inoccupation {inoc:.1f}%) — pression baissière sur loyers")
+
+    # ── Coûts de possession élevés ────────────────────────────────────────────
+    ratio_cp = (case.get("couts_possession") or {}).get("ratio_revenu_pct")
+    if ratio_cp is not None and ratio_cp > _ALERTE_RATIO_COUTS_ELEVE:
+        add(_ALERTE_ATTENTION, "couts_possession",
+            f"Coûts de possession très élevés ({ratio_cp:.1f}% du revenu médian) — accessibilité limitée")
+
+    # ── Score de risque global ────────────────────────────────────────────────
+    risque_cat = (case.get("score_risque") or {}).get("categorie", "")
+    if risque_cat == "risque très élevé":
+        add(_ALERTE_CRITIQUE, "score_risque",
+            "Score de risque global très élevé — analyse approfondie obligatoire")
+
+    nb_critique  = sum(1 for a in alertes if a["niveau"] == _ALERTE_CRITIQUE)
+    nb_attention = sum(1 for a in alertes if a["niveau"] == _ALERTE_ATTENTION)
+    nb_info      = sum(1 for a in alertes if a["niveau"] == _ALERTE_INFO)
+
+    logger.debug("alertes : %d critique(s) %d attention(s) %d info(s)",
+                 nb_critique, nb_attention, nb_info)
+    return {
+        "alertes": alertes,
+        "nb_alertes_critiques": nb_critique,
+        "nb_alertes_attention": nb_attention,
+        "nb_alertes_info": nb_info,
+        "source": "calcul-interne",
+    }
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def enrich_case(
@@ -5010,3 +5128,15 @@ def enrich_case(
                              proj.get("taux_base_pct", 0))
         except Exception as exc:
             logger.debug("projection_valeur skip: %s", exc)
+
+    # ── Alertes consolidées (calcul interne, dépend tous B-sources) ───────────
+    if not case.get("alertes"):
+        try:
+            alrt = compute_alertes(case)
+            if alrt:
+                case["alertes"] = alrt
+                logger.debug("alertes : %d critique(s) %d attention(s)",
+                             alrt.get("nb_alertes_critiques", 0),
+                             alrt.get("nb_alertes_attention", 0))
+        except Exception as exc:
+            logger.debug("alertes skip: %s", exc)
