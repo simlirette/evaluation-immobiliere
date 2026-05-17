@@ -9,6 +9,7 @@ import { computeAdjustmentConsistency } from './compute-adjustment-consistency'
 import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 import { computeAdjustedPriceStats } from './compute-adjusted-price-stats'
 import { computeSensitivityAnalysis } from './compute-sensitivity-analysis'
+import { computeComparableRanking } from './compute-comparable-ranking'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -208,6 +209,26 @@ export function buildAnalyseHtml(
           </p>
         `)
       }
+    }
+  }
+
+  // Comparable ranking (needs both comparables and adjustments)
+  if (comparables && comparables.length > 0 && adjustments.length > 0) {
+    const ranking = computeComparableRanking(comparables, adjustments)
+    if (ranking.length > 0) {
+      const rankRows = ranking.map(r => `<tr>
+        <td style="font-weight:600;color:${r.rank === 1 ? '#1f7a5c' : '#6a6763'};">#${r.rank}</td>
+        <td>${r.comparableLabel}</td>
+        <td style="text-align:right;">${fmt(r.qualityScore, 1)}/10</td>
+        <td style="text-align:right;color:${r.isOutlier ? '#b45309' : '#6a6763'};">${r.isOutlier ? '⚠ atypique' : `${r.weightPct} %`}</td>
+      </tr>`).join('')
+      sections.push(`
+        <h2>Classement des comparables</h2>
+        <table>
+          <thead><tr><th>#</th><th>Comparable</th><th style="text-align:right;">Qualité</th><th style="text-align:right;">Poids</th></tr></thead>
+          <tbody>${rankRows}</tbody>
+        </table>
+      `)
     }
   }
 

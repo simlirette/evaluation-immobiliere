@@ -196,4 +196,20 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
     expect(html).not.toContain('Sensibilité de la réconciliation')
   })
+
+  it('shows comparable ranking table when comparables and adjustments provided', () => {
+    const comps: Comparable[] = [
+      { id: 'c1', rank: '1', address: '10 rue Laval', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 420000, sale_date: '2024-01-01', meta: '', price: '', date: '' },
+      { id: 'c2', rank: '2', address: '25 av. Cartier', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 395000, sale_date: '2024-06-01', meta: '', price: '', date: '' },
+    ]
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null, undefined, comps)
+    expect(html).toContain('Classement des comparables')
+    expect(html).toContain('#1')
+    expect(html).toContain('Qualité')
+  })
+
+  it('omits ranking table when no comparables provided', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).not.toContain('Classement des comparables')
+  })
 })
