@@ -101,6 +101,18 @@ describe('buildMarcheHtml', () => {
     expect(html).toContain('$/m²')
   })
 
+  it('shows data quality section when issues exist (stale comps)', () => {
+    const now = new Date()
+    const staleDate = `${now.getFullYear() - 4}-01-01`
+    const staleComps = [
+      { ...comps[0], sale_date: staleDate },
+      { ...comps[1], sale_date: staleDate },
+    ]
+    const html = buildMarcheHtml(staleComps, null)
+    expect(html).toContain('Qualité des données')
+    expect(html).toContain('ancienne')
+  })
+
   it('includes comparable ranking column when adjustments provided', () => {
     const adjs = [
       { id: 'a1', comparable_id: 'c1', comparableLabel: '10 rue Laval', salePrice: 420000, surface_adj: 5000, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 425000 },

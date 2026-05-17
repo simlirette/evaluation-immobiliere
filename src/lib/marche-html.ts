@@ -6,6 +6,7 @@ import { computeComparableQualityScore } from './compute-comparable-quality-scor
 import { computePricePerM2Stats } from './compute-price-per-m2-stats'
 import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 import { computeComparableRanking } from './compute-comparable-ranking'
+import { computeDataQualityReport } from './compute-data-quality-report'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -138,6 +139,21 @@ export function buildMarcheHtml(
     `)
   } else {
     sections.push('<p>Aucun comparable chargé.</p>')
+  }
+
+  // Data quality report
+  if (comparables.length > 0) {
+    const dqr = computeDataQualityReport(comparables, adjustments ?? [])
+    if (dqr && dqr.grade !== 'bon') {
+      const color = dqr.grade === 'faible' ? '#b91c1c' : '#b45309'
+      const issueItems = dqr.issues.map(i => `<li>${i}</li>`).join('')
+      sections.push(`
+        <div style="background:${dqr.grade === 'faible' ? '#fef2f2' : '#fffbeb'};border:1pt solid ${dqr.grade === 'faible' ? '#fecaca' : '#fcd34d'};border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+          <p style="font-weight:600;color:${color};font-size:10pt;margin:0 0 4pt;">Qualité des données — ${dqr.grade}</p>
+          <ul style="margin:0;padding-left:16pt;color:${color};font-size:9pt;">${issueItems}</ul>
+        </div>
+      `)
+    }
   }
 
   // Market context chips

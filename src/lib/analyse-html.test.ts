@@ -213,6 +213,17 @@ describe('buildAnalyseHtml', () => {
     expect(html).not.toContain('Classement des comparables')
   })
 
+  it('shows data quality section in print when comparables have issues', () => {
+    const now = new Date()
+    const staleDate = `${now.getFullYear() - 4}-01-01`
+    const staleComps: Comparable[] = [
+      { id: 'c1', rank: '1', address: '10 rue Laval', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 420000, sale_date: staleDate, meta: '', price: '', date: '' },
+      { id: 'c2', rank: '2', address: '25 av. Cartier', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 395000, sale_date: staleDate, meta: '', price: '', date: '' },
+    ]
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null, undefined, staleComps)
+    expect(html).toContain('Qualité des données')
+  })
+
   it('shows structured conclusion section with reconciledValue and reliability', () => {
     const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
     expect(html).toContain('Conclusion structurée')

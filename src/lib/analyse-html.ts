@@ -11,6 +11,7 @@ import { computeAdjustedPriceStats } from './compute-adjusted-price-stats'
 import { computeSensitivityAnalysis } from './compute-sensitivity-analysis'
 import { computeComparableRanking } from './compute-comparable-ranking'
 import { computeValuationConclusion } from './compute-valuation-conclusion'
+import { computeDataQualityReport } from './compute-data-quality-report'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -80,6 +81,21 @@ export function buildAnalyseHtml(
       <h2>Conclusion structurée</h2>
       <table><tbody>${vcRows}</tbody></table>
     `)
+  }
+
+  // Data quality
+  if (comparables && comparables.length > 0) {
+    const dqr = computeDataQualityReport(comparables, adjustments)
+    if (dqr && dqr.grade !== 'bon') {
+      const color = dqr.grade === 'faible' ? '#b91c1c' : '#b45309'
+      const issueItems = dqr.issues.map(i => `<li>${i}</li>`).join('')
+      sections.push(`
+        <div style="background:${dqr.grade === 'faible' ? '#fef2f2' : '#fffbeb'};border:1pt solid ${dqr.grade === 'faible' ? '#fecaca' : '#fcd34d'};border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+          <p style="font-weight:600;color:${color};font-size:10pt;margin:0 0 4pt;">Qualité des données — ${dqr.grade}</p>
+          <ul style="margin:0;padding-left:16pt;color:${color};font-size:9pt;">${issueItems}</ul>
+        </div>
+      `)
+    }
   }
 
   // Dispersion stats
