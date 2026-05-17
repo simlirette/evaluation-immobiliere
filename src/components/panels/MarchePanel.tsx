@@ -21,6 +21,7 @@ import { detectDuplicateComparables } from '@/lib/detect-duplicate-comparables'
 import { buildComparablesCsv } from '@/lib/build-comparables-csv'
 import { computeMarketPriceTrend } from '@/lib/compute-market-price-trend'
 import { computeComparableQualityScore } from '@/lib/compute-comparable-quality-score'
+import { computePricePerM2Stats } from '@/lib/compute-price-per-m2-stats'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
@@ -157,6 +158,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const trend = computeMarketPriceTrend(comparables)
   const qualityScores = computeComparableQualityScore(comparables, adjustments)
   const qualityMap = new Map(qualityScores.map(q => [q.comparableId, q.label]))
+  const m2Stats = computePricePerM2Stats(comparables)
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -173,9 +175,14 @@ export default function MarchePanel({ dossierId, address }: Props) {
               <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
                 {stats.dateMin.slice(0, 4)}{stats.dateMin.slice(0, 4) !== stats.dateMax.slice(0, 4) ? ` – ${stats.dateMax.slice(0, 4)}` : ''}
               </span>
-              {stats.priceM2Min !== null && stats.priceM2Max !== null && (
+              {m2Stats && (
                 <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
-                  {fmtNum(stats.priceM2Min, 0)} – {fmtNum(stats.priceM2Max, 0)} $/m²
+                  {fmtNum(m2Stats.median, 0)} $/m² <span className="text-[9px]">méd.</span>
+                </span>
+              )}
+              {m2Stats && (
+                <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
+                  {fmtNum(m2Stats.min, 0)} – {fmtNum(m2Stats.max, 0)} $/m²
                 </span>
               )}
               {trend && (
