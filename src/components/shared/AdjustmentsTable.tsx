@@ -4,6 +4,7 @@ import { computeNetAdjustment } from '@/lib/compute-net-adjustment'
 import { computeGrossAdjustment } from '@/lib/compute-gross-adjustment'
 import { computeMedianIndicatedValue } from '@/lib/compute-median-indicated-value'
 import { detectOutlierComparables } from '@/lib/detect-outlier-comparables'
+import { computeReconciledValue } from '@/lib/compute-reconciled-value'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 
 function formatAdj(value: number): string {
@@ -31,6 +32,7 @@ function AdjCell({ value }: { value: number }) {
 export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
   const summary = summarizeAdjustments(rows)
   const median = computeMedianIndicatedValue(rows)
+  const reconciled = computeReconciledValue(rows)
   const outliers = detectOutlierComparables(rows)
   const outlierMap = new Map(outliers.map(o => [o.id, o]))
   return (
@@ -98,6 +100,17 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
                 </td>
                 <td className="px-2.5 py-[7px] text-right font-medium text-[12px] text-[#1a1916]">
                   {formatPrice(median)}
+                </td>
+              </tr>
+            )}
+            {reconciled && rows.length > 1 && (
+              <tr className="bg-black/[.008]">
+                <td className="px-2.5 py-[7px] text-[10px] text-[#8a8780] uppercase tracking-[.06em] text-left" colSpan={7}>
+                  Réconcilié <span className="normal-case text-[9px] text-[#b5b2ac]">(pondéré — adj. brut)</span>
+                </td>
+                <td className="px-2.5 py-[7px] text-right font-medium text-[12px] text-[#1a1916]">
+                  {formatPrice(reconciled.value)}
+                  <div className="text-[9px] font-normal text-[#b5b2ac] leading-tight">{reconciled.confidence}</div>
                 </td>
               </tr>
             )}
