@@ -11,6 +11,7 @@ import AnalysePanel from '@/components/panels/AnalysePanel'
 import SynthesePanel from '@/components/panels/SynthesePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
 import { fetchDossier } from '@/lib/supabase/queries/dossiers'
+import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
 import { createClient } from '@/lib/supabase/client'
 import type { TabId } from '@/types'
 
@@ -131,7 +132,14 @@ function DossierShellInner() {
           }}
         >
           <div className="absolute inset-0 flex">
-            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => setReportReady(true)} />}
+            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => {
+              setReportReady(true)
+              if (dossierId) {
+                fetchRuntimeEnrichment(dossierId).then(e => {
+                  setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)
+                }).catch(() => undefined)
+              }
+            }} />}
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} />}
             {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
             {activeTab === 'synthese' && <SynthesePanel dossierId={dossierId} onCritiqueFound={setSyntheseCritiques} />}

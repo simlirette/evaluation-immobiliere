@@ -78,6 +78,12 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
       sub: f.seuil_location ?? undefined,
       colorClass: SEUIL_COLOR[f.seuil_location ?? ''] ?? undefined,
     })
+  if (f.revenu_median_menage != null)
+    rows.push({ label: 'Revenu médian ménage CMA (2021)', value: formatPrice(f.revenu_median_menage) })
+  if (f.pct_proprietaires != null)
+    rows.push({ label: 'Propriétaires / locataires', value: `${fmt(f.pct_proprietaires, 0)} % / ${fmt(f.pct_locataires ?? null, 0)} %` })
+  if (f.valeur_mediane_logement != null)
+    rows.push({ label: 'Valeur médiane logement (2021)', value: formatPrice(f.valeur_mediane_logement) })
 
   if (rows.length === 0) return null
 

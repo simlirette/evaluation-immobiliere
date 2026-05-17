@@ -1056,8 +1056,9 @@ def _build_localisation_view(fb: dict) -> dict | None:
     zu = fb.get("zonage_urbanisme") or {}
     prox = fb.get("proximite_services") or {}
     nuis = fb.get("nuisances_environnementales") or {}
+    crime = fb.get("crime_stats") or {}
     pat = fb.get("patrimoine_culturel")  # {} = checked/not listed; dict with keys = listed
-    if not any([cbd, inond, agri, zu, prox, nuis, pat is not None]):
+    if not any([cbd, inond, agri, zu, prox, nuis, crime, pat is not None]):
         return None
     return {
         "distance_cbd_km": cbd.get("distance_cbd_km"),
@@ -1074,14 +1075,17 @@ def _build_localisation_view(fb: dict) -> dict | None:
         "nuisances_interpretation": nuis.get("interpretation"),
         "patrimoine_repertorie": bool(pat) if pat is not None else None,
         "patrimoine_nom": (pat or {}).get("NOM") or (pat or {}).get("NM_BIEN"),
+        "crime_taux_total": crime.get("taux_criminalite_total"),
+        "crime_taux_violents": crime.get("taux_crimes_violents"),
     }
 
 
 def _build_financier_view(fb: dict) -> dict | None:
-    """Extract B30+B35 financial context from fiche_bien.json."""
+    """Extract B11+B30+B35 financial context from fiche_bien.json."""
     cp = fb.get("couts_possession") or {}
     ab = fb.get("indice_abordabilite") or {}
-    if not cp and not ab:
+    census = fb.get("donnees_sociodemographiques") or {}
+    if not cp and not ab and not census:
         return None
     return {
         "total_mensuel": cp.get("total_mensuel"),
@@ -1093,6 +1097,10 @@ def _build_financier_view(fb: dict) -> dict | None:
         "versement_mensuel_estime": ab.get("versement_mensuel_estime"),
         "ratio_mensualite_revenu_pct": ab.get("ratio_mensualite_revenu_pct"),
         "seuil_propriete": ab.get("seuil_propriete"),
+        "revenu_median_menage": census.get("revenu_median_menage"),
+        "pct_proprietaires": census.get("pct_proprietaires"),
+        "pct_locataires": census.get("pct_locataires"),
+        "valeur_mediane_logement": census.get("valeur_mediane_logement"),
     }
 
 

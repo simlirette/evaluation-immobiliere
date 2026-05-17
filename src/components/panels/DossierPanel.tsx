@@ -513,6 +513,8 @@ function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
   }
   if (loc.score_nuisances != null)
     items.push({ label: 'Nuisances env.', value: `Score ${loc.score_nuisances}/4 — ${loc.nuisances_interpretation ?? ''}`, warn: (loc.score_nuisances ?? 0) >= 2 })
+  if (loc.crime_taux_total != null)
+    items.push({ label: 'Criminalité CMA', value: `${Math.round(loc.crime_taux_total).toLocaleString('fr-CA')} / 100 k hab.`, warn: loc.crime_taux_total > 6000 })
 
   if (items.length === 0) return null
 

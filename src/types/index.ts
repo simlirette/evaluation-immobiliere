@@ -38,6 +38,8 @@ export interface EnrichmentLocalisation {
   nuisances_interpretation: string | null
   patrimoine_repertorie: boolean | null
   patrimoine_nom: string | null
+  crime_taux_total: number | null
+  crime_taux_violents: number | null
 }
 
 export interface EnrichmentFinancier {
@@ -50,6 +52,10 @@ export interface EnrichmentFinancier {
   versement_mensuel_estime: number | null
   ratio_mensualite_revenu_pct: number | null
   seuil_propriete: string | null
+  revenu_median_menage: number | null
+  pct_proprietaires: number | null
+  pct_locataires: number | null
+  valeur_mediane_logement: number | null
 }
 
 export interface Enrichment {

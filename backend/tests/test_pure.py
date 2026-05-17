@@ -6477,3 +6477,64 @@ class TestBuildLocalisationView:
         assert r["ecoles_1km"] == 3
         assert r["arrets_transport_500m"] == 12
         assert r["epiceries_500m"] == 2
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch 16 — crime + socio-démo dans localisation/financier views
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildLocalisationCrime:
+    """crime_stats added to _build_localisation_view."""
+
+    def test_crime_taux_extracted(self):
+        """crime_stats → crime_taux_total + crime_taux_violents in localisation."""
+        from api import _build_localisation_view
+        fb = {
+            "crime_stats": {
+                "taux_criminalite_total": 5800.0,
+                "taux_crimes_violents": 950.0,
+            },
+            "distance_cbd": {"distance_cbd_km": 3.0},
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["crime_taux_total"] == pytest.approx(5800.0)
+        assert r["crime_taux_violents"] == pytest.approx(950.0)
+
+    def test_no_crime_key_is_none(self):
+        """Absent crime_stats → crime_taux_total is None."""
+        from api import _build_localisation_view
+        fb = {"distance_cbd": {"distance_cbd_km": 2.0}}
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["crime_taux_total"] is None
+
+
+class TestBuildFinancierSocioDemo:
+    """donnees_sociodemographiques added to _build_financier_view."""
+
+    def test_socio_demo_extracted(self):
+        """Census data → revenu_median, pct_proprietaires, valeur_mediane."""
+        from api import _build_financier_view
+        fb = {
+            "donnees_sociodemographiques": {
+                "revenu_median_menage": 72_000,
+                "pct_proprietaires": 58.3,
+                "pct_locataires": 41.7,
+                "valeur_mediane_logement": 385_000,
+            }
+        }
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["revenu_median_menage"] == 72_000
+        assert r["pct_proprietaires"] == pytest.approx(58.3)
+        assert r["valeur_mediane_logement"] == 385_000
+
+    def test_socio_demo_alone_returns_view(self):
+        """socio-demo alone (no couts/abordabilite) still returns dict."""
+        from api import _build_financier_view
+        fb = {"donnees_sociodemographiques": {"revenu_median_menage": 65_000}}
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["total_mensuel"] is None  # couts_possession absent
+        assert r["revenu_median_menage"] == 65_000
