@@ -20,6 +20,7 @@ import { computeNeighborhoodComparability } from './compute-neighborhood-compara
 import { computeAdjustmentBracketAnalysis } from './compute-adjustment-bracket-analysis'
 import { computeGrossAdjustmentCeiling } from './compute-gross-adjustment-ceiling'
 import { computeValueRangeConfidence } from './compute-value-range-confidence'
+import { computeAdjustmentWeightedMedian } from './compute-adjustment-weighted-median'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -86,6 +87,7 @@ export function buildAnalyseHtml(
       ...(valuationConclusion.hasTimeAdjustment && valuationConclusion.annualTimeRatePct !== null ? [[`Taux temporel`, `<span style="color:${valuationConclusion.annualTimeRatePct >= 0 ? '#1f7a5c' : '#b91c1c'};">${valuationConclusion.annualTimeRatePct >= 0 ? '+' : ''}${fmt(valuationConclusion.annualTimeRatePct, 1)} %/an</span>`]] : []),
       ...((() => { const nc = comparables && comparables.length > 0 ? computeNeighborhoodComparability(comparables, adjustments) : null; return nc ? [[`Comparabilité voisinage`, `<span style="color:${nc.strength === 'forte' ? '#1f7a5c' : nc.strength === 'modérée' ? '#b45309' : '#b91c1c'};">${nc.strength} (${nc.score}/100)</span>`]] : [] })()),
       ...((() => { const vrc = conclusion !== null && adjustments.length >= 2 ? computeValueRangeConfidence(adjustments, conclusion) : null; return vrc ? [[`Intervalle confiance (±1σ)`, `${fmtMoney(vrc.band1Sigma.low)} – ${fmtMoney(vrc.band1Sigma.high)}<br><span style="font-size:8pt;font-weight:400;color:#8a8780;">confiance conclusion&nbsp;: <strong style="color:${vrc.conclusionConfidence === 'haute' ? '#1f7a5c' : vrc.conclusionConfidence === 'modérée' ? '#b45309' : '#b91c1c'};">${vrc.conclusionConfidence}</strong></span>`]] : [] })()),
+      ...((() => { const wm = adjustments.length >= 2 ? computeAdjustmentWeightedMedian(adjustments) : null; return wm && Math.abs(wm.deltaPct) >= 0.5 ? [[`Médiane pondérée`, `${fmtMoney(wm.weightedMedian)} <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${wm.deltaPct > 0 ? '+' : ''}${fmt(wm.deltaPct, 1)} % vs médiane simple)</span>`]] : [] })()),
     ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
     sections.push(`
       <h2>Conclusion structurée</h2>
