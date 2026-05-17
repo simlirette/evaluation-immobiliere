@@ -4,6 +4,7 @@ import { checkComparableMinimum } from './check-comparable-minimum'
 import { computeMarketPriceTrend } from './compute-market-price-trend'
 import { computeComparableQualityScore } from './compute-comparable-quality-score'
 import { computePricePerM2Stats } from './compute-price-per-m2-stats'
+import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -79,9 +80,13 @@ export function buildMarcheHtml(
     const m2Row = m2Stats
       ? `<tr><td style="color:#6a6763;">Prix médian au m² (surface hab.)</td><td style="font-weight:600;text-align:right;">${fmt(m2Stats.median, 0)} $/m² <span style="font-weight:400;font-size:9pt;color:#8a8780;">(${fmt(m2Stats.min, 0)} – ${fmt(m2Stats.max, 0)})</span></td></tr>`
       : ''
+    const timeRate = computeTimeAdjustmentRate(comparables)
+    const timeRateRow = timeRate
+      ? `<tr><td style="color:#6a6763;">Taux implicite d'appréciation</td><td style="font-weight:600;text-align:right;color:${timeRate.annualRatePct >= 0 ? '#1f7a5c' : '#b91c1c'};">${timeRate.annualRatePct >= 0 ? '+' : ''}${fmt(timeRate.annualRatePct, 1)} %/an <span style="font-weight:400;font-size:9pt;color:#8a8780;">— confiance ${timeRate.confidence}</span></td></tr>`
+      : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${timeRateRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
   } else if (minCheck.warning) {

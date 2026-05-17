@@ -6,6 +6,7 @@ import { detectOutlierComparables } from './detect-outlier-comparables'
 import { computeAdjustmentProfile } from './compute-adjustment-profile'
 import { computeReconciledValue } from './compute-reconciled-value'
 import { computeAdjustmentConsistency } from './compute-adjustment-consistency'
+import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -158,6 +159,21 @@ export function buildAnalyseHtml(
             <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Cohérence des ajustements</p>
             <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${warningItems}</ul>
           </div>
+        `)
+      }
+    }
+
+    // Time adjustment rate note
+    if (comparables && comparables.length >= 2) {
+      const timeRate = computeTimeAdjustmentRate(comparables)
+      if (timeRate) {
+        const color = timeRate.annualRatePct >= 0 ? '#1f7a5c' : '#b91c1c'
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Taux implicite d'appréciation (${timeRate.basedOn}&nbsp;paire${timeRate.basedOn !== 1 ? 's' : ''})&nbsp;:
+            <strong style="color:${color};">${timeRate.annualRatePct >= 0 ? '+' : ''}${fmt(timeRate.annualRatePct, 1)}&nbsp;%/an</strong>
+            <span style="font-size:9pt;color:#8a8780;">— confiance ${timeRate.confidence}</span>
+          </p>
         `)
       }
     }

@@ -100,4 +100,12 @@ describe('buildMarcheHtml', () => {
     expect(html).toContain('médian au m²')
     expect(html).toContain('$/m²')
   })
+
+  it('includes implicit appreciation rate row when comps have different dates and prices', () => {
+    // comps fixture: c2 (Feb 2024, 395k) baseline → c1 (Mar 2024, 420k) → non-zero monthly rate
+    const html = buildMarcheHtml(comps, null)
+    expect(html).toContain("Taux implicite d'appréciation")
+    expect(html).toContain('confiance')
+    expect(html).toContain('%/an')
+  })
 })

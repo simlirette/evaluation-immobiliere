@@ -150,4 +150,20 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml(consistent, 409000, 'PRET_REVUE', null)
     expect(html).not.toContain('Cohérence des ajustements')
   })
+
+  it('shows time adjustment rate note when comparables with different dates and prices provided', () => {
+    const comps: Comparable[] = [
+      { id: 'c1', rank: '1', address: '10 rue Laval', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 400000, sale_date: '2024-01-01', meta: '', price: '', date: '' },
+      { id: 'c2', rank: '2', address: '25 av. Cartier', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 412000, sale_date: '2025-01-01', meta: '', price: '', date: '' },
+    ]
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null, undefined, comps)
+    expect(html).toContain("Taux implicite d'appréciation")
+    expect(html).toContain('%/an')
+    expect(html).toContain('confiance')
+  })
+
+  it('omits time rate note when no comparables provided', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).not.toContain("Taux implicite d'appréciation")
+  })
 })
