@@ -15,6 +15,7 @@ import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { buildOEAQChecklist } from '@/lib/build-oeaq-checklist'
+import { computeSubjectContext } from '@/lib/compute-subject-context'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -189,11 +190,22 @@ export default function AnalysePanel({ dossierId, address }: Props) {
             const range = summary && adjustments.length > 1
               ? `${formatPrice(summary.min)} – ${formatPrice(summary.max)}`
               : undefined
+            const ctx = adjustments.length > 0 ? computeSubjectContext(conclusion, adjustments) : null
             return (
-              <ValeurCard
-                median={`Conclusion proposée\u00a0: ${formatPrice(conclusion)}`}
-                range={range}
-              />
+              <>
+                <ValeurCard
+                  median={`Conclusion proposée\u00a0: ${formatPrice(conclusion)}`}
+                  range={range}
+                />
+                {ctx && (
+                  <div className={`mt-1.5 text-[11px] px-1 ${ctx.withinRange ? 'text-[#6a6763]' : 'text-amber-700 dark:text-amber-400'}`}>
+                    {ctx.withinRange
+                      ? `Conclusion dans la fourchette des valeurs indiquées${Math.abs(ctx.deviationFromMedianPct) >= 1 ? ` · ${ctx.deviationFromMedianPct > 0 ? '+' : ''}${ctx.deviationFromMedianPct} % vs médiane` : ' · en ligne avec la médiane'}.`
+                      : `⚠ Conclusion hors de la fourchette des valeurs indiquées (${ctx.deviationFromMedianPct > 0 ? '+' : ''}${ctx.deviationFromMedianPct} % vs médiane) — justification requise.`
+                    }
+                  </div>
+                )}
+              </>
             )
           })()}
           {financier && <FinancierContexte f={financier} />}
