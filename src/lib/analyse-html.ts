@@ -1,4 +1,5 @@
-import type { Adjustment, EnrichmentFinancier } from '@/types'
+import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
+import { buildOEAQChecklist } from './build-oeaq-checklist'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -34,6 +35,7 @@ export function buildAnalyseHtml(
   status: string,
   financier: EnrichmentFinancier | null,
   address?: string,
+  comparables?: Comparable[],
 ): string {
   const sections: string[] = []
   const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -112,6 +114,25 @@ export function buildAnalyseHtml(
       `).join('')
       sections.push(`<h2>Contexte financier</h2><table><tbody>${tableRows}</tbody></table>`)
     }
+  }
+
+  // OEAQ compliance checklist
+  if (comparables && comparables.length > 0) {
+    const checks = buildOEAQChecklist(comparables, adjustments)
+    const checkRows = checks.map(c => `
+      <tr>
+        <td style="color:${c.pass ? '#1f7a5c' : '#b45309'};font-weight:600;white-space:nowrap;">${c.pass ? '✓' : '⚠'}</td>
+        <td style="color:#1a1916;">${c.rule}</td>
+        <td style="color:${c.pass ? '#6a6763' : '#b45309'};font-size:9pt;">${c.message ?? ''}</td>
+      </tr>
+    `).join('')
+    sections.push(`
+      <h2>Conformité OEAQ</h2>
+      <table>
+        <thead><tr><th></th><th>Règle</th><th>Note</th></tr></thead>
+        <tbody>${checkRows}</tbody>
+      </table>
+    `)
   }
 
   return sections.join('\n')

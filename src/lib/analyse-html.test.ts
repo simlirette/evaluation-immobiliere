@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildAnalyseHtml } from './analyse-html'
-import type { Adjustment, EnrichmentFinancier } from '@/types'
+import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
 
 const adjs: Adjustment[] = [
   { id: 'a1', comparable_id: 'c1', comparableLabel: '10 rue Laval', salePrice: 420000, surface_adj: 5000, year_adj: -3000, condition_adj: 0, garage_adj: 0, adjusted: 422000 },
@@ -58,5 +58,22 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml([], 413000, 'PRET_REVUE', null)
     expect(html).toContain('Conclusion de valeur')
     expect(html).not.toContain('ajustements (')
+  })
+
+  it('includes OEAQ section when comparables provided', () => {
+    const comps: Comparable[] = [
+      { id: 'c1', rank: '1', address: '10 rue Laval', hab_m2: 100, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 420000, sale_date: '2024-01-01', meta: '', price: '', date: '' },
+      { id: 'c2', rank: '2', address: '25 av. Cartier', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 395000, sale_date: '2024-06-01', meta: '', price: '', date: '' },
+      { id: 'c3', rank: '3', address: '8 boul. Rosemont', hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: 410000, sale_date: '2025-01-01', meta: '', price: '', date: '' },
+    ]
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null, undefined, comps)
+    expect(html).toContain('Conformité OEAQ')
+    expect(html).toContain('Nombre minimal')
+    expect(html).toContain('Récence des ventes')
+  })
+
+  it('omits OEAQ section when no comparables provided', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).not.toContain('Conformité OEAQ')
   })
 })

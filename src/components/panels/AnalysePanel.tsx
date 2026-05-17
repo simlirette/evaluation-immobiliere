@@ -242,7 +242,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         <div className="w-full max-w-[640px] flex justify-end mb-3">
           <button
             type="button"
-            onClick={() => printWindow(buildAnalyseHtml(adjustments, conclusion, status, financier, address), address ?? 'Analyse')}
+            onClick={() => printWindow(buildAnalyseHtml(adjustments, conclusion, status, financier, address, comparables), address ?? 'Analyse')}
             className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
           >
             {`🖨 Imprimer l'analyse`}
