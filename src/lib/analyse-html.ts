@@ -5,6 +5,7 @@ import { computeMedianIndicatedValue } from './compute-median-indicated-value'
 import { detectOutlierComparables } from './detect-outlier-comparables'
 import { computeAdjustmentProfile } from './compute-adjustment-profile'
 import { computeReconciledValue } from './compute-reconciled-value'
+import { computeAdjustmentConsistency } from './compute-adjustment-consistency'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -144,6 +145,21 @@ export function buildAnalyseHtml(
           <span style="font-size:9pt;"> — confiance ${reconciled.confidence}</span>
         </p>
       `)
+    }
+
+    // Consistency warnings
+    if (adjustments.length >= 2) {
+      const consistencyChecks = computeAdjustmentConsistency(adjustments)
+      const inconsistent = consistencyChecks.filter(c => !c.consistent)
+      if (inconsistent.length > 0) {
+        const warningItems = inconsistent.map(c => `<li>${c.warning}</li>`).join('')
+        sections.push(`
+          <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+            <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Cohérence des ajustements</p>
+            <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${warningItems}</ul>
+          </div>
+        `)
+      }
     }
   }
 

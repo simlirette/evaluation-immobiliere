@@ -129,4 +129,25 @@ describe('buildAnalyseHtml', () => {
     expect(html).toContain('réconciliée')
     expect(html).toContain('confiance')
   })
+
+  it('shows consistency warning when adjustments have mixed directions', () => {
+    // a1: surface_adj +5000; a2: surface_adj -3000 → mixed → warning
+    const mixedAdjs: Adjustment[] = [
+      { id: 'a1', comparable_id: 'c1', comparableLabel: 'A', salePrice: 400000, surface_adj: 5000, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 405000 },
+      { id: 'a2', comparable_id: 'c2', comparableLabel: 'B', salePrice: 400000, surface_adj: -3000, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 397000 },
+    ]
+    const html = buildAnalyseHtml(mixedAdjs, 401000, 'PRET_REVUE', null)
+    expect(html).toContain('Cohérence des ajustements')
+    expect(html).toContain('directions mixtes')
+  })
+
+  it('omits consistency section when all directions are consistent', () => {
+    // all same direction per type — no mixed signals
+    const consistent: Adjustment[] = [
+      { id: 'a1', comparable_id: 'c1', comparableLabel: 'A', salePrice: 400000, surface_adj: 5000, year_adj: -2000, condition_adj: 0, garage_adj: 0, adjusted: 403000 },
+      { id: 'a2', comparable_id: 'c2', comparableLabel: 'B', salePrice: 410000, surface_adj: 8000, year_adj: -3000, condition_adj: 0, garage_adj: 0, adjusted: 415000 },
+    ]
+    const html = buildAnalyseHtml(consistent, 409000, 'PRET_REVUE', null)
+    expect(html).not.toContain('Cohérence des ajustements')
+  })
 })

@@ -3,6 +3,7 @@ import { computeComparableStats } from './compute-comparable-stats'
 import { checkComparableMinimum } from './check-comparable-minimum'
 import { computeMarketPriceTrend } from './compute-market-price-trend'
 import { computeComparableQualityScore } from './compute-comparable-quality-score'
+import { computePricePerM2Stats } from './compute-price-per-m2-stats'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -73,9 +74,14 @@ export function buildMarcheHtml(
     const trendRow = trend
       ? `<tr><td style="color:#6a6763;">Tendance de prix annualisée</td><td style="font-weight:600;text-align:right;color:${trend.direction === 'hausse' ? '#1f7a5c' : trend.direction === 'baisse' ? '#b91c1c' : '#6a6763'};">${trend.annualizedPct > 0 ? '+' : ''}${fmt(trend.annualizedPct, 1)} %/an (${trend.direction})</td></tr>`
       : ''
+    // $/m² stats
+    const m2Stats = computePricePerM2Stats(comparables)
+    const m2Row = m2Stats
+      ? `<tr><td style="color:#6a6763;">Prix médian au m² (surface hab.)</td><td style="font-weight:600;text-align:right;">${fmt(m2Stats.median, 0)} $/m² <span style="font-weight:400;font-size:9pt;color:#8a8780;">(${fmt(m2Stats.min, 0)} – ${fmt(m2Stats.max, 0)})</span></td></tr>`
+      : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
   } else if (minCheck.warning) {

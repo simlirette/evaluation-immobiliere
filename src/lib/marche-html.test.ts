@@ -93,4 +93,11 @@ describe('buildMarcheHtml', () => {
     const html = buildMarcheHtml(comps, null, undefined, adjs)
     expect(html).toContain('Qualité')
   })
+
+  it('includes median $/m² row when comps have hab_m2', () => {
+    // comps fixture has hab_m2: 120 and 110
+    const html = buildMarcheHtml(comps, null)
+    expect(html).toContain('médian au m²')
+    expect(html).toContain('$/m²')
+  })
 })
