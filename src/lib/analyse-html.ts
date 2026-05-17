@@ -14,6 +14,7 @@ import { computeValuationConclusion } from './compute-valuation-conclusion'
 import { computeDataQualityReport } from './compute-data-quality-report'
 import { computeMarketPositioning } from './compute-market-positioning'
 import { computeAdjustmentNetEffect } from './compute-adjustment-net-effect'
+import { computeHoldingCostEstimate } from './compute-holding-cost-estimate'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -313,6 +314,13 @@ export function buildAnalyseHtml(
         ? `${financier.variation_dette_revenu_pct >= 0 ? '+' : ''}${fmt(financier.variation_dette_revenu_pct)} %/an`
         : undefined
       rows.push(['Ratio dette / revenu (Canada)', `${fmt(financier.ratio_dette_revenu_pct)} %`, trend])
+    }
+    // Holding cost estimate (when we have a conclusion price; use 5.5% as market proxy rate)
+    if (conclusion !== null) {
+      const holdingEst = computeHoldingCostEstimate(conclusion, 20, 5.5, 25)
+      if (holdingEst) {
+        rows.push(['Coût détention estimé (5 ans, 20 % MDP, taux 5,5 %)', fmtMoney(holdingEst.totalHoldingCost), `${fmtMoney(holdingEst.monthlyTotal)}/mois`])
+      }
     }
     if (rows.length > 0) {
       const tableRows = rows.map(([label, value, sub]) => `
