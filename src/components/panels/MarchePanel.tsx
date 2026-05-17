@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import ComparableItem from '@/components/shared/ComparableItem'
@@ -90,6 +90,7 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
 }
 
 export default function MarchePanel({ dossierId, address }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [replies, setReplies] = useState<string[]>([])
@@ -113,6 +114,10 @@ export default function MarchePanel({ dossierId, address }: Props) {
 
   useEffect(() => { load() }, [dossierId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [replies, asking])
+
   async function handleAsk(value: string) {
     if (!dossierId) return
     setAsking(true)
@@ -129,7 +134,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
-      <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
+      <div ref={scrollRef} className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparables</strong>{' depuis les art\u00e9facts du backend.'}

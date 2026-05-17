@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import RapportArtifact from '@/components/shared/RapportArtifact'
@@ -54,6 +54,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     if (typeof window === 'undefined') return 400
     return Number(localStorage.getItem('rapport-panel-width') ?? '400') || 400
   })
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<RapportState | null>(null)
   const [replies, setReplies] = useState<string[]>([])
   const [asking, setAsking] = useState(false)
@@ -126,6 +127,10 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     reload().catch(() => { setError(true); setLoading(false) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [replies, asking])
 
   async function handleAsk(value: string) {
     if (!dossierId) return
@@ -216,7 +221,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
         className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}
         style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0 } : undefined}
       >
-        <div className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
+        <div ref={scrollRef} className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
           <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
             {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}

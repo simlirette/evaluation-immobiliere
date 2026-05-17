@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
@@ -129,6 +129,7 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
 }
 
 export default function AnalysePanel({ dossierId, address }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [conclusion, setConclusion] = useState<number | null>(null)
   const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
@@ -157,6 +158,10 @@ export default function AnalysePanel({ dossierId, address }: Props) {
 
   useEffect(() => { load() }, [dossierId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [replies, asking])
+
   async function handleAsk(value: string) {
     if (!dossierId) return
     setAsking(true)
@@ -173,7 +178,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
-      <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
+      <div ref={scrollRef} className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}

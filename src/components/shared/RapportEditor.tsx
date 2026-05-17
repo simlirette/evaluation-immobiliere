@@ -12,6 +12,7 @@ import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm'
 import { exportRapport } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
+import { countWords } from '@/lib/count-words'
 
 const td = new TurndownService({
   headingStyle: 'atx',
@@ -76,8 +77,7 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
     content: '',
     onUpdate: ({ editor: e }) => {
       setIsEdited(true)
-      const text = e.getText()
-      setWordCount(text.split(/\s+/).filter(s => s.length > 0).length)
+      setWordCount(countWords(e.getText()))
     },
     editorProps: {
       attributes: {
@@ -91,8 +91,7 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
     const html = String(marked.parse(initialMarkdown))
     editor.commands.setContent(html, { emitUpdate: false })
     setIsEdited(false)
-    const text = editor.getText()
-    setWordCount(text.split(/\s+/).filter(s => s.length > 0).length)
+    setWordCount(countWords(editor.getText()))
   }, [editor, initialMarkdown])
 
   const handleSave = useCallback(async () => {

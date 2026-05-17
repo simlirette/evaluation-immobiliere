@@ -13,6 +13,8 @@ const SHORTCUTS = [
   { keys: ['Ctrl', '3'], label: 'Onglet Analyse' },
   { keys: ['Ctrl', '4'], label: 'Onglet Synthèse' },
   { keys: ['Ctrl', '5'], label: 'Onglet Rapport' },
+  { keys: ['Ctrl', 'S'], label: 'Sauvegarder le rapport' },
+  { keys: ['Ctrl', 'Z'], label: 'Annuler (éditeur rapport)' },
   { keys: ['?'], label: 'Aide clavier' },
   { keys: ['Esc'], label: 'Fermer ce panneau' },
 ]
