@@ -6,6 +6,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import TabBar from '@/components/layout/TabBar'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Toast from '@/components/shared/Toast'
+import ShortcutHelp from '@/components/shared/ShortcutHelp'
 import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
@@ -37,6 +38,7 @@ function DossierShellInner() {
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const dismissToast = useCallback(() => setToast(null), [])
+  const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
     if (params.id === 'nouveau') return
@@ -62,6 +64,7 @@ function DossierShellInner() {
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      if (e.key === '?') { setShowHelp(h => !h); return }
       if (!e.ctrlKey && !e.metaKey) return
       const map: Record<string, TabId> = { '1': 'dossier', '2': 'marche', '3': 'analyse', '4': 'synthese', '5': 'rapport' }
       const tab = map[e.key]
@@ -170,6 +173,7 @@ function DossierShellInner() {
       </div>
 
       <Toast message={toast} onDismiss={dismissToast} />
+      <ShortcutHelp open={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   )
 }

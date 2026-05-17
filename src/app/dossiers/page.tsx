@@ -12,6 +12,7 @@ import { fetchDossiers, deleteDossier, renameDossier } from '@/lib/supabase/quer
 import { togglePin } from '@/lib/supabase/queries/pins'
 import { useContextMenu } from '@/hooks/useContextMenu'
 import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
+import { computeDossierStats } from '@/lib/dossier-stats'
 import { createClient } from '@/lib/supabase/client'
 import type { Dossier, DossierStatus, TabId } from '@/types'
 type StatusFilter = 'all' | DossierStatus
@@ -281,6 +282,21 @@ export default function MesDossiersPage() {
               )}
             </div>
           )}
+
+          {/* Stats bar */}
+          {!loading && dossiers.length > 0 && (() => {
+            const s = computeDossierStats(dossiers)
+            return (
+              <div className="flex justify-center mb-5 flex-shrink-0">
+                <div className="flex items-center gap-3 text-[11px] text-[#b5b2ac]">
+                  <span>{s.total} dossier{s.total !== 1 ? 's' : ''}</span>
+                  {s.complet > 0 && <><span className="opacity-40">·</span><span className="text-[#1f7a5c]">{s.complet} complet{s.complet !== 1 ? 's' : ''}</span></>}
+                  {s.en_cours > 0 && <><span className="opacity-40">·</span><span className="text-[#334155]">{s.en_cours} en cours</span></>}
+                  {s.brouillon > 0 && <><span className="opacity-40">·</span><span>{s.brouillon} brouillon{s.brouillon !== 1 ? 's' : ''}</span></>}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Grid */}
           {loading ? (
