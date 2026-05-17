@@ -4,10 +4,13 @@ import { useEffect, useState } from 'react'
 import PanelSkeleton from '@/components/shared/PanelSkeleton'
 import EmptyState from '@/components/shared/EmptyState'
 import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { printWindow } from '@/lib/print-window'
+import { buildSyntheseHtml } from '@/lib/synthese-html'
 import type { Enrichment, EnrichmentAlerte } from '@/types'
 
 interface Props {
   dossierId: string | null
+  address?: string
   onCritiqueFound?: (count: number) => void
 }
 
@@ -127,7 +130,7 @@ function ProjectionTable({ pv }: { pv: NonNullable<Enrichment['projection_valeur
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
+export default function SynthesePanel({ dossierId, address, onCritiqueFound }: Props) {
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -268,6 +271,15 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
           )}
         </div>
 
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => printWindow(buildSyntheseHtml(enrichment, address), address ?? 'Synthèse')}
+            className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+          >
+            🖨 Imprimer la synthèse
+          </button>
+        </div>
         <p className="text-center text-[11px] text-[#8a8780] pb-2">
           {`Données calculées à titre indicatif — validation d'un évaluateur agréé requise.`}
         </p>
