@@ -41,6 +41,9 @@ import { computeAdjustmentSummaryByComp } from './compute-adjustment-summary-by-
 import { computeAdjustmentCoverageByType } from './compute-adjustment-coverage-by-type'
 import { computeTimeAdjustmentImpact } from './compute-time-adjustment-impact'
 import { computeGrossToNetRatio } from './compute-gross-to-net-ratio'
+import { computeAdjustmentLineItemStats } from './compute-adjustment-line-item-stats'
+import { computeNetAdjustmentRangeCheck } from './compute-net-adjustment-range-check'
+import { computeAdjustmentExplainedVariance } from './compute-adjustment-explained-variance'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -560,6 +563,51 @@ export function buildAnalyseHtml(
     }
   }
 
+  // B152: adjustment line item stats
+  if (adjustments.length > 0) {
+    const lineItemStats = computeAdjustmentLineItemStats(adjustments)
+    if (lineItemStats) {
+      const typeLabels: Record<string, string> = { surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' }
+      const statRows = (['surface', 'year', 'condition', 'garage'] as const).map(k => {
+        const s = lineItemStats[k]
+        const signMin = s.min > 0 ? '+' : ''
+        const signMax = s.max > 0 ? '+' : ''
+        const signMean = s.mean > 0 ? '+' : ''
+        return `<tr>
+          <td style="color:#6a6763;">${typeLabels[k]}</td>
+          <td style="text-align:right;font-size:9pt;">${signMin}${fmtAdj(s.min)}</td>
+          <td style="text-align:right;font-size:9pt;">${signMax}${fmtAdj(s.max)}</td>
+          <td style="text-align:right;font-size:9pt;font-weight:600;">${signMean}${fmtAdj(s.mean)}</td>
+          <td style="text-align:right;font-size:9pt;">${s.mean > 0 ? '+' : ''}${fmtAdj(s.median)}</td>
+        </tr>`
+      }).join('')
+      sections.push(`
+        <h2>Ajustements par poste</h2>
+        <table>
+          <thead><tr><th>Poste</th><th style="text-align:right;">Min</th><th style="text-align:right;">Max</th><th style="text-align:right;">Moy.</th><th style="text-align:right;">Méd.</th></tr></thead>
+          <tbody>${statRows}</tbody>
+        </table>
+      `)
+    }
+  }
+
+  // B153: net adjustment range check (OEAQ: |net adj| ≤ 15% of sale price)
+  if (adjustments.length > 0) {
+    const rangeCheck = computeNetAdjustmentRangeCheck(adjustments)
+    if (rangeCheck && !rangeCheck.compliant) {
+      const violators = rangeCheck.entries.filter(e => e.violation)
+      const violatorItems = violators.map(e =>
+        `<li>${e.comparableLabel}&nbsp;: ${fmt(e.netAdjPct, 1)} % (${e.netAdj > 0 ? '+' : ''}${fmtAdj(e.netAdj)})</li>`
+      ).join('')
+      sections.push(`
+        <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+          <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Ajustement net &gt; 15 % du prix de vente (OEAQ)</p>
+          <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${violatorItems}</ul>
+        </div>
+      `)
+    }
+  }
+
   // Financial context
   if (financier) {
     const rows: Array<[string, string, string?]> = []
@@ -650,6 +698,22 @@ export function buildAnalyseHtml(
           </p>
         `)
       }
+    }
+  }
+
+  // B155: adjustment explained variance
+  if (adjustments.length >= 2) {
+    const explVar = computeAdjustmentExplainedVariance(adjustments)
+    if (explVar) {
+      const color = explVar.interpretation === 'forte' ? '#1f7a5c' : explVar.interpretation === 'aucune' ? '#b91c1c' : explVar.interpretation === 'faible' ? '#b45309' : '#6a6763'
+      const sign = explVar.varianceReductionPct > 0 ? '' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:6pt;">
+          Réduction de variance par les ajustements&nbsp;:
+          <strong style="color:${color};">${explVar.interpretation} (${fmt(explVar.varianceReductionPct, 1)} %)</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — var. brute ${fmtMoney(Math.sqrt(explVar.saleVariance))}σ → ajustée ${fmtMoney(Math.sqrt(explVar.adjustedVariance))}σ</span>
+        </p>
+      `)
     }
   }
 

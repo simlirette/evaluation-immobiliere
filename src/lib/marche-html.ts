@@ -29,6 +29,8 @@ import { computeComparableFieldCoverage } from './compute-comparable-field-cover
 import { computeComparableRepresentativeness } from './compute-comparable-representativeness'
 import { computeComparableAgeDiversityScore } from './compute-comparable-age-diversity-score'
 import { computeReconciledValue } from './compute-reconciled-value'
+import { computeSalePriceCV } from './compute-sale-price-cv'
+import { computeComparableSaleVelocity } from './compute-comparable-sale-velocity'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -145,6 +147,14 @@ export function buildMarcheHtml(
           return `<tr><td style="color:#6a6763;">Asymétrie des prix</td><td style="font-weight:600;text-align:right;color:${color};">${priceSkew.interpretation} <span style="font-weight:400;font-size:9pt;color:#8a8780;">(skew ${priceSkew.skew > 0 ? '+' : ''}${fmt(priceSkew.skew, 2)}, moy. ${fmtMoney(priceSkew.mean)} vs méd. ${fmtMoney(priceSkew.median)})</span></td></tr>`
         })()
       : ''
+    // B151: sale price CV
+    const salePriceCV = computeSalePriceCV(comparables)
+    const salePriceCVRow = salePriceCV
+      ? (() => {
+          const color = salePriceCV.cohesion === 'homogène' ? '#1f7a5c' : salePriceCV.cohesion === 'hétérogène' ? '#b91c1c' : '#b45309'
+          return `<tr><td style="color:#6a6763;">Homogénéité des prix (CV)</td><td style="font-weight:600;text-align:right;color:${color};">${salePriceCV.cohesion} <span style="font-weight:400;font-size:9pt;color:#8a8780;">(CV ${fmt(salePriceCV.cv, 1)} % · σ ${fmtMoney(salePriceCV.stdDev)})</span></td></tr>`
+        })()
+      : ''
     // B135: $/m² trend
     const ppm2Trend = computePricePerM2Trend(comparables)
     const ppm2TrendRow = ppm2Trend
@@ -195,7 +205,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${ageDiversityRow}${quartilesRow}${m2OutliersRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${salePriceCVRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${ageDiversityRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -354,6 +364,20 @@ export function buildMarcheHtml(
             Sélection des comparables&nbsp;:
             <strong style="color:${color};">${selSummary.recommendation}</strong>
             <span style="font-size:9pt;color:#8a8780;"> — qualité moy. ${fmt(selSummary.avgQualityScore, 1)}/10${simNote}${lowNote}</span>
+          </p>
+        `)
+      }
+    }
+    // B154: comparable sale velocity
+    if (comparables.length >= 2) {
+      const velocity = computeComparableSaleVelocity(comparables)
+      if (velocity) {
+        const color = velocity.signal === 'actif' ? '#1f7a5c' : velocity.signal === 'lent' ? '#b45309' : '#6a6763'
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Vélocité des ventes&nbsp;:
+            <strong style="color:${color};">${velocity.signal}</strong>
+            <span style="font-size:9pt;color:#8a8780;"> — ${fmt(velocity.salesPerMonth, 2)} vente${velocity.salesPerMonth !== 1 ? 's' : ''}/mois · ${fmt(velocity.annualizedRate, 1)}/an · sur ${fmt(velocity.spanMonths, 0)} mois</span>
           </p>
         `)
       }
