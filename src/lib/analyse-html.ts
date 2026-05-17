@@ -19,6 +19,7 @@ import { computeAppraisalRiskScore } from './compute-appraisal-risk-score'
 import { computeNeighborhoodComparability } from './compute-neighborhood-comparability'
 import { computeAdjustmentBracketAnalysis } from './compute-adjustment-bracket-analysis'
 import { computeGrossAdjustmentCeiling } from './compute-gross-adjustment-ceiling'
+import { computeValueRangeConfidence } from './compute-value-range-confidence'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -84,6 +85,7 @@ export function buildAnalyseHtml(
       ...(valuationConclusion.oeaqWarnings > 0 ? [['Alertes OEAQ', `<span style="color:#b45309;">${valuationConclusion.oeaqWarnings} avertissement${valuationConclusion.oeaqWarnings > 1 ? 's' : ''}</span>`]] : []),
       ...(valuationConclusion.hasTimeAdjustment && valuationConclusion.annualTimeRatePct !== null ? [[`Taux temporel`, `<span style="color:${valuationConclusion.annualTimeRatePct >= 0 ? '#1f7a5c' : '#b91c1c'};">${valuationConclusion.annualTimeRatePct >= 0 ? '+' : ''}${fmt(valuationConclusion.annualTimeRatePct, 1)} %/an</span>`]] : []),
       ...((() => { const nc = comparables && comparables.length > 0 ? computeNeighborhoodComparability(comparables, adjustments) : null; return nc ? [[`Comparabilité voisinage`, `<span style="color:${nc.strength === 'forte' ? '#1f7a5c' : nc.strength === 'modérée' ? '#b45309' : '#b91c1c'};">${nc.strength} (${nc.score}/100)</span>`]] : [] })()),
+      ...((() => { const vrc = conclusion !== null && adjustments.length >= 2 ? computeValueRangeConfidence(adjustments, conclusion) : null; return vrc ? [[`Intervalle confiance (±1σ)`, `${fmtMoney(vrc.band1Sigma.low)} – ${fmtMoney(vrc.band1Sigma.high)}<br><span style="font-size:8pt;font-weight:400;color:#8a8780;">confiance conclusion&nbsp;: <strong style="color:${vrc.conclusionConfidence === 'haute' ? '#1f7a5c' : vrc.conclusionConfidence === 'modérée' ? '#b45309' : '#b91c1c'};">${vrc.conclusionConfidence}</strong></span>`]] : [] })()),
     ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
     sections.push(`
       <h2>Conclusion structurée</h2>
