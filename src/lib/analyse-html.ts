@@ -18,6 +18,7 @@ import { computeHoldingCostEstimate } from './compute-holding-cost-estimate'
 import { computeAppraisalRiskScore } from './compute-appraisal-risk-score'
 import { computeNeighborhoodComparability } from './compute-neighborhood-comparability'
 import { computeAdjustmentBracketAnalysis } from './compute-adjustment-bracket-analysis'
+import { computeGrossAdjustmentCeiling } from './compute-gross-adjustment-ceiling'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -224,6 +225,24 @@ export function buildAnalyseHtml(
       </table>
       ${outlierNote}
     `)
+
+    // Gross adjustment ceiling report
+    const ceilingReport = computeGrossAdjustmentCeiling(adjustments)
+    if (ceilingReport && !ceilingReport.compliant) {
+      const violRows = ceilingReport.entries.filter(e => e.hasViolation).map(e => {
+        const lineFail = e.exceedsLineCeiling ? `<span style="color:#b91c1c;">ligne max ${e.maxLinePct} %</span>` : ''
+        const totalFail = e.exceedsTotalCeiling ? `<span style="color:#b45309;">total ${e.totalGrossPct} %</span>` : ''
+        const fails = [lineFail, totalFail].filter(Boolean).join(', ')
+        return `<tr><td style="color:#6a6763;">${e.comparableLabel}</td><td style="text-align:right;">${fails}</td></tr>`
+      }).join('')
+      sections.push(`
+        <div style="background:#fef2f2;border:1pt solid #fecaca;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+          <p style="font-weight:600;color:#b91c1c;font-size:10pt;margin:0 0 4pt;">⚠ Plafonds OEAQ dépassés (${ceilingReport.violationCount} comparable${ceilingReport.violationCount > 1 ? 's' : ''})</p>
+          <p style="font-size:9pt;color:#b91c1c;margin:0 0 4pt;">Ligne &gt; 15 % ou total brut &gt; 25 % — justification obligatoire</p>
+          <table style="margin:0;"><tbody>${violRows}</tbody></table>
+        </div>
+      `)
+    }
 
     // Adjustment profile
     const profile = computeAdjustmentProfile(adjustments)
