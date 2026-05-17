@@ -19,6 +19,7 @@ import { computeSubjectContext } from '@/lib/compute-subject-context'
 import { buildAdjustmentsCsv } from '@/lib/build-adjustments-csv'
 import { computeAdjustmentProfile } from '@/lib/compute-adjustment-profile'
 import { computeAdjustmentConsistency } from '@/lib/compute-adjustment-consistency'
+import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -261,6 +262,19 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                     </div>
                   ))}
                 </div>
+              </div>
+            )
+          })()}
+          {comparables.length >= 2 && (() => {
+            const timeRate = computeTimeAdjustmentRate(comparables)
+            if (!timeRate) return null
+            return (
+              <div className="mt-1.5 text-[11px] px-1 text-[#8a8780]">
+                Taux temporel implicite (comparables)&nbsp;:
+                <span className={`ml-1 font-medium ${timeRate.annualRatePct > 0 ? 'text-emerald-600 dark:text-emerald-400' : timeRate.annualRatePct < 0 ? 'text-red-500' : 'text-[#8a8780]'}`}>
+                  {timeRate.annualRatePct > 0 ? '+' : ''}{fmtNum(timeRate.annualRatePct, 1)} %/an
+                </span>
+                <span className="ml-1 text-[10px] text-[#b5b2ac]">— confiance {timeRate.confidence}</span>
               </div>
             )
           })()}

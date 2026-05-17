@@ -22,6 +22,7 @@ import { buildComparablesCsv } from '@/lib/build-comparables-csv'
 import { computeMarketPriceTrend } from '@/lib/compute-market-price-trend'
 import { computeComparableQualityScore } from '@/lib/compute-comparable-quality-score'
 import { computePricePerM2Stats } from '@/lib/compute-price-per-m2-stats'
+import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
@@ -159,6 +160,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const qualityScores = computeComparableQualityScore(comparables, adjustments)
   const qualityMap = new Map(qualityScores.map(q => [q.comparableId, q.label]))
   const m2Stats = computePricePerM2Stats(comparables)
+  const timeRate = computeTimeAdjustmentRate(comparables)
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -193,6 +195,11 @@ export default function MarchePanel({ dossierId, address }: Props) {
                 }`}>
                   {trend.direction === 'hausse' ? '↑' : trend.direction === 'baisse' ? '↓' : '→'}{' '}
                   {trend.annualizedPct > 0 ? '+' : ''}{fmtNum(trend.annualizedPct, 1)} %/an
+                </span>
+              )}
+              {timeRate && (
+                <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap" title={`Taux implicite — confiance ${timeRate.confidence}`}>
+                  {timeRate.annualRatePct > 0 ? '+' : ''}{fmtNum(timeRate.annualRatePct, 1)} %/an <span className="text-[9px]">impl.</span>
                 </span>
               )}
             </div>
