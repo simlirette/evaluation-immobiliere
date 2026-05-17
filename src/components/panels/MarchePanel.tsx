@@ -11,6 +11,7 @@ import { fetchComparables } from '@/lib/supabase/queries/comparables'
 import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
+import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
 import type { Comparable, EnrichmentMarche } from '@/types'
 
 interface Props {
@@ -93,6 +94,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
+  const [sortKey, setSortKey] = useState<ComparableSortKey>('rank')
   const [replies, setReplies] = useState<string[]>([])
   const [asking, setAsking] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -139,8 +141,32 @@ export default function MarchePanel({ dossierId, address }: Props) {
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparables</strong>{' depuis les art\u00e9facts du backend.'}
           {marche && <MarcheContexte m={marche} />}
-          <div className="flex flex-col gap-2 mt-2.5">
-            {comparables.map(c => <ComparableItem key={c.id} comp={c} />)}
+          {comparables.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 mt-2.5 mb-1">
+              {([
+                { key: 'rank',    label: 'Rang' },
+                { key: 'prix',    label: 'Prix ↑' },
+                { key: 'prix_m2', label: '$/m² ↑' },
+                { key: 'date',    label: 'Récent' },
+                { key: 'surface', label: 'Surface ↓' },
+              ] as { key: ComparableSortKey; label: string }[]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSortKey(key)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] transition-colors ${
+                    sortKey === key
+                      ? 'bg-[#1a1916] text-white'
+                      : 'bg-black/[.06] text-[#6a6763] hover:bg-black/[.1]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-col gap-2 mt-1.5">
+            {sortComparables(comparables, sortKey).map(c => <ComparableItem key={c.id} comp={c} />)}
           </div>
         </AgentMessage>
         {comparables.length > 0 && (
