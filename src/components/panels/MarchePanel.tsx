@@ -92,7 +92,8 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
 export default function MarchePanel({ dossierId, address }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
-  const [reply, setReply] = useState('')
+  const [replies, setReplies] = useState<string[]>([])
+  const [asking, setAsking] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -114,8 +115,13 @@ export default function MarchePanel({ dossierId, address }: Props) {
 
   async function handleAsk(value: string) {
     if (!dossierId) return
-    const response = await sendRuntimeMessage(dossierId, value, 'comps-market')
-    setReply(response.message.answer)
+    setAsking(true)
+    try {
+      const response = await sendRuntimeMessage(dossierId, value, 'comps-market')
+      setReplies(prev => [...prev, response.message.answer])
+    } finally {
+      setAsking(false)
+    }
   }
 
   if (!dossierId || loading) return <PanelLoader />
@@ -133,13 +139,18 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </div>
         </AgentMessage>
         {comparables.length > 0 && (
-          <AgentMessage agentName="Agent Marché" last={!reply}>
+          <AgentMessage agentName="Agent Marché" last={replies.length === 0 && !asking}>
             {'Les comparables sont retenus par score, source et r\u00e9cence. Les sources restent \u00e0 valider avant signature.'}
           </AgentMessage>
         )}
-        {reply && (
+        {replies.map((r, i) => (
+          <AgentMessage key={i} agentName="Agent Marché" last={i === replies.length - 1 && !asking}>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{r}</pre>
+          </AgentMessage>
+        ))}
+        {asking && (
           <AgentMessage agentName="Agent Marché" last>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
+            <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
           </AgentMessage>
         )}
       </div>
@@ -154,7 +165,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <ChatInput placeholder="Questionner l'Agent Marché..." onSend={handleAsk} />
+      <ChatInput placeholder="Questionner l'Agent Marché..." onSend={handleAsk} disabled={asking} />
     </div>
   )
 }

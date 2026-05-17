@@ -133,7 +133,8 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   const [conclusion, setConclusion] = useState<number | null>(null)
   const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
   const [financier, setFinancier] = useState<EnrichmentFinancier | null>(null)
-  const [reply, setReply] = useState('')
+  const [replies, setReplies] = useState<string[]>([])
+  const [asking, setAsking] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -158,8 +159,13 @@ export default function AnalysePanel({ dossierId, address }: Props) {
 
   async function handleAsk(value: string) {
     if (!dossierId) return
-    const response = await sendRuntimeMessage(dossierId, value, 'valuation-draft')
-    setReply(response.message.answer)
+    setAsking(true)
+    try {
+      const response = await sendRuntimeMessage(dossierId, value, 'valuation-draft')
+      setReplies(prev => [...prev, response.message.answer])
+    } finally {
+      setAsking(false)
+    }
   }
 
   if (!dossierId || loading) return <PanelLoader />
@@ -179,12 +185,17 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           )}
           {financier && <FinancierContexte f={financier} />}
         </AgentMessage>
-        <AgentMessage agentName="Agent Analyse" last={!reply}>
+        <AgentMessage agentName="Agent Analyse" last={replies.length === 0 && !asking}>
           {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
         </AgentMessage>
-        {reply && (
+        {replies.map((r, i) => (
+          <AgentMessage key={i} agentName="Agent Analyse" last={i === replies.length - 1 && !asking}>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{r}</pre>
+          </AgentMessage>
+        ))}
+        {asking && (
           <AgentMessage agentName="Agent Analyse" last>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
+            <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
           </AgentMessage>
         )}
       </div>
@@ -199,7 +210,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={handleAsk} />
+      <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={handleAsk} disabled={asking} />
     </div>
   )
 }

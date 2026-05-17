@@ -55,7 +55,8 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     return Number(localStorage.getItem('rapport-panel-width') ?? '400') || 400
   })
   const [state, setState] = useState<RapportState | null>(null)
-  const [reply, setReply] = useState('')
+  const [replies, setReplies] = useState<string[]>([])
+  const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -128,8 +129,13 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
 
   async function handleAsk(value: string) {
     if (!dossierId) return
-    const response = await sendRuntimeMessage(dossierId, value, 'redaction')
-    setReply(response.message.answer)
+    setAsking(true)
+    try {
+      const response = await sendRuntimeMessage(dossierId, value, 'redaction')
+      setReplies(prev => [...prev, response.message.answer])
+    } finally {
+      setAsking(false)
+    }
   }
 
   async function handleValidate() {
@@ -273,14 +279,19 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
               </div>
             )}
           </AgentMessage>
-          {reply && (
+          {replies.map((r, i) => (
+            <AgentMessage key={i} agentName="Agent Rapport" last={i === replies.length - 1 && !asking}>
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{r}</pre>
+            </AgentMessage>
+          ))}
+          {asking && (
             <AgentMessage agentName="Agent Rapport" last>
-              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply}</pre>
+              <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
             </AgentMessage>
           )}
         </div>
         <div className={`${split ? 'px-4 pb-5' : 'px-6 pb-9 w-full flex justify-center'}`}>
-          <ChatInput placeholder="Questionner l'Agent Rapport..." onSend={handleAsk} />
+          <ChatInput placeholder="Questionner l'Agent Rapport..." onSend={handleAsk} disabled={asking} />
         </div>
       </div>
 

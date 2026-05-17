@@ -5,11 +5,12 @@ import { useState } from 'react'
 interface Props {
   placeholder: string
   onSend?: (value: string) => void
+  disabled?: boolean
 }
 
-export default function ChatInput({ placeholder, onSend }: Props) {
+export default function ChatInput({ placeholder, onSend, disabled }: Props) {
   const [value, setValue] = useState('')
-  const ready = value.trim().length > 0
+  const ready = value.trim().length > 0 && !disabled
 
   function handleSend() {
     if (!ready) return
@@ -36,11 +37,12 @@ export default function ChatInput({ placeholder, onSend }: Props) {
           </svg>
         </button>
         <input
-          className="flex-1 bg-transparent border-none outline-none text-sm font-light text-[#1a1916] placeholder:text-[#b5b2ac] min-w-0"
+          className="flex-1 bg-transparent border-none outline-none text-sm font-light text-[#1a1916] placeholder:text-[#b5b2ac] min-w-0 disabled:opacity-50"
           value={value}
+          disabled={disabled}
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSend()}
-          placeholder={placeholder}
+          placeholder={disabled ? 'En cours…' : placeholder}
         />
         <button
           onClick={handleSend}
