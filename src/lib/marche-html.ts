@@ -19,6 +19,9 @@ import { computeComparableRanking } from './compute-comparable-ranking'
 import { computeDataQualityReport } from './compute-data-quality-report'
 import { computePricePerM2Distribution } from './compute-price-per-m2-distribution'
 import { computeSalesPressureIndex } from './compute-sales-pressure-index'
+import { computeComparableSizeRange } from './compute-comparable-size-range'
+import { computeComparableSelectionSummary } from './compute-comparable-selection-summary'
+import { computePricePerM2Trend } from './compute-price-per-m2-trend'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -103,6 +106,27 @@ export function buildMarcheHtml(
     const m2DistRow = m2Dist
       ? `<tr><td style="color:#6a6763;">Dispersion $/m² (CV)</td><td style="font-weight:600;text-align:right;">${fmt(m2Dist.cv, 1)} % <span style="font-weight:400;font-size:9pt;color:#8a8780;">(min ${fmt(m2Dist.min, 0)} – max ${fmt(m2Dist.max, 0)} $/m²)</span></td></tr>`
       : ''
+    // B131: subject size range bracket
+    const sizeRange = subject?.hab_m2 != null ? computeComparableSizeRange(comparables, subject.hab_m2) : null
+    const sizeRangeRow = sizeRange
+      ? (() => {
+          const color = sizeRange.bracketed ? '#1f7a5c' : '#b45309'
+          const bracketNote = sizeRange.bracketed
+            ? `✓ encadré`
+            : `⚠ hors fourchette (${fmt(sizeRange.subjectHabM2, 0)} m²)`
+          return `<tr><td style="color:#6a6763;">Surface sujet vs comparables</td><td style="font-weight:600;text-align:right;color:${color};">${bracketNote} <span style="font-weight:400;font-size:9pt;color:#8a8780;">(comp. : ${fmt(sizeRange.min, 0)} – ${fmt(sizeRange.max, 0)} m²)</span></td></tr>`
+        })()
+      : ''
+    // B135: $/m² trend
+    const ppm2Trend = computePricePerM2Trend(comparables)
+    const ppm2TrendRow = ppm2Trend
+      ? (() => {
+          const color = ppm2Trend.direction === 'rising' ? '#1f7a5c' : ppm2Trend.direction === 'falling' ? '#b91c1c' : '#6a6763'
+          const sigNote = ppm2Trend.significant ? ` <span style="font-size:9pt;color:#8a8780;">(R²=${fmt(ppm2Trend.r2, 2)})</span>` : ` <span style="font-size:9pt;color:#8a8780;">(non significatif, R²=${fmt(ppm2Trend.r2, 2)})</span>`
+          const sign = ppm2Trend.slopePerMonth > 0 ? '+' : ''
+          return `<tr><td style="color:#6a6763;">Tendance $/m² (régression)</td><td style="font-weight:600;text-align:right;color:${color};">${ppm2Trend.direction} ${sign}${fmt(ppm2Trend.slopePerMonth, 0)} $/m²/mois${sigNote}</td></tr>`
+        })()
+      : ''
     // B122: building age
     const ageStats = computeBuildingAgeStats(comparables)
     const ageStatsRow = ageStats
@@ -143,7 +167,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${lotSizeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${ppm2TrendRow}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -254,6 +278,28 @@ export function buildMarcheHtml(
           (${fmt(renovationProfile.renovatedPct, 0)} %)${ageNote}${recentNote}
         </p>
       `)
+    }
+    // B134: comparable selection summary (quality + similarity aggregate)
+    if (adjustments) {
+      const qualityScoresForSummary = computeComparableQualityScore(comparables, adjustments)
+      const simScoresForSummary = subject ? computeComparableSimilarityScore(comparables, subject) : null
+      const selSummary = computeComparableSelectionSummary(qualityScoresForSummary, simScoresForSummary)
+      if (selSummary) {
+        const color = selSummary.recommendation === 'forte' ? '#1f7a5c' : selSummary.recommendation === 'faible' ? '#b91c1c' : '#b45309'
+        const simNote = selSummary.avgSimilarityScore != null
+          ? ` · similarité moy. ${selSummary.avgSimilarityScore}/100`
+          : ''
+        const lowNote = selSummary.lowQualityCount > 0
+          ? ` · ${selSummary.lowQualityCount} comp. faible qualité`
+          : ''
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Sélection des comparables&nbsp;:
+            <strong style="color:${color};">${selSummary.recommendation}</strong>
+            <span style="font-size:9pt;color:#8a8780;"> — qualité moy. ${fmt(selSummary.avgQualityScore, 1)}/10${simNote}${lowNote}</span>
+          </p>
+        `)
+      }
     }
     // B121: garage type distribution
     const garageDist = computeGarageTypeDistribution(comparables)

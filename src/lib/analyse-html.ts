@@ -30,6 +30,8 @@ import { computeAdjustmentMagnitudeProfile } from './compute-adjustment-magnitud
 import { computeAdjustmentConvergence } from './compute-adjustment-convergence'
 import { computeNetAdjustmentDistribution } from './compute-net-adjustment-distribution'
 import { computeOEAQComplianceSummary } from './compute-oeaq-compliance-summary'
+import { computeAdjustmentTypeRatioCheck } from './compute-adjustment-type-ratio-check'
+import { computeReconciledValueBracket } from './compute-reconciled-value-bracket'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -281,6 +283,20 @@ export function buildAnalyseHtml(
       `)
     }
 
+    // B132: adjustment type ratio check (over-reliance flag)
+    const ratioCheck = computeAdjustmentTypeRatioCheck(adjustments)
+    if (ratioCheck?.hasOverReliance) {
+      const overType = ratioCheck.entries.find(e => e.overReliance)
+      if (overType) {
+        sections.push(`
+          <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:6pt;">
+            <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 2pt;">⚠ Dépendance excessive — ${overType.label}</p>
+            <p style="font-size:9pt;color:#b45309;margin:0;">${overType.label} représente <strong>${overType.pctOfGross} %</strong> de l'ajustement brut total — justifier la prédominance de ce facteur.</p>
+          </div>
+        `)
+      }
+    }
+
     // B124: adjustment magnitude profile
     const magnitudeProfile = computeAdjustmentMagnitudeProfile(adjustments)
     if (magnitudeProfile) {
@@ -315,6 +331,20 @@ export function buildAnalyseHtml(
           <span style="font-size:9pt;"> — confiance ${reconciled.confidence}</span>
         </p>
       `)
+    }
+
+    // B133: reconciled value bracket
+    if (reconciled && adjustments.length > 1) {
+      const rvBracket = computeReconciledValueBracket(adjustments, reconciled.value)
+      if (rvBracket && !rvBracket.bracketed) {
+        sections.push(`
+          <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+            ⚠ Valeur réconciliée hors de la fourchette des valeurs indiquées
+            (${fmtMoney(rvBracket.min)} – ${fmtMoney(rvBracket.max)},
+            écart ${fmt(rvBracket.deviationPct, 1)} %) — réviser la pondération.
+          </p>
+        `)
+      }
     }
 
     // Consistency warnings
