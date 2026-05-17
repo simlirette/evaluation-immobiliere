@@ -54,18 +54,23 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
   return (
     <div className="mt-2 mb-1">
       {m.score_marche != null && (
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] uppercase tracking-widest text-[#8a8780]">Score de marché</div>
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-[#1a1916] dark:text-white">
-              {fmt(m.score_marche)}<span className="text-[11px] font-normal text-[#8a8780]">/10</span>
-            </span>
-            {m.tension_locative && (
-              <span className={`text-[11px] font-medium ${TENSION_COLOR[m.tension_locative] ?? 'text-[#6a6763]'}`}>
-                {m.tension_locative}
+        <div className="mb-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] uppercase tracking-widest text-[#8a8780]">Score de marché</div>
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-[#1a1916] dark:text-white">
+                {fmt(m.score_marche)}<span className="text-[11px] font-normal text-[#8a8780]">/10</span>
               </span>
-            )}
+              {m.tension_locative && (
+                <span className={`text-[11px] font-medium ${TENSION_COLOR[m.tension_locative] ?? 'text-[#6a6763]'}`}>
+                  {m.tension_locative}
+                </span>
+              )}
+            </div>
           </div>
+          {m.marche_interpretation && (
+            <div className="text-[12px] text-[#6a6763] dark:text-[#9a9790] mt-0.5">{m.marche_interpretation}</div>
+          )}
         </div>
       )}
       {chips.length > 0 && (

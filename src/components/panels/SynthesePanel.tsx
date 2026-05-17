@@ -153,7 +153,7 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
     )
   }
 
-  const { score_global, alertes, score_investissement, indice_qualite_vie, score_risque, projection_valeur, rendement_locatif, valeur_indicative, taxes_municipales, ratio_prix_loyer, vetuste_batiment, cout_renovation } = enrichment
+  const { score_global, alertes, score_investissement, indice_qualite_vie, score_risque, projection_valeur, rendement_locatif, valeur_indicative, taxes_municipales, ratio_prix_loyer, vetuste_batiment, cout_renovation, marche } = enrichment
 
   return (
     <div className="absolute inset-0 overflow-y-auto px-6 pb-10 pt-5">
@@ -185,11 +185,16 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
         )}
 
         {/* Scores grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <ScoreChip
             label="Investissement"
             score={score_investissement?.score}
             sub={score_investissement?.recommandation}
+          />
+          <ScoreChip
+            label="Marché"
+            score={marche?.score_marche}
+            sub={marche?.marche_interpretation ?? marche?.tension_locative ?? undefined}
           />
           <ScoreChip
             label="Qualité de vie"
