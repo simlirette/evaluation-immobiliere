@@ -18,6 +18,7 @@ import { buildOEAQChecklist } from '@/lib/build-oeaq-checklist'
 import { computeSubjectContext } from '@/lib/compute-subject-context'
 import { buildAdjustmentsCsv } from '@/lib/build-adjustments-csv'
 import { computeAdjustmentProfile } from '@/lib/compute-adjustment-profile'
+import { computeAdjustmentConsistency } from '@/lib/compute-adjustment-consistency'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -257,6 +258,23 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                       <span className={`text-[10px] w-8 text-right flex-shrink-0 ${t.direction === 'positive' ? 'text-emerald-600 dark:text-emerald-400' : t.direction === 'negative' ? 'text-red-500' : 'text-[#b5b2ac]'}`}>
                         {t.pctOfGrossTotal}%
                       </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+          {adjustments.length >= 2 && (() => {
+            const checks = computeAdjustmentConsistency(adjustments)
+            const warnings = checks.filter(c => !c.consistent)
+            if (warnings.length === 0) return null
+            return (
+              <div className="mt-2 mb-1">
+                <div className="flex flex-col gap-1.5 rounded-xl px-3 py-2 bg-amber-50/70 dark:bg-amber-900/20 border border-amber-200/50">
+                  {warnings.map(w => (
+                    <div key={w.type} className="flex items-start gap-2">
+                      <span className="text-amber-600 text-[11px] font-semibold flex-shrink-0 mt-0.5">⚠</span>
+                      <span className="text-[11px] text-amber-800 dark:text-amber-300">{w.warning}</span>
                     </div>
                   ))}
                 </div>
