@@ -3,6 +3,10 @@ import { computePriceIndexation } from './compute-price-indexation'
 import { computeLotSizeAnalysis } from './compute-lot-size-analysis'
 import { computeRenovationProfile } from './compute-renovation-profile'
 import { computeComparableDateSpread } from './compute-comparable-date-spread'
+import { computeGarageTypeDistribution } from './compute-garage-type-distribution'
+import { computeBuildingAgeStats } from './compute-building-age-stats'
+import { computeTimeAdjustedPriceRange } from './compute-time-adjusted-price-range'
+import { computeComparablePriceQuartiles } from './compute-comparable-price-quartiles'
 import { computeComparableStats } from './compute-comparable-stats'
 import { checkComparableMinimum } from './check-comparable-minimum'
 import { computeMarketPriceTrend } from './compute-market-price-trend'
@@ -96,6 +100,21 @@ export function buildMarcheHtml(
     const m2DistRow = m2Dist
       ? `<tr><td style="color:#6a6763;">Dispersion $/m² (CV)</td><td style="font-weight:600;text-align:right;">${fmt(m2Dist.cv, 1)} % <span style="font-weight:400;font-size:9pt;color:#8a8780;">(min ${fmt(m2Dist.min, 0)} – max ${fmt(m2Dist.max, 0)} $/m²)</span></td></tr>`
       : ''
+    // B122: building age
+    const ageStats = computeBuildingAgeStats(comparables)
+    const ageStatsRow = ageStats
+      ? `<tr><td style="color:#6a6763;">Âge médian à la vente</td><td style="font-weight:600;text-align:right;">${ageStats.median} ans <span style="font-weight:400;font-size:9pt;color:#8a8780;">(${ageStats.min} – ${ageStats.max}${ageStats.missingCount > 0 ? ` · ${ageStats.missingCount} sans données` : ''})</span></td></tr>`
+      : ''
+    // B125: price quartiles
+    const quartiles = computeComparablePriceQuartiles(comparables)
+    const quartilesRow = quartiles
+      ? (() => {
+          const outlierNote = quartiles.outlierIds.length > 0
+            ? ` · <span style="color:#b45309;">${quartiles.outlierIds.length} hors-norme IQR</span>`
+            : ''
+          return `<tr><td style="color:#6a6763;">Quartiles de prix</td><td style="font-weight:600;text-align:right;font-size:9pt;">${fmtMoney(quartiles.q1)} / ${fmtMoney(quartiles.q2)} / ${fmtMoney(quartiles.q3)} <span style="font-weight:400;color:#8a8780;">IQR ${fmtMoney(quartiles.iqr)}${outlierNote}</span></td></tr>`
+        })()
+      : ''
     // B116: lot size
     const lotSize = computeLotSizeAnalysis(comparables)
     const lotSizeRow = lotSize
@@ -111,7 +130,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${lotSizeRow}${dateSpreadRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${lotSizeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -144,6 +163,21 @@ export function buildMarcheHtml(
             <tbody>${indexedRows}</tbody>
           </table>
         `)
+        // B123: time-adjusted price range (compare to raw range)
+        const rawPrices = comparables.map(c => c.sale_price).sort((a, b) => a - b)
+        const rawRange = rawPrices[rawPrices.length - 1] - rawPrices[0]
+        const adjRange = computeTimeAdjustedPriceRange(comparables, timeRate.monthlyRatePct)
+        if (adjRange && rawRange > 0) {
+          const pctChange = Math.round(((adjRange.range - rawRange) / rawRange) * 1000) / 10
+          const color = pctChange < 0 ? '#1f7a5c' : pctChange > 0 ? '#b45309' : '#8a8780'
+          sections.push(`
+            <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+              Fourchette après réindexation temporelle&nbsp;:
+              <strong>${fmtMoney(adjRange.min)} – ${fmtMoney(adjRange.max)}</strong>
+              <span style="font-size:9pt;color:${color};"> (${pctChange > 0 ? '+' : ''}${fmt(pctChange, 1)} % vs fourchette brute)</span>
+            </p>
+          `)
+        }
       }
     }
   } else if (minCheck.warning) {
@@ -205,6 +239,19 @@ export function buildMarcheHtml(
         <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
           Rénovations&nbsp;: <strong>${renovationProfile.renovatedCount}/${comparables.length}</strong>
           (${fmt(renovationProfile.renovatedPct, 0)} %)${ageNote}${recentNote}
+        </p>
+      `)
+    }
+    // B121: garage type distribution
+    const garageDist = computeGarageTypeDistribution(comparables)
+    if (garageDist && garageDist.groups.length > 0) {
+      const conflictNote = garageDist.hasGarageConflict
+        ? ` <span style="color:#b45309;">· types mixtes — cohérence des ajustements garage à vérifier</span>`
+        : ''
+      const groupStr = garageDist.groups.map(g => `${g.type} (${g.count})`).join(', ')
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Types de garage&nbsp;: <strong>${groupStr}</strong>${conflictNote}
         </p>
       `)
     }

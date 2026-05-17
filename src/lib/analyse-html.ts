@@ -26,6 +26,7 @@ import { computeLocationPremium } from './compute-location-premium'
 import { computeComparableVintageAnalysis } from './compute-comparable-vintage-analysis'
 import { computeValuePerM2Conclusion } from './compute-value-per-m2-conclusion'
 import { computeAdjustmentDirectionBalance } from './compute-adjustment-direction-balance'
+import { computeAdjustmentMagnitudeProfile } from './compute-adjustment-magnitude-profile'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -274,6 +275,30 @@ export function buildAnalyseHtml(
         <h2>Répartition des ajustements</h2>
         <table><tbody>${profileRows}</tbody></table>
       `)
+    }
+
+    // B124: adjustment magnitude profile
+    const magnitudeProfile = computeAdjustmentMagnitudeProfile(adjustments)
+    if (magnitudeProfile) {
+      const activeEntries = magnitudeProfile.entries.filter(e => e.nonZeroCount > 0)
+      if (activeEntries.length > 0) {
+        const magRows = activeEntries.map(e => {
+          const isDominant = e.type === magnitudeProfile.dominantType
+          return `<tr>
+            <td style="color:#6a6763;${isDominant ? 'font-weight:600;' : ''}">${e.label}</td>
+            <td style="text-align:right;">${e.nonZeroCount}/${adjustments.length} comp. (${fmt(e.pctOfComps, 0)} %)</td>
+            <td style="text-align:right;font-weight:600;">${fmtMoney(e.avgAbsolute)} moy.</td>
+            <td style="text-align:right;font-size:9pt;color:#8a8780;">max ${fmtMoney(e.maxAbsolute)}</td>
+          </tr>`
+        }).join('')
+        sections.push(`
+          <h2>Magnitude des ajustements</h2>
+          <table>
+            <thead><tr><th>Type</th><th style="text-align:right;">Fréquence</th><th style="text-align:right;">Moyenne</th><th style="text-align:right;">Maximum</th></tr></thead>
+            <tbody>${magRows}</tbody>
+          </table>
+        `)
+      }
     }
 
     // Reconciled value
