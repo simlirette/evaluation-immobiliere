@@ -9,13 +9,15 @@ import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
+import { fetchComparables } from '@/lib/supabase/queries/comparables'
 import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
+import { buildOEAQChecklist } from '@/lib/build-oeaq-checklist'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
-import type { Adjustment, EnrichmentFinancier } from '@/types'
+import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
   dossierId: string | null
@@ -124,6 +126,7 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
 
 export default function AnalysePanel({ dossierId, address }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [comparables, setComparables] = useState<Comparable[]>([])
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [conclusion, setConclusion] = useState<number | null>(null)
   const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
@@ -139,10 +142,12 @@ export default function AnalysePanel({ dossierId, address }: Props) {
     setError(false)
     Promise.all([
       fetchAdjustments(dossierId),
+      fetchComparables(dossierId),
       fetchAppState(dossierId),
       fetchRuntimeEnrichment(dossierId),
-    ]).then(([rows, state, enrichment]) => {
+    ]).then(([rows, comps, state, enrichment]) => {
       setAdjustments(rows)
+      setComparables(comps)
       setConclusion(state.active?.valuation.conclusion.value ?? null)
       setStatus(state.active?.valuation.status ?? 'A_VALIDER_PAR_EVALUATEUR_AGREE')
       setFinancier(enrichment?.financier ?? null)
@@ -192,6 +197,32 @@ export default function AnalysePanel({ dossierId, address }: Props) {
             )
           })()}
           {financier && <FinancierContexte f={financier} />}
+          {adjustments.length > 0 && (() => {
+            const checklist = buildOEAQChecklist(comparables, adjustments)
+            const hasWarning = checklist.some(c => !c.pass)
+            return (
+              <div className="mt-3 mb-1">
+                <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Conformité OEAQ</div>
+                <div className={`flex flex-col gap-1 rounded-xl px-3 py-2 ${hasWarning ? 'bg-amber-50/70 dark:bg-amber-900/20 border border-amber-200/50' : 'bg-[rgba(0,0,0,.03)] dark:bg-[rgba(255,255,255,.04)]'}`}>
+                  {checklist.map(c => (
+                    <div key={c.id} className="flex items-start gap-2 py-0.5">
+                      <span className={`mt-0.5 text-[11px] font-semibold flex-shrink-0 ${c.pass ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                        {c.pass ? '✓' : '⚠'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-[12px] ${c.pass ? 'text-[#4a4845] dark:text-[#b5b2ac]' : 'text-amber-800 dark:text-amber-300'}`}>
+                          {c.rule}
+                        </span>
+                        {c.message && (
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">{c.message}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </AgentMessage>
         <AgentMessage agentName="Agent Analyse" last={replies.length === 0 && !asking}>
           {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
