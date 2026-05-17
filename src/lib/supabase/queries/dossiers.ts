@@ -77,6 +77,14 @@ export async function createDossier(input: CreateDossierInput): Promise<Dossier>
   return dossier
 }
 
+export async function duplicateDossier(source: Dossier): Promise<Dossier> {
+  return createDossier({
+    address: `Copie de ${source.address}`,
+    property_type: source.property_type,
+    neighborhood: source.neighborhood,
+  })
+}
+
 export async function renameDossier(slug: string, newAddress: string): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase

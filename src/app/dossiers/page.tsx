@@ -8,14 +8,14 @@ import DossierCard from '@/components/dossiers/DossierCard'
 import EmptyState from '@/components/shared/EmptyState'
 import ContextMenu from '@/components/layout/ContextMenu'
 import Toast from '@/components/shared/Toast'
-import { fetchDossiers, deleteDossier, renameDossier } from '@/lib/supabase/queries/dossiers'
+import { fetchDossiers, deleteDossier, renameDossier, duplicateDossier } from '@/lib/supabase/queries/dossiers'
 import { togglePin } from '@/lib/supabase/queries/pins'
 import { useContextMenu } from '@/hooks/useContextMenu'
 import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
+import { filterDossiers, type StatusFilter } from '@/lib/filter-dossiers'
 import { computeDossierStats } from '@/lib/dossier-stats'
 import { createClient } from '@/lib/supabase/client'
 import type { Dossier, DossierStatus, TabId } from '@/types'
-type StatusFilter = 'all' | DossierStatus
 
 const SORT_LABELS: Record<SortKey, string> = {
   recent: 'Récent en premier',
@@ -148,6 +148,20 @@ export default function MesDossiersPage() {
     setToast('Dossier renommé')
   }
 
+  async function handleDuplicate(name: string) {
+    const d = dossiers.find(x => x.address === name)
+    if (!d) return
+    setToast('Duplication en cours…')
+    try {
+      const newD = await duplicateDossier(d)
+      setDossiers(prev => [newD, ...prev])
+      setToast('Dossier dupliqué')
+      router.push(`/dossier/${newD.slug}?tab=dossier`)
+    } catch {
+      setToast('Erreur lors de la duplication')
+    }
+  }
+
   function handleDelete(name: string) {
     const d = dossiers.find(x => x.address === name)
     if (!d) return
@@ -164,16 +178,7 @@ export default function MesDossiersPage() {
 
   const hasActiveFilter = sort !== 'recent' || statusFilter !== 'all'
 
-  const filtered = sortDossiers(
-    dossiers.filter(d => {
-      const matchSearch =
-        d.address.toLowerCase().includes(search.toLowerCase()) ||
-        `${d.property_type} ${d.neighborhood}`.toLowerCase().includes(search.toLowerCase())
-      const matchStatus = statusFilter === 'all' || d.status === statusFilter
-      return matchSearch && matchStatus
-    }),
-    sort
-  )
+  const filtered = sortDossiers(filterDossiers(dossiers, search, statusFilter), sort)
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -348,6 +353,7 @@ export default function MesDossiersPage() {
         onClose={ctx.close}
         onPin={handlePin}
         onRename={handleRename}
+        onDuplicate={handleDuplicate}
         onDelete={handleDelete}
       />
       <Toast message={toast} onDismiss={dismissToast} />

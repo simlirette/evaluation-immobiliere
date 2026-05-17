@@ -8,7 +8,7 @@ import SidebarFooter from './SidebarFooter'
 import ContextMenu from './ContextMenu'
 import Toast from '@/components/shared/Toast'
 import { useContextMenu } from '@/hooks/useContextMenu'
-import { fetchDossiers, deleteDossier, renameDossier } from '@/lib/supabase/queries/dossiers'
+import { fetchDossiers, deleteDossier, renameDossier, duplicateDossier } from '@/lib/supabase/queries/dossiers'
 import { togglePin } from '@/lib/supabase/queries/pins'
 import type { Dossier, TabId } from '@/types'
 
@@ -55,6 +55,20 @@ export default function Sidebar({
     ))
     togglePin(dossier.id, pinned)
     setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
+  }
+
+  async function handleDuplicate(name: string) {
+    const dossier = dossiers.find(d => d.address === name)
+    if (!dossier) return
+    setToast('Duplication en cours…')
+    try {
+      const newDossier = await duplicateDossier(dossier)
+      setDossiers(prev => [newDossier, ...prev])
+      setToast('Dossier dupliqué')
+      onDossierSelect(newDossier.slug, newDossier.address)
+    } catch {
+      setToast('Erreur lors de la duplication')
+    }
   }
 
   function handleRename(name: string, newName: string) {
@@ -177,6 +191,7 @@ export default function Sidebar({
         onClose={ctx.close}
         onPin={handlePin}
         onRename={handleRename}
+        onDuplicate={handleDuplicate}
         onDelete={handleDelete}
       />
 

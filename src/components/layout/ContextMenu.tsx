@@ -10,10 +10,11 @@ interface Props {
   onClose: () => void
   onPin: (name: string, pinned: boolean) => void
   onRename: (name: string, newName: string) => void
+  onDuplicate: (name: string) => void
   onDelete: (name: string) => void
 }
 
-export default function ContextMenu({ target, onClose, onPin, onRename, onDelete }: Props) {
+export default function ContextMenu({ target, onClose, onPin, onRename, onDuplicate, onDelete }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [mode, setMode] = useState<Mode>('idle')
@@ -135,6 +136,16 @@ export default function ContextMenu({ target, onClose, onPin, onRename, onDelete
                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
             Renommer
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#1a1916] hover:bg-black/[.05] transition-colors text-left bg-transparent border-none cursor-pointer"
+            onClick={() => { onDuplicate(target!.name); onClose() }}
+          >
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-[#8a8780] flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            Dupliquer
           </button>
           <div className="h-px bg-black/[.07] mx-1.5 my-1" />
           <button
