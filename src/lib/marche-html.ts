@@ -22,6 +22,8 @@ import { computeSalesPressureIndex } from './compute-sales-pressure-index'
 import { computeComparableSizeRange } from './compute-comparable-size-range'
 import { computeComparableSelectionSummary } from './compute-comparable-selection-summary'
 import { computePricePerM2Trend } from './compute-price-per-m2-trend'
+import { computeComparablePriceSkew } from './compute-comparable-price-skew'
+import { computePriceIndexationSummary } from './compute-price-indexation-summary'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -117,6 +119,14 @@ export function buildMarcheHtml(
           return `<tr><td style="color:#6a6763;">Surface sujet vs comparables</td><td style="font-weight:600;text-align:right;color:${color};">${bracketNote} <span style="font-weight:400;font-size:9pt;color:#8a8780;">(comp. : ${fmt(sizeRange.min, 0)} – ${fmt(sizeRange.max, 0)} m²)</span></td></tr>`
         })()
       : ''
+    // B136: price skew
+    const priceSkew = computeComparablePriceSkew(comparables)
+    const priceSkewRow = priceSkew && priceSkew.interpretation !== 'symétrique'
+      ? (() => {
+          const color = priceSkew.skew > 0.5 ? '#b45309' : '#0369a1'
+          return `<tr><td style="color:#6a6763;">Asymétrie des prix</td><td style="font-weight:600;text-align:right;color:${color};">${priceSkew.interpretation} <span style="font-weight:400;font-size:9pt;color:#8a8780;">(skew ${priceSkew.skew > 0 ? '+' : ''}${fmt(priceSkew.skew, 2)}, moy. ${fmtMoney(priceSkew.mean)} vs méd. ${fmtMoney(priceSkew.median)})</span></td></tr>`
+        })()
+      : ''
     // B135: $/m² trend
     const ppm2Trend = computePricePerM2Trend(comparables)
     const ppm2TrendRow = ppm2Trend
@@ -167,7 +177,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${ppm2TrendRow}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${timeRateRow}${ppm2TrendRow}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -200,6 +210,19 @@ export function buildMarcheHtml(
             <tbody>${indexedRows}</tbody>
           </table>
         `)
+        // B138: indexation summary
+        const idxSummary = computePriceIndexationSummary(indexed)
+        if (idxSummary && Math.abs(idxSummary.avgAdjPct) >= 0.5) {
+          const color = idxSummary.totalAdded > 0 ? '#1f7a5c' : '#b91c1c'
+          const sign = idxSummary.totalAdded > 0 ? '+' : ''
+          sections.push(`
+            <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+              Réindexation totale&nbsp;:
+              <strong style="color:${color};">${sign}${fmtMoney(idxSummary.totalAdded)}</strong>
+              <span style="font-size:9pt;color:#8a8780;"> — moy. ${idxSummary.avgAdjPct > 0 ? '+' : ''}${fmt(idxSummary.avgAdjPct, 1)} %/comp. · plus ajusté&nbsp;: ${idxSummary.mostAdjustedId} (${idxSummary.mostAdjustedPct} %)</span>
+            </p>
+          `)
+        }
         // B123: time-adjusted price range (compare to raw range)
         const rawPrices = comparables.map(c => c.sale_price).sort((a, b) => a - b)
         const rawRange = rawPrices[rawPrices.length - 1] - rawPrices[0]

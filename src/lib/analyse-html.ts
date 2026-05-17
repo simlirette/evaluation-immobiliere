@@ -32,6 +32,9 @@ import { computeNetAdjustmentDistribution } from './compute-net-adjustment-distr
 import { computeOEAQComplianceSummary } from './compute-oeaq-compliance-summary'
 import { computeAdjustmentTypeRatioCheck } from './compute-adjustment-type-ratio-check'
 import { computeReconciledValueBracket } from './compute-reconciled-value-bracket'
+import { computeReconciliationConcentration } from './compute-reconciliation-concentration'
+import { computeAdjustmentOutlierByType } from './compute-adjustment-outlier-by-type'
+import { computeOEAQBracketingSummary } from './compute-oeaq-bracketing-summary'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -333,6 +336,21 @@ export function buildAnalyseHtml(
       `)
     }
 
+    // B137: reconciliation concentration
+    if (adjustments.length >= 2) {
+      const concentration = computeReconciliationConcentration(adjustments)
+      if (concentration?.concentrated) {
+        const maxAdj = adjustments.find(a => a.id === concentration.maxWeightId)
+        const label = maxAdj?.comparableLabel ?? concentration.maxWeightId
+        sections.push(`
+          <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:6pt;">
+            <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 2pt;">⚠ Concentration de la réconciliation</p>
+            <p style="font-size:9pt;color:#b45309;margin:0;"><strong>${label}</strong> porte <strong>${concentration.maxWeightPct} %</strong> du poids total (HHI ${fmt(concentration.hhi, 3)}) — résultat sensible à ce seul comparable.</p>
+          </div>
+        `)
+      }
+    }
+
     // B133: reconciled value bracket
     if (reconciled && adjustments.length > 1) {
       const rvBracket = computeReconciledValueBracket(adjustments, reconciled.value)
@@ -375,6 +393,29 @@ export function buildAnalyseHtml(
             <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
               <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Symétrie des ajustements</p>
               <p style="font-size:9pt;color:#b45309;margin:0;">Variation élevée (CV > 50 %) détectée pour&nbsp;: ${asymTypes.join(', ')} — application non homogène entre comparables.</p>
+            </div>
+          `)
+        }
+      }
+    }
+
+    // B139: adjustment outlier by type
+    if (adjustments.length >= 3) {
+      const adjOutliers = computeAdjustmentOutlierByType(adjustments)
+      if (adjOutliers?.hasOutliers) {
+        const typeLabels: Record<string, string> = { surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' }
+        const flagged = (['surface', 'year', 'condition', 'garage'] as const)
+          .filter(k => adjOutliers[k].outlierIds.length > 0)
+          .map(k => {
+            const t = adjOutliers[k]
+            const ids = t.outlierIds.join(', ')
+            return `${typeLabels[k]}: ${ids} (moy. ${fmtMoney(t.mean)}, σ ${fmtMoney(t.stdDev)})`
+          })
+        if (flagged.length > 0) {
+          sections.push(`
+            <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+              <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Ajustements atypiques par type (&gt; 2σ)</p>
+              <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${flagged.map(f => `<li>${f}</li>`).join('')}</ul>
             </div>
           `)
         }
@@ -517,6 +558,29 @@ export function buildAnalyseHtml(
             Score de conformité OEAQ&nbsp;:
             <strong style="color:${gradeColor};">${summary.grade} (${summary.score}/100)</strong>
             <span style="font-size:9pt;color:#8a8780;"> — ${summary.passCount} critères satisfaits, ${summary.failCount} à corriger</span>
+          </p>
+        `)
+      }
+
+      // B140: OEAQ bracketing summary
+      const sizeRangeForBracket = null  // subject size not available in this context
+      const rvBracketForCheck = (() => {
+        const reconciled = computeReconciledValue(adjustments)
+        return reconciled && adjustments.length > 1 ? computeReconciledValueBracket(adjustments, reconciled.value) : null
+      })()
+      const bracketSummary = computeOEAQBracketingSummary(bracket, sizeRangeForBracket, rvBracketForCheck)
+      if (bracketSummary) {
+        const allColor = bracketSummary.allBracketed ? '#1f7a5c' : '#b45309'
+        const checks3 = [
+          bracketSummary.pricesBracketed !== null ? `Prix&nbsp;: ${bracketSummary.pricesBracketed ? '✓' : '⚠'}` : null,
+          bracketSummary.sizeBracketed !== null ? `Surface&nbsp;: ${bracketSummary.sizeBracketed ? '✓' : '⚠'}` : null,
+          bracketSummary.reconciledBracketed !== null ? `Réconcilié&nbsp;: ${bracketSummary.reconciledBracketed ? '✓' : '⚠'}` : null,
+        ].filter(Boolean).join(' · ')
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Encadrement global OEAQ&nbsp;:
+            <strong style="color:${allColor};">${bracketSummary.allBracketed ? '✓ tous les critères satisfaits' : `⚠ ${bracketSummary.failedChecks.length} critère${bracketSummary.failedChecks.length > 1 ? 's' : ''} non respecté${bracketSummary.failedChecks.length > 1 ? 's' : ''}`}</strong>
+            <span style="font-size:9pt;color:#8a8780;"> — ${checks3}</span>
           </p>
         `)
       }
