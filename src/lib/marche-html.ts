@@ -31,6 +31,7 @@ import { computeComparableAgeDiversityScore } from './compute-comparable-age-div
 import { computeReconciledValue } from './compute-reconciled-value'
 import { computeSalePriceCV } from './compute-sale-price-cv'
 import { computeComparableSaleVelocity } from './compute-comparable-sale-velocity'
+import { computeComparableDateRecencyProfile } from './compute-comparable-date-recency-profile'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -364,6 +365,19 @@ export function buildMarcheHtml(
             Sélection des comparables&nbsp;:
             <strong style="color:${color};">${selSummary.recommendation}</strong>
             <span style="font-size:9pt;color:#8a8780;"> — qualité moy. ${fmt(selSummary.avgQualityScore, 1)}/10${simNote}${lowNote}</span>
+          </p>
+        `)
+      }
+    }
+    // B157: date recency profile
+    if (comparables.length > 0) {
+      const recency = computeComparableDateRecencyProfile(comparables)
+      if (recency && recency.staleCount > 0) {
+        const color = recency.stalePct >= 50 ? '#b91c1c' : '#b45309'
+        sections.push(`
+          <p style="font-size:10pt;color:${color};margin-top:4pt;">
+            ⚠ ${recency.staleCount} comparable${recency.staleCount > 1 ? 's' : ''} daté${recency.staleCount > 1 ? 's' : ''} (&gt; 24 mois) — ${recency.stalePct} % du panel
+            <span style="font-size:9pt;color:#8a8780;"> · ${recency.recentCount} récent${recency.recentCount !== 1 ? 's' : ''} · ${recency.moderateCount} modéré${recency.moderateCount !== 1 ? 's' : ''}</span>
           </p>
         `)
       }

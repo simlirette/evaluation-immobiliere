@@ -44,6 +44,10 @@ import { computeGrossToNetRatio } from './compute-gross-to-net-ratio'
 import { computeAdjustmentLineItemStats } from './compute-adjustment-line-item-stats'
 import { computeNetAdjustmentRangeCheck } from './compute-net-adjustment-range-check'
 import { computeAdjustmentExplainedVariance } from './compute-adjustment-explained-variance'
+import { computeAdjustedPriceCV } from './compute-adjusted-price-cv'
+import { computeNetAdjustmentSignBias } from './compute-net-adjustment-sign-bias'
+import { computeGrossAdjustmentDistribution } from './compute-gross-adjustment-distribution'
+import { computeAdjustmentZeroRateByType } from './compute-adjustment-zero-rate-by-type'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -712,6 +716,64 @@ export function buildAnalyseHtml(
           Réduction de variance par les ajustements&nbsp;:
           <strong style="color:${color};">${explVar.interpretation} (${fmt(explVar.varianceReductionPct, 1)} %)</strong>
           <span style="font-size:9pt;color:#8a8780;"> — var. brute ${fmtMoney(Math.sqrt(explVar.saleVariance))}σ → ajustée ${fmtMoney(Math.sqrt(explVar.adjustedVariance))}σ</span>
+        </p>
+      `)
+    }
+  }
+
+  // B156: adjusted price CV vs raw CV
+  if (adjustments.length >= 2) {
+    const adjCV = computeAdjustedPriceCV(adjustments)
+    if (adjCV) {
+      const color = adjCV.homogenized ? '#1f7a5c' : '#b45309'
+      const sign = adjCV.delta > 0 ? '+' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:6pt;">
+          CV brut vs ajusté&nbsp;:
+          <strong style="color:${color};">${fmt(adjCV.rawCV, 1)} % → ${fmt(adjCV.adjustedCV, 1)} % (${sign}${fmt(adjCV.delta, 1)} pp)</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ${adjCV.homogenized ? 'ajustements ont homogénéisé le panel' : 'ajustements ont augmenté la dispersion'}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B158: net adjustment sign bias
+  if (adjustments.length >= 2) {
+    const signBias = computeNetAdjustmentSignBias(adjustments)
+    if (signBias && signBias.biased) {
+      const dirLabel: Record<string, string> = { upward: 'à la hausse', downward: 'à la baisse', neutral: 'neutres' }
+      sections.push(`
+        <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+          ⚠ Biais directionnel des ajustements nets&nbsp;:
+          <strong>${fmt(signBias.dominancePct, 0)} % ${dirLabel[signBias.dominantDirection]}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> (↑ ${signBias.countUpward} · ↓ ${signBias.countDownward} · ≈ ${signBias.countNeutral})</span>
+        </p>
+      `)
+    }
+  }
+
+  // B159: gross adjustment distribution
+  if (adjustments.length >= 2) {
+    const grossDist = computeGrossAdjustmentDistribution(adjustments)
+    if (grossDist) {
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Distribution des ajustements bruts&nbsp;:
+          <strong>${fmt(grossDist.min, 1)} % – ${fmt(grossDist.max, 1)} %</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — moy. ${fmt(grossDist.mean, 1)} % · méd. ${fmt(grossDist.median, 1)} % · CV ${fmt(grossDist.cv, 0)} %</span>
+        </p>
+      `)
+    }
+  }
+
+  // B160: zero rate by type
+  if (adjustments.length > 0) {
+    const zeroRate = computeAdjustmentZeroRateByType(adjustments)
+    if (zeroRate && zeroRate.unusedTypes.length > 0) {
+      sections.push(`
+        <p style="font-size:10pt;color:#8a8780;margin-top:4pt;">
+          Postes non utilisés&nbsp;: <strong>${zeroRate.unusedTypes.join(', ')}</strong>
+          ${zeroRate.universalTypes.length > 0 ? `· universels&nbsp;: <strong>${zeroRate.universalTypes.join(', ')}</strong>` : ''}
         </p>
       `)
     }
