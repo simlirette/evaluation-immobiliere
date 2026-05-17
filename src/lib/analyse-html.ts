@@ -15,6 +15,7 @@ import { computeDataQualityReport } from './compute-data-quality-report'
 import { computeMarketPositioning } from './compute-market-positioning'
 import { computeAdjustmentNetEffect } from './compute-adjustment-net-effect'
 import { computeHoldingCostEstimate } from './compute-holding-cost-estimate'
+import { computeAppraisalRiskScore } from './compute-appraisal-risk-score'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -84,6 +85,25 @@ export function buildAnalyseHtml(
       <h2>Conclusion structurée</h2>
       <table><tbody>${vcRows}</tbody></table>
     `)
+  }
+
+  // Appraisal risk score
+  if (adjustments.length > 0) {
+    const risk = computeAppraisalRiskScore(adjustments, comparables ?? [])
+    if (risk) {
+      const riskColor = risk.riskLevel === 'faible' ? '#1f7a5c'
+        : risk.riskLevel === 'modéré' ? '#b45309' : '#b91c1c'
+      const factorsHtml = risk.factors.length > 0
+        ? `<span style="font-size:9pt;color:#8a8780;"> — ${risk.factors.join(' · ')}</span>`
+        : ''
+      sections.push(`
+        <p style="font-size:10pt;margin-top:4pt;">
+          Risque dossier&nbsp;:
+          <strong style="color:${riskColor};">${risk.riskLevel} (${risk.score}/100)</strong>
+          ${factorsHtml}
+        </p>
+      `)
+    }
   }
 
   // Data quality

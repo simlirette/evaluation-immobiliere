@@ -25,6 +25,7 @@ import { computeSensitivityAnalysis } from '@/lib/compute-sensitivity-analysis'
 import { computeComparableRanking } from '@/lib/compute-comparable-ranking'
 import { computeValuationConclusion } from '@/lib/compute-valuation-conclusion'
 import { computeMarketPositioning } from '@/lib/compute-market-positioning'
+import { computeAppraisalRiskScore } from '@/lib/compute-appraisal-risk-score'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -409,6 +410,25 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                     </>
                   )}
                 </div>
+              </div>
+            </AgentMessage>
+          )
+        })()}
+        {adjustments.length > 0 && (() => {
+          const risk = computeAppraisalRiskScore(adjustments, comparables)
+          if (!risk) return null
+          const riskColor = risk.riskLevel === 'faible' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-900/20'
+            : risk.riskLevel === 'modéré' ? 'text-amber-600 dark:text-amber-400 bg-amber-50/80 dark:bg-amber-900/20'
+            : 'text-red-600 dark:text-red-400 bg-red-50/80 dark:bg-red-900/20'
+          return (
+            <AgentMessage agentName="Agent Analyse">
+              <div className="flex items-start gap-2 flex-wrap">
+                <span className={`text-[10px] font-semibold rounded-full px-2.5 py-1 whitespace-nowrap ${riskColor}`}>
+                  Risque dossier&nbsp;: {risk.riskLevel} ({risk.score}/100)
+                </span>
+                {risk.factors.length > 0 && (
+                  <span className="text-[10px] text-[#8a8780]">{risk.factors.join(' · ')}</span>
+                )}
               </div>
             </AgentMessage>
           )
