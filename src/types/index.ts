@@ -1,6 +1,26 @@
 export type Theme = 'light' | 'dark'
 
-export type TabId = 'dossier' | 'marche' | 'analyse' | 'rapport'
+export type TabId = 'dossier' | 'marche' | 'analyse' | 'synthese' | 'rapport'
+
+export interface EnrichmentAlerte {
+  niveau: 'critique' | 'attention' | 'info'
+  categorie: string
+  message: string
+}
+
+export interface Enrichment {
+  score_global: { score: number; grade: string; recommandation: string } | null
+  alertes: { liste: EnrichmentAlerte[]; nb_critiques: number; nb_attention: number; nb_info: number } | null
+  score_investissement: { score: number; recommandation: string } | null
+  indice_qualite_vie: { score: number; interpretation: string } | null
+  score_risque: { score: number; categorie: string } | null
+  projection_valeur: { valeur_base: number; taux_base_pct: number; an1: number; an3: number; an5: number } | null
+  rendement_locatif: { taux_brut_pct: number; taux_net_pct: number; interpretation: string } | null
+  valeur_indicative: { valeur: number; fiabilite: string } | null
+  taxes_municipales: { taux_pct: number; annuel: number } | null
+  ratio_prix_loyer: { ratio: number; signal: string } | null
+  vetuste_batiment: { age_ans: number; categorie: string; depreciation_pct: number } | null
+}
 
 export interface Tab {
   id: TabId

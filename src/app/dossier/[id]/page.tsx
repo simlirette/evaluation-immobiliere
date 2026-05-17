@@ -8,12 +8,13 @@ import ThemeToggle from '@/components/layout/ThemeToggle'
 import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
+import SynthesePanel from '@/components/panels/SynthesePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
 import { fetchDossier } from '@/lib/supabase/queries/dossiers'
 import { createClient } from '@/lib/supabase/client'
 import type { TabId } from '@/types'
 
-const VALID_TABS: TabId[] = ['dossier', 'marche', 'analyse', 'rapport']
+const VALID_TABS: TabId[] = ['dossier', 'marche', 'analyse', 'synthese', 'rapport']
 
 function DossierShellInner() {
   const params = useParams<{ id: string }>()
@@ -131,6 +132,7 @@ function DossierShellInner() {
             {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => setReportReady(true)} />}
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} />}
             {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
+            {activeTab === 'synthese' && <SynthesePanel dossierId={dossierId} />}
             {activeTab === 'rapport'  && <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />}
           </div>
         </div>

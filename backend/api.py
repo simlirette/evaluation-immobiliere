@@ -974,6 +974,77 @@ def app_workflow(summary: dict, dossier: dict, package: dict, assistant: dict) -
     }
 
 
+def _build_enrichment_view(fb: dict) -> dict:
+    """Extract B30-B44 computed enrichment fields from fiche_bien.json for frontend display."""
+    if not fb or not isinstance(fb, dict):
+        return {}
+    sg = fb.get("score_global") or {}
+    alrt = fb.get("alertes") or {}
+    inv = fb.get("score_investissement") or {}
+    qdv = fb.get("indice_qualite_vie") or {}
+    rsk = fb.get("score_risque") or {}
+    pv = fb.get("projection_valeur") or {}
+    rl = fb.get("rendement_locatif") or {}
+    vi = fb.get("valeur_indicative") or {}
+    tx = fb.get("taxes_municipales") or {}
+    plr = fb.get("ratio_prix_loyer") or {}
+    vet = fb.get("vetuste_batiment") or {}
+    return {
+        "score_global": {
+            "score": sg.get("score_global"),
+            "grade": sg.get("grade"),
+            "recommandation": sg.get("recommandation_finale"),
+        } if sg.get("score_global") is not None else None,
+        "alertes": {
+            "liste": alrt.get("alertes", []),
+            "nb_critiques": alrt.get("nb_alertes_critiques", 0),
+            "nb_attention": alrt.get("nb_alertes_attention", 0),
+            "nb_info": alrt.get("nb_alertes_info", 0),
+        } if alrt else None,
+        "score_investissement": {
+            "score": inv.get("score_investissement"),
+            "recommandation": inv.get("recommandation"),
+        } if inv.get("score_investissement") is not None else None,
+        "indice_qualite_vie": {
+            "score": qdv.get("score_qualite_vie"),
+            "interpretation": qdv.get("interpretation"),
+        } if qdv.get("score_qualite_vie") is not None else None,
+        "score_risque": {
+            "score": rsk.get("score_risque"),
+            "categorie": rsk.get("categorie"),
+        } if rsk.get("score_risque") is not None else None,
+        "projection_valeur": {
+            "valeur_base": pv.get("valeur_base"),
+            "taux_base_pct": pv.get("taux_base_pct"),
+            "an1": (pv.get("projections") or {}).get("base", {}).get("an1"),
+            "an3": (pv.get("projections") or {}).get("base", {}).get("an3"),
+            "an5": (pv.get("projections") or {}).get("base", {}).get("an5"),
+        } if pv.get("valeur_base") else None,
+        "rendement_locatif": {
+            "taux_brut_pct": rl.get("taux_capitalisation_brut_pct"),
+            "taux_net_pct": rl.get("taux_capitalisation_net_estime_pct"),
+            "interpretation": rl.get("interpretation"),
+        } if rl.get("taux_capitalisation_brut_pct") is not None else None,
+        "valeur_indicative": {
+            "valeur": vi.get("valeur_indicative_synthese"),
+            "fiabilite": vi.get("fiabilite"),
+        } if vi.get("valeur_indicative_synthese") else None,
+        "taxes_municipales": {
+            "taux_pct": tx.get("taux_taxation_pct"),
+            "annuel": tx.get("taxes_annuelles_estimees"),
+        } if tx.get("taxes_annuelles_estimees") else None,
+        "ratio_prix_loyer": {
+            "ratio": plr.get("ratio_prix_loyer"),
+            "signal": plr.get("signal"),
+        } if plr.get("ratio_prix_loyer") is not None else None,
+        "vetuste_batiment": {
+            "age_ans": vet.get("age_ans"),
+            "categorie": vet.get("categorie"),
+            "depreciation_pct": vet.get("taux_depreciation_pct"),
+        } if vet.get("categorie") else None,
+    }
+
+
 def app_session_view(session_id: str) -> dict:
     summary = session_summary(session_id)
     _artifact_index = session_artifacts(session_id)
@@ -1042,6 +1113,11 @@ def app_session_view(session_id: str) -> dict:
             "detecte": bool(_conflit_data.get("conflit_detecte", False)),
             "motif": str(_conflit_data.get("conflit_motif", _conflit_data.get("commentaire", ""))),
         } if _conflit_data else None,
+        "enrichment": _build_enrichment_view(
+            read_artifact_json_from_index(
+                summary.get("session", {}), _artifact_index, "data-facts", "fiche_bien.json"
+            )
+        ),
     }
 
 

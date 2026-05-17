@@ -1,4 +1,4 @@
-import type { Adjustment, Comparable, Document, Dossier, FactChip } from '@/types'
+import type { Adjustment, Comparable, Document, Dossier, Enrichment, FactChip } from '@/types'
 
 const BFF_BASE = '/api/runtime'
 
@@ -55,6 +55,7 @@ export interface AppState {
       manifest?: Record<string, unknown>
       files?: string[]
     }
+    enrichment: Enrichment | null
   }
 }
 
@@ -257,6 +258,11 @@ export async function generateRapport(
     body: JSON.stringify({ session_id: sessionId, format }),
   })
   return result.content
+}
+
+export async function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichment | null> {
+  const state = await fetchAppState(sessionId)
+  return state.active?.enrichment ?? null
 }
 
 export async function exportRapport(
