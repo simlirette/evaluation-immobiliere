@@ -10,10 +10,13 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
+import { printWindow } from '@/lib/print-window'
+import { buildAnalyseHtml } from '@/lib/analyse-html'
 import type { Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
   dossierId: string | null
+  address?: string
 }
 
 const VALUATION_STATUS_LABELS: Record<string, string> = {
@@ -125,7 +128,7 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
   )
 }
 
-export default function AnalysePanel({ dossierId }: Props) {
+export default function AnalysePanel({ dossierId, address }: Props) {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [conclusion, setConclusion] = useState<number | null>(null)
   const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
@@ -185,6 +188,17 @@ export default function AnalysePanel({ dossierId }: Props) {
           </AgentMessage>
         )}
       </div>
+      {(adjustments.length > 0 || conclusion !== null) && (
+        <div className="w-full max-w-[640px] flex justify-end mb-3">
+          <button
+            type="button"
+            onClick={() => printWindow(buildAnalyseHtml(adjustments, conclusion, status, financier, address), address ?? 'Analyse')}
+            className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+          >
+            {`🖨 Imprimer l'analyse`}
+          </button>
+        </div>
+      )}
       <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={handleAsk} />
     </div>
   )

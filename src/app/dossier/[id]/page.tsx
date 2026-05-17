@@ -165,7 +165,7 @@ function DossierShellInner() {
               }
             }} />}
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} address={currentDossierName} />}
-            {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
+            {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} address={currentDossierName} />}
             {activeTab === 'synthese' && <SynthesePanel dossierId={dossierId} address={currentDossierName} onCritiqueFound={setSyntheseCritiques} />}
             {activeTab === 'rapport'  && <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />}
           </div>

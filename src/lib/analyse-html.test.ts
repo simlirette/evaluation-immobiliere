@@ -1,0 +1,62 @@
+import { describe, it, expect } from 'vitest'
+import { buildAnalyseHtml } from './analyse-html'
+import type { Adjustment, EnrichmentFinancier } from '@/types'
+
+const adjs: Adjustment[] = [
+  { id: 'a1', comparable_id: 'c1', comparableLabel: '10 rue Laval', salePrice: 420000, surface_adj: 5000, year_adj: -3000, condition_adj: 0, garage_adj: 0, adjusted: 422000 },
+  { id: 'a2', comparable_id: 'c2', comparableLabel: '25 av. Cartier', salePrice: 395000, surface_adj: 12000, year_adj: 2000, condition_adj: -5000, garage_adj: 0, adjusted: 404000 },
+]
+
+const financier: EnrichmentFinancier = {
+  total_mensuel: 2850, versement_hypo_mensuel: 2100, ratio_revenu_pct: 38.2, interpretation_couts: 'Limite',
+  ratio_loyer_revenu_pct: 28.5, seuil_location: 'abordable', versement_mensuel_estime: 2100,
+  ratio_mensualite_revenu_pct: 35.0, seuil_propriete: 'limite', revenu_median_menage: 74000,
+  pct_proprietaires: 62, pct_locataires: 38, valeur_mediane_logement: 485000,
+  ratio_dette_revenu_pct: 178, variation_dette_revenu_pct: 2.1,
+  ratio_hypotheque_revenu_pct: 95, taux_epargne_pct: 6.8,
+}
+
+describe('buildAnalyseHtml', () => {
+  it('includes address and heading', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', financier, '5 rue Test')
+    expect(html).toContain('5 rue Test')
+    expect(html).toContain('Analyse — ajustements')
+  })
+
+  it('includes conclusion value', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', financier)
+    expect(html).toContain('Conclusion de valeur')
+    expect(html).toContain('413')
+  })
+
+  it('includes status label', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', financier)
+    expect(html).toContain('Prêt pour revue')
+  })
+
+  it('includes adjustment rows', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', financier)
+    expect(html).toContain('10 rue Laval')
+    expect(html).toContain('25 av. Cartier')
+    expect(html).toContain('2 comparables')
+  })
+
+  it('includes financial context', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', financier)
+    expect(html).toContain('Contexte financier')
+    expect(html).toContain('Coût mensuel total')
+    expect(html).toContain('dette / revenu')
+  })
+
+  it('handles null conclusion', () => {
+    const html = buildAnalyseHtml(adjs, null, 'ASSISTANCE_DOSSIER_ACTIVE', null)
+    expect(html).not.toContain('Conclusion de valeur')
+    expect(html).toContain('10 rue Laval')
+  })
+
+  it('handles empty adjustments', () => {
+    const html = buildAnalyseHtml([], 413000, 'PRET_REVUE', null)
+    expect(html).toContain('Conclusion de valeur')
+    expect(html).not.toContain('ajustements (')
+  })
+})
