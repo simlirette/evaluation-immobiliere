@@ -13,7 +13,7 @@ import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
-import { formatCAD, fmtNum } from '@/lib/format-number'
+import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import type { Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
@@ -53,7 +53,7 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
   if (f.ratio_revenu_pct != null)
     rows.push({
       label: 'Ratio coûts / revenu médian',
-      value: `${fmt(f.ratio_revenu_pct)} %`,
+      value: formatPct(f.ratio_revenu_pct),
       sub: f.interpretation_couts ?? undefined,
       colorClass: f.ratio_revenu_pct > 40 ? 'text-red-600 dark:text-red-400'
         : f.ratio_revenu_pct > 30 ? 'text-amber-600 dark:text-amber-400'
@@ -64,38 +64,38 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
   if (f.ratio_mensualite_revenu_pct != null)
     rows.push({
       label: 'Ratio mensualité / revenu médian',
-      value: `${fmt(f.ratio_mensualite_revenu_pct)} %`,
+      value: formatPct(f.ratio_mensualite_revenu_pct),
       sub: f.seuil_propriete ?? undefined,
       colorClass: SEUIL_COLOR[f.seuil_propriete ?? ''] ?? undefined,
     })
   if (f.ratio_loyer_revenu_pct != null)
     rows.push({
       label: 'Ratio loyer marché / revenu médian',
-      value: `${fmt(f.ratio_loyer_revenu_pct)} %`,
+      value: formatPct(f.ratio_loyer_revenu_pct),
       sub: f.seuil_location ?? undefined,
       colorClass: SEUIL_COLOR[f.seuil_location ?? ''] ?? undefined,
     })
   if (f.revenu_median_menage != null)
     rows.push({ label: 'Revenu médian ménage CMA (2021)', value: formatPrice(f.revenu_median_menage) })
   if (f.pct_proprietaires != null)
-    rows.push({ label: 'Propriétaires / locataires', value: `${fmt(f.pct_proprietaires, 0)} % / ${fmt(f.pct_locataires ?? null, 0)} %` })
+    rows.push({ label: 'Propriétaires / locataires', value: `${formatPct(f.pct_proprietaires, 0)} / ${formatPct(f.pct_locataires ?? null, 0)}` })
   if (f.valeur_mediane_logement != null)
     rows.push({ label: 'Valeur médiane logement (2021)', value: formatPrice(f.valeur_mediane_logement) })
   if (f.ratio_dette_revenu_pct != null)
     rows.push({
       label: 'Ratio dette / revenu (Canada)',
-      value: `${fmt(f.ratio_dette_revenu_pct)} %`,
+      value: formatPct(f.ratio_dette_revenu_pct),
       sub: f.variation_dette_revenu_pct != null
-        ? `${f.variation_dette_revenu_pct >= 0 ? '+' : ''}${fmt(f.variation_dette_revenu_pct)} % /an`
+        ? `${f.variation_dette_revenu_pct >= 0 ? '+' : ''}${formatPct(f.variation_dette_revenu_pct)} /an`
         : undefined,
       colorClass: f.ratio_dette_revenu_pct > 175 ? 'text-red-600 dark:text-red-400'
         : f.ratio_dette_revenu_pct > 150 ? 'text-amber-600 dark:text-amber-400'
         : undefined,
     })
   if (f.ratio_hypotheque_revenu_pct != null)
-    rows.push({ label: 'Ratio hypothèque / revenu (Canada)', value: `${fmt(f.ratio_hypotheque_revenu_pct)} %` })
+    rows.push({ label: 'Ratio hypothèque / revenu (Canada)', value: formatPct(f.ratio_hypotheque_revenu_pct) })
   if (f.taux_epargne_pct != null)
-    rows.push({ label: "Taux d\u2019\u00e9pargne (Canada)", value: `${fmt(f.taux_epargne_pct)} %` })
+    rows.push({ label: "Taux d\u2019\u00e9pargne (Canada)", value: formatPct(f.taux_epargne_pct) })
 
   if (rows.length === 0) return null
 

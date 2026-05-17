@@ -6,7 +6,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildSyntheseHtml } from '@/lib/synthese-html'
-import { formatCAD, fmtNum } from '@/lib/format-number'
+import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import type { Enrichment, EnrichmentAlerte } from '@/types'
 
 interface Props {
@@ -109,7 +109,7 @@ function ProjectionTable({ pv }: { pv: NonNullable<Enrichment['projection_valeur
       <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-3">Projection (scénario de base)</div>
       <div className="text-[12px] text-[#6a6763] dark:text-[#9a9790] mb-2">
         Base&nbsp;: <span className="font-medium text-[#1a1916] dark:text-white">{fmtMoney(pv.valeur_base)}</span>
-        &nbsp;· Taux&nbsp;: {fmt(pv.taux_base_pct, 2)}&nbsp;%/an
+        &nbsp;· Taux&nbsp;: {formatPct(pv.taux_base_pct, 2)}/an
       </div>
       <div className="grid grid-cols-3 gap-2">
         {([['1 an', pv.an1], ['3 ans', pv.an3], ['5 ans', pv.an5]] as [string, number][]).map(([label, val]) => (
@@ -219,11 +219,11 @@ export default function SynthesePanel({ dossierId, address, onCritiqueFound }: P
             <div className="p-4 rounded-xl bg-[rgba(255,255,255,.55)] dark:bg-[rgba(30,28,25,.55)] ring-1 ring-[rgba(0,0,0,.07)]">
               <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-1">Rendement locatif</div>
               <div className="text-xl font-semibold text-[#1a1916] dark:text-white">
-                {fmt(rendement_locatif.taux_brut_pct, 2)}&nbsp;%
+                {formatPct(rendement_locatif.taux_brut_pct, 2)}
                 <span className="text-sm font-normal text-[#8a8780]"> brut</span>
               </div>
               <div className="text-[12px] text-[#6a6763] dark:text-[#9a9790] mt-0.5">
-                Net estimé&nbsp;: {fmt(rendement_locatif.taux_net_pct, 2)}&nbsp;%
+                Net estimé&nbsp;: {formatPct(rendement_locatif.taux_net_pct, 2)}
               </div>
             </div>
           )}

@@ -20,3 +20,13 @@ export function fmtNum(n: number | null | undefined, digits = 0): string {
   if (n == null) return '—'
   return new Intl.NumberFormat('fr-CA', { maximumFractionDigits: digits }).format(n)
 }
+
+/**
+ * Formats a percentage value with a " %" suffix.
+ * Returns "—" for null or undefined inputs.
+ * Defaults to 1 decimal digit (e.g. "3,5 %").
+ */
+export function formatPct(n: number | null | undefined, digits = 1): string {
+  if (n == null) return '—'
+  return `${fmtNum(n, digits)} %`
+}
