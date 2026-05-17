@@ -7,6 +7,7 @@ import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
 import ValeurCard from '@/components/shared/ValeurCard'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
+import PanelError from '@/components/shared/PanelError'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import type { Adjustment, EnrichmentFinancier } from '@/types'
@@ -131,10 +132,12 @@ export default function AnalysePanel({ dossierId }: Props) {
   const [financier, setFinancier] = useState<EnrichmentFinancier | null>(null)
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
-  useEffect(() => {
+  function load() {
     if (!dossierId) return
     setLoading(true)
+    setError(false)
     Promise.all([
       fetchAdjustments(dossierId),
       fetchAppState(dossierId),
@@ -145,8 +148,10 @@ export default function AnalysePanel({ dossierId }: Props) {
       setStatus(state.active?.valuation.status ?? 'A_VALIDER_PAR_EVALUATEUR_AGREE')
       setFinancier(enrichment?.financier ?? null)
       setLoading(false)
-    })
-  }, [dossierId])
+    }).catch(() => { setError(true); setLoading(false) })
+  }
+
+  useEffect(() => { load() }, [dossierId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAsk(value: string) {
     if (!dossierId) return
@@ -155,6 +160,7 @@ export default function AnalysePanel({ dossierId }: Props) {
   }
 
   if (!dossierId || loading) return <PanelLoader />
+  if (error) return <PanelError onRetry={load} />
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">

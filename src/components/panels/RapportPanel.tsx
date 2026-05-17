@@ -7,6 +7,7 @@ import RapportArtifact from '@/components/shared/RapportArtifact'
 import RapportDoc from '@/components/shared/RapportDoc'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
+import PanelError from '@/components/shared/PanelError'
 import {
   fetchAppState,
   generateRuntimePackage,
@@ -57,6 +58,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
 
   async function reload() {
@@ -119,7 +121,8 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
 
   useEffect(() => {
     setLoading(true)
-    reload()
+    setError(false)
+    reload().catch(() => { setError(true); setLoading(false) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId])
 
@@ -199,6 +202,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   }
 
   if (!dossierId || loading || !state) return <PanelLoader />
+  if (error) return <PanelError onRetry={() => { setError(false); setLoading(true); reload().catch(() => { setError(true); setLoading(false) }) }} />
 
   return (
     <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>

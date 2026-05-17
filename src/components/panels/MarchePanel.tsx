@@ -6,6 +6,7 @@ import UserMessage from '@/components/shared/UserMessage'
 import ComparableItem from '@/components/shared/ComparableItem'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
+import PanelError from '@/components/shared/PanelError'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
 import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import type { Comparable, EnrichmentMarche } from '@/types'
@@ -90,10 +91,12 @@ export default function MarchePanel({ dossierId }: Props) {
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
-  useEffect(() => {
+  function load() {
     if (!dossierId) return
     setLoading(true)
+    setError(false)
     Promise.all([
       fetchComparables(dossierId),
       fetchRuntimeEnrichment(dossierId),
@@ -101,8 +104,10 @@ export default function MarchePanel({ dossierId }: Props) {
       setComparables(comps)
       setMarche(enrichment?.marche ?? null)
       setLoading(false)
-    })
-  }, [dossierId])
+    }).catch(() => { setError(true); setLoading(false) })
+  }
+
+  useEffect(() => { load() }, [dossierId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAsk(value: string) {
     if (!dossierId) return
@@ -111,6 +116,7 @@ export default function MarchePanel({ dossierId }: Props) {
   }
 
   if (!dossierId || loading) return <PanelLoader />
+  if (error) return <PanelError onRetry={load} />
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
