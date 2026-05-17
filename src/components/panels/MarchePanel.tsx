@@ -14,6 +14,7 @@ import { buildMarcheHtml } from '@/lib/marche-html'
 import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
 import { filterComparablesByQuery } from '@/lib/filter-comparables'
 import { formatListCount } from '@/lib/format-list-count'
+import { checkComparableMinimum } from '@/lib/check-comparable-minimum'
 import { fmtNum } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
@@ -141,6 +142,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
 
   const visibleComps = sortComparables(filterComparablesByQuery(comparables, query), sortKey)
   const countLabel = formatListCount(visibleComps.length, comparables.length)
+  const minimumCheck = checkComparableMinimum(comparables)
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -204,6 +206,13 @@ export default function MarchePanel({ dossierId, address }: Props) {
             }
           </div>
         </AgentMessage>
+        {minimumCheck.warning && (
+          <AgentMessage agentName="Agent Marché">
+            <div className="rounded-[8px] bg-amber-50/80 border border-amber-200/60 px-3 py-2 text-[11px] text-amber-800">
+              {minimumCheck.warning}
+            </div>
+          </AgentMessage>
+        )}
         {comparables.length > 0 && (
           <AgentMessage agentName="Agent Marché" last={replies.length === 0 && !asking}>
             {'Les comparables sont retenus par score, source et r\u00e9cence. Les sources restent \u00e0 valider avant signature.'}
