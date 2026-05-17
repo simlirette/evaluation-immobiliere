@@ -60,4 +60,22 @@ describe('buildMarcheHtml', () => {
     expect(html).toContain('10 rue Laval')
     expect(html).not.toContain('Score de marché')
   })
+
+  it('includes comparable stats summary section', () => {
+    const html = buildMarcheHtml(comps, marche)
+    expect(html).toContain('Synthèse des comparables')
+    expect(html).toContain('Fourchette de prix')
+    expect(html).toContain('Période des ventes')
+  })
+
+  it('shows OEAQ warning when fewer than 3 comparables', () => {
+    const html = buildMarcheHtml([comps[0]], null)
+    expect(html).toContain('OEAQ')
+    expect(html).toContain('⚠')
+  })
+
+  it('no stats section for empty comparables', () => {
+    const html = buildMarcheHtml([], null)
+    expect(html).not.toContain('Synthèse des comparables')
+  })
 })

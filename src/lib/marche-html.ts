@@ -1,4 +1,6 @@
 import type { Comparable, EnrichmentMarche } from '@/types'
+import { computeComparableStats } from './compute-comparable-stats'
+import { checkComparableMinimum } from './check-comparable-minimum'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -44,6 +46,32 @@ export function buildMarcheHtml(
       </p>
       ${marche.marche_interpretation ? `<p style="color:#4a4743;">${marche.marche_interpretation}</p>` : ''}
     `)
+  }
+
+  // Comparable set stats summary
+  const stats = computeComparableStats(comparables)
+  const minCheck = checkComparableMinimum(comparables)
+  if (stats) {
+    const statRows = [
+      ['Nombre de comparables', String(stats.count)],
+      ['Fourchette de prix', `${fmtMoney(stats.priceMin)} – ${fmtMoney(stats.priceMax)}`],
+      ['Période des ventes', `${stats.dateMin.slice(0, 4)}${stats.dateMin.slice(0, 4) !== stats.dateMax.slice(0, 4) ? ` – ${stats.dateMax.slice(0, 4)}` : ''}`],
+      ...(stats.priceM2Min !== null && stats.priceM2Max !== null
+        ? [['Fourchette $/m²', `${fmt(stats.priceM2Min, 0)} – ${fmt(stats.priceM2Max, 0)} $/m²`]]
+        : []),
+    ].map(([label, val]) => `
+      <tr>
+        <td style="color:#6a6763;">${label}</td>
+        <td style="font-weight:600;text-align:right;">${val}</td>
+      </tr>
+    `).join('')
+    sections.push(`
+      <h2>Synthèse des comparables</h2>
+      <table><tbody>${statRows}</tbody></table>
+      ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
+    `)
+  } else if (minCheck.warning) {
+    sections.push(`<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>`)
   }
 
   // Comparables table
