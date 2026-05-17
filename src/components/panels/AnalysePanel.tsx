@@ -16,6 +16,7 @@ import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { buildOEAQChecklist } from '@/lib/build-oeaq-checklist'
 import { computeSubjectContext } from '@/lib/compute-subject-context'
+import { buildAdjustmentsCsv } from '@/lib/build-adjustments-csv'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -251,7 +252,25 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         )}
       </div>
       {(adjustments.length > 0 || conclusion !== null) && (
-        <div className="w-full max-w-[640px] flex justify-end mb-3">
+        <div className="w-full max-w-[640px] flex justify-end gap-2 mb-3">
+          {adjustments.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const csv = buildAdjustmentsCsv(adjustments)
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `ajustements${address ? '-' + address.slice(0, 30).replace(/\s+/g, '-') : ''}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+              className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+            >
+              ⬇ Export CSV
+            </button>
+          )}
           <button
             type="button"
             onClick={() => printWindow(buildAnalyseHtml(adjustments, conclusion, status, financier, address, comparables), address ?? 'Analyse')}
