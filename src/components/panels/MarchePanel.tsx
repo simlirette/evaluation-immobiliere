@@ -9,10 +9,13 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
 import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
+import { printWindow } from '@/lib/print-window'
+import { buildMarcheHtml } from '@/lib/marche-html'
 import type { Comparable, EnrichmentMarche } from '@/types'
 
 interface Props {
   dossierId: string | null
+  address?: string
 }
 
 function fmt(n: number | null | undefined, digits = 1): string {
@@ -86,7 +89,7 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
   )
 }
 
-export default function MarchePanel({ dossierId }: Props) {
+export default function MarchePanel({ dossierId, address }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [reply, setReply] = useState('')
@@ -140,6 +143,17 @@ export default function MarchePanel({ dossierId }: Props) {
           </AgentMessage>
         )}
       </div>
+      {comparables.length > 0 && (
+        <div className="w-full max-w-[640px] flex justify-end mb-3">
+          <button
+            type="button"
+            onClick={() => printWindow(buildMarcheHtml(comparables, marche, address), address ?? 'Marché')}
+            className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+          >
+            🖨 Imprimer le rapport marché
+          </button>
+        </div>
+      )}
       <ChatInput placeholder="Questionner l'Agent Marché..." onSend={handleAsk} />
     </div>
   )
