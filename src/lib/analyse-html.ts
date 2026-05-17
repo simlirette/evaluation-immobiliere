@@ -12,6 +12,7 @@ import { computeSensitivityAnalysis } from './compute-sensitivity-analysis'
 import { computeComparableRanking } from './compute-comparable-ranking'
 import { computeValuationConclusion } from './compute-valuation-conclusion'
 import { computeDataQualityReport } from './compute-data-quality-report'
+import { computeMarketPositioning } from './compute-market-positioning'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -118,6 +119,26 @@ export function buildAnalyseHtml(
       ${priceStats ? `<p style="font-size:10pt;color:#6a6763;">Dispersion des valeurs indiquées&nbsp;: CV&nbsp;<strong>${fmt(priceStats.cv, 1)} %</strong> — cohésion ${priceStats.cohesion}</p>` : ''}
       <blockquote>À titre indicatif uniquement — validation et signature par un évaluateur agréé requises avant toute diffusion.</blockquote>
     `)
+  }
+
+  // Market positioning
+  if (conclusion !== null && adjustments.length > 0) {
+    const pos = computeMarketPositioning(conclusion, adjustments)
+    if (pos) {
+      const posColor = pos.position === 'bas' ? '#0369a1'
+        : pos.position === 'haut' ? '#b45309' : '#1f7a5c'
+      const nearLines: string[] = []
+      if (pos.nearestBelow) nearLines.push(`comparable le plus proche en-dessous&nbsp;: <strong>${pos.nearestBelow.label}</strong> (−${fmtMoney(pos.nearestBelow.delta)})`)
+      if (pos.nearestAbove) nearLines.push(`comparable le plus proche au-dessus&nbsp;: <strong>${pos.nearestAbove.label}</strong> (+${fmtMoney(pos.nearestAbove.delta)})`)
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Positionnement de la conclusion&nbsp;: <strong style="color:${posColor};">${pos.position}</strong>
+          (rang percentile&nbsp;: ${pos.percentileRank}&nbsp;%,
+          ${pos.countBelow}&nbsp;comp. en-dessous, ${pos.countAbove}&nbsp;au-dessus sur ${pos.total})
+          ${nearLines.length > 0 ? `<br><span style="font-size:9pt;">` + nearLines.join(' · ') + `</span>` : ''}
+        </p>
+      `)
+    }
   }
 
   // Adjustments table

@@ -24,6 +24,7 @@ import { computeAdjustedPriceStats } from '@/lib/compute-adjusted-price-stats'
 import { computeSensitivityAnalysis } from '@/lib/compute-sensitivity-analysis'
 import { computeComparableRanking } from '@/lib/compute-comparable-ranking'
 import { computeValuationConclusion } from '@/lib/compute-valuation-conclusion'
+import { computeMarketPositioning } from '@/lib/compute-market-positioning'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -205,6 +206,23 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                   median={`Conclusion proposée\u00a0: ${formatPrice(conclusion)}`}
                   range={range}
                 />
+                {conclusion !== null && adjustments.length > 0 && (() => {
+                  const pos = computeMarketPositioning(conclusion, adjustments)
+                  if (!pos) return null
+                  const posColor = pos.position === 'bas' ? 'text-sky-600 dark:text-sky-400'
+                    : pos.position === 'haut' ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-[#6a6763]'
+                  return (
+                    <div className="mt-1 text-[11px] px-1 text-[#8a8780]">
+                      Positionnement&nbsp;:
+                      <span className={`ml-1 font-medium ${posColor}`}>{pos.position}</span>
+                      <span className="ml-1">({pos.countBelow} comp. en-dessous, {pos.countAbove} au-dessus)</span>
+                      {pos.nearestBelow && (
+                        <span className="ml-1 text-[10px]">· -{new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 }).format(pos.nearestBelow.delta)} $ vs {pos.nearestBelow.label}</span>
+                      )}
+                    </div>
+                  )
+                })()}
                 {ctx && (
                   <div className={`mt-1.5 text-[11px] px-1 ${ctx.withinRange ? 'text-[#6a6763]' : 'text-amber-700 dark:text-amber-400'}`}>
                     {ctx.withinRange

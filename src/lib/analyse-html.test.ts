@@ -231,4 +231,17 @@ describe('buildAnalyseHtml', () => {
     expect(html).toContain('Fiabilité globale')
     expect(html).toContain('Intervalle')
   })
+
+  it('shows market positioning section when conclusion and adjustments present', () => {
+    // adjs adjusted: 422000 and 404000 → conclusion 413000 → 1/2 below = 50th percentile → médian
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('Positionnement de la conclusion')
+    expect(html).toContain('percentile')
+    expect(html).toContain('médian')
+  })
+
+  it('omits market positioning section when conclusion is null', () => {
+    const html = buildAnalyseHtml(adjs, null, 'ASSISTANCE_DOSSIER_ACTIVE', null)
+    expect(html).not.toContain('Positionnement de la conclusion')
+  })
 })
