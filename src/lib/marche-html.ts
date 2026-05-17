@@ -1,4 +1,5 @@
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
+import { computePriceIndexation } from './compute-price-indexation'
 import { computeComparableStats } from './compute-comparable-stats'
 import { checkComparableMinimum } from './check-comparable-minimum'
 import { computeMarketPriceTrend } from './compute-market-price-trend'
@@ -97,6 +98,38 @@ export function buildMarcheHtml(
       <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
+
+    // Indexed prices sub-table when time rate is available
+    if (timeRate && comparables.length > 0) {
+      const indexed = computePriceIndexation(comparables, timeRate.monthlyRatePct)
+      if (indexed.length > 0) {
+        const indexedRows = indexed.map(e => {
+          const color = e.adjustmentPct > 0 ? '#1f7a5c' : e.adjustmentPct < 0 ? '#b91c1c' : '#8a8780'
+          const sign = e.adjustmentPct > 0 ? '+' : ''
+          return `<tr>
+            <td style="color:#6a6763;">${e.comparableLabel}</td>
+            <td style="text-align:right;">${fmtMoney(e.originalPrice)}</td>
+            <td style="text-align:right;color:${color};font-weight:600;">${fmtMoney(e.indexedPrice)}</td>
+            <td style="text-align:right;font-size:9pt;color:${color};">${sign}${fmt(e.adjustmentPct, 1)} % (${e.monthsAdjusted} mois)</td>
+          </tr>`
+        }).join('')
+        sections.push(`
+          <h2>Prix réindexés à aujourd'hui</h2>
+          <p style="font-size:9pt;color:#8a8780;margin:0 0 4pt;">Taux mensuel implicite&nbsp;: ${timeRate.monthlyRatePct >= 0 ? '+' : ''}${fmt(timeRate.monthlyRatePct, 2)} %/mois (linéaire) — confiance ${timeRate.confidence}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Comparable</th>
+                <th style="text-align:right;">Prix original</th>
+                <th style="text-align:right;">Prix réindexé</th>
+                <th style="text-align:right;">Ajustement</th>
+              </tr>
+            </thead>
+            <tbody>${indexedRows}</tbody>
+          </table>
+        `)
+      }
+    }
   } else if (minCheck.warning) {
     sections.push(`<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>`)
   }

@@ -27,6 +27,8 @@ import { computeValuationConclusion } from '@/lib/compute-valuation-conclusion'
 import { computeMarketPositioning } from '@/lib/compute-market-positioning'
 import { computeAppraisalRiskScore } from '@/lib/compute-appraisal-risk-score'
 import { computeAdjustmentBracketAnalysis } from '@/lib/compute-adjustment-bracket-analysis'
+import { computeGrossAdjustmentCeiling } from '@/lib/compute-gross-adjustment-ceiling'
+import { computeAdjustmentSymmetry } from '@/lib/compute-adjustment-symmetry'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -196,6 +198,25 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
           <AdjustmentsTable rows={adjustments} comparables={comparables} />
+          {adjustments.length > 0 && (() => {
+            const ceiling = computeGrossAdjustmentCeiling(adjustments)
+            if (!ceiling || ceiling.compliant) return null
+            return (
+              <div className="mt-2 mb-1 flex flex-col gap-1 rounded-xl px-3 py-2 bg-red-50/80 dark:bg-red-900/20 border border-red-200/50">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-red-600 dark:text-red-400 text-[11px] font-semibold">⚠ Plafonds OEAQ dépassés</span>
+                  <span className="text-[10px] text-red-500/70">{ceiling.violationCount} comparable{ceiling.violationCount > 1 ? 's' : ''} · ligne &gt; 15 % ou total &gt; 25 %</span>
+                </div>
+                {ceiling.entries.filter(e => e.hasViolation).map(e => (
+                  <div key={e.comparableId} className="flex items-center gap-1.5 text-[10px] text-red-700 dark:text-red-300">
+                    <span className="font-medium truncate">{e.comparableLabel}</span>
+                    {e.exceedsLineCeiling && <span className="rounded px-1 bg-red-100 dark:bg-red-900/40">ligne {fmtNum(e.maxLinePct, 1)} %</span>}
+                    {e.exceedsTotalCeiling && <span className="rounded px-1 bg-red-100 dark:bg-red-900/40">total {fmtNum(e.totalGrossPct, 1)} %</span>}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
           {conclusion !== null && (() => {
             const summary = summarizeAdjustments(adjustments)
             const range = summary && adjustments.length > 1
@@ -366,6 +387,25 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                       <span className="text-[11px] text-amber-800 dark:text-amber-300">{w.warning}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )
+          })()}
+          {adjustments.length >= 3 && (() => {
+            const symmetry = computeAdjustmentSymmetry(adjustments)
+            if (!symmetry || symmetry.overallSymmetric) return null
+            const typeNames: Record<string, string> = { surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' }
+            const asymTypes = (['surface', 'year', 'condition', 'garage'] as const)
+              .filter(k => !symmetry[k].symmetric && symmetry[k].mean !== 0)
+              .map(k => typeNames[k])
+            if (asymTypes.length === 0) return null
+            return (
+              <div className="mt-2 mb-1 flex flex-col gap-1 rounded-xl px-3 py-2 bg-amber-50/70 dark:bg-amber-900/20 border border-amber-200/50">
+                <div className="flex items-start gap-2">
+                  <span className="text-amber-600 text-[11px] font-semibold flex-shrink-0 mt-0.5">⚠</span>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300">
+                    Symétrie des ajustements — variation élevée (CV &gt; 50 %) pour : {asymTypes.join(', ')} · application non homogène entre comparables.
+                  </span>
                 </div>
               </div>
             )

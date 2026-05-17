@@ -22,6 +22,8 @@ import { computeGrossAdjustmentCeiling } from './compute-gross-adjustment-ceilin
 import { computeValueRangeConfidence } from './compute-value-range-confidence'
 import { computeAdjustmentWeightedMedian } from './compute-adjustment-weighted-median'
 import { computeAdjustmentSymmetry } from './compute-adjustment-symmetry'
+import { computeLocationPremium } from './compute-location-premium'
+import { computeComparableVintageAnalysis } from './compute-comparable-vintage-analysis'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -89,6 +91,7 @@ export function buildAnalyseHtml(
       ...((() => { const nc = comparables && comparables.length > 0 ? computeNeighborhoodComparability(comparables, adjustments) : null; return nc ? [[`Comparabilité voisinage`, `<span style="color:${nc.strength === 'forte' ? '#1f7a5c' : nc.strength === 'modérée' ? '#b45309' : '#b91c1c'};">${nc.strength} (${nc.score}/100)</span>`]] : [] })()),
       ...((() => { const vrc = conclusion !== null && adjustments.length >= 2 ? computeValueRangeConfidence(adjustments, conclusion) : null; return vrc ? [[`Intervalle confiance (±1σ)`, `${fmtMoney(vrc.band1Sigma.low)} – ${fmtMoney(vrc.band1Sigma.high)}<br><span style="font-size:8pt;font-weight:400;color:#8a8780;">confiance conclusion&nbsp;: <strong style="color:${vrc.conclusionConfidence === 'haute' ? '#1f7a5c' : vrc.conclusionConfidence === 'modérée' ? '#b45309' : '#b91c1c'};">${vrc.conclusionConfidence}</strong></span>`]] : [] })()),
       ...((() => { const wm = adjustments.length >= 2 ? computeAdjustmentWeightedMedian(adjustments) : null; return wm && Math.abs(wm.deltaPct) >= 0.5 ? [[`Médiane pondérée`, `${fmtMoney(wm.weightedMedian)} <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${wm.deltaPct > 0 ? '+' : ''}${fmt(wm.deltaPct, 1)} % vs médiane simple)</span>`]] : [] })()),
+      ...((() => { const lp = financier?.valeur_mediane_logement != null ? computeLocationPremium(valuationConclusion.reconciledValue, financier.valeur_mediane_logement) : null; if (!lp) return []; const color = lp.signal === 'prime' ? '#b45309' : lp.signal === 'escompte' ? '#0369a1' : '#1f7a5c'; return [[`Prime de localisation`, `<span style="color:${color};font-weight:600;">${lp.signal}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${lp.deltaPct > 0 ? '+' : ''}${fmt(lp.deltaPct, 1)} % vs médiane&nbsp;${fmtMoney(financier!.valeur_mediane_logement!)})</span>`]] })()),
     ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
     sections.push(`
       <h2>Conclusion structurée</h2>
@@ -333,6 +336,19 @@ export function buildAnalyseHtml(
             <thead><tr><th>Exclusion</th><th style="text-align:right;">Réconcilié</th><th style="text-align:right;">Écart</th></tr></thead>
             <tbody>${sensRows}</tbody>
           </table>
+        `)
+      }
+    }
+
+    // Vintage analysis
+    if (comparables && comparables.length > 0) {
+      const vintage = computeComparableVintageAnalysis(comparables)
+      if (vintage && vintage.vintageBias) {
+        sections.push(`
+          <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+            <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Biais de millésime</p>
+            <p style="font-size:9pt;color:#b45309;margin:0;">Aucun comparable dans un rayon de ±20 ans autour de l'immeuble sujet${vintage.subjectDecade ? ` (${vintage.subjectDecade})` : ''} — représentativité du parc à justifier.</p>
+          </div>
         `)
       }
     }
