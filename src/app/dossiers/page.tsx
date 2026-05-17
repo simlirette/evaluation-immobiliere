@@ -8,7 +8,8 @@ import DossierCard from '@/components/dossiers/DossierCard'
 import EmptyState from '@/components/shared/EmptyState'
 import ContextMenu from '@/components/layout/ContextMenu'
 import Toast from '@/components/shared/Toast'
-import { fetchDossiers, deleteDossier, renameDossier, duplicateDossier } from '@/lib/supabase/queries/dossiers'
+import { fetchDossiers, deleteDossier, renameDossier, duplicateDossier, updateDossierStatus } from '@/lib/supabase/queries/dossiers'
+import { nextDossierStatus } from '@/lib/dossier-status'
 import { togglePin } from '@/lib/supabase/queries/pins'
 import { useContextMenu } from '@/hooks/useContextMenu'
 import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
@@ -168,6 +169,15 @@ export default function MesDossiersPage() {
     setDossiers(prev => prev.filter(x => x.address !== name))
     deleteDossier(d.slug)
     setToast('Dossier supprimé')
+  }
+
+  function handleStatusChange(id: string) {
+    const d = dossiers.find(x => x.id === id)
+    if (!d) return
+    const next = nextDossierStatus(d.status)
+    setDossiers(prev => prev.map(x => x.id === id ? { ...x, status: next } : x))
+    updateDossierStatus(d.slug, next)
+    setToast(`Statut → ${next === 'en-cours' ? 'En cours' : next === 'complet' ? 'Complet' : 'Brouillon'}`)
   }
 
   async function handleSignOut() {
@@ -341,6 +351,7 @@ export default function MesDossiersPage() {
                   dossier={d}
                   onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
                   onContextMenu={e => ctx.open(e, d.address, d.pinned)}
+                  onStatusChange={() => handleStatusChange(d.id)}
                 />
               ))}
             </div>

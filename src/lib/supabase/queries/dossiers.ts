@@ -97,6 +97,18 @@ export async function renameDossier(slug: string, newAddress: string): Promise<v
   }
 }
 
+export async function updateDossierStatus(slug: string, status: DossierStatus): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('dossiers')
+    .update({ status })
+    .eq('slug', slug)
+
+  if (error) {
+    console.error('[updateDossierStatus]', error.message)
+  }
+}
+
 export async function deleteDossier(id: string): Promise<void> {
   // `id` is the slug in this app (panels pass dossierId = slug)
   const supabase = createClient()

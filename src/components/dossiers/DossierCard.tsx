@@ -19,9 +19,10 @@ interface Props {
   dossier: Dossier
   onClick: () => void
   onContextMenu?: (e: React.MouseEvent) => void
+  onStatusChange?: (e: React.MouseEvent) => void
 }
 
-export default function DossierCard({ dossier, onClick, onContextMenu }: Props) {
+export default function DossierCard({ dossier, onClick, onContextMenu, onStatusChange }: Props) {
   return (
     <div
       role="button"
@@ -62,9 +63,14 @@ export default function DossierCard({ dossier, onClick, onContextMenu }: Props) 
       <div className="text-xs text-[#8a8780] font-light mb-3.5">{dossier.property_type} - {dossier.neighborhood}</div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-[#b5b2ac]">{formatRelativeDate(dossier.updatedAt)}</span>
-        <span className={`text-[10px] font-medium px-[9px] py-[3px] rounded-full tracking-[.02em] ${statusStyles[dossier.status]}`}>
+        <button
+          type="button"
+          title="Changer le statut"
+          onClick={e => { e.stopPropagation(); onStatusChange?.(e) }}
+          className={`text-[10px] font-medium px-[9px] py-[3px] rounded-full tracking-[.02em] transition-opacity hover:opacity-70 bg-transparent border-none cursor-pointer ${statusStyles[dossier.status]}`}
+        >
           {statusLabels[dossier.status]}
-        </span>
+        </button>
       </div>
     </div>
   )
