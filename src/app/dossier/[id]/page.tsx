@@ -56,6 +56,20 @@ function DossierShellInner() {
     if (activeTab === 'rapport') setReportReady(false)
   }, [activeTab])
 
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (!e.ctrlKey && !e.metaKey) return
+      const map: Record<string, TabId> = { '1': 'dossier', '2': 'marche', '3': 'analyse', '4': 'synthese', '5': 'rapport' }
+      const tab = map[e.key]
+      if (!tab) return
+      e.preventDefault()
+      setTab(tab)
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDossierId])
+
   function setTab(tab: TabId) {
     setShowMesDossiers(false)
     setVisible(false)

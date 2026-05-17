@@ -1,13 +1,22 @@
 'use client'
 
+import type { DossierStatus } from '@/types'
+
+const STATUS_DOT: Record<DossierStatus, string> = {
+  brouillon:  'bg-[#c4bfb8]',
+  'en-cours': 'bg-[#334155]',
+  complet:    'bg-[#1f7a5c]',
+}
+
 interface Props {
   name: string
   active: boolean
+  status?: DossierStatus
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }
 
-export default function DossierListItem({ name, active, onSelect, onContextMenu }: Props) {
+export default function DossierListItem({ name, active, status, onSelect, onContextMenu }: Props) {
   return (
     <div
       className={`group relative flex items-center px-3 py-1.5 text-xs rounded-[6px] cursor-pointer transition-[background,color] duration-150 ${
@@ -17,6 +26,9 @@ export default function DossierListItem({ name, active, onSelect, onContextMenu 
       }`}
       onClick={onSelect}
     >
+      {status && (
+        <span className={`w-[5px] h-[5px] rounded-full flex-shrink-0 mr-2 ${STATUS_DOT[status]}`} />
+      )}
       <span className="flex-1 min-w-0 truncate">{name}</span>
       <button
         className="w-[22px] h-[22px] rounded-[5px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/[.07] dark:hover:bg-white/[.07] bg-transparent border-none cursor-pointer"

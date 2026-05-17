@@ -29,6 +29,7 @@ export default function SidebarRecent({ dossiers, activeDossierId, onSelect, onC
               key={d.id}
               name={d.address}
               active={d.slug === activeDossierId}
+              status={d.status}
               onSelect={() => onSelect(d.slug, d.address)}
               onContextMenu={e => onContextMenu(e, d.address, true)}
             />
@@ -41,6 +42,7 @@ export default function SidebarRecent({ dossiers, activeDossierId, onSelect, onC
           key={d.id}
           name={d.address}
           active={d.slug === activeDossierId}
+          status={d.status}
           onSelect={() => onSelect(d.slug, d.address)}
           onContextMenu={e => onContextMenu(e, d.address, false)}
         />
