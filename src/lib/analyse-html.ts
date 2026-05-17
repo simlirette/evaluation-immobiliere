@@ -27,6 +27,9 @@ import { computeComparableVintageAnalysis } from './compute-comparable-vintage-a
 import { computeValuePerM2Conclusion } from './compute-value-per-m2-conclusion'
 import { computeAdjustmentDirectionBalance } from './compute-adjustment-direction-balance'
 import { computeAdjustmentMagnitudeProfile } from './compute-adjustment-magnitude-profile'
+import { computeAdjustmentConvergence } from './compute-adjustment-convergence'
+import { computeNetAdjustmentDistribution } from './compute-net-adjustment-distribution'
+import { computeOEAQComplianceSummary } from './compute-oeaq-compliance-summary'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -98,6 +101,7 @@ export function buildAnalyseHtml(
       ...((() => { const lp = financier?.valeur_mediane_logement != null ? computeLocationPremium(valuationConclusion.reconciledValue, financier.valeur_mediane_logement) : null; if (!lp) return []; const color = lp.signal === 'prime' ? '#b45309' : lp.signal === 'escompte' ? '#0369a1' : '#1f7a5c'; return [[`Prime de localisation`, `<span style="color:${color};font-weight:600;">${lp.signal}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${lp.deltaPct > 0 ? '+' : ''}${fmt(lp.deltaPct, 1)} % vs médiane&nbsp;${fmtMoney(financier!.valeur_mediane_logement!)})</span>`]] })()),
       ...((() => { const db = adjustments.length >= 2 ? computeAdjustmentDirectionBalance(adjustments) : null; if (!db || db.balanced) return []; const color = '#b45309'; const dirLabel = db.direction === 'upward' ? 'positifs' : 'négatifs'; const dirPct = db.direction === 'upward' ? db.upPct : db.downPct; return [[`Biais d'ajustement`, `<span style="color:${color};">${fmt(dirPct, 0)} % ${dirLabel}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${db.upCount}↑ ${db.downCount}↓ ${db.neutralCount}=)</span>`]] })()),
       ...((() => { const vm = subjectHabM2 != null && subjectHabM2 > 0 ? computeValuePerM2Conclusion(valuationConclusion.reconciledValue, subjectHabM2, comparables ?? []) : null; if (!vm) return []; const color = vm.signal === 'haut' ? '#b45309' : vm.signal === 'bas' ? '#0369a1' : '#1f7a5c'; const vsNote = vm.vsMedianPct != null ? ` <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${vm.vsMedianPct > 0 ? '+' : ''}${fmt(vm.vsMedianPct, 1)} % vs médiane comparables ${vm.medianCompM2 != null ? fmt(vm.medianCompM2, 0) + ' $/m²' : ''})</span>` : ''; return [[`Valeur au m² (sujet)`, `<span style="color:${color};font-weight:600;">${fmt(vm.pricePerM2, 0)} $/m²${vm.signal ? ` — ${vm.signal}` : ''}</span>${vsNote}`]] })()),
+      ...((() => { const conv = adjustments.length >= 3 ? computeAdjustmentConvergence(adjustments) : null; if (!conv) return []; const color = conv.converged ? '#1f7a5c' : '#b45309'; const sign = conv.convergencePct > 0 ? '+' : ''; return [[`Convergence des ajustements`, `<span style="color:${color};font-weight:600;">${conv.converged ? 'convergente' : 'divergente'}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(CV brut ${fmt(conv.rawCv, 1)} % → ajusté ${fmt(conv.adjustedCv, 1)} %, ${sign}${fmt(conv.convergencePct, 1)} %)</span>`]] })()),
     ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
     sections.push(`
       <h2>Conclusion structurée</h2>
@@ -469,6 +473,41 @@ export function buildAnalyseHtml(
         <tbody>${checkRows}</tbody>
       </table>
     `)
+
+    // B128: OEAQ compliance summary score
+    if (adjustments.length > 0) {
+      const ceiling = computeGrossAdjustmentCeiling(adjustments)
+      const bracket = conclusion != null ? computeAdjustmentBracketAnalysis(adjustments, conclusion) : null
+      const symmetry = adjustments.length >= 3 ? computeAdjustmentSymmetry(adjustments) : null
+      const summary = computeOEAQComplianceSummary(checks, ceiling, bracket, symmetry)
+      if (summary) {
+        const gradeColor = summary.grade === 'conforme' ? '#1f7a5c' : summary.grade === 'attention' ? '#b45309' : '#b91c1c'
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Score de conformité OEAQ&nbsp;:
+            <strong style="color:${gradeColor};">${summary.grade} (${summary.score}/100)</strong>
+            <span style="font-size:9pt;color:#8a8780;"> — ${summary.passCount} critères satisfaits, ${summary.failCount} à corriger</span>
+          </p>
+        `)
+      }
+    }
+  }
+
+  // B127: net adjustment distribution
+  if (adjustments.length >= 2) {
+    const netDist = computeNetAdjustmentDistribution(adjustments)
+    if (netDist) {
+      const meanColor = netDist.mean > 0 ? '#1f7a5c' : netDist.mean < 0 ? '#b91c1c' : '#6a6763'
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:6pt;">
+          Distribution des ajustements nets&nbsp;:
+          moy. <strong style="color:${meanColor};">${netDist.mean >= 0 ? '+' : ''}${fmtMoney(netDist.mean)}</strong>,
+          écart-type ${fmtMoney(netDist.stdDev)},
+          fourchette ${fmtMoney(netDist.min)} – ${fmtMoney(netDist.max)}
+          <span style="font-size:9pt;color:#8a8780;">(CV ${fmt(netDist.cv, 1)} %)</span>
+        </p>
+      `)
+    }
   }
 
   return sections.join('\n')

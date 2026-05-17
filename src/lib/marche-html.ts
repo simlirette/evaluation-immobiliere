@@ -7,6 +7,8 @@ import { computeGarageTypeDistribution } from './compute-garage-type-distributio
 import { computeBuildingAgeStats } from './compute-building-age-stats'
 import { computeTimeAdjustedPriceRange } from './compute-time-adjusted-price-range'
 import { computeComparablePriceQuartiles } from './compute-comparable-price-quartiles'
+import { computePricePerM2Outliers } from './compute-price-per-m2-outliers'
+import { computeComparableSimilarityScore } from './compute-comparable-similarity-score'
 import { computeComparableStats } from './compute-comparable-stats'
 import { checkComparableMinimum } from './check-comparable-minimum'
 import { computeMarketPriceTrend } from './compute-market-price-trend'
@@ -38,6 +40,7 @@ export function buildMarcheHtml(
   marche: EnrichmentMarche | null,
   address?: string,
   adjustments?: Adjustment[],
+  subject?: { hab_m2?: number | null; year_built?: number | null },
 ): string {
   const sections: string[] = []
   const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -115,6 +118,16 @@ export function buildMarcheHtml(
           return `<tr><td style="color:#6a6763;">Quartiles de prix</td><td style="font-weight:600;text-align:right;font-size:9pt;">${fmtMoney(quartiles.q1)} / ${fmtMoney(quartiles.q2)} / ${fmtMoney(quartiles.q3)} <span style="font-weight:400;color:#8a8780;">IQR ${fmtMoney(quartiles.iqr)}${outlierNote}</span></td></tr>`
         })()
       : ''
+    // B129: $/m² outliers
+    const m2Outliers = computePricePerM2Outliers(comparables)
+    const m2OutliersRow = m2Outliers
+      ? (() => {
+          const outlierNote = m2Outliers.outlierIds.length > 0
+            ? ` · <span style="color:#b45309;">${m2Outliers.outlierIds.length} hors-norme $/m²</span>`
+            : ''
+          return `<tr><td style="color:#6a6763;">Quartiles $/m² (IQR)</td><td style="font-weight:600;text-align:right;font-size:9pt;">${fmt(m2Outliers.q1, 0)} / ${fmt(m2Outliers.median, 0)} / ${fmt(m2Outliers.q3, 0)} $/m² <span style="font-weight:400;color:#8a8780;">IQR ${fmt(m2Outliers.iqr, 0)}${outlierNote}</span></td></tr>`
+        })()
+      : ''
     // B116: lot size
     const lotSize = computeLotSizeAnalysis(comparables)
     const lotSizeRow = lotSize
@@ -130,7 +143,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${lotSizeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${lotSizeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -254,6 +267,32 @@ export function buildMarcheHtml(
           Types de garage&nbsp;: <strong>${groupStr}</strong>${conflictNote}
         </p>
       `)
+    }
+    // B130: similarity scores when subject profile available
+    if (subject) {
+      const simScores = computeComparableSimilarityScore(comparables, subject)
+      if (simScores && simScores.length > 0) {
+        const simRows = [...simScores]
+          .sort((a, b) => b.score - a.score)
+          .map(e => {
+            const color = e.score >= 70 ? '#1f7a5c' : e.score >= 40 ? '#b45309' : '#b91c1c'
+            const sizeNote = e.sizeDiffPct != null ? `${fmt(e.sizeDiffPct, 0)} % surf.` : ''
+            const ageNote = e.ageDiff != null ? `${e.ageDiff} an(s)` : ''
+            const notes = [sizeNote, ageNote].filter(Boolean).join(', ')
+            return `<tr>
+              <td>${e.comparableLabel}</td>
+              <td style="text-align:right;font-weight:600;color:${color};">${e.score}/100</td>
+              <td style="text-align:right;font-size:9pt;color:#8a8780;">${notes}</td>
+            </tr>`
+          }).join('')
+        sections.push(`
+          <h2>Similarité avec le sujet</h2>
+          <table>
+            <thead><tr><th>Comparable</th><th style="text-align:right;">Score</th><th style="text-align:right;">Écarts</th></tr></thead>
+            <tbody>${simRows}</tbody>
+          </table>
+        `)
+      }
     }
   } else {
     sections.push('<p>Aucun comparable chargé.</p>')
