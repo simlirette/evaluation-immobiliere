@@ -6297,3 +6297,55 @@ class TestBuildEnrichmentView:
         assert r.get("alertes") is None
         assert r.get("projection_valeur") is None
         assert r.get("rendement_locatif") is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch 12 — _build_marche_view (api.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildMarcheView:
+    """_build_marche_view — extracts B-source market context from fiche_bien."""
+
+    def test_empty_fb_returns_none(self):
+        """No market B-sources → None."""
+        from api import _build_marche_view
+        assert _build_marche_view({}) is None
+        assert _build_marche_view({"score_global": {"score_global": 7.0}}) is None
+
+    def test_inoccupation_and_nhpi_extracted(self):
+        """taux_inoccupation + indice_prix_logement → marche dict with correct keys."""
+        from api import _build_marche_view
+        fb = {
+            "taux_inoccupation": {"taux_total_pct": 2.3, "annee": 2023},
+            "indice_prix_logement": {"variation_annuelle_pct": 4.5, "valeur_indice": 110.2},
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["taux_inoccupation_pct"] == pytest.approx(2.3)
+        assert r["nhpi_variation_pct"] == pytest.approx(4.5)
+        assert r["nhpi_indice"] == pytest.approx(110.2)
+        assert r["inoccupation_annee"] == 2023
+
+    def test_taux_bancaires_extracted(self):
+        """taux_bancaires → taux_directeur + taux_hypo_5ans."""
+        from api import _build_marche_view
+        fb = {
+            "taux_bancaires": {
+                "taux_directeur_pct": 5.0,
+                "taux_hypo_5ans_conv_pct": 6.89,
+            }
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["taux_directeur_pct"] == pytest.approx(5.0)
+        assert r["taux_hypo_5ans_pct"] == pytest.approx(6.89)
+
+    def test_missing_keys_are_none(self):
+        """Keys absent from fb sub-dicts → None values (not KeyError)."""
+        from api import _build_marche_view
+        fb = {"taux_inoccupation": {"taux_total_pct": 3.1}}
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["taux_inoccupation_pct"] == pytest.approx(3.1)
+        assert r["taux_directeur_pct"] is None
+        assert r["nhpi_variation_pct"] is None

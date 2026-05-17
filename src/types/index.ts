@@ -8,6 +8,21 @@ export interface EnrichmentAlerte {
   message: string
 }
 
+export interface EnrichmentMarche {
+  taux_inoccupation_pct: number | null
+  inoccupation_annee: number | null
+  nhpi_variation_pct: number | null
+  nhpi_indice: number | null
+  taux_directeur_pct: number | null
+  taux_hypo_5ans_pct: number | null
+  mises_en_chantier_12m: number | null
+  permis_unites_12m: number | null
+  permis_variation_6m_pct: number | null
+  taux_chomage_pct: number | null
+  population: number | null
+  population_variation_pct: number | null
+}
+
 export interface Enrichment {
   score_global: { score: number; grade: string; recommandation: string } | null
   alertes: { liste: EnrichmentAlerte[]; nb_critiques: number; nb_attention: number; nb_info: number } | null
@@ -20,6 +35,7 @@ export interface Enrichment {
   taxes_municipales: { taux_pct: number; annuel: number } | null
   ratio_prix_loyer: { ratio: number; signal: string } | null
   vetuste_batiment: { age_ans: number; categorie: string; depreciation_pct: number } | null
+  marche: EnrichmentMarche | null
 }
 
 export interface Tab {

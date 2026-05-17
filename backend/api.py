@@ -1042,6 +1042,34 @@ def _build_enrichment_view(fb: dict) -> dict:
             "categorie": vet.get("categorie"),
             "depreciation_pct": vet.get("taux_depreciation_pct"),
         } if vet.get("categorie") else None,
+        "marche": _build_marche_view(fb),
+    }
+
+
+def _build_marche_view(fb: dict) -> dict | None:
+    """Extract raw B-source market context from fiche_bien.json."""
+    inoc = fb.get("taux_inoccupation") or {}
+    nhpi = fb.get("indice_prix_logement") or {}
+    boc = fb.get("taux_bancaires") or {}
+    chantier = fb.get("mises_en_chantier") or {}
+    permis = fb.get("permis_construction") or {}
+    travail = fb.get("marche_travail") or {}
+    pop = fb.get("population_cma") or {}
+    if not any([inoc, nhpi, boc, chantier, permis, travail, pop]):
+        return None
+    return {
+        "taux_inoccupation_pct": inoc.get("taux_total_pct"),
+        "inoccupation_annee": inoc.get("annee"),
+        "nhpi_variation_pct": nhpi.get("variation_annuelle_pct"),
+        "nhpi_indice": nhpi.get("valeur_indice"),
+        "taux_directeur_pct": boc.get("taux_directeur_pct"),
+        "taux_hypo_5ans_pct": boc.get("taux_hypo_5ans_conv_pct"),
+        "mises_en_chantier_12m": chantier.get("total_12mois"),
+        "permis_unites_12m": permis.get("unites_residentielles_12mois"),
+        "permis_variation_6m_pct": permis.get("variation_pct_6m"),
+        "taux_chomage_pct": travail.get("taux_chomage_pct"),
+        "population": pop.get("population"),
+        "population_variation_pct": pop.get("variation_annuelle_pct"),
     }
 
 

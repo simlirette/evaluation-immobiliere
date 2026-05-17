@@ -7,23 +7,62 @@ import ComparableItem from '@/components/shared/ComparableItem'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
-import { sendRuntimeMessage } from '@/lib/runtime-api'
-import type { Comparable } from '@/types'
+import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
+import type { Comparable, EnrichmentMarche } from '@/types'
 
 interface Props {
   dossierId: string | null
 }
 
+function fmt(n: number | null | undefined, digits = 1): string {
+  return n != null ? new Intl.NumberFormat('fr-CA', { maximumFractionDigits: digits }).format(n) : '—'
+}
+
+function MarketChip({ label, value, unit = '' }: { label: string; value: string; unit?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-[rgba(0,0,0,.04)] dark:bg-[rgba(255,255,255,.05)]">
+      <span className="text-[10px] uppercase tracking-wider text-[#8a8780]">{label}</span>
+      <span className="text-[13px] font-semibold text-[#1a1916] dark:text-white">
+        {value}{unit && <span className="text-[11px] font-normal text-[#8a8780] ml-0.5">{unit}</span>}
+      </span>
+    </div>
+  )
+}
+
+function MarcheContexte({ m }: { m: EnrichmentMarche }) {
+  const chips: Array<{ label: string; value: string; unit?: string }> = []
+  if (m.taux_inoccupation_pct != null) chips.push({ label: 'Inoccupation', value: fmt(m.taux_inoccupation_pct), unit: '%' })
+  if (m.nhpi_variation_pct != null)    chips.push({ label: 'NHPI variation', value: (m.nhpi_variation_pct >= 0 ? '+' : '') + fmt(m.nhpi_variation_pct), unit: '%/an' })
+  if (m.taux_hypo_5ans_pct != null)    chips.push({ label: 'Hypo 5 ans', value: fmt(m.taux_hypo_5ans_pct), unit: '%' })
+  if (m.taux_directeur_pct != null)    chips.push({ label: 'Taux directeur', value: fmt(m.taux_directeur_pct), unit: '%' })
+  if (m.taux_chomage_pct != null)      chips.push({ label: 'Chômage CMA', value: fmt(m.taux_chomage_pct), unit: '%' })
+  if (m.mises_en_chantier_12m != null) chips.push({ label: 'Mises en chantier', value: fmt(m.mises_en_chantier_12m, 0), unit: '/an' })
+  if (chips.length === 0) return null
+  return (
+    <div className="mt-2 mb-1">
+      <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Contexte de marché</div>
+      <div className="flex flex-wrap gap-2">
+        {chips.map(c => <MarketChip key={c.label} label={c.label} value={c.value} unit={c.unit} />)}
+      </div>
+    </div>
+  )
+}
+
 export default function MarchePanel({ dossierId }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
+  const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
-    fetchComparables(dossierId).then(data => {
-      setComparables(data)
+    Promise.all([
+      fetchComparables(dossierId),
+      fetchRuntimeEnrichment(dossierId),
+    ]).then(([comps, enrichment]) => {
+      setComparables(comps)
+      setMarche(enrichment?.marche ?? null)
       setLoading(false)
     })
   }, [dossierId])
@@ -42,6 +81,7 @@ export default function MarchePanel({ dossierId }: Props) {
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparables</strong>{' depuis les art\u00e9facts du backend.'}
+          {marche && <MarcheContexte m={marche} />}
           <div className="flex flex-col gap-2 mt-2.5">
             {comparables.map(c => <ComparableItem key={c.id} comp={c} />)}
           </div>
