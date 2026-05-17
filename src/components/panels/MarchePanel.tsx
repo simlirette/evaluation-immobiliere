@@ -15,7 +15,8 @@ import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
 import { filterComparablesByQuery } from '@/lib/filter-comparables'
 import { formatListCount } from '@/lib/format-list-count'
 import { checkComparableMinimum } from '@/lib/check-comparable-minimum'
-import { fmtNum } from '@/lib/format-number'
+import { computeComparableStats } from '@/lib/compute-comparable-stats'
+import { fmtNum, formatCAD } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
 
@@ -143,6 +144,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const visibleComps = sortComparables(filterComparablesByQuery(comparables, query), sortKey)
   const countLabel = formatListCount(visibleComps.length, comparables.length)
   const minimumCheck = checkComparableMinimum(comparables)
+  const stats = computeComparableStats(comparables)
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -151,6 +153,21 @@ export default function MarchePanel({ dossierId, address }: Props) {
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparable{comparables.length !== 1 ? 's' : ''}</strong>{' depuis les art\u00e9facts du backend.'}
           {marche && <MarcheContexte m={marche} />}
+          {stats && comparables.length > 1 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
+                {formatCAD(stats.priceMin)} – {formatCAD(stats.priceMax)}
+              </span>
+              <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
+                {stats.dateMin.slice(0, 4)}{stats.dateMin.slice(0, 4) !== stats.dateMax.slice(0, 4) ? ` – ${stats.dateMax.slice(0, 4)}` : ''}
+              </span>
+              {stats.priceM2Min !== null && stats.priceM2Max !== null && (
+                <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
+                  {fmtNum(stats.priceM2Min, 0)} – {fmtNum(stats.priceM2Max, 0)} $/m²
+                </span>
+              )}
+            </div>
+          )}
           {comparables.length > 0 && (
             <div className="mt-2.5 mb-1 flex flex-col gap-2">
               <div className="relative">
