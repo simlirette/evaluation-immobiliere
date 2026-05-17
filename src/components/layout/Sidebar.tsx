@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import SidebarWordmark from './SidebarWordmark'
 import SidebarNav from './SidebarNav'
 import SidebarRecent from './SidebarRecent'
 import SidebarFooter from './SidebarFooter'
 import ContextMenu from './ContextMenu'
+import Toast from '@/components/shared/Toast'
 import { useContextMenu } from '@/hooks/useContextMenu'
 import { fetchDossiers, deleteDossier } from '@/lib/supabase/queries/dossiers'
 import { togglePin } from '@/lib/supabase/queries/pins'
@@ -31,6 +32,8 @@ export default function Sidebar({
 }: Props) {
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const dismissToast = useCallback(() => setToast(null), [])
   const ctx = useContextMenu()
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export default function Sidebar({
       d.address === name ? { ...d, pinned: !pinned } : d
     ))
     togglePin(dossier.id, pinned)
+    setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
   }
 
   function handleDelete(name: string) {
@@ -58,6 +62,7 @@ export default function Sidebar({
     if (!dossier) return
     setDossiers(prev => prev.filter(d => d.address !== name))
     deleteDossier(dossier.id)
+    setToast('Dossier supprimé')
   }
 
   const glassStyle = {
@@ -165,6 +170,8 @@ export default function Sidebar({
         onPin={handlePin}
         onDelete={handleDelete}
       />
+
+      <Toast message={toast} onDismiss={dismissToast} />
     </>
   )
 }

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import TabBar from '@/components/layout/TabBar'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import Toast from '@/components/shared/Toast'
 import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
@@ -34,6 +35,8 @@ function DossierShellInner() {
   const [reportReady, setReportReady] = useState(false)
   const [syntheseCritiques, setSyntheseCritiques] = useState(0)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
+  const [toast, setToast] = useState<string | null>(null)
+  const dismissToast = useCallback(() => setToast(null), [])
 
   useEffect(() => {
     if (params.id === 'nouveau') return
@@ -151,6 +154,7 @@ function DossierShellInner() {
             {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => {
               setReportReady(true)
               setSidebarRefreshKey(k => k + 1)
+              setToast('Analyse terminée — rapport disponible')
               if (dossierId) {
                 fetchRuntimeEnrichment(dossierId).then(e => {
                   setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)
@@ -164,6 +168,8 @@ function DossierShellInner() {
           </div>
         </div>
       </div>
+
+      <Toast message={toast} onDismiss={dismissToast} />
     </div>
   )
 }
