@@ -23,6 +23,7 @@ import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { computeAdjustedPriceStats } from '@/lib/compute-adjusted-price-stats'
 import { computeSensitivityAnalysis } from '@/lib/compute-sensitivity-analysis'
 import { computeComparableRanking } from '@/lib/compute-comparable-ranking'
+import { computeValuationConclusion } from '@/lib/compute-valuation-conclusion'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -356,6 +357,44 @@ export default function AnalysePanel({ dossierId, address }: Props) {
             )
           })()}
         </AgentMessage>
+        {adjustments.length > 0 && (() => {
+          const vc = computeValuationConclusion(adjustments, comparables)
+          if (!vc) return null
+          const reliabilityColor = vc.reliability === 'élevée' ? 'text-emerald-600 dark:text-emerald-400'
+            : vc.reliability === 'modérée' ? 'text-amber-600 dark:text-amber-400'
+            : 'text-red-500'
+          return (
+            <AgentMessage agentName="Agent Analyse">
+              <div className="rounded-xl bg-[rgba(0,0,0,.03)] dark:bg-[rgba(255,255,255,.04)] px-4 py-3 flex flex-col gap-2">
+                <div className="text-[11px] uppercase tracking-widest text-[#8a8780]">Conclusion structurée</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+                  <span className="text-[#6a6763]">Valeur réconciliée</span>
+                  <span className="font-semibold text-right">{formatPrice(vc.reconciledValue)}</span>
+                  <span className="text-[#6a6763]">Intervalle ±1σ</span>
+                  <span className="font-medium text-right text-[11px] text-[#4a4845] dark:text-[#c5c2bc]">{formatPrice(vc.confidenceRange.low)} – {formatPrice(vc.confidenceRange.high)}</span>
+                  <span className="text-[#6a6763]">Dispersion (CV)</span>
+                  <span className="font-medium text-right">{fmtNum(vc.cv, 1)} %</span>
+                  <span className="text-[#6a6763]">Fiabilité globale</span>
+                  <span className={`font-semibold text-right ${reliabilityColor}`}>{vc.reliability}</span>
+                  {vc.oeaqWarnings > 0 && (
+                    <>
+                      <span className="text-[#6a6763]">Alertes OEAQ</span>
+                      <span className="font-medium text-right text-amber-600 dark:text-amber-400">{vc.oeaqWarnings} avertissement{vc.oeaqWarnings > 1 ? 's' : ''}</span>
+                    </>
+                  )}
+                  {vc.hasTimeAdjustment && vc.annualTimeRatePct !== null && (
+                    <>
+                      <span className="text-[#6a6763]">Taux temporel</span>
+                      <span className={`font-medium text-right ${vc.annualTimeRatePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                        {vc.annualTimeRatePct >= 0 ? '+' : ''}{fmtNum(vc.annualTimeRatePct, 1)} %/an
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </AgentMessage>
+          )
+        })()}
         <AgentMessage agentName="Agent Analyse" last={replies.length === 0 && !asking}>
           {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
         </AgentMessage>

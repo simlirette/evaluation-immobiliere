@@ -10,6 +10,7 @@ import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 import { computeAdjustedPriceStats } from './compute-adjusted-price-stats'
 import { computeSensitivityAnalysis } from './compute-sensitivity-analysis'
 import { computeComparableRanking } from './compute-comparable-ranking'
+import { computeValuationConclusion } from './compute-valuation-conclusion'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -59,6 +60,27 @@ export function buildAnalyseHtml(
     </p>
     <hr style="border:none;border-top:1pt solid #ddd;margin:10pt 0;">
   `)
+
+  // Valuation conclusion (structured summary)
+  const valuationConclusion = adjustments.length > 0
+    ? computeValuationConclusion(adjustments, comparables ?? [])
+    : null
+  if (valuationConclusion) {
+    const reliabilityColor = valuationConclusion.reliability === 'élevée' ? '#1f7a5c'
+      : valuationConclusion.reliability === 'modérée' ? '#b45309' : '#b91c1c'
+    const vcRows = [
+      ['Valeur réconciliée', `<strong>${fmtMoney(valuationConclusion.reconciledValue)}</strong>`],
+      ['Intervalle ±1σ', `${fmtMoney(valuationConclusion.confidenceRange.low)} – ${fmtMoney(valuationConclusion.confidenceRange.high)}`],
+      ['Dispersion (CV)', `${fmt(valuationConclusion.cv, 1)} %`],
+      ['Fiabilité globale', `<strong style="color:${reliabilityColor};">${valuationConclusion.reliability}</strong>`],
+      ...(valuationConclusion.oeaqWarnings > 0 ? [['Alertes OEAQ', `<span style="color:#b45309;">${valuationConclusion.oeaqWarnings} avertissement${valuationConclusion.oeaqWarnings > 1 ? 's' : ''}</span>`]] : []),
+      ...(valuationConclusion.hasTimeAdjustment && valuationConclusion.annualTimeRatePct !== null ? [[`Taux temporel`, `<span style="color:${valuationConclusion.annualTimeRatePct >= 0 ? '#1f7a5c' : '#b91c1c'};">${valuationConclusion.annualTimeRatePct >= 0 ? '+' : ''}${fmt(valuationConclusion.annualTimeRatePct, 1)} %/an</span>`]] : []),
+    ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
+    sections.push(`
+      <h2>Conclusion structurée</h2>
+      <table><tbody>${vcRows}</tbody></table>
+    `)
+  }
 
   // Dispersion stats
   const priceStats = adjustments.length >= 2 ? computeAdjustedPriceStats(adjustments) : null

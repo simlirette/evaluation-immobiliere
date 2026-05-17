@@ -212,4 +212,12 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
     expect(html).not.toContain('Classement des comparables')
   })
+
+  it('shows structured conclusion section with reconciledValue and reliability', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('Conclusion structurée')
+    expect(html).toContain('Valeur réconciliée')
+    expect(html).toContain('Fiabilité globale')
+    expect(html).toContain('Intervalle')
+  })
 })
