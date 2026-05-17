@@ -17,6 +17,7 @@ import { computeAdjustmentNetEffect } from './compute-adjustment-net-effect'
 import { computeHoldingCostEstimate } from './compute-holding-cost-estimate'
 import { computeAppraisalRiskScore } from './compute-appraisal-risk-score'
 import { computeNeighborhoodComparability } from './compute-neighborhood-comparability'
+import { computeAdjustmentBracketAnalysis } from './compute-adjustment-bracket-analysis'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -141,6 +142,13 @@ export function buildAnalyseHtml(
       <p style="font-size:10pt;color:#6a6763;">Statut&nbsp;: ${statusLabel}</p>
       ${contextNote ? `<p style="font-size:10pt;color:${ctx?.withinRange ? '#6a6763' : '#b45309'};">${contextNote}</p>` : ''}
       ${priceStats ? `<p style="font-size:10pt;color:#6a6763;">Dispersion des valeurs indiquées&nbsp;: CV&nbsp;<strong>${fmt(priceStats.cv, 1)} %</strong> — cohésion ${priceStats.cohesion}</p>` : ''}
+      ${(() => {
+        const bracket = adjustments.length > 0 ? computeAdjustmentBracketAnalysis(adjustments, conclusion) : null
+        if (!bracket) return ''
+        return bracket.isBracketed
+          ? `<p style="font-size:10pt;color:#1f7a5c;">Encadrement OEAQ&nbsp;: ✓ conclusion encadrée par les valeurs indiquées.</p>`
+          : `<p style="font-size:10pt;color:#b45309;">⚠ Encadrement OEAQ&nbsp;: conclusion non encadrée${!bracket.hasBelow ? ' (aucun comparable en-dessous)' : ' (aucun comparable au-dessus)'} — justification requise.</p>`
+      })()}
       <blockquote>À titre indicatif uniquement — validation et signature par un évaluateur agréé requises avant toute diffusion.</blockquote>
     `)
   }

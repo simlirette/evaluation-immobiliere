@@ -26,6 +26,7 @@ import { computeComparableRanking } from '@/lib/compute-comparable-ranking'
 import { computeValuationConclusion } from '@/lib/compute-valuation-conclusion'
 import { computeMarketPositioning } from '@/lib/compute-market-positioning'
 import { computeAppraisalRiskScore } from '@/lib/compute-appraisal-risk-score'
+import { computeAdjustmentBracketAnalysis } from '@/lib/compute-adjustment-bracket-analysis'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -221,6 +222,21 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                       {pos.nearestBelow && (
                         <span className="ml-1 text-[10px]">· -{new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 }).format(pos.nearestBelow.delta)} $ vs {pos.nearestBelow.label}</span>
                       )}
+                    </div>
+                  )
+                })()}
+                {conclusion !== null && adjustments.length > 0 && (() => {
+                  const bracket = computeAdjustmentBracketAnalysis(adjustments, conclusion)
+                  if (!bracket) return null
+                  return (
+                    <div className="mt-1 text-[11px] px-1 text-[#8a8780]">
+                      Encadrement&nbsp;:
+                      {bracket.isBracketed
+                        ? <span className="ml-1 text-emerald-600 dark:text-emerald-400 font-medium">encadré ✓</span>
+                        : <span className="ml-1 text-amber-600 dark:text-amber-400 font-medium">⚠ non encadré</span>
+                      }
+                      {!bracket.isBracketed && !bracket.hasBelow && <span className="ml-1 text-[10px]">(aucun comparable en-dessous)</span>}
+                      {!bracket.isBracketed && !bracket.hasAbove && <span className="ml-1 text-[10px]">(aucun comparable au-dessus)</span>}
                     </div>
                   )
                 })()}
