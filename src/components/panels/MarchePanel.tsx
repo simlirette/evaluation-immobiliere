@@ -21,7 +21,7 @@ import { detectDuplicateComparables } from '@/lib/detect-duplicate-comparables'
 import { buildComparablesCsv } from '@/lib/build-comparables-csv'
 import { computeMarketPriceTrend } from '@/lib/compute-market-price-trend'
 import { computeComparableQualityScore } from '@/lib/compute-comparable-quality-score'
-import { fmtNum, formatCAD } from '@/lib/format-number'
+import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
 
@@ -168,7 +168,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
           {stats && comparables.length > 1 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
-                {formatCAD(stats.priceMin)} – {formatCAD(stats.priceMax)}
+                {formatCADCompact(stats.priceMin)} – {formatCADCompact(stats.priceMax)}
               </span>
               <span className="text-[10px] text-[#b5b2ac] bg-black/[.04] rounded-full px-2.5 py-1 whitespace-nowrap">
                 {stats.dateMin.slice(0, 4)}{stats.dateMin.slice(0, 4) !== stats.dateMax.slice(0, 4) ? ` – ${stats.dateMax.slice(0, 4)}` : ''}

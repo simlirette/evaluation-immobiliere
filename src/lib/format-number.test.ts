@@ -74,3 +74,31 @@ describe('formatPct', () => {
     expect(formatPct(-2.5)).toContain('%')
   })
 })
+
+import { formatCADCompact } from './format-number'
+
+describe('formatCADCompact', () => {
+  it('formats thousands as k$', () => {
+    expect(formatCADCompact(475000)).toContain('k$')
+    expect(formatCADCompact(475000)).toContain('475')
+  })
+  it('formats millions as M$', () => {
+    expect(formatCADCompact(1200000)).toContain('M$')
+    expect(formatCADCompact(1200000)).toContain('1')
+  })
+  it('shows 1 decimal for millions when relevant', () => {
+    const r = formatCADCompact(1_250_000)
+    expect(r).toContain('1')
+    expect(r).toContain('M$')
+  })
+  it('no decimal for round millions', () => {
+    expect(formatCADCompact(2_000_000)).toContain('2')
+    expect(formatCADCompact(2_000_000)).toContain('M$')
+  })
+  it('small values fallback to full format', () => {
+    expect(formatCADCompact(500)).toContain('$')
+  })
+  it('negative thousands', () => {
+    expect(formatCADCompact(-300000)).toContain('k$')
+  })
+})

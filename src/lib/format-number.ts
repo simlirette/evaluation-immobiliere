@@ -30,3 +30,21 @@ export function formatPct(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
   return `${fmtNum(n, digits)} %`
 }
+
+/**
+ * Formats a large CAD amount in compact notation: 475 000 → "475 k$", 1 200 000 → "1,2 M$".
+ * Uses 1 decimal for M when relevant, rounds to nearest k otherwise.
+ * Values below 1000 are formatted as full dollars.
+ */
+export function formatCADCompact(n: number): string {
+  if (Math.abs(n) >= 1_000_000) {
+    const m = n / 1_000_000
+    const decimals = Math.abs(m % 1) >= 0.05 ? 1 : 0
+    return `${new Intl.NumberFormat('fr-CA', { maximumFractionDigits: decimals }).format(m)} M$`
+  }
+  if (Math.abs(n) >= 1_000) {
+    const k = Math.round(n / 1_000)
+    return `${new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 }).format(k)} k$`
+  }
+  return formatCAD(n)
+}
