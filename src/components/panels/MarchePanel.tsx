@@ -12,6 +12,7 @@ import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
 import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
+import { filterComparablesByQuery } from '@/lib/filter-comparables'
 import { fmtNum } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
@@ -95,6 +96,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [sortKey, setSortKey] = useState<ComparableSortKey>('rank')
+  const [query, setQuery] = useState('')
   const [replies, setReplies] = useState<string[]>([])
   const [asking, setAsking] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -143,33 +145,62 @@ export default function MarchePanel({ dossierId, address }: Props) {
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparables</strong>{' depuis les art\u00e9facts du backend.'}
           {marche && <MarcheContexte m={marche} />}
-          {comparables.length > 1 && (
-            <div className="flex flex-wrap gap-1.5 mt-2.5 mb-1">
-              {([
-                { key: 'rank',    label: 'Rang' },
-                { key: 'prix',    label: 'Prix ↑' },
-                { key: 'prix_m2', label: '$/m² ↑' },
-                { key: 'date',    label: 'Récent' },
-                { key: 'surface', label: 'Surface ↓' },
-              ] as { key: ComparableSortKey; label: string }[]).map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSortKey(key)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] transition-colors ${
-                    sortKey === key
-                      ? 'bg-[#1a1916] text-white'
-                      : 'bg-black/[.06] text-[#6a6763] hover:bg-black/[.1]'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+          {comparables.length > 0 && (
+            <div className="mt-2.5 mb-1 flex flex-col gap-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Filtrer par adresse…"
+                  className="w-full rounded-full bg-black/[.04] border border-black/[.07] px-3.5 py-1.5 text-[12px] text-[#1a1916] placeholder:text-[#b5b2ac] focus:outline-none focus:ring-1 focus:ring-black/[.15]"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b5b2ac] hover:text-[#1a1916] text-[13px] leading-none"
+                    aria-label="Effacer"
+                  >×</button>
+                )}
+              </div>
+              {comparables.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { key: 'rank',    label: 'Rang' },
+                    { key: 'prix',    label: 'Prix ↑' },
+                    { key: 'prix_m2', label: '$/m² ↑' },
+                    { key: 'date',    label: 'Récent' },
+                    { key: 'surface', label: 'Surface ↓' },
+                  ] as { key: ComparableSortKey; label: string }[]).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSortKey(key)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] transition-colors ${
+                        sortKey === key
+                          ? 'bg-[#1a1916] text-white'
+                          : 'bg-black/[.06] text-[#6a6763] hover:bg-black/[.1]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          <div className="flex flex-col gap-2 mt-1.5">
-            {sortComparables(comparables, sortKey).map(c => <ComparableItem key={c.id} comp={c} />)}
-          </div>
+          {(() => {
+            const visible = sortComparables(filterComparablesByQuery(comparables, query), sortKey)
+            return (
+              <div className="flex flex-col gap-2 mt-1">
+                {visible.length > 0
+                  ? visible.map(c => <ComparableItem key={c.id} comp={c} />)
+                  : query && <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
+                }
+              </div>
+            )
+          })()}
         </AgentMessage>
         {comparables.length > 0 && (
           <AgentMessage agentName="Agent Marché" last={replies.length === 0 && !asking}>
