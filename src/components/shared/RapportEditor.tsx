@@ -11,6 +11,7 @@ import { marked } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm'
 import { exportRapport } from '@/lib/runtime-api'
+import { printWindow } from '@/lib/print-window'
 
 const td = new TurndownService({
   headingStyle: 'atx',
@@ -23,6 +24,7 @@ interface Props {
   initialMarkdown: string
   sessionId: string
   dossierId: string
+  address?: string
   onSave: (markdown: string) => Promise<void>
   onGenerate: (format: 'abrege' | 'complet') => Promise<void>
   onSaveVersion: (markdown: string) => Promise<void>
@@ -55,7 +57,7 @@ function ToolbarButton({
   )
 }
 
-export default function RapportEditor({ initialMarkdown, sessionId, dossierId, onSave, onGenerate, onSaveVersion }: Props) {
+export default function RapportEditor({ initialMarkdown, sessionId, dossierId, address, onSave, onGenerate, onSaveVersion }: Props) {
   const [isEdited, setIsEdited] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -210,12 +212,11 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, o
         </button>
         <button
           type="button"
-          onClick={() => handleExport('html')}
-          disabled={isExporting}
+          onClick={() => printWindow(editor.getHTML(), address ?? 'Rapport évaluation')}
           title="Aperçu PDF (imprimer depuis le navigateur)"
-          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] disabled:opacity-40 transition-colors"
+          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
         >
-          {isExporting ? '…' : '🖨 PDF'}
+          🖨 PDF
         </button>
         <button
           type="button"

@@ -95,6 +95,7 @@ export default function RapportDoc({
             onGenerate={onGenerate ?? (async () => {})}
             sessionId={sessionId ?? ''}
             dossierId={dossierId ?? ''}
+            address={address}
             onSaveVersion={onSaveVersion ?? (async () => {})}
           />
         </div>
