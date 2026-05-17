@@ -1,12 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import DossierCard from '@/components/dossiers/DossierCard'
 import EmptyState from '@/components/shared/EmptyState'
-import { fetchDossiers } from '@/lib/supabase/queries/dossiers'
+import ContextMenu from '@/components/layout/ContextMenu'
+import Toast from '@/components/shared/Toast'
+import { fetchDossiers, deleteDossier, renameDossier } from '@/lib/supabase/queries/dossiers'
+import { togglePin } from '@/lib/supabase/queries/pins'
+import { useContextMenu } from '@/hooks/useContextMenu'
 import { createClient } from '@/lib/supabase/client'
 import type { Dossier, DossierStatus, TabId } from '@/types'
 
@@ -114,7 +118,10 @@ export default function MesDossiersPage() {
   const [showFilter, setShowFilter] = useState(false)
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState<string | null>(null)
+  const dismissToast = useCallback(() => setToast(null), [])
   const filterRef = useRef<HTMLDivElement>(null)
+  const ctx = useContextMenu()
 
   useEffect(() => {
     fetchDossiers()
@@ -133,6 +140,30 @@ export default function MesDossiersPage() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showFilter])
+
+  function handlePin(name: string, pinned: boolean) {
+    const d = dossiers.find(x => x.address === name)
+    if (!d) return
+    setDossiers(prev => prev.map(x => x.address === name ? { ...x, pinned: !pinned } : x))
+    togglePin(d.slug, pinned)
+    setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
+  }
+
+  function handleRename(name: string, newName: string) {
+    const d = dossiers.find(x => x.address === name)
+    if (!d) return
+    setDossiers(prev => prev.map(x => x.address === name ? { ...x, address: newName } : x))
+    renameDossier(d.slug, newName)
+    setToast('Dossier renommé')
+  }
+
+  function handleDelete(name: string) {
+    const d = dossiers.find(x => x.address === name)
+    if (!d) return
+    setDossiers(prev => prev.filter(x => x.address !== name))
+    deleteDossier(d.slug)
+    setToast('Dossier supprimé')
+  }
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -298,12 +329,22 @@ export default function MesDossiersPage() {
                   key={d.id}
                   dossier={d}
                   onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
+                  onContextMenu={e => ctx.open(e, d.address, d.pinned)}
                 />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      <ContextMenu
+        target={ctx.target}
+        onClose={ctx.close}
+        onPin={handlePin}
+        onRename={handleRename}
+        onDelete={handleDelete}
+      />
+      <Toast message={toast} onDismiss={dismissToast} />
     </div>
   )
 }
