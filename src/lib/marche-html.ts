@@ -7,6 +7,7 @@ import { computePricePerM2Stats } from './compute-price-per-m2-stats'
 import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 import { computeComparableRanking } from './compute-comparable-ranking'
 import { computeDataQualityReport } from './compute-data-quality-report'
+import { computePricePerM2Distribution } from './compute-price-per-m2-distribution'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -86,9 +87,13 @@ export function buildMarcheHtml(
     const timeRateRow = timeRate
       ? `<tr><td style="color:#6a6763;">Taux implicite d'appréciation</td><td style="font-weight:600;text-align:right;color:${timeRate.annualRatePct >= 0 ? '#1f7a5c' : '#b91c1c'};">${timeRate.annualRatePct >= 0 ? '+' : ''}${fmt(timeRate.annualRatePct, 1)} %/an <span style="font-weight:400;font-size:9pt;color:#8a8780;">— confiance ${timeRate.confidence}</span></td></tr>`
       : ''
+    const m2Dist = computePricePerM2Distribution(comparables)
+    const m2DistRow = m2Dist
+      ? `<tr><td style="color:#6a6763;">Dispersion $/m² (CV)</td><td style="font-weight:600;text-align:right;">${fmt(m2Dist.cv, 1)} % <span style="font-weight:400;font-size:9pt;color:#8a8780;">(min ${fmt(m2Dist.min, 0)} – max ${fmt(m2Dist.max, 0)} $/m²)</span></td></tr>`
+      : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${timeRateRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
   } else if (minCheck.warning) {
