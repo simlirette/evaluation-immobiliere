@@ -8,6 +8,7 @@ import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
+import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
@@ -19,9 +20,10 @@ import { computeComparableStats } from '@/lib/compute-comparable-stats'
 import { detectDuplicateComparables } from '@/lib/detect-duplicate-comparables'
 import { buildComparablesCsv } from '@/lib/build-comparables-csv'
 import { computeMarketPriceTrend } from '@/lib/compute-market-price-trend'
+import { computeComparableQualityScore } from '@/lib/compute-comparable-quality-score'
 import { fmtNum, formatCAD } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
-import type { Comparable, EnrichmentMarche } from '@/types'
+import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
 
 interface Props {
   dossierId: string | null
@@ -100,6 +102,7 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
 export default function MarchePanel({ dossierId, address }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [comparables, setComparables] = useState<Comparable[]>([])
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [sortKey, setSortKey] = useState<ComparableSortKey>('rank')
   const [query, setQuery] = useState('')
@@ -114,9 +117,11 @@ export default function MarchePanel({ dossierId, address }: Props) {
     setError(false)
     Promise.all([
       fetchComparables(dossierId),
+      fetchAdjustments(dossierId),
       fetchRuntimeEnrichment(dossierId),
-    ]).then(([comps, enrichment]) => {
+    ]).then(([comps, adjs, enrichment]) => {
       setComparables(comps)
+      setAdjustments(adjs)
       setMarche(enrichment?.marche ?? null)
       setLoading(false)
     }).catch(() => { setError(true); setLoading(false) })
@@ -150,6 +155,8 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const duplicates = detectDuplicateComparables(comparables)
   const stats = computeComparableStats(comparables)
   const trend = computeMarketPriceTrend(comparables)
+  const qualityScores = computeComparableQualityScore(comparables, adjustments)
+  const qualityMap = new Map(qualityScores.map(q => [q.comparableId, q.label]))
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -233,7 +240,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
           )}
           <div className="flex flex-col gap-2 mt-1">
             {visibleComps.length > 0
-              ? visibleComps.map(c => <ComparableItem key={c.id} comp={c} />)
+              ? visibleComps.map(c => <ComparableItem key={c.id} comp={c} qualityLabel={qualityMap.get(c.id)} />)
               : query && <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
             }
           </div>

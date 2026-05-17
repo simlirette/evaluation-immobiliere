@@ -6,7 +6,14 @@ import { computePricePerM2, formatPricePerM2 } from '@/lib/comparable-utils'
 import { validateComparableDate } from '@/lib/validate-comparable-date'
 import { formatComparableAge } from '@/lib/format-comparable-age'
 
-export default function ComparableItem({ comp }: { comp: Comparable }) {
+const QUALITY_COLORS: Record<string, string> = {
+  excellent: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  bon: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+  acceptable: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  faible: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+}
+
+export default function ComparableItem({ comp, qualityLabel }: { comp: Comparable; qualityLabel?: string }) {
   const [expanded, setExpanded] = useState(false)
   const perM2 = computePricePerM2(comp.sale_price, comp.hab_m2)
   const dateValidation = validateComparableDate(comp.sale_date)
@@ -45,7 +52,14 @@ export default function ComparableItem({ comp }: { comp: Comparable }) {
         </div>
         <div className="text-right flex items-center gap-2">
           <div>
-            <div className="text-[13px] font-medium text-[#1a1916]">{comp.price}</div>
+            <div className="flex items-center justify-end gap-1.5">
+              <div className="text-[13px] font-medium text-[#1a1916]">{comp.price}</div>
+              {qualityLabel && (
+                <span className={`text-[9px] font-medium rounded-full px-1.5 py-0.5 ${QUALITY_COLORS[qualityLabel] ?? 'bg-black/[.05] text-[#8a8780]'}`}>
+                  {qualityLabel}
+                </span>
+              )}
+            </div>
             <div className="text-[11px] text-[#8a8780] mt-0.5">
               {comp.date}
               <span className={`ml-1.5 ${dateValidation.stale ? 'text-amber-600' : 'text-[#b5b2ac]'}`}>
