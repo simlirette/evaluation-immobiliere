@@ -48,6 +48,10 @@ import { computeAdjustedPriceCV } from './compute-adjusted-price-cv'
 import { computeNetAdjustmentSignBias } from './compute-net-adjustment-sign-bias'
 import { computeGrossAdjustmentDistribution } from './compute-gross-adjustment-distribution'
 import { computeAdjustmentZeroRateByType } from './compute-adjustment-zero-rate-by-type'
+import { computePricePerM2Convergence } from './compute-price-per-m2-convergence'
+import { computeAdjustmentDominantTypeByComp } from './compute-adjustment-dominant-type-by-comp'
+import { computeSalePriceResidual } from './compute-sale-price-residual'
+import { computeMedianAdjustedPrice } from './compute-median-adjusted-price'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -774,6 +778,69 @@ export function buildAnalyseHtml(
         <p style="font-size:10pt;color:#8a8780;margin-top:4pt;">
           Postes non utilisés&nbsp;: <strong>${zeroRate.unusedTypes.join(', ')}</strong>
           ${zeroRate.universalTypes.length > 0 ? `· universels&nbsp;: <strong>${zeroRate.universalTypes.join(', ')}</strong>` : ''}
+        </p>
+      `)
+    }
+  }
+
+  // B161: $/m² convergence
+  if (comparables && comparables.length >= 2 && adjustments.length >= 2) {
+    const m2conv = computePricePerM2Convergence(comparables, adjustments)
+    if (m2conv) {
+      const color = m2conv.converged ? '#1f7a5c' : '#b45309'
+      const sign = m2conv.delta > 0 ? '+' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Convergence $/m²&nbsp;:
+          <strong style="color:${color};">${m2conv.converged ? '✓ homogénéisé' : '⚠ divergence'}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — CV brut ${fmt(m2conv.rawM2CV, 1)} % → ajusté ${fmt(m2conv.adjustedM2CV, 1)} % (${sign}${fmt(m2conv.delta, 1)} pp)</span>
+        </p>
+      `)
+    }
+  }
+
+  // B162: dominant type by comp
+  if (adjustments.length > 0) {
+    const domType = computeAdjustmentDominantTypeByComp(adjustments)
+    if (domType && domType.mostCommonDominantType !== 'none') {
+      const typeLabels: Record<string, string> = { surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' }
+      const label = typeLabels[domType.mostCommonDominantType] ?? domType.mostCommonDominantType
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Poste dominant&nbsp;: <strong>${label}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — facteur principal pour la majorité des comparables</span>
+        </p>
+      `)
+    }
+  }
+
+  // B163: sale price residuals vs reconciled value
+  if (adjustments.length > 0 && conclusion !== null) {
+    const residuals = computeSalePriceResidual(adjustments, conclusion)
+    if (residuals && residuals.largeResidualIds.length > 0) {
+      const items = residuals.entries
+        .filter(e => e.large)
+        .map(e => `<li>${e.comparableLabel}&nbsp;: ${fmt(e.residualPct, 1)} % (${fmtAdj(e.residualAmt)})</li>`)
+        .join('')
+      sections.push(`
+        <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+          <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Écarts importants vs valeur réconciliée (&gt; 5 %)</p>
+          <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${items}</ul>
+        </div>
+      `)
+    }
+  }
+
+  // B165: median adjusted price vs reconciled value
+  if (adjustments.length >= 2 && conclusion !== null) {
+    const medAdj = computeMedianAdjustedPrice(adjustments, conclusion)
+    if (medAdj && Math.abs(medAdj.deltaPct) >= 1) {
+      const color = medAdj.deltaPct > 0 ? '#b45309' : '#0369a1'
+      const sign = medAdj.delta > 0 ? '+' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Médiane ajustée&nbsp;: <strong>${fmtMoney(medAdj.median)}</strong>
+          <span style="font-size:9pt;color:${color};"> — réconcilié ${sign}${fmt(medAdj.deltaPct, 1)} % vs médiane (${sign}${fmtMoney(medAdj.delta)})</span>
         </p>
       `)
     }

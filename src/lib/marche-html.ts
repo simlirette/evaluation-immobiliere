@@ -32,6 +32,7 @@ import { computeReconciledValue } from './compute-reconciled-value'
 import { computeSalePriceCV } from './compute-sale-price-cv'
 import { computeComparableSaleVelocity } from './compute-comparable-sale-velocity'
 import { computeComparableDateRecencyProfile } from './compute-comparable-date-recency-profile'
+import { computeComparableHabitatProfile } from './compute-comparable-habitat-profile'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -148,6 +149,11 @@ export function buildMarcheHtml(
           return `<tr><td style="color:#6a6763;">Asymétrie des prix</td><td style="font-weight:600;text-align:right;color:${color};">${priceSkew.interpretation} <span style="font-weight:400;font-size:9pt;color:#8a8780;">(skew ${priceSkew.skew > 0 ? '+' : ''}${fmt(priceSkew.skew, 2)}, moy. ${fmtMoney(priceSkew.mean)} vs méd. ${fmtMoney(priceSkew.median)})</span></td></tr>`
         })()
       : ''
+    // B164: habitat profile
+    const habitatProfile = computeComparableHabitatProfile(comparables)
+    const habitatRow = habitatProfile
+      ? `<tr><td style="color:#6a6763;">Surface hab. médiane</td><td style="font-weight:600;text-align:right;">${fmt(habitatProfile.median, 0)} m² <span style="font-weight:400;font-size:9pt;color:#8a8780;">(${fmt(habitatProfile.min, 0)} – ${fmt(habitatProfile.max, 0)}${habitatProfile.missingCount > 0 ? ` · ${habitatProfile.missingCount} sans données` : ''} · CV ${fmt(habitatProfile.cv, 1)} %)</span></td></tr>`
+      : ''
     // B151: sale price CV
     const salePriceCV = computeSalePriceCV(comparables)
     const salePriceCVRow = salePriceCV
@@ -206,7 +212,7 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${salePriceCVRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${ageDiversityRow}${quartilesRow}${m2OutliersRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${salePriceCVRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${habitatRow}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${ageDiversityRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
