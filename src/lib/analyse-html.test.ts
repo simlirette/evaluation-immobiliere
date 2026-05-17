@@ -173,4 +173,11 @@ describe('buildAnalyseHtml', () => {
     expect(html).toContain('poids')
     expect(html).toContain('%')
   })
+
+  it('shows CV dispersion note in conclusion section when ≥2 adjustments', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('Dispersion')
+    expect(html).toContain('CV')
+    expect(html).toContain('cohésion')
+  })
 })

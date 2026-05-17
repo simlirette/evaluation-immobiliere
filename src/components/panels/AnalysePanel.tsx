@@ -20,6 +20,7 @@ import { buildAdjustmentsCsv } from '@/lib/build-adjustments-csv'
 import { computeAdjustmentProfile } from '@/lib/compute-adjustment-profile'
 import { computeAdjustmentConsistency } from '@/lib/compute-adjustment-consistency'
 import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
+import { computeAdjustedPriceStats } from '@/lib/compute-adjusted-price-stats'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -209,6 +210,21 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                     }
                   </div>
                 )}
+                {(() => {
+                  const stats = computeAdjustedPriceStats(adjustments)
+                  if (!stats) return null
+                  const cohesionColor = stats.cohesion === 'excellent' ? 'text-emerald-600 dark:text-emerald-400'
+                    : stats.cohesion === 'bon' ? 'text-sky-600 dark:text-sky-400'
+                    : stats.cohesion === 'acceptable' ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-red-500'
+                  return (
+                    <div className="mt-1 text-[11px] px-1 text-[#8a8780]">
+                      Dispersion des valeurs indiquées&nbsp;: CV&nbsp;
+                      <span className={`font-medium ${cohesionColor}`}>{fmtNum(stats.cv, 1)} %</span>
+                      <span className="ml-1">— cohésion <span className={`font-medium ${cohesionColor}`}>{stats.cohesion}</span></span>
+                    </div>
+                  )
+                })()}
               </>
             )
           })()}

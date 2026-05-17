@@ -7,6 +7,7 @@ import { computeAdjustmentProfile } from './compute-adjustment-profile'
 import { computeReconciledValue } from './compute-reconciled-value'
 import { computeAdjustmentConsistency } from './compute-adjustment-consistency'
 import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
+import { computeAdjustedPriceStats } from './compute-adjusted-price-stats'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -57,6 +58,9 @@ export function buildAnalyseHtml(
     <hr style="border:none;border-top:1pt solid #ddd;margin:10pt 0;">
   `)
 
+  // Dispersion stats
+  const priceStats = adjustments.length >= 2 ? computeAdjustedPriceStats(adjustments) : null
+
   // Conclusion
   if (conclusion !== null) {
     const ctx = adjustments.length > 0 ? computeSubjectContext(conclusion, adjustments) : null
@@ -71,6 +75,7 @@ export function buildAnalyseHtml(
       <p style="font-size:20pt;font-weight:700;color:#1a1916;">${fmtMoney(conclusion)}</p>
       <p style="font-size:10pt;color:#6a6763;">Statut&nbsp;: ${statusLabel}</p>
       ${contextNote ? `<p style="font-size:10pt;color:${ctx?.withinRange ? '#6a6763' : '#b45309'};">${contextNote}</p>` : ''}
+      ${priceStats ? `<p style="font-size:10pt;color:#6a6763;">Dispersion des valeurs indiquées&nbsp;: CV&nbsp;<strong>${fmt(priceStats.cv, 1)} %</strong> — cohésion ${priceStats.cohesion}</p>` : ''}
       <blockquote>À titre indicatif uniquement — validation et signature par un évaluateur agréé requises avant toute diffusion.</blockquote>
     `)
   }
