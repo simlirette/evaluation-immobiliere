@@ -11,10 +11,9 @@ import Toast from '@/components/shared/Toast'
 import { fetchDossiers, deleteDossier, renameDossier } from '@/lib/supabase/queries/dossiers'
 import { togglePin } from '@/lib/supabase/queries/pins'
 import { useContextMenu } from '@/hooks/useContextMenu'
+import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
 import { createClient } from '@/lib/supabase/client'
 import type { Dossier, DossierStatus, TabId } from '@/types'
-
-type SortKey = 'recent' | 'oldest' | 'az' | 'za'
 type StatusFilter = 'all' | DossierStatus
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -99,15 +98,6 @@ function FilterPanel({
       </div>
     </div>
   )
-}
-
-function sortDossiers(dossiers: Dossier[], sort: SortKey): Dossier[] {
-  return [...dossiers].sort((a, b) => {
-    if (sort === 'az') return a.address.localeCompare(b.address, 'fr')
-    if (sort === 'za') return b.address.localeCompare(a.address, 'fr')
-    if (sort === 'oldest') return a.updatedAt.localeCompare(b.updatedAt)
-    return b.updatedAt.localeCompare(a.updatedAt) // recent first (default)
-  })
 }
 
 export default function MesDossiersPage() {

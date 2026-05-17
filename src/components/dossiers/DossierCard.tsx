@@ -35,17 +35,24 @@ export default function DossierCard({ dossier, onClick, onContextMenu }: Props) 
         boxShadow: 'var(--shadow-card)',
       }}
     >
-      {onContextMenu && (
-        <button
-          className="absolute top-3.5 right-3.5 w-[26px] h-[26px] rounded-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/[.07] bg-transparent border-none cursor-pointer text-[#8a8780] z-10"
-          onClick={e => { e.stopPropagation(); onContextMenu(e) }}
-          aria-label="Options du dossier"
-        >
-          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+      <div className="absolute top-3.5 right-3.5 flex items-center gap-1 z-10">
+        {dossier.pinned && (
+          <svg width="11" height="11" fill="currentColor" viewBox="0 0 24 24" className="text-[#b5b2ac]">
+            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
           </svg>
-        </button>
-      )}
+        )}
+        {onContextMenu && (
+          <button
+            className="w-[26px] h-[26px] rounded-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/[.07] bg-transparent border-none cursor-pointer text-[#8a8780]"
+            onClick={e => { e.stopPropagation(); onContextMenu(e) }}
+            aria-label="Options du dossier"
+          >
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+            </svg>
+          </button>
+        )}
+      </div>
       <div
         className="text-[17px] font-medium text-[#1a1916] mb-1 leading-[1.2] tracking-[.01em] pr-7"
         style={{ fontFamily: 'var(--font-serif)' }}
