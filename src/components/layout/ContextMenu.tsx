@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ContextMenuTarget } from '@/types'
 
 interface Props {
@@ -12,21 +12,30 @@ interface Props {
 
 export default function ContextMenu({ target, onClose, onPin, onDelete }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setConfirming(false)
+        onClose()
+      }
     }
     document.addEventListener('click', handler)
     return () => document.removeEventListener('click', handler)
   }, [onClose])
+
+  // Reset confirming state when menu closes or target changes
+  useEffect(() => {
+    if (!target) setConfirming(false)
+  }, [target])
 
   const open = !!target
 
   return (
     <div
       ref={ref}
-      className="fixed z-[500] min-w-[148px] rounded-xl p-[5px]"
+      className="fixed z-[500] min-w-[160px] rounded-xl p-[5px]"
       style={{
         left: target?.x ?? 0,
         top: target?.y ?? 0,
@@ -43,25 +52,45 @@ export default function ContextMenu({ target, onClose, onPin, onDelete }: Props)
       }}
     >
       <button
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#1a1916] hover:bg-black/[.05] transition-colors text-left"
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#1a1916] hover:bg-black/[.05] transition-colors text-left bg-transparent border-none cursor-pointer"
         onClick={() => { onPin(target!.name, target!.pinned); onClose() }}
       >
-        <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24" className="text-[#8a8780]">
+        <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24" className="text-[#8a8780] flex-shrink-0">
           <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
         </svg>
         {target?.pinned ? 'Désépingler' : 'Épingler'}
       </button>
       <div className="h-px bg-black/[.07] mx-1.5 my-1" />
-      <button
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#c0392b] hover:bg-black/[.05] transition-colors text-left"
-        onClick={() => { onDelete(target!.name); onClose() }}
-      >
-        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-        </svg>
-        Masquer
-      </button>
+      {confirming ? (
+        <div className="px-2.5 py-1.5">
+          <div className="text-[11px] text-[#8a8780] mb-2">Supprimer ce dossier ?</div>
+          <div className="flex gap-1.5">
+            <button
+              className="flex-1 px-2 py-1 rounded-[6px] text-[12px] text-white bg-[#c0392b] hover:opacity-90 transition-opacity border-none cursor-pointer font-sans"
+              onClick={() => { onDelete(target!.name); setConfirming(false); onClose() }}
+            >
+              Supprimer
+            </button>
+            <button
+              className="flex-1 px-2 py-1 rounded-[6px] text-[12px] text-[#6a6763] hover:bg-black/[.06] transition-colors border border-black/[.08] cursor-pointer bg-transparent font-sans"
+              onClick={() => setConfirming(false)}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#c0392b] hover:bg-black/[.05] transition-colors text-left bg-transparent border-none cursor-pointer"
+          onClick={() => setConfirming(true)}
+        >
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="flex-shrink-0">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+          Supprimer
+        </button>
+      )}
     </div>
   )
 }

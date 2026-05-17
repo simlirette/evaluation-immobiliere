@@ -33,6 +33,7 @@ function DossierShellInner() {
   const [visible, setVisible] = useState(true)
   const [reportReady, setReportReady] = useState(false)
   const [syntheseCritiques, setSyntheseCritiques] = useState(0)
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
 
   useEffect(() => {
     if (params.id === 'nouveau') return
@@ -122,6 +123,7 @@ function DossierShellInner() {
         activeTab={activeTab}
         showMesDossiers={showMesDossiers}
         currentDossierName={currentDossierName}
+        refreshKey={sidebarRefreshKey}
         onTabChange={setTab}
         onDossierSelect={handleDossierSelect}
         onNewDossier={handleNewDossier}
@@ -148,6 +150,7 @@ function DossierShellInner() {
           <div className="absolute inset-0 flex">
             {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => {
               setReportReady(true)
+              setSidebarRefreshKey(k => k + 1)
               if (dossierId) {
                 fetchRuntimeEnrichment(dossierId).then(e => {
                   setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)

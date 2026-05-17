@@ -16,6 +16,7 @@ interface Props {
   activeTab: TabId
   showMesDossiers: boolean
   currentDossierName: string
+  refreshKey?: number
   onTabChange: (tab: TabId) => void
   onDossierSelect: (id: string, name: string) => void
   onNewDossier: () => void
@@ -25,7 +26,7 @@ interface Props {
 
 export default function Sidebar({
   activeDossierId, activeTab, showMesDossiers,
-  currentDossierName, onTabChange, onDossierSelect,
+  currentDossierName, refreshKey, onTabChange, onDossierSelect,
   onNewDossier, onMesDossiers, onSignOut,
 }: Props) {
   const [dossiers, setDossiers] = useState<Dossier[]>([])
@@ -34,7 +35,7 @@ export default function Sidebar({
 
   useEffect(() => {
     fetchDossiers().then(setDossiers).catch(() => setDossiers([]))
-  }, [])
+  }, [refreshKey])
 
   // Close drawer when viewport reaches desktop width
   useEffect(() => {
