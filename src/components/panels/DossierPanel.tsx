@@ -16,8 +16,8 @@ import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
-import { sendRuntimeMessage, fetchAppState } from '@/lib/runtime-api'
-import type { Document, FactChip, ComparableInput } from '@/types'
+import { sendRuntimeMessage, fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
 
 interface Props {
   isNew: boolean
@@ -490,6 +490,49 @@ function NewDossierForm() {
   )
 }
 
+function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
+  const items: Array<{ label: string; value: string; warn?: boolean }> = []
+
+  if (loc.distance_cbd_km != null)
+    items.push({ label: 'Distance CBD', value: `${loc.distance_cbd_km.toFixed(1)} km — ${loc.distance_interpretation ?? ''}` })
+  if (loc.zone_code)
+    items.push({ label: 'Zonage', value: `${loc.zone_code}${loc.type_zone ? ` — ${loc.type_zone}` : ''}` })
+  if (loc.en_zone_inondable != null)
+    items.push({ label: 'Zone inondable', value: loc.en_zone_inondable ? `Oui (${loc.inondable_recurrence ?? '—'})` : 'Non', warn: loc.en_zone_inondable ?? false })
+  if (loc.en_zone_agricole != null)
+    items.push({ label: 'Zone agricole', value: loc.en_zone_agricole ? 'Oui — CPTAQ' : 'Non', warn: loc.en_zone_agricole ?? false })
+  if (loc.patrimoine_repertorie != null)
+    items.push({ label: 'Patrimoine culturel', value: loc.patrimoine_repertorie ? (loc.patrimoine_nom ?? 'Répertorié') : 'Non répertorié', warn: loc.patrimoine_repertorie ?? false })
+  if (loc.ecoles_1km != null || loc.arrets_transport_500m != null || loc.epiceries_500m != null) {
+    const parts = [
+      loc.ecoles_1km != null ? `${loc.ecoles_1km} école(s) ≤1 km` : null,
+      loc.arrets_transport_500m != null ? `${loc.arrets_transport_500m} arrêt(s) ≤500 m` : null,
+      loc.epiceries_500m != null ? `${loc.epiceries_500m} épicerie(s) ≤500 m` : null,
+    ].filter(Boolean)
+    if (parts.length > 0) items.push({ label: 'Proximité services', value: parts.join(' · ') })
+  }
+  if (loc.score_nuisances != null)
+    items.push({ label: 'Nuisances env.', value: `Score ${loc.score_nuisances}/4 — ${loc.nuisances_interpretation ?? ''}`, warn: (loc.score_nuisances ?? 0) >= 2 })
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="mt-3 mb-1">
+      <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Localisation</div>
+      <div className="flex flex-col divide-y divide-[rgba(0,0,0,.06)] rounded-xl overflow-hidden bg-[rgba(0,0,0,.03)] dark:bg-[rgba(255,255,255,.04)]">
+        {items.map(item => (
+          <div key={item.label} className="flex items-start justify-between px-3 py-2 gap-4">
+            <span className="text-[12px] text-[#6a6763] dark:text-[#9a9790] flex-shrink-0">{item.label}</span>
+            <span className={`text-[12px] text-right ${item.warn ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-[#1a1916] dark:text-white'}`}>
+              {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: Props) {
   const [chips, setChips] = useState<FactChip[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
@@ -508,6 +551,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   type ConflitData = { detecte: boolean; motif: string } | null
   const [conflit, setConflitData] = useState<ConflitData>(null)
+  const [localisation, setLocalisation] = useState<EnrichmentLocalisation | null>(null)
 
   const [isRunning, setIsRunning] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -525,11 +569,13 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
       fetchDocuments(dossierId),
       fetchPropertyFacts(dossierId),
       fetchAppState(dossierId),
-    ]).then(([docs, facts, appState]) => {
+      fetchRuntimeEnrichment(dossierId),
+    ]).then(([docs, facts, appState, enrichment]) => {
       setDocuments(docs)
       setChips(facts)
       setMandat(appState.active?.mandat ?? null)
       setConflitData(appState.active?.conflit ?? null)
+      setLocalisation(enrichment?.localisation ?? null)
       setLoading(false)
       // Démarrer le polling uniquement si le pipeline tourne encore
       if (!isNew) {
@@ -631,6 +677,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {chips.map((c, i) => <Chip key={i} label={c.label} highlight={c.highlight} />)}
             </div>
+            {localisation && <LocalisationContexte loc={localisation} />}
           </AgentMessage>
         )}
         {mandat && (

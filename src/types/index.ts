@@ -23,6 +23,23 @@ export interface EnrichmentMarche {
   population_variation_pct: number | null
 }
 
+export interface EnrichmentLocalisation {
+  distance_cbd_km: number | null
+  distance_interpretation: string | null
+  en_zone_inondable: boolean | null
+  inondable_recurrence: string | null
+  en_zone_agricole: boolean | null
+  zone_code: string | null
+  type_zone: string | null
+  ecoles_1km: number | null
+  arrets_transport_500m: number | null
+  epiceries_500m: number | null
+  score_nuisances: number | null
+  nuisances_interpretation: string | null
+  patrimoine_repertorie: boolean | null
+  patrimoine_nom: string | null
+}
+
 export interface EnrichmentFinancier {
   total_mensuel: number | null
   versement_hypo_mensuel: number | null
@@ -49,6 +66,7 @@ export interface Enrichment {
   vetuste_batiment: { age_ans: number; categorie: string; depreciation_pct: number } | null
   marche: EnrichmentMarche | null
   financier: EnrichmentFinancier | null
+  localisation: EnrichmentLocalisation | null
 }
 
 export interface Tab {

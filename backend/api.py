@@ -1044,6 +1044,36 @@ def _build_enrichment_view(fb: dict) -> dict:
         } if vet.get("categorie") else None,
         "marche": _build_marche_view(fb),
         "financier": _build_financier_view(fb),
+        "localisation": _build_localisation_view(fb),
+    }
+
+
+def _build_localisation_view(fb: dict) -> dict | None:
+    """Extract B6-B9+B20+B21+B23+B28 location context from fiche_bien.json."""
+    cbd = fb.get("distance_cbd") or {}
+    inond = fb.get("zone_inondable") or {}
+    agri = fb.get("zone_agricole") or {}
+    zu = fb.get("zonage_urbanisme") or {}
+    prox = fb.get("proximite_services") or {}
+    nuis = fb.get("nuisances_environnementales") or {}
+    pat = fb.get("patrimoine_culturel")  # {} = checked/not listed; dict with keys = listed
+    if not any([cbd, inond, agri, zu, prox, nuis, pat is not None]):
+        return None
+    return {
+        "distance_cbd_km": cbd.get("distance_cbd_km"),
+        "distance_interpretation": cbd.get("interpretation"),
+        "en_zone_inondable": inond.get("en_zone_inondable"),
+        "inondable_recurrence": inond.get("recurrence_label"),
+        "en_zone_agricole": agri.get("en_zone_agricole"),
+        "zone_code": zu.get("zone_code"),
+        "type_zone": zu.get("type_zone") or zu.get("zone_description"),
+        "ecoles_1km": prox.get("ecoles_1km"),
+        "arrets_transport_500m": prox.get("arrets_transport_500m"),
+        "epiceries_500m": prox.get("epiceries_500m"),
+        "score_nuisances": nuis.get("score_nuisances"),
+        "nuisances_interpretation": nuis.get("interpretation"),
+        "patrimoine_repertorie": bool(pat) if pat is not None else None,
+        "patrimoine_nom": (pat or {}).get("NOM") or (pat or {}).get("NM_BIEN"),
     }
 
 

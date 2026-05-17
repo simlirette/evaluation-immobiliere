@@ -6409,3 +6409,71 @@ class TestBuildFinancierView:
         assert r["total_mensuel"] == 3000
         assert r["versement_hypo_mensuel"] is None
         assert r["ratio_loyer_revenu_pct"] is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch 15 — _build_localisation_view (api.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildLocalisationView:
+    """_build_localisation_view — extracts location B-sources from fiche_bien."""
+
+    def test_empty_fb_returns_none(self):
+        """No location B-sources → None."""
+        from api import _build_localisation_view
+        assert _build_localisation_view({}) is None
+
+    def test_distance_cbd_and_zonage_extracted(self):
+        """distance_cbd + zonage_urbanisme → distance_cbd_km, zone_code."""
+        from api import _build_localisation_view
+        fb = {
+            "distance_cbd": {"distance_cbd_km": 4.2, "interpretation": "péri-central"},
+            "zonage_urbanisme": {"zone_code": "H.2", "type_zone": "Habitation"},
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["distance_cbd_km"] == pytest.approx(4.2)
+        assert r["distance_interpretation"] == "péri-central"
+        assert r["zone_code"] == "H.2"
+        assert r["type_zone"] == "Habitation"
+
+    def test_zone_inondable_et_agricole(self):
+        """Zone inondable + agricole → boolean flags + labels."""
+        from api import _build_localisation_view
+        fb = {
+            "zone_inondable": {"en_zone_inondable": True, "recurrence_label": "100 ans"},
+            "zone_agricole": {"en_zone_agricole": False},
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["en_zone_inondable"] is True
+        assert r["inondable_recurrence"] == "100 ans"
+        assert r["en_zone_agricole"] is False
+
+    def test_patrimoine_repertorie_flag(self):
+        """patrimoine_culturel non-vide → patrimoine_repertorie True + nom."""
+        from api import _build_localisation_view
+        fb = {
+            "patrimoine_culturel": {"NOM": "Maison Deschênes", "statut": "classe"},
+            "distance_cbd": {"distance_cbd_km": 1.0},
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["patrimoine_repertorie"] is True
+        assert r["patrimoine_nom"] == "Maison Deschênes"
+
+    def test_proximite_services_extracted(self):
+        """proximite_services → ecoles, arrets, epiceries."""
+        from api import _build_localisation_view
+        fb = {
+            "proximite_services": {
+                "ecoles_1km": 3,
+                "arrets_transport_500m": 12,
+                "epiceries_500m": 2,
+            }
+        }
+        r = _build_localisation_view(fb)
+        assert r is not None
+        assert r["ecoles_1km"] == 3
+        assert r["arrets_transport_500m"] == 12
+        assert r["epiceries_500m"] == 2
