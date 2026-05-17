@@ -23,6 +23,7 @@ import { computeMarketPriceTrend } from '@/lib/compute-market-price-trend'
 import { computeComparableQualityScore } from '@/lib/compute-comparable-quality-score'
 import { computePricePerM2Stats } from '@/lib/compute-price-per-m2-stats'
 import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
+import { computeComparableCompleteness } from '@/lib/compute-comparable-completeness'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
@@ -161,6 +162,11 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const qualityMap = new Map(qualityScores.map(q => [q.comparableId, q.label]))
   const m2Stats = computePricePerM2Stats(comparables)
   const timeRate = computeTimeAdjustmentRate(comparables)
+  const completeness = computeComparableCompleteness(comparables)
+  const completenessMap = new Map(completeness.map(c => [c.comparableId, c]))
+  const avgCompletenessPct = completeness.length > 0
+    ? Math.round(completeness.reduce((s, c) => s + c.completenessPct, 0) / completeness.length)
+    : null
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -254,7 +260,18 @@ export default function MarchePanel({ dossierId, address }: Props) {
           )}
           <div className="flex flex-col gap-2 mt-1">
             {visibleComps.length > 0
-              ? visibleComps.map(c => <ComparableItem key={c.id} comp={c} qualityLabel={qualityMap.get(c.id)} />)
+              ? visibleComps.map(c => {
+                  const cp = completenessMap.get(c.id)
+                  return (
+                    <ComparableItem
+                      key={c.id}
+                      comp={c}
+                      qualityLabel={qualityMap.get(c.id)}
+                      completenessGrade={cp?.grade}
+                      missingFields={cp?.missingFields}
+                    />
+                  )
+                })
               : query && <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
             }
           </div>
@@ -270,6 +287,13 @@ export default function MarchePanel({ dossierId, address }: Props) {
           <AgentMessage agentName="Agent Marché">
             <div className="rounded-[8px] bg-amber-50/80 border border-amber-200/60 px-3 py-2 text-[11px] text-amber-800">
               {`${duplicates.length} doublon${duplicates.length > 1 ? 's' : ''} potentiel${duplicates.length > 1 ? 's' : ''} détecté${duplicates.length > 1 ? 's' : ''} — vérifier les sources avant validation.`}
+            </div>
+          </AgentMessage>
+        )}
+        {avgCompletenessPct !== null && avgCompletenessPct < 60 && (
+          <AgentMessage agentName="Agent Marché">
+            <div className="rounded-[8px] bg-amber-50/80 border border-amber-200/60 px-3 py-2 text-[11px] text-amber-800">
+              {`Complétude moyenne des comparables\u00a0: ${avgCompletenessPct}\u00a0% — des données manquantes peuvent affecter la qualité de l\u2019analyse.`}
             </div>
           </AgentMessage>
         )}

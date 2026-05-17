@@ -5,6 +5,7 @@ import { computeMarketPriceTrend } from './compute-market-price-trend'
 import { computeComparableQualityScore } from './compute-comparable-quality-score'
 import { computePricePerM2Stats } from './compute-price-per-m2-stats'
 import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
+import { computeComparableRanking } from './compute-comparable-ranking'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -97,9 +98,15 @@ export function buildMarcheHtml(
   if (comparables.length > 0) {
     const qualityScores = adjustments ? computeComparableQualityScore(comparables, adjustments) : []
     const qualityMap = new Map(qualityScores.map(q => [q.comparableId, q.label]))
+    const ranking = adjustments ? computeComparableRanking(comparables, adjustments) : []
+    const rankMap = new Map(ranking.map(r => [r.comparableId, r]))
     const rows = comparables.map(c => {
       const ql = qualityMap.get(c.id)
       const qlColor = ql === 'excellent' ? '#1f7a5c' : ql === 'bon' ? '#0369a1' : ql === 'acceptable' ? '#b45309' : ql === 'faible' ? '#b91c1c' : '#8a8780'
+      const ranked = rankMap.get(c.id)
+      const rankCell = ranked
+        ? `<td style="text-align:right;font-size:9pt;color:${ranked.rank === 1 ? '#1f7a5c' : '#8a8780'};font-weight:${ranked.rank === 1 ? '700' : '400'};">#${ranked.rank}</td>`
+        : '<td></td>'
       return `
       <tr>
         <td>${c.rank}</td>
@@ -107,6 +114,7 @@ export function buildMarcheHtml(
         <td style="text-align:right;">${fmtMoney(c.sale_price)}</td>
         <td style="text-align:right;">${c.date}</td>
         ${ql ? `<td style="color:${qlColor};font-size:9pt;font-weight:600;">${ql}</td>` : '<td></td>'}
+        ${rankCell}
         <td style="color:#6a6763;font-size:10pt;">${c.meta}</td>
       </tr>
     `
@@ -121,6 +129,7 @@ export function buildMarcheHtml(
             <th style="text-align:right;">Prix de vente</th>
             <th style="text-align:right;">Date</th>
             <th>Qualité</th>
+            ${adjustments ? '<th style="text-align:right;">Rang</th>' : ''}
             <th>Notes</th>
           </tr>
         </thead>

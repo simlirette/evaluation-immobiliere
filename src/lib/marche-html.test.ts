@@ -101,6 +101,16 @@ describe('buildMarcheHtml', () => {
     expect(html).toContain('$/m²')
   })
 
+  it('includes comparable ranking column when adjustments provided', () => {
+    const adjs = [
+      { id: 'a1', comparable_id: 'c1', comparableLabel: '10 rue Laval', salePrice: 420000, surface_adj: 5000, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 425000 },
+      { id: 'a2', comparable_id: 'c2', comparableLabel: '25 av. Cartier', salePrice: 395000, surface_adj: 10000, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 405000 },
+    ]
+    const html = buildMarcheHtml(comps, null, undefined, adjs)
+    expect(html).toContain('Rang')
+    expect(html).toContain('#1')
+  })
+
   it('includes implicit appreciation rate row when comps have different dates and prices', () => {
     // comps fixture: c2 (Feb 2024, 395k) baseline → c1 (Mar 2024, 420k) → non-zero monthly rate
     const html = buildMarcheHtml(comps, null)

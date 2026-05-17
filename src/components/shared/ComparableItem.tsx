@@ -13,7 +13,18 @@ const QUALITY_COLORS: Record<string, string> = {
   faible: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
 }
 
-export default function ComparableItem({ comp, qualityLabel }: { comp: Comparable; qualityLabel?: string }) {
+const COMPLETENESS_COLORS: Record<string, string> = {
+  complet: 'text-emerald-600 dark:text-emerald-400',
+  partiel: 'text-amber-600 dark:text-amber-400',
+  incomplet: 'text-red-500',
+}
+
+export default function ComparableItem({ comp, qualityLabel, completenessGrade, missingFields }: {
+  comp: Comparable
+  qualityLabel?: string
+  completenessGrade?: 'complet' | 'partiel' | 'incomplet'
+  missingFields?: string[]
+}) {
   const [expanded, setExpanded] = useState(false)
   const perM2 = computePricePerM2(comp.sale_price, comp.hab_m2)
   const dateValidation = validateComparableDate(comp.sale_date)
@@ -91,6 +102,11 @@ export default function ComparableItem({ comp, qualityLabel }: { comp: Comparabl
           {dateValidation.warning && (
             <div className="mt-2 text-[10px] text-amber-700 bg-amber-50/80 border border-amber-200/60 rounded-[6px] px-2.5 py-1.5 leading-relaxed">
               {dateValidation.warning}
+            </div>
+          )}
+          {completenessGrade && completenessGrade !== 'complet' && missingFields && missingFields.length > 0 && (
+            <div className={`mt-1.5 text-[10px] ${COMPLETENESS_COLORS[completenessGrade]} leading-relaxed`}>
+              Données manquantes&nbsp;: {missingFields.join(', ')}
             </div>
           )}
         </div>
