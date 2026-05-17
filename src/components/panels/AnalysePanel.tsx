@@ -17,6 +17,7 @@ import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { buildOEAQChecklist } from '@/lib/build-oeaq-checklist'
 import { computeSubjectContext } from '@/lib/compute-subject-context'
 import { buildAdjustmentsCsv } from '@/lib/build-adjustments-csv'
+import { computeAdjustmentProfile } from '@/lib/compute-adjustment-profile'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -230,6 +231,32 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                           <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">{c.message}</div>
                         )}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+          {adjustments.length > 0 && (() => {
+            const profile = computeAdjustmentProfile(adjustments)
+            if (!profile || profile.grossTotal === 0) return null
+            const active = profile.types.filter(t => t.totalAbsolute > 0)
+            return (
+              <div className="mt-3 mb-1">
+                <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Répartition des ajustements</div>
+                <div className="flex flex-col gap-1">
+                  {active.map(t => (
+                    <div key={t.type} className="flex items-center gap-2">
+                      <span className="text-[11px] text-[#6a6763] dark:text-[#9a9790] w-16 flex-shrink-0">{t.label}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-black/[.06] dark:bg-white/[.08] overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${t.direction === 'positive' ? 'bg-emerald-500/60' : t.direction === 'negative' ? 'bg-red-400/60' : 'bg-[#b5b2ac]/60'}`}
+                          style={{ width: `${t.pctOfGrossTotal}%` }}
+                        />
+                      </div>
+                      <span className={`text-[10px] w-8 text-right flex-shrink-0 ${t.direction === 'positive' ? 'text-emerald-600 dark:text-emerald-400' : t.direction === 'negative' ? 'text-red-500' : 'text-[#b5b2ac]'}`}>
+                        {t.pctOfGrossTotal}%
+                      </span>
                     </div>
                   ))}
                 </div>
