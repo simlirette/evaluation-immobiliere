@@ -6742,3 +6742,57 @@ class TestBuildMarcheViewIPC:
         assert r is not None
         assert r["ipc_variation_logement_pct"] is None
         assert r["ipc_logement_indice"] is None
+
+# Batch 20 — taux_emploi/participation + hypotheque/epargne
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildMarcheViewTravail:
+    """taux_emploi_pct + taux_participation_pct added to _build_marche_view."""
+
+    def test_emploi_participation_extracted(self):
+        from api import _build_marche_view
+        fb = {
+            "marche_travail": {
+                "taux_chomage_pct": 5.1,
+                "taux_emploi_pct": 62.3,
+                "taux_participation_pct": 65.7,
+            }
+        }
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["taux_emploi_pct"] == pytest.approx(62.3)
+        assert r["taux_participation_pct"] == pytest.approx(65.7)
+
+    def test_emploi_absent_returns_none(self):
+        from api import _build_marche_view
+        fb = {"taux_inoccupation": {"taux_total_pct": 2.5, "annee": 2023}}
+        r = _build_marche_view(fb)
+        assert r is not None
+        assert r["taux_emploi_pct"] is None
+        assert r["taux_participation_pct"] is None
+
+
+class TestBuildFinancierHypoEpargne:
+    """ratio_hypotheque_revenu_pct + taux_epargne_pct added to _build_financier_view."""
+
+    def test_hypo_epargne_extracted(self):
+        from api import _build_financier_view
+        fb = {
+            "dette_revenu": {
+                "ratio_dette_revenu_pct": 184.5,
+                "ratio_hypotheque_revenu_pct": 74.2,
+                "taux_epargne_pct": 6.8,
+            }
+        }
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["ratio_hypotheque_revenu_pct"] == pytest.approx(74.2)
+        assert r["taux_epargne_pct"] == pytest.approx(6.8)
+
+    def test_hypo_epargne_absent_returns_none(self):
+        from api import _build_financier_view
+        fb = {"donnees_sociodemographiques": {"revenu_median_menage": 70_000}}
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["ratio_hypotheque_revenu_pct"] is None
+        assert r["taux_epargne_pct"] is None

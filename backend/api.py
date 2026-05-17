@@ -1125,6 +1125,8 @@ def _build_financier_view(fb: dict) -> dict | None:
         "valeur_mediane_logement": census.get("valeur_mediane_logement"),
         "ratio_dette_revenu_pct": dette.get("ratio_dette_revenu_pct"),
         "variation_dette_revenu_pct": dette.get("variation_dette_revenu_pct"),
+        "ratio_hypotheque_revenu_pct": dette.get("ratio_hypotheque_revenu_pct"),
+        "taux_epargne_pct": dette.get("taux_epargne_pct"),
     }
 
 
@@ -1154,6 +1156,8 @@ def _build_marche_view(fb: dict) -> dict | None:
         "permis_unites_12m": permis.get("unites_residentielles_12mois"),
         "permis_variation_6m_pct": permis.get("variation_pct_6m"),
         "taux_chomage_pct": travail.get("taux_chomage_pct"),
+        "taux_emploi_pct": travail.get("taux_emploi_pct"),
+        "taux_participation_pct": travail.get("taux_participation_pct"),
         "population": pop.get("population"),
         "population_variation_pct": pop.get("variation_annuelle_pct"),
         "score_marche": sm.get("score_marche"),

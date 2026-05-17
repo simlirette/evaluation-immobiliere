@@ -95,6 +95,10 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
         : f.ratio_dette_revenu_pct > 150 ? 'text-amber-600 dark:text-amber-400'
         : undefined,
     })
+  if (f.ratio_hypotheque_revenu_pct != null)
+    rows.push({ label: 'Ratio hypothèque / revenu (Canada)', value: `${fmt(f.ratio_hypotheque_revenu_pct)} %` })
+  if (f.taux_epargne_pct != null)
+    rows.push({ label: "Taux d\u2019\u00e9pargne (Canada)", value: `${fmt(f.taux_epargne_pct)} %` })
 
   if (rows.length === 0) return null
 

@@ -19,6 +19,8 @@ export interface EnrichmentMarche {
   permis_unites_12m: number | null
   permis_variation_6m_pct: number | null
   taux_chomage_pct: number | null
+  taux_emploi_pct: number | null
+  taux_participation_pct: number | null
   population: number | null
   population_variation_pct: number | null
   score_marche: number | null
@@ -79,6 +81,8 @@ export interface EnrichmentFinancier {
   valeur_mediane_logement: number | null
   ratio_dette_revenu_pct: number | null
   variation_dette_revenu_pct: number | null
+  ratio_hypotheque_revenu_pct: number | null
+  taux_epargne_pct: number | null
 }
 
 export interface Enrichment {

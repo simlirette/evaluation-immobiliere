@@ -42,6 +42,8 @@ function MarcheContexte({ m }: { m: EnrichmentMarche }) {
   if (m.taux_hypo_5ans_pct != null)    chips.push({ label: 'Hypo 5 ans', value: fmt(m.taux_hypo_5ans_pct), unit: '%' })
   if (m.taux_directeur_pct != null)    chips.push({ label: 'Taux directeur', value: fmt(m.taux_directeur_pct), unit: '%' })
   if (m.taux_chomage_pct != null)      chips.push({ label: 'Chômage CMA', value: fmt(m.taux_chomage_pct), unit: '%' })
+  if (m.taux_emploi_pct != null)       chips.push({ label: 'Emploi CMA', value: fmt(m.taux_emploi_pct), unit: '%' })
+  if (m.taux_participation_pct != null) chips.push({ label: 'Participation CMA', value: fmt(m.taux_participation_pct), unit: '%' })
   if (m.mises_en_chantier_12m != null) chips.push({ label: 'Mises en chantier', value: fmt(m.mises_en_chantier_12m, 0), unit: '/an' })
   if (m.completions_12m != null)       chips.push({ label: 'Complétions neuf', value: fmt(m.completions_12m, 0), unit: '/an' })
   if (m.unites_en_construction != null) chips.push({ label: 'En construction', value: fmt(m.unites_en_construction, 0), unit: 'unités' })
