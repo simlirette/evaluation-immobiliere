@@ -255,7 +255,7 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
         </div>
 
         <p className="text-center text-[11px] text-[#8a8780] pb-2">
-          Données calculées à titre indicatif — validation d'un évaluateur agréé requise.
+          {`Données calculées à titre indicatif — validation d'un évaluateur agréé requise.`}
         </p>
       </div>
     </div>
