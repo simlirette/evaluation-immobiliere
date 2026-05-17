@@ -21,6 +21,7 @@ import { computeAdjustmentBracketAnalysis } from './compute-adjustment-bracket-a
 import { computeGrossAdjustmentCeiling } from './compute-gross-adjustment-ceiling'
 import { computeValueRangeConfidence } from './compute-value-range-confidence'
 import { computeAdjustmentWeightedMedian } from './compute-adjustment-weighted-median'
+import { computeAdjustmentSymmetry } from './compute-adjustment-symmetry'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -291,6 +292,25 @@ export function buildAnalyseHtml(
             <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${warningItems}</ul>
           </div>
         `)
+      }
+    }
+
+    // Adjustment symmetry
+    if (adjustments.length >= 3) {
+      const symmetry = computeAdjustmentSymmetry(adjustments)
+      if (symmetry && !symmetry.overallSymmetric) {
+        const typeNames: Record<string, string> = { surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' }
+        const asymTypes = Object.entries(symmetry)
+          .filter(([k, v]) => ['surface','year','condition','garage'].includes(k) && typeof v === 'object' && !(v as {symmetric: boolean}).symmetric && (v as {mean: number}).mean !== 0)
+          .map(([k]) => typeNames[k] ?? k)
+        if (asymTypes.length > 0) {
+          sections.push(`
+            <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+              <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Symétrie des ajustements</p>
+              <p style="font-size:9pt;color:#b45309;margin:0;">Variation élevée (CV > 50 %) détectée pour&nbsp;: ${asymTypes.join(', ')} — application non homogène entre comparables.</p>
+            </div>
+          `)
+        }
       }
     }
 
