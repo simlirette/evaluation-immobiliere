@@ -2,6 +2,7 @@ import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
 import { buildOEAQChecklist } from './build-oeaq-checklist'
 import { computeSubjectContext } from './compute-subject-context'
 import { computeMedianIndicatedValue } from './compute-median-indicated-value'
+import { detectOutlierComparables } from './detect-outlier-comparables'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -72,16 +73,28 @@ export function buildAnalyseHtml(
 
   // Adjustments table
   if (adjustments.length > 0) {
-    const rows = adjustments.map(a => `
+    const outliers = detectOutlierComparables(adjustments)
+    const outlierMap = new Map(outliers.map(o => [o.id, o]))
+    const rows = adjustments.map(a => {
+      const outlier = outlierMap.get(a.id)
+      const adjustedCell = outlier?.isOutlier
+        ? `<td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}<br><span style="font-size:8pt;font-weight:400;color:#b45309;">${outlier.deviationFromMedianPct > 0 ? '+' : ''}${fmt(outlier.deviationFromMedianPct)} % vs méd.</span></td>`
+        : `<td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}</td>`
+      return `
       <tr>
         <td>${a.comparableLabel}</td>
         <td style="text-align:right;">${fmtMoney(a.salePrice)}</td>
         <td style="text-align:right;color:${a.surface_adj >= 0 ? '#1f7a5c' : '#b91c1c'};">${fmtAdj(a.surface_adj)}</td>
         <td style="text-align:right;color:${a.year_adj >= 0 ? '#1f7a5c' : '#b91c1c'};">${fmtAdj(a.year_adj)}</td>
         <td style="text-align:right;color:${a.condition_adj >= 0 ? '#1f7a5c' : '#b91c1c'};">${fmtAdj(a.condition_adj)}</td>
-        <td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}</td>
+        ${adjustedCell}
       </tr>
-    `).join('')
+    `
+    }).join('')
+    const outlierCount = outliers.filter(o => o.isOutlier).length
+    const outlierNote = outlierCount > 0
+      ? `<p style="font-size:9pt;color:#b45309;margin-top:6pt;">⚠ ${outlierCount} valeur${outlierCount !== 1 ? 's' : ''} indiquée${outlierCount !== 1 ? 's' : ''} atypique${outlierCount !== 1 ? 's' : ''} (écart &gt; 15 % vs médiane) — à examiner avant réconciliation.</p>`
+      : ''
     sections.push(`
       <h2>Trace d'ajustements (${adjustments.length} comparable${adjustments.length !== 1 ? 's' : ''})</h2>
       <table>
@@ -97,6 +110,7 @@ export function buildAnalyseHtml(
         </thead>
         <tbody>${rows}</tbody>
       </table>
+      ${outlierNote}
     `)
   }
 

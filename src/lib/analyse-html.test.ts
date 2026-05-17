@@ -90,4 +90,30 @@ describe('buildAnalyseHtml', () => {
     expect(html).toContain('hors de la fourchette')
     expect(html).toContain('justification requise')
   })
+
+  it('shows outlier note when a comparable is atypical (>15% vs median)', () => {
+    // median of [422000, 404000, 700000] = 422000; 700000 → +65.7% → outlier
+    const adjs3: Adjustment[] = [
+      ...adjs,
+      { id: 'a3', comparable_id: 'c3', comparableLabel: '99 rue Test', salePrice: 690000, surface_adj: 0, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 700000 },
+    ]
+    const html = buildAnalyseHtml(adjs3, 422000, 'PRET_REVUE', null)
+    expect(html).toContain('atypique')
+    expect(html).toContain('15 %')
+  })
+
+  it('omits outlier note when all values within threshold', () => {
+    // adjs only 2 → detectOutlierComparables returns [] → no note
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).not.toContain('atypique')
+  })
+
+  it('shows per-row deviation label for outlier comparable', () => {
+    const adjs3: Adjustment[] = [
+      ...adjs,
+      { id: 'a3', comparable_id: 'c3', comparableLabel: '99 rue Test', salePrice: 690000, surface_adj: 0, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 700000 },
+    ]
+    const html = buildAnalyseHtml(adjs3, 422000, 'PRET_REVUE', null)
+    expect(html).toContain('vs méd.')
+  })
 })
