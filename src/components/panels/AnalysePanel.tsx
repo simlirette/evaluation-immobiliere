@@ -21,6 +21,7 @@ import { computeAdjustmentProfile } from '@/lib/compute-adjustment-profile'
 import { computeAdjustmentConsistency } from '@/lib/compute-adjustment-consistency'
 import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { computeAdjustedPriceStats } from '@/lib/compute-adjusted-price-stats'
+import { computeSensitivityAnalysis } from '@/lib/compute-sensitivity-analysis'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -305,6 +306,27 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                     <div key={w.type} className="flex items-start gap-2">
                       <span className="text-amber-600 text-[11px] font-semibold flex-shrink-0 mt-0.5">⚠</span>
                       <span className="text-[11px] text-amber-800 dark:text-amber-300">{w.warning}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+          {adjustments.length >= 3 && (() => {
+            const sensitivity = computeSensitivityAnalysis(adjustments)
+            if (!sensitivity) return null
+            return (
+              <div className="mt-3 mb-1">
+                <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Sensibilité de la réconciliation</div>
+                <div className="flex flex-col divide-y divide-[rgba(0,0,0,.04)] rounded-xl overflow-hidden bg-[rgba(0,0,0,.025)]">
+                  {sensitivity.entries.map(e => (
+                    <div key={e.comparableId} className="flex items-center justify-between px-3 py-1.5 gap-3">
+                      <span className="text-[11px] text-[#6a6763] dark:text-[#9a9790] flex-1 min-w-0 truncate">Sans {e.comparableLabel}</span>
+                      <span className={`text-[11px] font-medium flex-shrink-0 ${e.influential ? 'text-amber-600 dark:text-amber-400' : 'text-[#8a8780]'}`}>
+                        {e.deltaPct > 0 ? '+' : ''}{fmtNum(e.deltaPct, 1)} %
+                        {e.influential && <span className="ml-1 text-[10px]">⚠</span>}
+                      </span>
+                      <span className="text-[11px] text-[#1a1916] dark:text-white font-medium flex-shrink-0">{formatPrice(e.reconciledWithout)}</span>
                     </div>
                   ))}
                 </div>

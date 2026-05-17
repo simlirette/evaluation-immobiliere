@@ -180,4 +180,20 @@ describe('buildAnalyseHtml', () => {
     expect(html).toContain('CV')
     expect(html).toContain('cohésion')
   })
+
+  it('shows sensitivity table when ≥3 adjustments', () => {
+    const adjs3: Adjustment[] = [
+      ...adjs,
+      { id: 'a3', comparable_id: 'c3', comparableLabel: '8 boul. Rosemont', salePrice: 430000, surface_adj: -5000, year_adj: 0, condition_adj: 0, garage_adj: 0, adjusted: 425000 },
+    ]
+    const html = buildAnalyseHtml(adjs3, 415000, 'PRET_REVUE', null)
+    expect(html).toContain('Sensibilité de la réconciliation')
+    expect(html).toContain('Sans ')
+    expect(html).toContain('Exclusion')
+  })
+
+  it('omits sensitivity table when fewer than 3 adjustments', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).not.toContain('Sensibilité de la réconciliation')
+  })
 })

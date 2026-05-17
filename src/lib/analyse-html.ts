@@ -8,6 +8,7 @@ import { computeReconciledValue } from './compute-reconciled-value'
 import { computeAdjustmentConsistency } from './compute-adjustment-consistency'
 import { computeTimeAdjustmentRate } from './compute-time-adjustment-rate'
 import { computeAdjustedPriceStats } from './compute-adjusted-price-stats'
+import { computeSensitivityAnalysis } from './compute-sensitivity-analysis'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -167,6 +168,29 @@ export function buildAnalyseHtml(
             <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Cohérence des ajustements</p>
             <ul style="margin:0;padding-left:16pt;color:#b45309;font-size:9pt;">${warningItems}</ul>
           </div>
+        `)
+      }
+    }
+
+    // Sensitivity analysis
+    if (adjustments.length >= 3) {
+      const sensitivity = computeSensitivityAnalysis(adjustments)
+      if (sensitivity) {
+        const sensRows = sensitivity.entries.map(e => {
+          const color = e.influential ? '#b45309' : '#6a6763'
+          const sign = e.deltaPct > 0 ? '+' : ''
+          return `<tr>
+            <td style="color:#6a6763;">Sans ${e.comparableLabel}</td>
+            <td style="text-align:right;font-weight:600;">${fmtMoney(e.reconciledWithout)}</td>
+            <td style="text-align:right;color:${color};">${sign}${fmt(e.deltaPct, 1)} %${e.influential ? ' ⚠' : ''}</td>
+          </tr>`
+        }).join('')
+        sections.push(`
+          <h2>Sensibilité de la réconciliation</h2>
+          <table>
+            <thead><tr><th>Exclusion</th><th style="text-align:right;">Réconcilié</th><th style="text-align:right;">Écart</th></tr></thead>
+            <tbody>${sensRows}</tbody>
+          </table>
         `)
       }
     }
