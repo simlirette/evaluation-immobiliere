@@ -6217,3 +6217,83 @@ class TestDataEnrichment_Alertes:
         alrt = case.get("alertes", {})
         assert alrt.get("source") == "calcul-interne"
         assert alrt.get("nb_alertes_critiques", 0) >= 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch 10 — _build_enrichment_view (api.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildEnrichmentView:
+    """_build_enrichment_view — extracts B30-B44 fields from fiche_bien payload."""
+
+    def test_empty_input_returns_empty_dict(self):
+        """None or empty dict → {}."""
+        from api import _build_enrichment_view
+        assert _build_enrichment_view(None) == {}
+        assert _build_enrichment_view({}) == {}
+
+    def test_score_global_extracted(self):
+        """score_global → grade, score, recommandation."""
+        from api import _build_enrichment_view
+        fb = {
+            "score_global": {
+                "score_global": 7.5,
+                "grade": "B",
+                "recommandation_finale": "Bon investissement",
+            }
+        }
+        r = _build_enrichment_view(fb)
+        sg = r.get("score_global")
+        assert sg is not None
+        assert sg["grade"] == "B"
+        assert sg["score"] == pytest.approx(7.5)
+        assert sg["recommandation"] == "Bon investissement"
+
+    def test_alertes_extracted(self):
+        """alertes liste + compteurs extraits correctement."""
+        from api import _build_enrichment_view
+        fb = {
+            "alertes": {
+                "alertes": [{"niveau": "critique", "categorie": "zone_inondable", "message": "test"}],
+                "nb_alertes_critiques": 1,
+                "nb_alertes_attention": 0,
+                "nb_alertes_info": 0,
+            }
+        }
+        r = _build_enrichment_view(fb)
+        alrt = r.get("alertes")
+        assert alrt is not None
+        assert alrt["nb_critiques"] == 1
+        assert len(alrt["liste"]) == 1
+        assert alrt["liste"][0]["categorie"] == "zone_inondable"
+
+    def test_projection_valeur_extracted(self):
+        """projection_valeur → valeur_base + horizons an1/an3/an5."""
+        from api import _build_enrichment_view
+        fb = {
+            "projection_valeur": {
+                "valeur_base": 500_000,
+                "taux_base_pct": 2.5,
+                "projections": {
+                    "base": {"an1": 512_500, "an3": 538_000, "an5": 564_000},
+                    "optimiste": {"an1": 520_000, "an3": 560_000, "an5": 606_000},
+                    "pessimiste": {"an1": 503_000, "an3": 510_000, "an5": 517_000},
+                },
+            }
+        }
+        r = _build_enrichment_view(fb)
+        pv = r.get("projection_valeur")
+        assert pv is not None
+        assert pv["valeur_base"] == 500_000
+        assert pv["taux_base_pct"] == pytest.approx(2.5)
+        assert pv["an1"] == 512_500
+        assert pv["an5"] == 564_000
+
+    def test_missing_fields_produce_none(self):
+        """Keys absent from fiche_bien → corresponding enrichment keys are None."""
+        from api import _build_enrichment_view
+        fb = {"score_global": {"score_global": 6.0, "grade": "C", "recommandation_finale": "ok"}}
+        r = _build_enrichment_view(fb)
+        assert r.get("alertes") is None
+        assert r.get("projection_valeur") is None
+        assert r.get("rendement_locatif") is None

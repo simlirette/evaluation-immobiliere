@@ -20,6 +20,7 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
 - Batch 8a (rapport éditeur TipTap + LLM quality): DONE ✓
 - Batch 8b (export docx/html + versioning Supabase): DONE ✓
 - Batch 9 (pipeline live view + UX polish): DONE ✓
+- Batch 10 (onglet Synthèse — tableau de bord B30-B44): DONE ✓
 
 ## Evidence
 - 115 tests pass
@@ -318,6 +319,14 @@ Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustne
   - fiche_bien.json + section AMU "Alertes et signaux de risque" (avant Critère 4)
   - 6 tests pass
 - 372 tests pass
+
+## Batch 10 (2026-05-16) — DONE
+- Onglet "Synthèse" (5ème tab entre Analyse et Rapport)
+- Backend: _build_enrichment_view() extrait B30-B44 depuis fiche_bien.json → exposé dans /app/state active.enrichment
+- Frontend types: Enrichment + EnrichmentAlerte interfaces, TabId étendu
+- SynthesePanel: ScoreGlobalCard (grade A-F + score/10), AlerteRow color-codée (critique/attention/info), ScoreChip grid avec barre de progression (investissement/qualité vie/risque), ProjectionTable (an1/an3/an5 scénario base), métriques secondaires (valeur indicative, rendement locatif, taxes mun., P/L ratio, vétusté)
+- EmptyState si pipeline pas encore lancé
+- Commit: de6a940
 
 ## Open Issues
 - Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
