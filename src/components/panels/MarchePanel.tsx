@@ -24,6 +24,7 @@ import { computeComparableQualityScore } from '@/lib/compute-comparable-quality-
 import { computePricePerM2Stats } from '@/lib/compute-price-per-m2-stats'
 import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { computeComparableCompleteness } from '@/lib/compute-comparable-completeness'
+import { computeDataQualityReport } from '@/lib/compute-data-quality-report'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
@@ -167,6 +168,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const avgCompletenessPct = completeness.length > 0
     ? Math.round(completeness.reduce((s, c) => s + c.completenessPct, 0) / completeness.length)
     : null
+  const dataQuality = comparables.length > 0 ? computeDataQualityReport(comparables, adjustments) : null
 
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
@@ -290,10 +292,19 @@ export default function MarchePanel({ dossierId, address }: Props) {
             </div>
           </AgentMessage>
         )}
-        {avgCompletenessPct !== null && avgCompletenessPct < 60 && (
+        {dataQuality && dataQuality.grade !== 'bon' && (
           <AgentMessage agentName="Agent Marché">
-            <div className="rounded-[8px] bg-amber-50/80 border border-amber-200/60 px-3 py-2 text-[11px] text-amber-800">
-              {`Complétude moyenne des comparables\u00a0: ${avgCompletenessPct}\u00a0% — des données manquantes peuvent affecter la qualité de l\u2019analyse.`}
+            <div className={`rounded-[10px] px-3 py-2.5 ${dataQuality.grade === 'faible' ? 'bg-red-50/70 dark:bg-red-900/15 border border-red-200/50' : 'bg-amber-50/80 dark:bg-amber-900/20 border border-amber-200/50'}`}>
+              <div className={`text-[11px] font-semibold mb-1 ${dataQuality.grade === 'faible' ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                Qualité des données — {dataQuality.grade}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {dataQuality.issues.map(issue => (
+                  <div key={issue} className={`text-[11px] ${dataQuality.grade === 'faible' ? 'text-red-700 dark:text-red-400' : 'text-amber-800 dark:text-amber-300'}`}>
+                    · {issue}
+                  </div>
+                ))}
+              </div>
             </div>
           </AgentMessage>
         )}
