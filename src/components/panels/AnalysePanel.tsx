@@ -12,6 +12,7 @@ import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
+import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import type { Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
@@ -183,11 +184,18 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
           <AdjustmentsTable rows={adjustments} />
-          {conclusion !== null && (
-            <ValeurCard
-              median={`Conclusion propos\u00e9e\u00a0: ${formatPrice(conclusion)}`}
-            />
-          )}
+          {conclusion !== null && (() => {
+            const summary = summarizeAdjustments(adjustments)
+            const range = summary && adjustments.length > 1
+              ? `${formatPrice(summary.min)} – ${formatPrice(summary.max)}`
+              : undefined
+            return (
+              <ValeurCard
+                median={`Conclusion proposée\u00a0: ${formatPrice(conclusion)}`}
+                range={range}
+              />
+            )
+          })()}
           {financier && <FinancierContexte f={financier} />}
         </AgentMessage>
         <AgentMessage agentName="Agent Analyse" last={replies.length === 0 && !asking}>

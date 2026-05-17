@@ -1,4 +1,5 @@
 import type { Adjustment } from '@/types'
+import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 
 function formatAdj(value: number): string {
   if (value === 0) return '-'
@@ -27,12 +28,13 @@ function AdjCell({ value }: { value: number }) {
 }
 
 export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
+  const summary = summarizeAdjustments(rows)
   return (
     <div className="mt-2.5 overflow-x-auto">
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr>
-            {['Comparable', 'Prix vente', 'Source', 'Temps', 'Condition', 'Garage', 'Prix ajuste'].map(h => (
+            {['Comparable', 'Prix vente', 'Surface', 'Temps', 'Condition', 'Garage', 'Prix ajusté'].map(h => (
               <th key={h}
                 className={`px-2.5 py-[7px] text-[10px] font-medium text-[#b5b2ac] uppercase tracking-[.06em] border-b border-black/[.07] ${h === 'Comparable' ? 'text-left' : 'text-right'}`}>
                 {h}
@@ -53,6 +55,18 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
             </tr>
           ))}
         </tbody>
+        {summary && rows.length > 1 && (
+          <tfoot>
+            <tr className="bg-black/[.025]">
+              <td className="px-2.5 py-[8px] text-[10px] text-[#8a8780] uppercase tracking-[.06em] text-left" colSpan={6}>
+                Moyenne ({rows.length} comp.) — écart {formatPrice(summary.spread)}
+              </td>
+              <td className="px-2.5 py-[8px] text-right font-semibold text-[12px] text-[#1a1916]">
+                {formatPrice(summary.avg)}
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   )
