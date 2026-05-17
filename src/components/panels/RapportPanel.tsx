@@ -18,6 +18,7 @@ import {
 } from '@/lib/runtime-api'
 import { saveVersion, loadVersions } from '@/lib/rapport-versions'
 import RapportVersionHistory from '@/components/shared/RapportVersionHistory'
+import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, FactChip } from '@/types'
 import DragHandle from '@/components/shared/DragHandle'
 
@@ -138,6 +139,8 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     try {
       const response = await sendRuntimeMessage(dossierId, value, 'redaction')
       setReplies(prev => [...prev, response.message.answer])
+    } catch (err) {
+      setReplies(prev => [...prev, formatAgentError(err)])
     } finally {
       setAsking(false)
     }

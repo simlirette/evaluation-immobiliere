@@ -14,6 +14,7 @@ import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
+import { formatAgentError } from '@/lib/agent-error'
 import type { Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
@@ -161,6 +162,8 @@ export default function AnalysePanel({ dossierId, address }: Props) {
     try {
       const response = await sendRuntimeMessage(dossierId, value, 'valuation-draft')
       setReplies(prev => [...prev, response.message.answer])
+    } catch (err) {
+      setReplies(prev => [...prev, formatAgentError(err)])
     } finally {
       setAsking(false)
     }

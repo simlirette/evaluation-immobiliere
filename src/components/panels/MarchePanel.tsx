@@ -13,6 +13,7 @@ import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
 import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
 import { fmtNum } from '@/lib/format-number'
+import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, EnrichmentMarche } from '@/types'
 
 interface Props {
@@ -125,6 +126,8 @@ export default function MarchePanel({ dossierId, address }: Props) {
     try {
       const response = await sendRuntimeMessage(dossierId, value, 'comps-market')
       setReplies(prev => [...prev, response.message.answer])
+    } catch (err) {
+      setReplies(prev => [...prev, formatAgentError(err)])
     } finally {
       setAsking(false)
     }
