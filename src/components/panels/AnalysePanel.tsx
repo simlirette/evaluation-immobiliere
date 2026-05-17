@@ -29,6 +29,7 @@ import { computeAppraisalRiskScore } from '@/lib/compute-appraisal-risk-score'
 import { computeAdjustmentBracketAnalysis } from '@/lib/compute-adjustment-bracket-analysis'
 import { computeGrossAdjustmentCeiling } from '@/lib/compute-gross-adjustment-ceiling'
 import { computeAdjustmentSymmetry } from '@/lib/compute-adjustment-symmetry'
+import { computeAdjustmentDirectionBalance } from '@/lib/compute-adjustment-direction-balance'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -405,6 +406,22 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                   <span className="text-amber-600 text-[11px] font-semibold flex-shrink-0 mt-0.5">⚠</span>
                   <span className="text-[11px] text-amber-800 dark:text-amber-300">
                     Symétrie des ajustements — variation élevée (CV &gt; 50 %) pour : {asymTypes.join(', ')} · application non homogène entre comparables.
+                  </span>
+                </div>
+              </div>
+            )
+          })()}
+          {adjustments.length >= 2 && (() => {
+            const balance = computeAdjustmentDirectionBalance(adjustments)
+            if (!balance || balance.balanced) return null
+            const dirLabel = balance.direction === 'upward' ? 'positifs' : 'négatifs'
+            const dirPct = balance.direction === 'upward' ? balance.upPct : balance.downPct
+            return (
+              <div className="mt-2 mb-1 flex flex-col gap-1 rounded-xl px-3 py-2 bg-amber-50/70 dark:bg-amber-900/20 border border-amber-200/50">
+                <div className="flex items-start gap-2">
+                  <span className="text-amber-600 text-[11px] font-semibold flex-shrink-0 mt-0.5">⚠</span>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300">
+                    Biais d'ajustement — {fmtNum(dirPct, 0)} % des comparables reçoivent des ajustements nets {dirLabel} · possible biais {balance.direction === 'upward' ? 'haussier' : 'baissier'}.
                   </span>
                 </div>
               </div>

@@ -24,6 +24,8 @@ import { computeAdjustmentWeightedMedian } from './compute-adjustment-weighted-m
 import { computeAdjustmentSymmetry } from './compute-adjustment-symmetry'
 import { computeLocationPremium } from './compute-location-premium'
 import { computeComparableVintageAnalysis } from './compute-comparable-vintage-analysis'
+import { computeValuePerM2Conclusion } from './compute-value-per-m2-conclusion'
+import { computeAdjustmentDirectionBalance } from './compute-adjustment-direction-balance'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -60,6 +62,7 @@ export function buildAnalyseHtml(
   financier: EnrichmentFinancier | null,
   address?: string,
   comparables?: Comparable[],
+  subjectHabM2?: number | null,
 ): string {
   const sections: string[] = []
   const today = new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -92,6 +95,8 @@ export function buildAnalyseHtml(
       ...((() => { const vrc = conclusion !== null && adjustments.length >= 2 ? computeValueRangeConfidence(adjustments, conclusion) : null; return vrc ? [[`Intervalle confiance (±1σ)`, `${fmtMoney(vrc.band1Sigma.low)} – ${fmtMoney(vrc.band1Sigma.high)}<br><span style="font-size:8pt;font-weight:400;color:#8a8780;">confiance conclusion&nbsp;: <strong style="color:${vrc.conclusionConfidence === 'haute' ? '#1f7a5c' : vrc.conclusionConfidence === 'modérée' ? '#b45309' : '#b91c1c'};">${vrc.conclusionConfidence}</strong></span>`]] : [] })()),
       ...((() => { const wm = adjustments.length >= 2 ? computeAdjustmentWeightedMedian(adjustments) : null; return wm && Math.abs(wm.deltaPct) >= 0.5 ? [[`Médiane pondérée`, `${fmtMoney(wm.weightedMedian)} <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${wm.deltaPct > 0 ? '+' : ''}${fmt(wm.deltaPct, 1)} % vs médiane simple)</span>`]] : [] })()),
       ...((() => { const lp = financier?.valeur_mediane_logement != null ? computeLocationPremium(valuationConclusion.reconciledValue, financier.valeur_mediane_logement) : null; if (!lp) return []; const color = lp.signal === 'prime' ? '#b45309' : lp.signal === 'escompte' ? '#0369a1' : '#1f7a5c'; return [[`Prime de localisation`, `<span style="color:${color};font-weight:600;">${lp.signal}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${lp.deltaPct > 0 ? '+' : ''}${fmt(lp.deltaPct, 1)} % vs médiane&nbsp;${fmtMoney(financier!.valeur_mediane_logement!)})</span>`]] })()),
+      ...((() => { const db = adjustments.length >= 2 ? computeAdjustmentDirectionBalance(adjustments) : null; if (!db || db.balanced) return []; const color = '#b45309'; const dirLabel = db.direction === 'upward' ? 'positifs' : 'négatifs'; const dirPct = db.direction === 'upward' ? db.upPct : db.downPct; return [[`Biais d'ajustement`, `<span style="color:${color};">${fmt(dirPct, 0)} % ${dirLabel}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${db.upCount}↑ ${db.downCount}↓ ${db.neutralCount}=)</span>`]] })()),
+      ...((() => { const vm = subjectHabM2 != null && subjectHabM2 > 0 ? computeValuePerM2Conclusion(valuationConclusion.reconciledValue, subjectHabM2, comparables ?? []) : null; if (!vm) return []; const color = vm.signal === 'haut' ? '#b45309' : vm.signal === 'bas' ? '#0369a1' : '#1f7a5c'; const vsNote = vm.vsMedianPct != null ? ` <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${vm.vsMedianPct > 0 ? '+' : ''}${fmt(vm.vsMedianPct, 1)} % vs médiane comparables ${vm.medianCompM2 != null ? fmt(vm.medianCompM2, 0) + ' $/m²' : ''})</span>` : ''; return [[`Valeur au m² (sujet)`, `<span style="color:${color};font-weight:600;">${fmt(vm.pricePerM2, 0)} $/m²${vm.signal ? ` — ${vm.signal}` : ''}</span>${vsNote}`]] })()),
     ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
     sections.push(`
       <h2>Conclusion structurée</h2>

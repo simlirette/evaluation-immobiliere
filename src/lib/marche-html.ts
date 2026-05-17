@@ -1,5 +1,8 @@
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
 import { computePriceIndexation } from './compute-price-indexation'
+import { computeLotSizeAnalysis } from './compute-lot-size-analysis'
+import { computeRenovationProfile } from './compute-renovation-profile'
+import { computeComparableDateSpread } from './compute-comparable-date-spread'
 import { computeComparableStats } from './compute-comparable-stats'
 import { checkComparableMinimum } from './check-comparable-minimum'
 import { computeMarketPriceTrend } from './compute-market-price-trend'
@@ -93,9 +96,22 @@ export function buildMarcheHtml(
     const m2DistRow = m2Dist
       ? `<tr><td style="color:#6a6763;">Dispersion $/m² (CV)</td><td style="font-weight:600;text-align:right;">${fmt(m2Dist.cv, 1)} % <span style="font-weight:400;font-size:9pt;color:#8a8780;">(min ${fmt(m2Dist.min, 0)} – max ${fmt(m2Dist.max, 0)} $/m²)</span></td></tr>`
       : ''
+    // B116: lot size
+    const lotSize = computeLotSizeAnalysis(comparables)
+    const lotSizeRow = lotSize
+      ? `<tr><td style="color:#6a6763;">Terrain médian (m²)</td><td style="font-weight:600;text-align:right;">${fmt(lotSize.median, 0)} m² <span style="font-weight:400;font-size:9pt;color:#8a8780;">(${fmt(lotSize.min, 0)} – ${fmt(lotSize.max, 0)}${lotSize.missingCount > 0 ? ` · ${lotSize.missingCount} sans données` : ''})</span></td></tr>`
+      : ''
+    // B119: date spread
+    const dateSpread = computeComparableDateSpread(comparables)
+    const dateSpreadRow = dateSpread
+      ? (() => {
+          const color = dateSpread.recencyScore === 'récent' ? '#1f7a5c' : dateSpread.recencyScore === 'daté' ? '#b91c1c' : '#b45309'
+          return `<tr><td style="color:#6a6763;">Étendue temporelle</td><td style="font-weight:600;text-align:right;">${dateSpread.spanMonths} mois <span style="font-weight:400;font-size:9pt;color:${color};">— ${dateSpread.recencyScore} (${dateSpread.staleCount} daté${dateSpread.staleCount !== 1 ? 's' : ''}, ${dateSpread.recent12mCount} récent${dateSpread.recent12mCount !== 1 ? 's' : ''})</span></td></tr>`
+        })()
+      : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${timeRateRow}${lotSizeRow}${dateSpreadRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
 
@@ -176,6 +192,22 @@ export function buildMarcheHtml(
         <tbody>${rows}</tbody>
       </table>
     `)
+    // B117: renovation profile note
+    const renovationProfile = computeRenovationProfile(comparables)
+    if (renovationProfile && renovationProfile.renovatedCount > 0) {
+      const recentNote = renovationProfile.recentlyRenovatedIds.length > 0
+        ? ` · ${renovationProfile.recentlyRenovatedIds.length} rénové${renovationProfile.recentlyRenovatedIds.length > 1 ? 's' : ''} récemment (≤ 10 ans)`
+        : ''
+      const ageNote = renovationProfile.avgRenovationAge != null
+        ? ` · âge moyen rénovation : ${renovationProfile.avgRenovationAge} ans`
+        : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Rénovations&nbsp;: <strong>${renovationProfile.renovatedCount}/${comparables.length}</strong>
+          (${fmt(renovationProfile.renovatedPct, 0)} %)${ageNote}${recentNote}
+        </p>
+      `)
+    }
   } else {
     sections.push('<p>Aucun comparable chargé.</p>')
   }
