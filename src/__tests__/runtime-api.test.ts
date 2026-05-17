@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { deleteRuntimeDossier, toggleRuntimePin, uploadRuntimeDocument } from '@/lib/runtime-api'
+import { deleteRuntimeDossier, fetchRuntimeEnrichment, toggleRuntimePin, uploadRuntimeDocument } from '@/lib/runtime-api'
 
 // ── Backend-persisted archive / pin ──────────────────────────────────────────
 
@@ -98,5 +98,56 @@ describe('uploadRuntimeDocument — client-side validation', () => {
     const doc = await uploadRuntimeDocument('session-1', file)
     expect(doc).toHaveProperty('id', 'doc-1')
     vi.unstubAllGlobals()
+  })
+})
+
+// ── fetchRuntimeEnrichment ────────────────────────────────────────────────────
+
+describe('fetchRuntimeEnrichment', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('returns enrichment from active session state', async () => {
+    const enrichment = {
+      score_global: { score: 7.5, grade: 'B', recommandation: 'Bon investissement' },
+      alertes: { liste: [], nb_critiques: 0, nb_attention: 0, nb_info: 0 },
+      score_investissement: null,
+      indice_qualite_vie: null,
+      score_risque: null,
+      projection_valeur: null,
+      rendement_locatif: null,
+      valeur_indicative: null,
+      taxes_municipales: null,
+      ratio_prix_loyer: null,
+      vetuste_batiment: null,
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ active: { enrichment } }),
+    }))
+    const result = await fetchRuntimeEnrichment('session-abc')
+    expect(result).not.toBeNull()
+    expect(result?.score_global?.grade).toBe('B')
+    expect(result?.score_global?.score).toBe(7.5)
+  })
+
+  it('returns null when active is null', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ active: null }),
+    }))
+    const result = await fetchRuntimeEnrichment('session-new')
+    expect(result).toBeNull()
+  })
+
+  it('calls /app/state with session_id query param', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ active: null }),
+    })
+    vi.stubGlobal('fetch', fetch)
+    await fetchRuntimeEnrichment('my-session')
+    const [url] = fetch.mock.calls[0] as [string]
+    expect(url).toContain('/app/state')
+    expect(url).toContain('my-session')
   })
 })

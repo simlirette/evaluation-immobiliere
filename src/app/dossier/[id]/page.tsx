@@ -31,6 +31,7 @@ function DossierShellInner() {
   const [isNew, setIsNew] = useState(params.id === 'nouveau')
   const [visible, setVisible] = useState(true)
   const [reportReady, setReportReady] = useState(false)
+  const [syntheseCritiques, setSyntheseCritiques] = useState(0)
 
   useEffect(() => {
     if (params.id === 'nouveau') return
@@ -119,6 +120,7 @@ function DossierShellInner() {
           onTabChange={setTab}
           hidden={showMesDossiers}
           reportReady={reportReady}
+          syntheseCritiques={syntheseCritiques}
         />
 
         <div
@@ -132,7 +134,7 @@ function DossierShellInner() {
             {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => setReportReady(true)} />}
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} />}
             {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} />}
-            {activeTab === 'synthese' && <SynthesePanel dossierId={dossierId} />}
+            {activeTab === 'synthese' && <SynthesePanel dossierId={dossierId} onCritiqueFound={setSyntheseCritiques} />}
             {activeTab === 'rapport'  && <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />}
           </div>
         </div>

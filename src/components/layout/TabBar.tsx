@@ -9,9 +9,10 @@ interface Props {
   onTabChange: (tab: TabId) => void
   hidden: boolean
   reportReady?: boolean
+  syntheseCritiques?: number
 }
 
-export default function TabBar({ activeTab, onTabChange, hidden, reportReady }: Props) {
+export default function TabBar({ activeTab, onTabChange, hidden, reportReady, syntheseCritiques }: Props) {
   const { groupRef, pillRef } = useTabPill(activeTab)
 
   return (
@@ -59,6 +60,9 @@ export default function TabBar({ activeTab, onTabChange, hidden, reportReady }: 
             {tab.label}
             {tab.id === 'rapport' && reportReady && (
               <span className="absolute top-[6px] right-[4px] sm:right-[14px] w-1.5 h-1.5 rounded-full bg-[#1f7a5c]" />
+            )}
+            {tab.id === 'synthese' && syntheseCritiques != null && syntheseCritiques > 0 && (
+              <span className="absolute top-[6px] right-[4px] sm:right-[14px] w-1.5 h-1.5 rounded-full bg-[#c0392b]" />
             )}
           </button>
         ))}

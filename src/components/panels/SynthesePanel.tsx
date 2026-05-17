@@ -8,6 +8,7 @@ import type { Enrichment, EnrichmentAlerte } from '@/types'
 
 interface Props {
   dossierId: string | null
+  onCritiqueFound?: (count: number) => void
 }
 
 function fmt(n: number | null | undefined, digits = 0): string {
@@ -126,7 +127,7 @@ function ProjectionTable({ pv }: { pv: NonNullable<Enrichment['projection_valeur
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function SynthesePanel({ dossierId }: Props) {
+export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -136,8 +137,10 @@ export default function SynthesePanel({ dossierId }: Props) {
     fetchRuntimeEnrichment(dossierId).then(data => {
       setEnrichment(data)
       setLoading(false)
+      const nb = data?.alertes?.nb_critiques ?? 0
+      if (nb > 0) onCritiqueFound?.(nb)
     }).catch(() => setLoading(false))
-  }, [dossierId])
+  }, [dossierId, onCritiqueFound])
 
   if (loading) return <PanelSkeleton />
 
