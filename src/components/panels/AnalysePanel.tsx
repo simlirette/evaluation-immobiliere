@@ -22,6 +22,7 @@ import { computeAdjustmentConsistency } from '@/lib/compute-adjustment-consisten
 import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
 import { computeAdjustedPriceStats } from '@/lib/compute-adjusted-price-stats'
 import { computeSensitivityAnalysis } from '@/lib/compute-sensitivity-analysis'
+import { computeComparableRanking } from '@/lib/compute-comparable-ranking'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
@@ -227,6 +228,27 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                   )
                 })()}
               </>
+            )
+          })()}
+          {adjustments.length > 0 && comparables.length > 0 && (() => {
+            const ranking = computeComparableRanking(comparables, adjustments)
+            if (ranking.length === 0) return null
+            return (
+              <div className="mt-3 mb-1">
+                <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-2">Classement des comparables</div>
+                <div className="flex flex-col divide-y divide-[rgba(0,0,0,.04)] rounded-xl overflow-hidden bg-[rgba(0,0,0,.025)]">
+                  {ranking.map(r => (
+                    <div key={r.comparableId} className="flex items-center gap-2 px-3 py-1.5">
+                      <span className={`text-[10px] font-semibold w-4 flex-shrink-0 ${r.rank === 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#b5b2ac]'}`}>#{r.rank}</span>
+                      <span className="text-[11px] text-[#4a4845] dark:text-[#c5c2bc] flex-1 min-w-0 truncate">{r.comparableLabel}</span>
+                      <span className="text-[10px] text-[#8a8780] flex-shrink-0">qualité {fmtNum(r.qualityScore, 1)}/10</span>
+                      <span className={`text-[10px] flex-shrink-0 ${r.isOutlier ? 'text-amber-600' : 'text-[#b5b2ac]'}`}>
+                        {r.isOutlier ? '⚠ atypique' : `poids ${r.weightPct} %`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )
           })()}
           {financier && <FinancierContexte f={financier} />}
