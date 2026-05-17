@@ -185,7 +185,7 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
         )}
 
         {/* Scores grid */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <ScoreChip
             label="Investissement"
             score={score_investissement?.score}
@@ -204,7 +204,7 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
         </div>
 
         {/* Valeur + projection */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {valeur_indicative && (
             <div className="p-4 rounded-xl bg-[rgba(255,255,255,.55)] dark:bg-[rgba(30,28,25,.55)] ring-1 ring-[rgba(0,0,0,.07)]">
               <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-1">Valeur indicative</div>
@@ -230,7 +230,7 @@ export default function SynthesePanel({ dossierId, onCritiqueFound }: Props) {
         {projection_valeur && <ProjectionTable pv={projection_valeur} />}
 
         {/* Secondary metrics */}
-        <div className="grid grid-cols-3 gap-3 text-[13px]">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[13px]">
           {taxes_municipales && (
             <div className="p-4 rounded-xl bg-[rgba(255,255,255,.55)] dark:bg-[rgba(30,28,25,.55)] ring-1 ring-[rgba(0,0,0,.07)]">
               <div className="text-[11px] uppercase tracking-widest text-[#8a8780] mb-1">Taxes mun.</div>

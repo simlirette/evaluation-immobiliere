@@ -46,6 +46,9 @@ interface RapportState {
 
 export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [split, setSplit] = useState(false)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 640
+  )
   const [leftWidth, setLeftWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 400
     return Number(localStorage.getItem('rapport-panel-width') ?? '400') || 400
@@ -103,6 +106,16 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       }
     }
   }
+
+  useEffect(() => {
+    function onResize() {
+      const mobile = window.innerWidth < 640
+      setIsMobile(mobile)
+      if (mobile) setSplit(false)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -197,7 +210,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
           <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
             {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}
-            <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
               {state.steps.map(step => (
                 <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
                   <div className="text-[#1a1916]">{step.label}</div>
@@ -235,7 +248,8 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
               title="Brouillon de rapport"
               subtitle={`Non certifi\u00e9 \u2014 paquet\u00a0: ${state.packageStatus}`}
               label={split ? 'Fermer' : 'Ouvrir'}
-              onClick={() => setSplit(s => !s)}
+              onClick={isMobile ? undefined : () => setSplit(s => !s)}
+              disabled={isMobile}
             />
             {split && (
               <button
