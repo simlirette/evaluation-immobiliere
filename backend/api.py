@@ -1043,6 +1043,26 @@ def _build_enrichment_view(fb: dict) -> dict:
             "depreciation_pct": vet.get("taux_depreciation_pct"),
         } if vet.get("categorie") else None,
         "marche": _build_marche_view(fb),
+        "financier": _build_financier_view(fb),
+    }
+
+
+def _build_financier_view(fb: dict) -> dict | None:
+    """Extract B30+B35 financial context from fiche_bien.json."""
+    cp = fb.get("couts_possession") or {}
+    ab = fb.get("indice_abordabilite") or {}
+    if not cp and not ab:
+        return None
+    return {
+        "total_mensuel": cp.get("total_mensuel"),
+        "versement_hypo_mensuel": cp.get("versement_hypothecaire_mensuel"),
+        "ratio_revenu_pct": cp.get("ratio_revenu_pct"),
+        "interpretation_couts": cp.get("interpretation"),
+        "ratio_loyer_revenu_pct": ab.get("ratio_loyer_revenu_pct"),
+        "seuil_location": ab.get("seuil"),
+        "versement_mensuel_estime": ab.get("versement_mensuel_estime"),
+        "ratio_mensualite_revenu_pct": ab.get("ratio_mensualite_revenu_pct"),
+        "seuil_propriete": ab.get("seuil_propriete"),
     }
 
 

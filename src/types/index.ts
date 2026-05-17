@@ -23,6 +23,18 @@ export interface EnrichmentMarche {
   population_variation_pct: number | null
 }
 
+export interface EnrichmentFinancier {
+  total_mensuel: number | null
+  versement_hypo_mensuel: number | null
+  ratio_revenu_pct: number | null
+  interpretation_couts: string | null
+  ratio_loyer_revenu_pct: number | null
+  seuil_location: string | null
+  versement_mensuel_estime: number | null
+  ratio_mensualite_revenu_pct: number | null
+  seuil_propriete: string | null
+}
+
 export interface Enrichment {
   score_global: { score: number; grade: string; recommandation: string } | null
   alertes: { liste: EnrichmentAlerte[]; nb_critiques: number; nb_attention: number; nb_info: number } | null
@@ -36,6 +48,7 @@ export interface Enrichment {
   ratio_prix_loyer: { ratio: number; signal: string } | null
   vetuste_batiment: { age_ans: number; categorie: string; depreciation_pct: number } | null
   marche: EnrichmentMarche | null
+  financier: EnrichmentFinancier | null
 }
 
 export interface Tab {

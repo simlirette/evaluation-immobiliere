@@ -6349,3 +6349,63 @@ class TestBuildMarcheView:
         assert r["taux_inoccupation_pct"] == pytest.approx(3.1)
         assert r["taux_directeur_pct"] is None
         assert r["nhpi_variation_pct"] is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch 14 — _build_financier_view (api.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBuildFinancierView:
+    """_build_financier_view — extracts B30+B35 financial context from fiche_bien."""
+
+    def test_empty_fb_returns_none(self):
+        """No financial B-sources → None."""
+        from api import _build_financier_view
+        assert _build_financier_view({}) is None
+
+    def test_couts_possession_extracted(self):
+        """couts_possession → total_mensuel, versement, ratio, interpretation."""
+        from api import _build_financier_view
+        fb = {
+            "couts_possession": {
+                "total_mensuel": 2800,
+                "versement_hypothecaire_mensuel": 2100,
+                "ratio_revenu_pct": 38.5,
+                "interpretation": "modéré",
+            }
+        }
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["total_mensuel"] == 2800
+        assert r["versement_hypo_mensuel"] == 2100
+        assert r["ratio_revenu_pct"] == pytest.approx(38.5)
+        assert r["interpretation_couts"] == "modéré"
+
+    def test_indice_abordabilite_extracted(self):
+        """indice_abordabilite → ratio_loyer, mensualite, seuils."""
+        from api import _build_financier_view
+        fb = {
+            "indice_abordabilite": {
+                "ratio_loyer_revenu_pct": 28.0,
+                "seuil": "abordable",
+                "versement_mensuel_estime": 1950,
+                "ratio_mensualite_revenu_pct": 35.0,
+                "seuil_propriete": "limite",
+            }
+        }
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["ratio_loyer_revenu_pct"] == pytest.approx(28.0)
+        assert r["seuil_location"] == "abordable"
+        assert r["versement_mensuel_estime"] == 1950
+        assert r["seuil_propriete"] == "limite"
+
+    def test_missing_keys_are_none(self):
+        """Sub-keys absent → None values, not KeyError."""
+        from api import _build_financier_view
+        fb = {"couts_possession": {"total_mensuel": 3000}}
+        r = _build_financier_view(fb)
+        assert r is not None
+        assert r["total_mensuel"] == 3000
+        assert r["versement_hypo_mensuel"] is None
+        assert r["ratio_loyer_revenu_pct"] is None
