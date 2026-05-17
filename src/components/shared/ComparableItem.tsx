@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import type { Comparable } from '@/types'
 import { computePricePerM2, formatPricePerM2 } from '@/lib/comparable-utils'
+import { validateComparableDate } from '@/lib/validate-comparable-date'
 
 export default function ComparableItem({ comp }: { comp: Comparable }) {
   const [expanded, setExpanded] = useState(false)
   const perM2 = computePricePerM2(comp.sale_price, comp.hab_m2)
+  const dateValidation = validateComparableDate(comp.sale_date)
 
   const details: Array<{ label: string; value: string }> = []
   if (comp.hab_m2) details.push({ label: 'Surface hab.', value: `${comp.hab_m2} m²` })
@@ -30,7 +32,12 @@ export default function ComparableItem({ comp }: { comp: Comparable }) {
         onKeyDown={e => e.key === 'Enter' && details.length > 0 && setExpanded(x => !x)}
         aria-expanded={details.length > 0 ? expanded : undefined}
       >
-        <div className="text-[10px] text-[#b5b2ac] font-medium text-center">{comp.rank}</div>
+        <div className="text-[10px] text-[#b5b2ac] font-medium text-center relative">
+          {comp.rank}
+          {dateValidation.stale && (
+            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" title={dateValidation.warning ?? ''} />
+          )}
+        </div>
         <div className="min-w-0">
           <div className="text-[13px] text-[#1a1916]">{comp.address}</div>
           <div className="text-[11px] text-[#8a8780] mt-0.5">{comp.meta}</div>
@@ -61,6 +68,11 @@ export default function ComparableItem({ comp }: { comp: Comparable }) {
               </div>
             ))}
           </div>
+          {dateValidation.warning && (
+            <div className="mt-2 text-[10px] text-amber-700 bg-amber-50/80 border border-amber-200/60 rounded-[6px] px-2.5 py-1.5 leading-relaxed">
+              {dateValidation.warning}
+            </div>
+          )}
         </div>
       )}
     </div>
