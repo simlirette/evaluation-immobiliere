@@ -33,6 +33,8 @@ import { computeSalePriceCV } from './compute-sale-price-cv'
 import { computeComparableSaleVelocity } from './compute-comparable-sale-velocity'
 import { computeComparableDateRecencyProfile } from './compute-comparable-date-recency-profile'
 import { computeComparableHabitatProfile } from './compute-comparable-habitat-profile'
+import { computeComparableStreetDiversity } from './compute-comparable-street-diversity'
+import { computeComparableDataCompleteness } from './compute-comparable-data-completeness'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -375,6 +377,18 @@ export function buildMarcheHtml(
         `)
       }
     }
+    // B168: street diversity
+    if (comparables.length > 0) {
+      const streetDiv = computeComparableStreetDiversity(comparables)
+      if (streetDiv && streetDiv.concentrated) {
+        sections.push(`
+          <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+            ⚠ Concentration géographique&nbsp;: tous les comparables sur la même rue
+            <span style="font-size:9pt;color:#8a8780;"> (${streetDiv.streets[0]})</span>
+          </p>
+        `)
+      }
+    }
     // B157: date recency profile
     if (comparables.length > 0) {
       const recency = computeComparableDateRecencyProfile(comparables)
@@ -443,6 +457,23 @@ export function buildMarcheHtml(
     }
   } else {
     sections.push('<p>Aucun comparable chargé.</p>')
+  }
+
+  // B170: per-comp data completeness
+  if (comparables.length > 0) {
+    const completeness = computeComparableDataCompleteness(comparables)
+    if (completeness && completeness.sparseCount > 0) {
+      const sparseLabels = completeness.entries
+        .filter(e => e.score < 3)
+        .map(e => `${e.comparableLabel} (${e.score}/5)`)
+        .join(', ')
+      sections.push(`
+        <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+          ⚠ Données insuffisantes (${completeness.sparseCount} comp.&nbsp;&lt; 3/5 champs)&nbsp;: <strong>${sparseLabels}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — score moy. ${fmt(completeness.avgScore, 1)}/5 · ${completeness.fullCount} complet${completeness.fullCount !== 1 ? 's' : ''}</span>
+        </p>
+      `)
+    }
   }
 
   // B143: field coverage summary

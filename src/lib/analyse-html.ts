@@ -52,6 +52,9 @@ import { computePricePerM2Convergence } from './compute-price-per-m2-convergence
 import { computeAdjustmentDominantTypeByComp } from './compute-adjustment-dominant-type-by-comp'
 import { computeSalePriceResidual } from './compute-sale-price-residual'
 import { computeMedianAdjustedPrice } from './compute-median-adjusted-price'
+import { computeValueIndicatorRange } from './compute-value-indicator-range'
+import { computeAdjustmentNetMagnitudeProfile } from './compute-adjustment-net-magnitude-profile'
+import { computeAdjustmentConditionBias } from './compute-adjustment-condition-bias'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -841,6 +844,49 @@ export function buildAnalyseHtml(
         <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
           Médiane ajustée&nbsp;: <strong>${fmtMoney(medAdj.median)}</strong>
           <span style="font-size:9pt;color:${color};"> — réconcilié ${sign}${fmt(medAdj.deltaPct, 1)} % vs médiane (${sign}${fmtMoney(medAdj.delta)})</span>
+        </p>
+      `)
+    }
+  }
+
+  // B166: value indicator range (IQR of adjusted prices)
+  if (adjustments.length >= 4) {
+    const vir = computeValueIndicatorRange(adjustments)
+    if (vir) {
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Fourchette indicative (IQR)&nbsp;:
+          <strong>${fmtMoney(vir.q1)} – ${fmtMoney(vir.q3)}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — IQR ${fmtMoney(vir.iqr)} · ${fmt(vir.iqrPct, 1)} % de la médiane · centre ${fmtMoney(vir.midpoint)}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B167: net magnitude profile
+  if (adjustments.length > 0) {
+    const magProfile = computeAdjustmentNetMagnitudeProfile(adjustments)
+    if (magProfile && magProfile.countFort > 0) {
+      sections.push(`
+        <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+          ⚠ Magnitude des ajustements nets&nbsp;: <strong>${magProfile.countFort} fort${magProfile.countFort > 1 ? 's' : ''}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> · ${magProfile.countModéré} modéré${magProfile.countModéré !== 1 ? 's' : ''} · ${magProfile.countFaible} faible${magProfile.countFaible !== 1 ? 's' : ''}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B169: condition adjustment bias
+  if (adjustments.length > 0) {
+    const condBias = computeAdjustmentConditionBias(adjustments)
+    if (condBias && condBias.avgWhenApplied !== null) {
+      const dirLabel: Record<string, string> = { positive: 'à la hausse', negative: 'à la baisse', neutral: 'neutre' }
+      const color = condBias.dominantDirection === 'positive' ? '#1f7a5c' : condBias.dominantDirection === 'negative' ? '#b91c1c' : '#6a6763'
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Ajustement état&nbsp;:
+          <strong style="color:${color};">${dirLabel[condBias.dominantDirection]}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ↑ ${condBias.countPositive} · ↓ ${condBias.countNegative} · ≈ ${condBias.countZero} · moy. appliqué ${fmtAdj(condBias.avgWhenApplied)}</span>
         </p>
       `)
     }
