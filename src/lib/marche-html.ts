@@ -26,6 +26,9 @@ import { computeComparablePriceSkew } from './compute-comparable-price-skew'
 import { computePriceIndexationSummary } from './compute-price-indexation-summary'
 import { computeSalePricePerTerrainM2 } from './compute-sale-price-per-terrain-m2'
 import { computeComparableFieldCoverage } from './compute-comparable-field-coverage'
+import { computeComparableRepresentativeness } from './compute-comparable-representativeness'
+import { computeComparableAgeDiversityScore } from './compute-comparable-age-diversity-score'
+import { computeReconciledValue } from './compute-reconciled-value'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -110,6 +113,14 @@ export function buildMarcheHtml(
     const m2DistRow = m2Dist
       ? `<tr><td style="color:#6a6763;">Dispersion $/m² (CV)</td><td style="font-weight:600;text-align:right;">${fmt(m2Dist.cv, 1)} % <span style="font-weight:400;font-size:9pt;color:#8a8780;">(min ${fmt(m2Dist.min, 0)} – max ${fmt(m2Dist.max, 0)} $/m²)</span></td></tr>`
       : ''
+    // B148: age diversity score
+    const ageDiversity = computeComparableAgeDiversityScore(comparables)
+    const ageDiversityRow = ageDiversity
+      ? (() => {
+          const color = ageDiversity.diversity === 'élevée' ? '#1f7a5c' : ageDiversity.diversity === 'faible' ? '#b45309' : '#6a6763'
+          return `<tr><td style="color:#6a6763;">Diversité des millésimes</td><td style="font-weight:600;text-align:right;color:${color};">${ageDiversity.diversity} (${ageDiversity.decadeCount} décennie${ageDiversity.decadeCount > 1 ? 's' : ''}) <span style="font-weight:400;font-size:9pt;color:#8a8780;">${ageDiversity.minYear} – ${ageDiversity.maxYear}, étendue ${ageDiversity.range} ans</span></td></tr>`
+        })()
+      : ''
     // B142: $/terrain m²
     const terrainM2 = computeSalePricePerTerrainM2(comparables)
     const terrainM2Row = terrainM2
@@ -184,9 +195,25 @@ export function buildMarcheHtml(
       : ''
     sections.push(`
       <h2>Synthèse des comparables</h2>
-      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${quartilesRow}${m2OutliersRow}</tbody></table>
+      <table><tbody>${statRows}${trendRow}${m2Row}${m2DistRow}${priceSkewRow}${timeRateRow}${ppm2TrendRow}${terrainM2Row}${lotSizeRow}${sizeRangeRow}${dateSpreadRow}${ageStatsRow}${ageDiversityRow}${quartilesRow}${m2OutliersRow}</tbody></table>
       ${minCheck.warning ? `<p style="color:#b45309;font-size:10pt;">⚠ ${minCheck.warning}</p>` : ''}
     `)
+
+    // B146: subject value representativeness vs raw comp prices
+    if (adjustments && adjustments.length >= 2) {
+      const reconciledResult = computeReconciledValue(adjustments)
+      if (reconciledResult) {
+        const rep = computeComparableRepresentativeness(comparables, reconciledResult.value)
+        if (rep && !rep.withinRange) {
+          const side = rep.subjectValue < rep.compMin ? 'en-dessous' : 'au-dessus'
+          sections.push(`
+            <p style="font-size:10pt;color:#b45309;margin-top:4pt;">
+              ⚠ Valeur réconciliée (${fmtMoney(rep.subjectValue)}) ${side} des prix bruts des comparables (${fmtMoney(rep.compMin)} – ${fmtMoney(rep.compMax)}, écart ${fmt(rep.deviationPct, 1)} %) — représentativité limitée.
+            </p>
+          `)
+        }
+      }
+    }
 
     // Indexed prices sub-table when time rate is available
     if (timeRate && comparables.length > 0) {

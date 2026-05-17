@@ -38,6 +38,9 @@ import { computeOEAQBracketingSummary } from './compute-oeaq-bracketing-summary'
 import { computeWeightedAdjustedMean } from './compute-weighted-adjusted-mean'
 import { computeGrossAdjustmentTrend } from './compute-gross-adjustment-trend'
 import { computeAdjustmentSummaryByComp } from './compute-adjustment-summary-by-comp'
+import { computeAdjustmentCoverageByType } from './compute-adjustment-coverage-by-type'
+import { computeTimeAdjustmentImpact } from './compute-time-adjustment-impact'
+import { computeGrossToNetRatio } from './compute-gross-to-net-ratio'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -111,6 +114,8 @@ export function buildAnalyseHtml(
       ...((() => { const db = adjustments.length >= 2 ? computeAdjustmentDirectionBalance(adjustments) : null; if (!db || db.balanced) return []; const color = '#b45309'; const dirLabel = db.direction === 'upward' ? 'positifs' : 'négatifs'; const dirPct = db.direction === 'upward' ? db.upPct : db.downPct; return [[`Biais d'ajustement`, `<span style="color:${color};">${fmt(dirPct, 0)} % ${dirLabel}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${db.upCount}↑ ${db.downCount}↓ ${db.neutralCount}=)</span>`]] })()),
       ...((() => { const vm = subjectHabM2 != null && subjectHabM2 > 0 ? computeValuePerM2Conclusion(valuationConclusion.reconciledValue, subjectHabM2, comparables ?? []) : null; if (!vm) return []; const color = vm.signal === 'haut' ? '#b45309' : vm.signal === 'bas' ? '#0369a1' : '#1f7a5c'; const vsNote = vm.vsMedianPct != null ? ` <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${vm.vsMedianPct > 0 ? '+' : ''}${fmt(vm.vsMedianPct, 1)} % vs médiane comparables ${vm.medianCompM2 != null ? fmt(vm.medianCompM2, 0) + ' $/m²' : ''})</span>` : ''; return [[`Valeur au m² (sujet)`, `<span style="color:${color};font-weight:600;">${fmt(vm.pricePerM2, 0)} $/m²${vm.signal ? ` — ${vm.signal}` : ''}</span>${vsNote}`]] })()),
       ...((() => { const conv = adjustments.length >= 3 ? computeAdjustmentConvergence(adjustments) : null; if (!conv) return []; const color = conv.converged ? '#1f7a5c' : '#b45309'; const sign = conv.convergencePct > 0 ? '+' : ''; return [[`Convergence des ajustements`, `<span style="color:${color};font-weight:600;">${conv.converged ? 'convergente' : 'divergente'}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(CV brut ${fmt(conv.rawCv, 1)} % → ajusté ${fmt(conv.adjustedCv, 1)} %, ${sign}${fmt(conv.convergencePct, 1)} %)</span>`]] })()),
+      ...((() => { const ti = adjustments.length > 0 ? computeTimeAdjustmentImpact(adjustments) : null; if (!ti || ti.avgYearAdjPctOfGross == null) return []; const color = ti.timeAdjustmentDominant ? '#b45309' : '#6a6763'; return [[`Impact ajustement temporel`, `<span style="color:${color};font-weight:${ti.timeAdjustmentDominant ? '600' : '400'};">${fmt(ti.avgYearAdjPctOfGross, 1)} % du brut (moy.)</span>${ti.timeAdjustmentDominant ? ' <span style="font-size:8pt;color:#b45309;">⚠ dominant</span>' : ''}`]] })()),
+      ...((() => { const gnr = adjustments.length > 0 ? computeGrossToNetRatio(adjustments) : null; if (!gnr || gnr.avgRatio == null || gnr.avgRatio <= 1.5) return []; const color = gnr.avgRatio > 3 ? '#b91c1c' : '#b45309'; return [[`Annulation des ajustements`, `<span style="color:${color};font-weight:600;">ratio ${fmt(gnr.avgRatio, 2)}</span> <span style="font-size:8pt;font-weight:400;color:#8a8780;">(${gnr.highCancellationIds.length} comp. en forte annulation)</span>`]] })()),
     ].map(([label, val]) => `<tr><td style="color:#6a6763;">${label}</td><td style="text-align:right;">${val}</td></tr>`).join('')
     sections.push(`
       <h2>Conclusion structurée</h2>
@@ -287,6 +292,22 @@ export function buildAnalyseHtml(
       sections.push(`
         <h2>Répartition des ajustements</h2>
         <table><tbody>${profileRows}</tbody></table>
+      `)
+    }
+
+    // B147: adjustment coverage by type
+    const coverage = computeAdjustmentCoverageByType(adjustments)
+    if (coverage) {
+      const unusedNote = coverage.unusedTypes.length > 0
+        ? ` · non utilisés&nbsp;: ${coverage.unusedTypes.map(t => ({ surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' })[t]).join(', ')}`
+        : ''
+      const universalNote = coverage.universalTypes.length > 0
+        ? `Universels (≥ 80 %)&nbsp;: ${coverage.universalTypes.map(t => ({ surface: 'Surface', year: 'Année', condition: 'État', garage: 'Garage' })[t]).join(', ')}. `
+        : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          ${universalNote}Couverture par type&nbsp;: ${coverage.entries.filter(e => e.coveragePct > 0).map(e => `${e.label} ${e.coveragePct} %`).join(' · ')}${unusedNote}
+        </p>
       `)
     }
 
