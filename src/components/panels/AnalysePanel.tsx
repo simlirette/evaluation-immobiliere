@@ -188,7 +188,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
-          <AdjustmentsTable rows={adjustments} />
+          <AdjustmentsTable rows={adjustments} comparables={comparables} />
           {conclusion !== null && (() => {
             const summary = summarizeAdjustments(adjustments)
             const range = summary && adjustments.length > 1

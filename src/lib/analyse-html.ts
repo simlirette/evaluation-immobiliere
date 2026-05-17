@@ -79,11 +79,14 @@ export function buildAnalyseHtml(
   if (adjustments.length > 0) {
     const outliers = detectOutlierComparables(adjustments)
     const outlierMap = new Map(outliers.map(o => [o.id, o]))
+    const reconciledWeights = adjustments.length > 1 ? (computeReconciledValue(adjustments)?.weights ?? {}) : {}
     const rows = adjustments.map(a => {
       const outlier = outlierMap.get(a.id)
-      const adjustedCell = outlier?.isOutlier
-        ? `<td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}<br><span style="font-size:8pt;font-weight:400;color:#b45309;">${outlier.deviationFromMedianPct > 0 ? '+' : ''}${fmt(outlier.deviationFromMedianPct)} % vs méd.</span></td>`
-        : `<td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}</td>`
+      const weightPct = reconciledWeights[a.id]
+      const subLines: string[] = []
+      if (outlier?.isOutlier) subLines.push(`<span style="font-size:8pt;font-weight:400;color:#b45309;">${outlier.deviationFromMedianPct > 0 ? '+' : ''}${fmt(outlier.deviationFromMedianPct)} % vs méd.</span>`)
+      if (weightPct != null) subLines.push(`<span style="font-size:8pt;font-weight:400;color:#8a8780;">poids ${weightPct} %</span>`)
+      const adjustedCell = `<td style="text-align:right;font-weight:700;">${fmtMoney(a.adjusted)}${subLines.length > 0 ? '<br>' + subLines.join('<br>') : ''}</td>`
       return `
       <tr>
         <td>${a.comparableLabel}</td>

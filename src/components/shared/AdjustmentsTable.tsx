@@ -1,10 +1,12 @@
-import type { Adjustment } from '@/types'
+import type { Adjustment, Comparable } from '@/types'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
 import { computeNetAdjustment } from '@/lib/compute-net-adjustment'
 import { computeGrossAdjustment } from '@/lib/compute-gross-adjustment'
 import { computeMedianIndicatedValue } from '@/lib/compute-median-indicated-value'
 import { detectOutlierComparables } from '@/lib/detect-outlier-comparables'
 import { computeReconciledValue } from '@/lib/compute-reconciled-value'
+import { computeTimeAdjustmentRate } from '@/lib/compute-time-adjustment-rate'
+import { computeTimeAdjustedSalePrice } from '@/lib/compute-time-adjusted-sale-price'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
 
 function formatAdj(value: number): string {
@@ -29,12 +31,14 @@ function AdjCell({ value }: { value: number }) {
   )
 }
 
-export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
+export default function AdjustmentsTable({ rows, comparables }: { rows: Adjustment[]; comparables?: Comparable[] }) {
   const summary = summarizeAdjustments(rows)
   const median = computeMedianIndicatedValue(rows)
   const reconciled = computeReconciledValue(rows)
   const outliers = detectOutlierComparables(rows)
   const outlierMap = new Map(outliers.map(o => [o.id, o]))
+  const timeRate = comparables ? computeTimeAdjustmentRate(comparables) : null
+  const compMap = comparables ? new Map(comparables.map(c => [c.id, c])) : new Map<string, Comparable>()
   return (
     <div className="mt-2.5 overflow-x-auto">
       <table className="w-full border-collapse text-xs">
@@ -55,10 +59,23 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
             const netColor = absPct >= 25 ? 'text-[#c0392b]' : absPct >= 15 ? 'text-amber-600' : 'text-[#6a6763]'
             const grossColor = grossPct >= 40 ? 'text-[#c0392b]' : grossPct >= 25 ? 'text-amber-600' : 'text-[#b5b2ac]'
             const outlier = outlierMap.get(row.id)
+            const comp = compMap.get(row.comparable_id)
+            const timeAdj = (timeRate && comp?.sale_date && comp?.sale_price)
+              ? computeTimeAdjustedSalePrice(comp.sale_date, comp.sale_price, timeRate.monthlyRatePct)
+              : null
+            const showTimeAdj = timeAdj && Math.abs(timeAdj.adjustmentPct) >= 0.5
+            const weightPct = reconciled?.weights[row.id]
             return (
               <tr key={i}>
                 <td className="px-2.5 py-[9px] border-b border-black/[.04] text-[12px] text-[#8a8780] text-left">{row.comparableLabel}</td>
-                <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right">{formatPrice(row.salePrice)}</td>
+                <td className="px-2.5 py-[9px] border-b border-black/[.04] text-right">
+                  {formatPrice(row.salePrice)}
+                  {showTimeAdj && (
+                    <div className="text-[10px] font-normal text-[#b5b2ac] leading-tight" title={`Prix ajusté au temps : ${timeAdj.adjustmentPct > 0 ? '+' : ''}${timeAdj.adjustmentPct} % sur ${timeAdj.monthsElapsed} mois`}>
+                      → {formatPrice(timeAdj.adjustedPrice)} (temps)
+                    </div>
+                  )}
+                </td>
                 <AdjCell value={row.surface_adj} />
                 <AdjCell value={row.year_adj} />
                 <AdjCell value={row.condition_adj} />
@@ -76,6 +93,11 @@ export default function AdjustmentsTable({ rows }: { rows: Adjustment[] }) {
                   {outlier?.isOutlier && (
                     <div className="text-[10px] font-normal text-amber-600 leading-tight" title="Valeur indiquée atypique (écart > 15 % vs médiane)">
                       {outlier.deviationFromMedianPct > 0 ? '+' : ''}{fmtNum(outlier.deviationFromMedianPct, 1)} % vs méd.
+                    </div>
+                  )}
+                  {weightPct != null && rows.length > 1 && (
+                    <div className="text-[10px] font-normal text-[#b5b2ac] leading-tight">
+                      poids {weightPct} %
                     </div>
                   )}
                 </td>

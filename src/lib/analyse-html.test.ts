@@ -166,4 +166,11 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
     expect(html).not.toContain("Taux implicite d'appréciation")
   })
+
+  it('shows reconciliation weight % for each comparable in print table', () => {
+    // 2 comps → weights computed → "poids X %" sub-line in Prix ajusté cell
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('poids')
+    expect(html).toContain('%')
+  })
 })
