@@ -116,4 +116,17 @@ describe('buildAnalyseHtml', () => {
     const html = buildAnalyseHtml(adjs3, 422000, 'PRET_REVUE', null)
     expect(html).toContain('vs méd.')
   })
+
+  it('includes adjustment profile section when adjustments have non-zero values', () => {
+    // adjs have surface_adj and year_adj → profile should appear
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('Répartition des ajustements')
+    expect(html).toContain('Surface')
+  })
+
+  it('includes reconciled value line when multiple adjustments', () => {
+    const html = buildAnalyseHtml(adjs, 413000, 'PRET_REVUE', null)
+    expect(html).toContain('réconciliée')
+    expect(html).toContain('confiance')
+  })
 })

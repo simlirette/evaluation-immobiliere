@@ -3,6 +3,8 @@ import { buildOEAQChecklist } from './build-oeaq-checklist'
 import { computeSubjectContext } from './compute-subject-context'
 import { computeMedianIndicatedValue } from './compute-median-indicated-value'
 import { detectOutlierComparables } from './detect-outlier-comparables'
+import { computeAdjustmentProfile } from './compute-adjustment-profile'
+import { computeReconciledValue } from './compute-reconciled-value'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -112,6 +114,37 @@ export function buildAnalyseHtml(
       </table>
       ${outlierNote}
     `)
+
+    // Adjustment profile
+    const profile = computeAdjustmentProfile(adjustments)
+    if (profile && profile.grossTotal > 0) {
+      const active = profile.types.filter(t => t.totalAbsolute > 0)
+      const profileRows = active.map(t => {
+        const color = t.direction === 'positive' ? '#1f7a5c' : t.direction === 'negative' ? '#b91c1c' : '#8a8780'
+        const avgStr = `${t.avgPerComp >= 0 ? '+' : ''}${fmtMoney(t.avgPerComp)}`
+        return `<tr>
+          <td style="color:#6a6763;">${t.label}</td>
+          <td style="text-align:right;color:${color};font-weight:600;">${t.pctOfGrossTotal}%</td>
+          <td style="text-align:right;color:${color};">${avgStr} / comp.</td>
+        </tr>`
+      }).join('')
+      sections.push(`
+        <h2>Répartition des ajustements</h2>
+        <table><tbody>${profileRows}</tbody></table>
+      `)
+    }
+
+    // Reconciled value
+    const reconciled = computeReconciledValue(adjustments)
+    if (reconciled && adjustments.length > 1) {
+      sections.push(`
+        <p style="font-size:11pt;color:#6a6763;margin-top:6pt;">
+          Valeur réconciliée (pondérée — adj. brut)&nbsp;:
+          <strong style="color:#1a1916;">${fmtMoney(reconciled.value)}</strong>
+          <span style="font-size:9pt;"> — confiance ${reconciled.confidence}</span>
+        </p>
+      `)
+    }
   }
 
   // Financial context
