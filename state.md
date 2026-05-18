@@ -1,342 +1,41 @@
-# State
+# State — eval-immo
+
+_Updated: 2026-05-18_
 
 ## Current Goal
-Phase B en cours. B1/B2/B3 (dossier lifecycle) DONE. Prochaines: upload robustness, sources données pipeline.
 
-## Decisions
-- Batch 9 spec : docs/specs/2026-05-15-batch9-pipeline-liveview-polish.md
-- Pipeline live view : polling /app/state toutes les 2s via usePipelinePolling hook
-- Rapport panel resize : DragHandle custom (no lib), localStorage persist, clamp 280px–80vw
-- UX polish : PanelSkeleton (remplace PanelLoader), erreur pipeline explicite, badge tab Rapport
+Phase 4 COMPLÈTE ✅ — Phase 3 (RAG) bloquée en attente livres MEFQ + NPP 2025.
 
 ## Plan Status
-- Batch 1 (AGENTCONFIG×5 + SKILL.md×20 + LLM enrichment): DONE ✓
-- Batch 2 (classify_dossier + PLANS-MANDATS + PlanOrchestrator): DONE ✓
-- Batch 3 (AMU agent + pipeline 5→6 + orchestrator wiring + build-eval-skill): DONE ✓
-- Batch 4 (mandat-intake + FTA skill + frontend): DONE ✓
-- Batch 5 (commanditaire form + LLM conflit + gate): DONE ✓
-- Batch 6 (ingestion-docs): DONE ✓
-- Batch 7 (comparables manuels): DONE ✓
-- Batch 8a (rapport éditeur TipTap + LLM quality): DONE ✓
-- Batch 8b (export docx/html + versioning Supabase): DONE ✓
-- Batch 9 (pipeline live view + UX polish): DONE ✓
-- Batch 10 (onglet Synthèse — tableau de bord B30-B44): DONE ✓
+
+Phase 1 COMPLÈTE ✅ (commits 5d4d488 → 08e4f71 → 39177e5)
+
+Phase 2 COMPLÈTE ✅:
+- [x] 2.1 Streaming SSE (commit 5134888)
+- [x] 2.2 Tool calling fetch_artifact (commit af289bc)
+- [x] 2.3 PDF ingestion + multi-tour (commit b5c5aaf)
+- [x] 2.5+2.6 Tests + Export PDF (commit 61a30af)
+
+Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025.
+
+Phase 4 COMPLÈTE ✅ (commit c20ca21):
+- [x] 4.1 CI GitHub Actions — pytest tests/ + tsc + build
+- [x] 4.2 PDF download button — RapportEditor ⬇ .pdf via backend _generate_pdf()
+- [x] 4.3 RapportPanel → useAgentChat — streaming SSE + multi-tour history
+
+## Decisions
+
+- middleware.ts : AUTH_ENABLED = Supabase URL+key configurés ET non-placeholder → passthrough local sinon.
+- BFF route.ts : /app/create ajouté à PIPELINE_PATHS (timeout 120s).
+- RapportEditor : browser-print retiré, remplacé par téléchargement PDF backend.
+- RapportPanel : useAgentChat(dossierId, 'redaction') — ChatReply[] avec curseur ▊ streaming.
 
 ## Evidence
-- 115 tests pass
-- Pipeline : mandat-intake(1) → data-facts(2) → amu-analyst(3) → comps-market(4) → valuation-draft(5) → compliance-qa(6) → redaction(7)
-- E2E validé 2026-05-15 : session f152408cb9f1, valeur 569 122 $, PRET_REVISION_FINALE, 0 blocking failures
 
-## Phase B (2026-05-15) — IN PROGRESS
-- B1 unique dossier_id par session (D-{8hex} UUID) ✓
-- B2 pin persistant backend (POST /app/pin, session["pinned"]) ✓
-- B3 archive persistant backend (POST /app/archive, session["archived"]) ✓
-- localStorage helpers supprimés ✓
-- B4 upload robustness: tests fetch-mock, BFF timeout 120s + maxDuration=120 ✓
-- Commits: 29aa285, 4eb54dc
-
-## Phase A (2026-05-15) — DONE
-- Git aligné : master → origin/master + origin/main, GitHub default = main ✓
-- Bug conflit gate fixé : faux positifs LLM (runtime.py + api.py), 115 tests pass ✓
-- Pipeline E2E validé bout-en-bout ✓
-- Auth decision : Option B local-only (middleware.ts LOCAL_ONLY=true, SidebarFooter caché) ✓
-
-## Phase B (cont.)
-- B5 sources données (data_enrichment.py) ✓
-  - SCHL rental market via StatCan WDS API (34-10-0133-01, 24h cache)
-  - Rôle municipal Montréal CSV (lookup by matricule/address, download_role_mtl())
-  - enrich_case() wired into start_runtime() après ingestion
-  - fiche_bien.json + amu_analyse.md + comparables_proposes.json enrichis
-  - Commit: 880b5cf
-
-- B5b rôle municipal autres villes (MAMH XML iterparse — QC/Laval/Longueuil/Gatineau/Sherbrooke) ✓
-  - build_role_xml_index() + lookup_role_xml() + download_role_xml()
-  - valeur_totale → evaluation_municipale_totale (absent du CSV Montréal)
-  - Commit: 3b07e3e
-- B6 zonage urbanisme (Nominatim geocoding + GeoJSON open data + PiP) ✓
-  - geocode_address(): Nominatim OSM, cache 7j
-  - download_zoning_geojson(): CKAN discovery (Montréal open data)
-  - build_zoning_index(): GeoJSON → compact JSON (bbox + ring simplifié 300pts)
-  - _pip_exterior(): ray casting pur Python, pas de dépendance shapely
-  - lookup_zoning_point(): bbox pre-filter + PiP, module-level cache
-  - enrich_case() → case["zonage_urbanisme"] → fiche_bien.json + amu_analyse.md
-  - Commit: 10653c4
-- B7 CPTAQ zone agricole (WFS GeoJSON + PiP + index) ✓
-  - download_cptaq(): WFS GeoJSON endpoint (geoegl.msp.gouv.qc.ca)
-  - build_cptaq_index(): GeoJSON → compact bbox+ring index
-  - lookup_cptaq(): {en_zone_agricole: bool, NM_MRC, ...} ou None si données absentes
-  - Géocodage partagé zonage+CPTAQ (1 seul appel Nominatim par enrich_case)
-  - fiche_bien.json + section amu_analyse.md (statut + note légale si en zone)
-  - Commit: 59203c5
-- B8 patrimoine culturel (WFS GeoJSON Point+Polygon + 50m buffer PiP) ✓
-  - download_patrimoine() + build_patrimoine_index() + lookup_patrimoine()
-  - {} = non répertorié, dict = trouvé, None = données absentes
-  - Section AMU "ATTENTION" si bien répertorié (statut + note légale Ministre Culture)
-  - Commit: 2b375d4
-- B9 zones inondables MELCC (WFS PiP + sélection zone la plus restrictive) ✓
-  - download_inondable() + build_inondable_index() + lookup_inondable()
-  - Récurrence: 0_20 / 20_100 / 100 ans — libellés FR + sélection plus restrictive si chevauchement
-  - {} = hors zone, dict = en zone (en_zone_inondable: True + recurrence_label)
-  - Section AMU "ATTENTION" si en zone (impact financement hypothécaire + assurabilité)
-  - Commit: eba96e3
-- B10 NHPI StatCan 18-10-0205-01 (indice prix logement neuf + variation annuelle %) ✓
-  - fetch_nhpi(): 7 villes QC, indice total/bâtiment/terrain + 13 périodes → variation %
-  - Section marché AMU unifiée (SCHL loyers + NHPI indice/variation)
-  - Commit: 5a07135
-- B11 Census 2021 (profil socio-démographique par CSD) ✓
-  - fetch_census_profile(): StatCan REST /CR2021/fr/json, topics 9+5
-  - 10 villes QC avec DGUID, cache 30j
-  - Champs: pct_proprietaires, pct_locataires, valeur_mediane_logement, frais_loyer_median, revenu_median_menage
-  - fiche_bien.json + section AMU "Données socio-démographiques"
-  - Commit: 7fc7e3d
-- B12 Zonage autres villes (Québec/Laval/Longueuil/Gatineau/Sherbrooke) ✓
-  - _ZONING_CITIES étendu: 6 villes total
-  - Longueuil: direct_url (pas CKAN), autres: CKAN discovery
-  - download_zoning_geojson: fallback direct_url si CKAN None/échoué
-  - Commit: 7c6ba4f
-- B13 Permis de construction (StatCan 34-10-0066-01) ✓
-  - fetch_permis_construction(): WDS latestN=12, résidentiel/nouvelle construction
-  - 8 villes QC, tables 3-dim et 4-dim supportées
-  - Champs: unites_residentielles_mois/12mois, variation_pct_6m, valeur_permis_k_mois
-  - fiche_bien.json + section AMU "Activité de construction"
-  - Commit: 6a78380
-- B14 Taux d'inoccupation SCHL (34-10-0131-01) ✓
-  - fetch_vacancy_rate(): WDS, même GEO labels que loyers SCHL
-  - Champs: taux_total_pct, taux_1ch_pct, taux_2ch_pct, taux_3ch_plus_pct, annee
-  - Section marché AMU unifiée: loyers + inoccupation + NHPI
-  - Commit: c8d0d30
-- B15 Taux Bank of Canada (Valet API) ✓
-  - fetch_taux_boc(): REST API BdC, batch unique 4 séries
-  - Champs: taux_directeur_pct, taux_preferentiel_pct, taux_hypo_5ans_conv_pct, taux_hypo_1an_pct
-  - Section AMU "Contexte financier" (Critère 3)
-  - Commit: 5178441
-- B16 Population CMA StatCan 17-10-0135-01 ✓
-  - fetch_population_growth(): WDS latestN=2, 8 villes QC
-  - Champs: population, variation_annuelle_pct, annee
-  - Section AMU "Démographie CMA"
-  - Commit: 7482611
-- B17 Marché du travail StatCan 14-10-0096-01 ✓
-  - fetch_marche_travail(): WDS latestN=1, 7 villes QC
-  - Champs: taux_chomage_pct, taux_emploi_pct, taux_participation_pct
-  - fix _find_member_ordinal: exact match avant substring (bug "employment rate" ⊂ "unemployment rate")
-  - Section AMU unifiée "Démographie et marché du travail"
-  - Commit: 15ceb1a
-- B18 IPC logement StatCan 18-10-0004-01 ✓
-  - fetch_ipc_logement(): WDS national, composantes All-items + Shelter + Energy
-  - variation_logement_pct: latestN=13, variation annuelle
-  - Section AMU "IPC logement" (Critère 3)
-  - Commit: 4e871b3
-- B19 Mises en chantier SCHL 34-10-0056-01 ✓
-  - fetch_mises_en_chantier(): WDS latestN=12, total/unifamilial/collectif par CMA
-  - Section AMU "Activité de construction" unifiée (permis + mises en chantier)
-  - Commit: 85c3f46
-- B20 Proximité services OSM Overpass ✓
-  - fetch_proximite_services(lat, lng, cache_dir): POST Overpass QL, 6 catégories
-  - écoles_1km, arrets_transport_500m, epiceries_500m, parcs_1km, hopitaux_2km, pharmacies_500m
-  - 7j cache, résultats partiels supportés, non-bloquant
-  - fiche_bien.json + section AMU "Proximité des services"
-  - Commit: dabf8f9
-- B23 Distance au CBD (Haversine pur Python) ✓
-  - _haversine_km() + compute_distance_cbd(lat, lng, city_code)
-  - distance_cbd_km + interprétation (centre-ville/péri-central/banlieue proche/éloignée)
-  - 8 villes QC, coords hardcodées, zero dépendance externe
-  - fiche_bien.json + section AMU "Localisation"
-  - Commit: 627a00f
-- B22 Marché neuf — completions & pipeline (StatCan 34-10-0093-01) ✓
-  - fetch_marche_neuf(city_code, cache_dir): completions/mois, 12mois, unites_en_construction
-  - taux_absorption_pct calculé si cache mises_en_chantier disponible
-  - 24h cache, 8 villes QC
-  - Section AMU construction étendue (permis + chantier + completions)
-  - Commit: 6d563fe
-- B21 Statistiques criminelles CMA (StatCan 35-10-0078-01) ✓
-  - fetch_crime_stats(city_code, cache_dir): WDS, taux pour 100 000 hab.
-  - taux_criminalite_total, taux_crimes_violents, taux_crimes_contre_propriete
-  - 1 an cache, 8 villes QC
-  - fiche_bien.json + section AMU "Profil de sécurité"
-  - Commit: 8661a4a
-- B31 Score de marché synthétique (calcul interne) ✓
-  - compute_score_marche(case): synthèse B10+B14+B16+B17+B19+B21
-  - score_marche 0-10 normalisé, points_bruts/max, indicateurs_utilises
-  - tension_locative (tendu/équilibré/détendu), interpretation (4 niveaux)
-  - Minimum 2 indicateurs requis, sinon {}
-  - fiche_bien.json + section AMU "Score de marché" (avant Critère 4)
-  - 6 tests pass (3.71s, pur calcul)
-- B30 Indice d'abordabilité du logement (calcul interne) ✓
-  - compute_indice_abordabilite(case): pure function, zéro appel externe
-  - Inputs: B5 (loyer) + B11 (revenu/valeur médians) + B15 (taux hypo)
-  - ratio_loyer_revenu_pct + seuil (abordable/limite/non abordable)
-  - versement_mensuel_estime: annuité 25 ans, 20% MDP, taux B15
-  - ratio_mensualite_revenu_pct + seuil_propriete
-  - Seuils SCHL: <30% abordable, 30-40% limite, >40% non abordable
-  - fiche_bien.json + section AMU "Indice d'abordabilité" (Critère 3)
-  - 6 tests pass (3.97s, pur calcul)
-- B29 Données climatiques historiques (Open-Meteo archive) ✓
-  - fetch_donnees_climatiques(lat, lng, cache_dir): API archive-api.open-meteo.com
-  - Année 2023 (stable), daily tmax/tmin/precip → agrégats annuels
-  - temperature_moyenne_annuelle, precipitations_annuelles_mm, jours_gel, jours_chaleur_extreme
-  - 1 an cache, None values filtrés, non-bloquant
-  - fiche_bien.json + section AMU "Données climatiques"
-  - 6 tests pass (pytest importé au top de test_pure.py)
-- B28 Nuisances environnementales (OSM Overpass) ✓
-  - fetch_nuisances_environnementales(lat, lng, cache_dir): 4 catégories Overpass
-  - aeroports_10km, voies_ferrees_500m, zones_industrielles_1km, carrieres_2km
-  - score_nuisances (0-4), interpretation (4 niveaux), warning AMU si score≥2
-  - 30j cache, non-bloquant, résultats partiels supportés
-  - fiche_bien.json + section AMU "Nuisances environnementales" (Critère 2)
-  - 6 tests pass
-- B27 Enseignement post-secondaire (OSM Overpass) ✓
-  - fetch_enseignement_postsecondaire(lat, lng, cache_dir): CÉGEP 5km + université 10km
-  - amenity=college / amenity=university via out count; (node + way + relation)
-  - cegep_5km, universite_10km, total_postsecondaire, interpretation (5 niveaux)
-  - 30j cache, non-bloquant, résultats partiels supportés
-  - Bug fix tests: URL-encode "→%22, test avec 'college' not '"college"'
-  - fiche_bien.json + section AMU "Enseignement post-secondaire"
-  - 6 tests pass
-- B26 Proximité axes routiers (OSM Overpass) ✓
-  - fetch_proximite_routes(lat, lng, cache_dir): Overpass QL, 3 types (motorway/trunk/primary)
-  - out 1 center; → Haversine distance au centroïde du way le plus proche
-  - autoroute_km, route_nationale_km, artere_km, interpretation (4 niveaux)
-  - 7j cache, non-bloquant, résultats partiels supportés
-  - fiche_bien.json + section AMU "Accès aux axes routiers" (Critère 2/3)
-  - 6 tests pass
-- B25 Unités absorbées marché neuf (StatCan 34-10-0149-01) ✓
-  - fetch_unites_absorbees(city_code, cache_dir): WDS trimestriel, 90j cache
-  - unites_absorbees_total/unifamilial/appartement, variation_pct_4q (annuel)
-  - 8 villes QC, 3 dims (geo × type × prix), fallback premier membre prix
-  - fiche_bien.json + sous-section AMU dans "Activité de construction"
-  - 6 tests pass
-- B24 Ratio dette/revenu ménages (StatCan 11-10-0065-01) ✓
-  - fetch_dette_revenu(cache_dir): WDS national, quarterly, 90j cache
-  - ratio_dette_revenu_pct, ratio_hypotheque_revenu_pct, taux_epargne_pct
-  - variation_dette_revenu_pct: variation annuelle (Q4 vs Q0, 5 trimestres)
-  - Fallback: adj_ord = premier membre si "Seasonally adjusted" absent
-  - fiche_bien.json + section AMU "Endettement des ménages" (Critère 3)
-  - 6 tests pass
-- B32 Rendement locatif / taux de capitalisation (calcul interne) ✓
-  - compute_rendement_locatif(case): pure function, zéro appel externe
-  - Inputs: evaluation_municipale_totale (ou role_municipal.valeur_totale) + B5 loyer médian CMA
-  - taux_capitalisation_brut_pct = revenus_bruts_annuels / valeur * 100
-  - taux_capitalisation_net_estime_pct = brut * (1 - 35%) — frais opération estimés
-  - interpretation: excellent (≥8%), bon (≥5%), acceptable (≥3%), faible (<3%)
-  - Fallback valeur: role_municipal.valeur_totale si evaluation_municipale_totale absent
-  - fiche_bien.json + section AMU "Rendement locatif estimé" (avant Critère 4)
-  - 6 tests pass
-- B33 Score composite d'investissement (calcul interne) ✓
-  - compute_score_investissement(case): synthèse B30+B31+B32
-  - Poids: score_marché 40%, rendement_locatif 35%, abordabilité 25%
-  - Normalisation: rendement 0-12%→0-10, abordabilité ratio inversé (50%-0%→0-10)
-  - score_investissement 0-10, re-normalisé si composantes manquantes
-  - recommandation: fort potentiel (≥7), potentiel modéré (≥5), potentiel faible (≥3), déconseillé
-  - Minimum 2 composantes requis, sinon {}
-  - fiche_bien.json + section AMU "Score composite d'investissement"
-  - 7 tests pass (incl. enrich_case injection)
-- B34 Profil fiscal municipal (table statique + calcul interne) ✓
-  - compute_taxes_municipales(case, city_code): taux 2024 hardcodés pour 8 villes QC
-  - Taux en % valeur évaluation : Mtl 0.701%, QC 1.008%, Laval 0.614%, Longueuil 0.832%...
-  - taxes_annuelles_estimees, taxes_mensuelles_estimees, comparaison vs moyenne QC 0.95%
-  - Fallback: role_municipal.valeur_totale si evaluation_municipale_totale absent
-  - fiche_bien.json + section AMU "Profil fiscal municipal" (Critère 3)
-  - 6 tests pass
-- B35 Coûts de possession totaux (calcul interne) ✓
-  - compute_couts_possession(case): synthèse B30 (hypo) + B34 (taxes) + valeur (entretien/assurance)
-  - Entretien 1%/an + assurance 0.35%/an de la valeur d'évaluation
-  - total_mensuel, total_annuel, ratio_revenu_pct, interpretation (abordable/modéré/élevé)
-  - Seuils SCHL: <30% abordable, 30-40% modéré, ≥40% élevé
-  - fiche_bien.json + section AMU "Coûts de possession totaux" (Critère 3)
-  - 6 tests pass
-- B36 Ratio prix/loyer (calcul interne) ✓
-  - compute_ratio_prix_loyer(case): P/L = valeur / (loyer_mensuel * 12)
-  - Seuils SCHL/Economist: <15 avantage achat, 15-20 équilibré, 20-25 légère faveur loc., >25 forte faveur loc.
-  - ecart_loyer_marche_pct: delta (coûts possession vs loyer marché) si B35 disponible
-  - Fallback valeur: role_municipal.valeur_totale
-  - fiche_bien.json + section AMU "Ratio prix/loyer" (Critère 3)
-  - 6 tests pass
-- B37 Vétusté du bâtiment (calcul interne) ✓
-  - compute_vetuste_batiment(case): dépréciation linéaire 1.25%/an (vie utile 80 ans, SCHL)
-  - Inputs: annee_construction (fallback: role_municipal.annee_construction)
-  - age_ans, categorie (neuf/récent/mi-vie/vieux/très vieux), taux_depreciation_pct (plafond 80%)
-  - valeur_residuelle_pct, renovation_recommandee (≥ 25 ans)
-  - fiche_bien.json + section AMU "Vétusté du bâtiment" (Critère 2)
-  - 6 tests pass
-- B38 Indice de qualité de vie (calcul interne) ✓
-  - compute_indice_qualite_vie(case): synthèse B20+B21+B27+B28
-  - Poids: sécurité 30%, services 30%, environnement 25%, éducation 15%
-  - Normalisation: crime 0-8000/100k→0-10, nuisances 4-0→0-10, services 4 catégories, postsec 0-3+→0-10
-  - interpretation: excellent (≥8), bon (≥6), acceptable (≥4), faible
-  - Minimum 2 composantes requis, sinon {}
-  - fiche_bien.json + section AMU "Indice de qualité de vie" (Critère 2/3)
-  - 6 tests pass
-- B39 Score de risque global (calcul interne) ✓
-  - compute_score_risque(case): synthèse B8+B9+B21+B28+B37
-  - Poids: zone inondable 25%, nuisances 20%, vétusté 20%, crime 20%, patrimoine 15%
-  - Logique: zone_inondable absente={} skip; en zone=0pt; hors zone=10pt
-  - patrimoine répertorié=3pt (contraintes réelles, pas disqualifiant); hors=10pt
-  - facteurs_risque: liste des risques identifiés avec détails
-  - catégorie: risque faible (≥8), modéré (≥6), élevé (≥4), très élevé
-  - fiche_bien.json + section AMU "Score de risque global" (Critères 1+2)
-  - 6 tests pass
-- B40 Estimation de valeur indicative (calcul interne) ✓
-  - compute_valeur_indicative(case): deux approches combinées
-  - Approche 1: evaluation_municipale_totale × (1 + NHPI_variation/100) — comparable ajusté
-  - Approche 2: loyer_mensuel × 12 × ratio_P/L — revenu GRM
-  - Synthèse pondérée 60/40 (comparable/revenu) si deux approches dispo
-  - ecart_methodes_pct + fiabilite (bonne si écart <20%, réduite sinon)
-  - Note disclaimer "à titre indicatif uniquement" dans AMU
-  - fiche_bien.json + section AMU "Estimation de valeur indicative" (Critère 4)
-  - 6 tests pass
-- B41 Score global de synthèse (calcul interne — capstone) ✓
-  - compute_score_global(case): synthèse B33+B38+B39
-  - Poids: score_investissement 35%, score_risque 35%, indice_qualite_vie 30%
-  - Re-normalisé si composante absente (≥2 requises)
-  - grade: A (≥8.0) / B (≥6.5) / C (≥5.0) / D (≥3.5) / F (<3.5)
-  - recommandation_finale: texte actionnable par grade
-  - Score global affiché en en-tête du rapport AMU (blockquote)
-  - fiche_bien.json + header AMU
-  - 6 tests pass
-- B42 Coût estimé de rénovation (calcul interne) ✓
-  - compute_cout_renovation(case): barèmes APCHQ/CAA-Québec 2024 par catégorie vétusté
-  - Inputs: vetuste_batiment.categorie (B37) + surface (ou role_municipal.superficie_batiment_m2)
-  - neuf: 0-200$/m², récent: 200-600, mi-vie: 600-1200, vieux: 1200-2200, très vieux: 2200-3500
-  - cout_min, cout_max, cout_median + type_travaux
-  - fiche_bien.json + section AMU "Coût estimé de rénovation" (Critère 2)
-  - 6 tests pass
-- B43 Projection de valeur à 5 ans (calcul interne) ✓
-  - compute_projection_valeur(case): 3 scénarios × 3 horizons (1/3/5 ans)
-  - Inputs: valeur_indicative.synthese (B40, fallback eval_mun) + NHPI variation (B10, défaut 2%/an)
-  - Scénarios: base (NHPI), optimiste (×1.5), pessimiste (×0.3, plancher 0%)
-  - Croissance composée annuelle, taux_base/optimiste/pessimiste exposés
-  - fiche_bien.json + section AMU "Projection de valeur" (Critère 4)
-  - Fix test: valeur_base = valeur_indicative ajustée NHPI (pas eval brute)
-  - 6 tests pass
-- B44 Alertes consolidées (calcul interne — scan tous B-sources) ✓
-  - compute_alertes(case): scan tous les B-sources enrichis, liste {niveau, catégorie, message}
-  - Niveaux: critique | attention | info
-  - Détecte: zone_inondable (critique), zone_agricole (critique), score_risque très élevé (critique)
-  - Détecte: patrimoine_culturel (attention), nuisances≥2 (attention), vétusté très vieux (attention)
-  - Détecte: crime >6000/100k (attention), PLR >30 (attention), inoccupation >7% (attention)
-  - Détecte: inoccupation <1.5% (info), coûts possession >45% revenu (attention)
-  - nb_alertes_critiques, nb_alertes_attention, nb_alertes_info exposés
-  - fiche_bien.json + section AMU "Alertes et signaux de risque" (avant Critère 4)
-  - 6 tests pass
-- 372 tests pass
-
-## Batch 10 (2026-05-16) — DONE
-- Onglet "Synthèse" (5ème tab entre Analyse et Rapport)
-- Backend: _build_enrichment_view() extrait B30-B44 depuis fiche_bien.json → exposé dans /app/state active.enrichment
-- Frontend types: Enrichment + EnrichmentAlerte interfaces, TabId étendu
-- SynthesePanel: ScoreGlobalCard (grade A-F + score/10), AlerteRow color-codée (critique/attention/info), ScoreChip grid avec barre de progression (investissement/qualité vie/risque), ProjectionTable (an1/an3/an5 scénario base), métriques secondaires (valeur indicative, rendement locatif, taxes mun., P/L ratio, vétusté)
-- EmptyState si pipeline pas encore lancé
-- Commit: de6a940
+- `npx tsc --noEmit` 0 erreurs après Phase 4 (vérifié).
+- CI runs `pytest tests/` (couvre test_pure.py + test_phase2.py).
 
 ## Open Issues
-- Sources données actives : zonage autres villes (QC/Laval/etc.) — CKAN discovery pas encore configuré
-- Sources données actives : 6 autres (StatCan census, centris, indice prix logement, etc.) — prochaines phases
-- Pour activer rôle municipal : download_role_mtl() (Mtl CSV) ou download_role_xml('quebec') etc.
-- Mobile/responsive : absent
-- CI/CD : GitHub Actions + Playwright E2E non configurés
-- Mobile/responsive : absent
-- CI/CD : GitHub Actions + Playwright E2E non configurés
-- Sources données : 15+ sources dans informations/ non connectées au pipeline
-- Mobile/responsive : absent
-- CI/CD : GitHub Actions + Playwright E2E non configurés
-- DLC/JLR + Registre foncier : HOLD
+
+- Supabase credentials prod à configurer (Vercel env vars).
+- Phase 3 bloquée : attente livres MEFQ + NPP 2025.
