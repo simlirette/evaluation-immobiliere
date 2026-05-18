@@ -4,38 +4,35 @@ _Updated: 2026-05-18_
 
 ## Current Goal
 
-Phase 4 COMPLÈTE ✅ — Phase 3 (RAG) bloquée en attente livres MEFQ + NPP 2025.
+Phase 5A COMPLÈTE ✅ — grille d'ajustements éditable dans AnalysePanel.
 
 ## Plan Status
 
-Phase 1 COMPLÈTE ✅ (commits 5d4d488 → 08e4f71 → 39177e5)
-
-Phase 2 COMPLÈTE ✅:
-- [x] 2.1 Streaming SSE (commit 5134888)
-- [x] 2.2 Tool calling fetch_artifact (commit af289bc)
-- [x] 2.3 PDF ingestion + multi-tour (commit b5c5aaf)
-- [x] 2.5+2.6 Tests + Export PDF (commit 61a30af)
+Phase 1 ✅ · Phase 2 ✅ · Phase 4 ✅ (commits 5d4d488 → c20ca21)
 
 Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025.
 
-Phase 4 COMPLÈTE ✅ (commit c20ca21):
-- [x] 4.1 CI GitHub Actions — pytest tests/ + tsc + build
-- [x] 4.2 PDF download button — RapportEditor ⬇ .pdf via backend _generate_pdf()
-- [x] 4.3 RapportPanel → useAgentChat — streaming SSE + multi-tour history
+Phase 5A COMPLÈTE ✅ (commit 9f023c3):
+- [x] Backend: POST /app/adjustments — persiste ajustements manuels par session
+- [x] Backend: app_adjustment_rows() lit override manuel en priorité (fallback fixture)
+- [x] Frontend: saveRuntimeAdjustments() dans runtime-api.ts
+- [x] AnalysePanel: mode édition inline — inputs surface/temps/condition/garage, prix ajusté recalculé live
 
 ## Decisions
 
+- Ajustements manuels stockés dans SESSIONS_DIR/{session_id}/adjustments.json (flag manual: true).
+- Fallback automatique vers fixture si pas de fichier manuel — rétrocompat totale.
+- Édition inline dans AnalysePanel (pas de composant séparé) — couplage fort justifié.
 - middleware.ts : AUTH_ENABLED = Supabase URL+key configurés ET non-placeholder → passthrough local sinon.
-- BFF route.ts : /app/create ajouté à PIPELINE_PATHS (timeout 120s).
-- RapportEditor : browser-print retiré, remplacé par téléchargement PDF backend.
-- RapportPanel : useAgentChat(dossierId, 'redaction') — ChatReply[] avec curseur ▊ streaming.
+- BFF route.ts : /app/create et /app/state dans PIPELINE_PATHS (timeout 120s).
 
 ## Evidence
 
-- `npx tsc --noEmit` 0 erreurs après Phase 4 (vérifié).
-- CI runs `pytest tests/` (couvre test_pure.py + test_phase2.py).
+- `npx tsc --noEmit` 0 erreurs après Phase 5A.
+- `python -c "import api; print('OK')"` OK.
 
 ## Open Issues
 
 - Supabase credentials prod à configurer (Vercel env vars).
 - Phase 3 bloquée : attente livres MEFQ + NPP 2025.
+- Phase 5B (pipeline progress streaming) et 5C (transcript UI) disponibles.
