@@ -40,6 +40,9 @@ import { computeComparableRenovationAgeGap } from './compute-comparable-renovati
 import { computePricePerM2ByDecade } from './compute-price-per-m2-by-decade'
 import { computePricePerM2Panel } from './compute-price-per-m2-panel'
 import { computeComparableGarageProfile } from './compute-comparable-garage-profile'
+import { computeComparablePriceTrendByDate } from './compute-comparable-price-trend-by-date'
+import { computeComparableSizeTierDistribution } from './compute-comparable-size-tier-distribution'
+import { computeComparableSaleDateGapAnalysis } from './compute-comparable-sale-date-gap-analysis'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -409,6 +412,52 @@ export function buildMarcheHtml(
         sections.push(`
           <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
             Type de garage&nbsp;: <span style="font-size:9pt;">${typeStr}${missingNote}</span>
+          </p>
+        `)
+      }
+    }
+
+    // B186: price trend by date (OLS)
+    if (comparables.length >= 2) {
+      const trend = computeComparablePriceTrendByDate(comparables)
+      if (trend) {
+        const color = trend.direction === 'hausse' ? '#1f7a5c' : trend.direction === 'baisse' ? '#b91c1c' : '#6a6763'
+        const slopeSign = trend.slope >= 0 ? '+' : ''
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Tendance des prix&nbsp;: <strong style="color:${color};">${trend.direction}</strong>
+            <span style="font-size:9pt;color:#8a8780;"> — ${slopeSign}${fmtMoney(Math.round(trend.slope))}/mois · R² ${fmt(trend.r2, 2)}</span>
+          </p>
+        `)
+      }
+    }
+
+    // B188: size tier distribution
+    if (comparables.length > 0) {
+      const tiers = computeComparableSizeTierDistribution(comparables)
+      if (tiers) {
+        const nonEmpty = tiers.tiers.filter(t => t.count > 0)
+        if (nonEmpty.length > 0) {
+          const tierStr = nonEmpty.map(t => `${t.label}&nbsp;: ${t.count}`).join(' · ')
+          sections.push(`
+            <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+              Répartition par taille&nbsp;: <span style="font-size:9pt;">${tierStr}</span>
+            </p>
+          `)
+        }
+      }
+    }
+
+    // B190: sale date gap analysis
+    if (comparables.length >= 2) {
+      const gaps = computeComparableSaleDateGapAnalysis(comparables)
+      if (gaps) {
+        const largeNote = gaps.largeGapCount > 0
+          ? ` · <span style="color:#b45309;">${gaps.largeGapCount} écart(s) > 12 mois</span>`
+          : ''
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Écarts entre ventes&nbsp;: max ${fmt(gaps.maxGap, 1)} mois · moy. ${fmt(gaps.meanGap, 1)} mois${largeNote}
           </p>
         `)
       }

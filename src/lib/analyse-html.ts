@@ -65,6 +65,8 @@ import { computeAdjustmentNetPctHistogram } from './compute-adjustment-net-pct-h
 import { computeGrossAdjustmentOEAQCheck } from './compute-gross-adjustment-oeaq-check'
 import { computeAdjustmentMagnitudeRanking } from './compute-adjustment-magnitude-ranking'
 import { computeReconciliationWeightDistribution } from './compute-reconciliation-weight-distribution'
+import { computeAdjustmentNetPerCompSummary } from './compute-adjustment-net-per-comp-summary'
+import { computeAdjustmentEfficiencyRatio } from './compute-adjustment-efficiency-ratio'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -1053,6 +1055,38 @@ export function buildAnalyseHtml(
         <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
           Pondération de la réconciliation&nbsp;: <strong>${topComp.comparableLabel}</strong> ${fmt(topComp.weightPct, 0)} %
           <span style="font-size:9pt;color:#8a8780;"> — concentration ${concentration} (H = ${fmt(weights.herfindahl, 2)})</span>
+        </p>
+      `)
+    }
+  }
+
+  // B187: net adj per comp summary (sorted by magnitude)
+  if (adjustments.length > 0) {
+    const netSummary = computeAdjustmentNetPerCompSummary(adjustments)
+    if (netSummary) {
+      const top = netSummary.entries[0]
+      const color = top.direction === 'positive' ? '#1f7a5c' : top.direction === 'negative' ? '#b91c1c' : '#6a6763'
+      const sign = top.netAdj >= 0 ? '+' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Ajustement net max&nbsp;: <strong style="color:${color};">${top.comparableLabel} ${sign}${fmtMoney(top.netAdj)}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> (${sign}${fmt(top.netPct, 1)} %)</span>
+        </p>
+      `)
+    }
+  }
+
+  // B189: adjustment efficiency ratio
+  if (adjustments.length > 0) {
+    const efficiency = computeAdjustmentEfficiencyRatio(adjustments)
+    if (efficiency) {
+      const pct = Math.round(efficiency.mean * 100)
+      const label = efficiency.mean >= 0.7 ? 'forte' : efficiency.mean >= 0.4 ? 'modérée' : 'faible'
+      const color = efficiency.mean >= 0.7 ? '#1f7a5c' : efficiency.mean >= 0.4 ? '#b45309' : '#b91c1c'
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Efficacité des ajustements&nbsp;: <strong style="color:${color};">${pct} % (${label})</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ratio |net|/brut moy. sur le panel</span>
         </p>
       `)
     }
