@@ -716,6 +716,52 @@ _ALLOWED_UPLOAD_MIME = {"application/pdf", "image/jpeg", "image/png"}
 _UPLOAD_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
+def _extract_pdf_text(pdf_path: Path, txt_path: Path) -> int:
+    """Extrait le texte d'un PDF via PyMuPDF. Écrit le .txt, retourne nb pages extraites."""
+    try:
+        import fitz  # type: ignore  # PyMuPDF
+    except ImportError:
+        return 0
+    try:
+        doc = fitz.open(str(pdf_path))
+        pages: list[str] = []
+        for page in doc:
+            text = page.get_text()
+            if text.strip():
+                pages.append(f"--- Page {page.number + 1} ---\n{text}")
+        doc.close()
+        if pages:
+            txt_path.write_text("\n\n".join(pages), encoding="utf-8")
+        return len(pages)
+    except Exception:
+        return 0
+
+
+def _append_upload_to_source_index(session: dict, doc_id: str, filename: str, txt_path: Path, pages: int) -> None:
+    """Ajoute le document uploadé au source_index.json data-facts s'il existe."""
+    session_dir = Path(session["session_dir"])
+    dossier_id = session.get("dossier_id", "")
+    if not dossier_id:
+        return
+    index_path = session_dir / "artifacts" / dossier_id / "data-facts.source_index.json"
+    if not index_path.exists():
+        return
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        sources = index.get("sources", [])
+        sources.append({
+            "source_id": doc_id,
+            "type": "uploaded_document",
+            "filename": filename,
+            "text_path": txt_path.name,
+            "pages": pages,
+        })
+        index["sources"] = sources
+        index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass  # never block upload on index update failure
+
+
 def app_upload_document(body: dict) -> dict:
     session_id = str(body.get("session_id") or "")
     filename = str(body.get("filename") or "document")
@@ -753,7 +799,7 @@ def app_upload_document(body: dict) -> dict:
 
     doc_id = f"upload-{uuid.uuid4().hex[:8]}"
     size_bytes = len(file_bytes)
-    doc_meta = {
+    doc_meta: dict = {
         "id": doc_id,
         "name": filename,
         "filename": target.name,
@@ -761,6 +807,17 @@ def app_upload_document(body: dict) -> dict:
         "mime_type": mime_type,
         "uploaded_at": utc_now_iso(),
     }
+
+    # PDF text extraction → makes content available to LLM via fetch_artifact + source_index
+    if mime_type == "application/pdf":
+        txt_path = uploads_dir / f"{target.stem}.txt"
+        pages_extracted = _extract_pdf_text(target, txt_path)
+        if pages_extracted > 0:
+            doc_meta["text_extracted"] = True
+            doc_meta["pages"] = pages_extracted
+            doc_meta["text_path"] = txt_path.name
+            _append_upload_to_source_index(session, doc_id, filename, txt_path, pages_extracted)
+
     session.setdefault("uploaded_documents", []).append(doc_meta)
     save_session(session)
 
@@ -2365,12 +2422,13 @@ def assistant_message(body: dict) -> dict:
     session = require_session(str(body.get("session_id", "")))
     message = normalize_assistant_message(str(body.get("message") or ""))
     requested_agent = str(body.get("agent") or "auto").strip() or "auto"
+    history = [h for h in (body.get("history") or []) if isinstance(h, dict)]
     context = assistant_context(session)
     agent = select_assistant_agent(message, requested_agent)
     profile = assistant_agent_profile(agent)
     llm_meta: dict = {}
     try:
-        answer, llm_meta = llm_assistant_answer(message, agent, context)
+        answer, llm_meta = llm_assistant_answer(message, agent, context, history=history)
     except Exception:
         answer = render_assistant_answer(message, agent, context)
 
@@ -3034,24 +3092,34 @@ def _build_llm_context_block(agent: str, context: dict) -> str:
     return "\n".join(lines)
 
 
-def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, dict]:
+def llm_assistant_answer(
+    message: str,
+    agent: str,
+    context: dict,
+    history: list[dict] | None = None,
+) -> tuple[str, dict]:
     """Appelle GPT pour générer une réponse d'agent.
-    Utilise l'AGENTCONFIG system_prompt + contenu SKILL.md + données artifacts réels.
+    history: liste de {role, content} tours précédents (multi-tour).
     Lève RuntimeError si le client LLM n'est pas disponible."""
     client = _llm_client()
     if not client:
         raise RuntimeError("OPENAI_API_KEY non configuré — mode déterministe actif")
 
     profile = assistant_agent_profile(agent)
-    # Prompt complet : AGENTCONFIG (40+ lignes OEAQ) + skills knowledge (sections 2+4)
     base_prompt = _build_agent_full_prompt(agent, profile)
-    # Contexte : données réelles des artifacts (pas juste des counts)
     context_block = _build_llm_context_block(agent, context)
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
     model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    # Inject prior turns between system prompt and latest user message
+    prior: list[dict] = [
+        {"role": str(h.get("role", "user")), "content": str(h.get("content", ""))}
+        for h in (history or [])
+        if h.get("role") in ("user", "assistant") and h.get("content")
+    ]
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
+        *prior,
         {"role": "user", "content": f"Question de l'évaluateur : {message}"},
     ]
     answer = "(réponse vide)"
@@ -3135,9 +3203,10 @@ def llm_assistant_stream(
     agent: str,
     context: dict,
     write_fn,  # callable(str) → None, called per token
+    history: list[dict] | None = None,
 ) -> dict:
     """Appelle GPT en mode stream, appelle write_fn pour chaque token.
-    Retourne les metadata LLM. Lève RuntimeError si pas de client."""
+    history: tours précédents pour multi-tour. Lève RuntimeError si pas de client."""
     client = _llm_client()
     if not client:
         raise RuntimeError("OPENAI_API_KEY non configuré — mode déterministe actif")
@@ -3148,8 +3217,14 @@ def llm_assistant_stream(
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
     model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    prior: list[dict] = [
+        {"role": str(h.get("role", "user")), "content": str(h.get("content", ""))}
+        for h in (history or [])
+        if h.get("role") in ("user", "assistant") and h.get("content")
+    ]
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
+        *prior,
         {"role": "user", "content": f"Question de l'évaluateur : {message}"},
     ]
     total_in = 0
@@ -3882,6 +3957,7 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
         message = normalize_assistant_message(str(body.get("message") or ""))
         requested_agent = str(body.get("agent") or "auto").strip() or "auto"
+        history = [h for h in (body.get("history") or []) if isinstance(h, dict)]
         context = assistant_context(session)
         agent = select_assistant_agent(message, requested_agent)
         profile = assistant_agent_profile(agent)
@@ -3906,7 +3982,7 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 full_answer_parts.append(token)
                 emit({"token": token})
 
-            llm_meta = llm_assistant_stream(message, agent, context, on_token)
+            llm_meta = llm_assistant_stream(message, agent, context, on_token, history=history)
             full_answer = "".join(full_answer_parts)
         except Exception:
             full_answer = render_assistant_answer(message, agent, context)

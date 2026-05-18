@@ -232,16 +232,22 @@ export async function sendRuntimeMessage(
   })
 }
 
+export interface HistoryEntry {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export async function streamRuntimeMessage(
   sessionId: string,
   message: string,
   agent: string,
   onToken: (token: string) => void,
+  history?: HistoryEntry[],
 ): Promise<RuntimeMessageResponse> {
   const response = await fetch(`${BFF_BASE}/app/message/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, message, agent }),
+    body: JSON.stringify({ session_id: sessionId, message, agent, history: history ?? [] }),
     cache: 'no-store',
   })
 

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { streamRuntimeMessage } from '@/lib/runtime-api'
-import type { AppState } from '@/lib/runtime-api'
+import type { AppState, HistoryEntry } from '@/lib/runtime-api'
 
 export interface ChatReply {
   agent: string
@@ -15,11 +15,24 @@ export function useAgentChat(sessionId: string | null, defaultAgent = 'auto') {
   const [replies, setReplies] = useState<ChatReply[]>([])
   const [asking, setAsking] = useState(false)
   const [lastState, setLastState] = useState<AppState | null>(null)
+  // Stable ref to current replies for history building (avoids stale closure)
+  const repliesRef = useRef<ChatReply[]>([])
+  repliesRef.current = replies
 
   const ask = useCallback(
     async (message: string, agent = defaultAgent) => {
       if (!sessionId || !message.trim() || asking) return
       setAsking(true)
+
+      // Build history from completed (non-streaming) prior turns
+      const history: HistoryEntry[] = []
+      for (const r of repliesRef.current) {
+        if (!r.streaming && r.text) {
+          // Each reply was preceded by a user turn — reconstruct from agentLabel context
+          // We only send assistant turns here; user turns are implicit in the exchange
+          history.push({ role: 'assistant', content: r.text })
+        }
+      }
 
       // Streaming placeholder appended immediately
       setReplies(prev => [...prev, { agent, agentLabel: '…', text: '', streaming: true }])
@@ -39,6 +52,7 @@ export function useAgentChat(sessionId: string | null, defaultAgent = 'auto') {
               return next
             })
           },
+          history,
         )
 
         // Replace placeholder with final confirmed reply
