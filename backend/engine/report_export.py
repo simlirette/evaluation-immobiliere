@@ -104,40 +104,47 @@ def _add_inline_paragraph(doc: object, text: str, style: str = "Normal") -> obje
 
 
 def _generate_pdf(md_text: str, dossier_id: str) -> bytes:
-    """Convertit le markdown en PDF via PyMuPDF fitz.Story (sans dépendances externes)."""
+    """Convertit le markdown en PDF via PyMuPDF fitz.Story avec en-tête et pagination."""
     import fitz  # type: ignore
     import markdown as md_lib  # type: ignore
+    import datetime as _dt
 
     body = md_lib.markdown(md_text, extensions=["tables", "fenced_code"])
     html = f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><style>
-body {{ font-family: serif; font-size: 11pt; line-height: 1.65; color: #1a1916; margin: 0; padding: 0; }}
-.watermark {{ background: #fff3cd; border: 1.5px solid #b8860b; border-radius: 4px;
-    padding: 8px 14px; margin-bottom: 20px; font-size: 9pt; font-weight: bold; color: #856404; }}
+body {{ font-family: Times New Roman, Times, serif; font-size: 11pt; line-height: 1.65; color: #1a1916; margin: 0; padding: 0; }}
+.watermark {{ background: #fff8e1; border: 1px solid #b8860b; border-radius: 3px;
+    padding: 7px 12px; margin-bottom: 18px; font-size: 9pt; font-weight: bold; color: #7a5500; }}
 h1 {{ font-size: 17pt; font-weight: bold; margin: 0 0 10px; }}
 h2 {{ font-size: 13pt; font-weight: bold; margin: 22px 0 8px;
-    border-bottom: 1px solid #e5e2dc; padding-bottom: 4px; }}
+    border-bottom: 1px solid #ccc; padding-bottom: 3px; }}
 h3 {{ font-size: 11pt; font-weight: bold; margin: 14px 0 5px; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 9pt; margin: 10px 0; }}
-th {{ text-align: left; padding: 5px 8px; background: #f5f3ef;
+th {{ text-align: left; padding: 5px 8px; background: #f0ede8;
     font-weight: bold; border: 1px solid #ccc; }}
 td {{ padding: 4px 8px; border: 1px solid #ccc; vertical-align: top; }}
 ul, ol {{ padding-left: 20px; margin: 6px 0; }}
 li {{ margin: 2px 0; }}
-blockquote {{ margin: 10px 0; padding: 6px 12px; border-left: 3px solid #ffc107;
-    background: #fffbf0; font-size: 9pt; color: #856404; }}
+blockquote {{ margin: 10px 0; padding: 6px 12px; border-left: 3px solid #b8860b;
+    background: #fffbf0; font-size: 9pt; color: #7a5500; }}
 </style></head>
 <body>
-<div class="watermark">&#9888; BROUILLON NON CERTIFIÉ — Ce document doit être révisé et signé
-par un évaluateur agréé (É.A.) avant toute diffusion.</div>
+<div class="watermark">&#9888; BROUILLON NON CERTIFI\u00c9 \u2014 Ce document doit \u00eatre r\u00e9vis\u00e9 et sign\u00e9
+par un \u00e9valuateur agr\u00e9\u00e9 (\u00c9.A.) avant toute diffusion.</div>
 {body}
 </body></html>"""
 
+    # Dimensions A4 en points (1 pt = 1/72 po)
+    mediabox = fitz.paper_rect("a4")          # 595 × 842 pt
+    margin_h = 72                              # ~2.54 cm horizontal
+    header_h = 40                              # espace en-tête
+    footer_h = 32                              # espace pied
+    where = mediabox + (margin_h, header_h, -margin_h, -footer_h)
+
+    # ── Passe 1 : génération du corps ────────────────────────────────────────
     buf = io.BytesIO()
     story = fitz.Story(html=html)
     writer = fitz.DocumentWriter(buf)
-    mediabox = fitz.paper_rect("a4")
-    where = mediabox + (71, 71, -71, -71)  # ~2.5 cm margins
     more = True
     while more:
         device = writer.begin_page(mediabox)
@@ -145,7 +152,54 @@ par un évaluateur agréé (É.A.) avant toute diffusion.</div>
         story.draw(device)
         writer.end_page()
     writer.close()
-    return buf.getvalue()
+
+    # ── Passe 2 : en-tête et pied sur chaque page ───────────────────────────
+    doc = fitz.open("pdf", buf.getvalue())
+    total_pages = doc.page_count
+    date_str = _dt.date.today().strftime("%Y-%m-%d")
+    grey = (0.55, 0.55, 0.55)
+    separator_color = (0.75, 0.75, 0.75)
+
+    for i, page in enumerate(doc):
+        w = page.rect.width
+        # Ligne séparatrice sous l'en-tête
+        page.draw_line(
+            fitz.Point(margin_h, header_h - 6),
+            fitz.Point(w - margin_h, header_h - 6),
+            width=0.5, color=separator_color,
+        )
+        # Texte en-tête gauche : dossier_id
+        page.insert_text(
+            fitz.Point(margin_h, header_h - 14),
+            dossier_id,
+            fontsize=8, color=grey,
+        )
+        # Texte en-tête droite : date + statut
+        label_right = f"{date_str} \u2014 BROUILLON NON CERTIFI\u00c9"
+        page.insert_text(
+            fitz.Point(w - margin_h - len(label_right) * 4.5, header_h - 14),
+            label_right,
+            fontsize=8, color=(0.65, 0.35, 0.0),
+        )
+        # Ligne séparatrice au-dessus du pied
+        footer_y = mediabox.y1 - footer_h + 8
+        page.draw_line(
+            fitz.Point(margin_h, footer_y),
+            fitz.Point(w - margin_h, footer_y),
+            width=0.5, color=separator_color,
+        )
+        # Numéro de page centré
+        page_label = f"Page {i + 1} / {total_pages}"
+        page.insert_text(
+            fitz.Point(w / 2 - len(page_label) * 2.5, footer_y + 14),
+            page_label,
+            fontsize=8, color=grey,
+        )
+
+    out = io.BytesIO()
+    doc.save(out, garbage=4, deflate=True)
+    doc.close()
+    return out.getvalue()
 
 
 def _generate_docx(md_text: str, dossier_id: str) -> bytes:
