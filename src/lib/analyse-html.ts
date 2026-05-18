@@ -55,6 +55,10 @@ import { computeMedianAdjustedPrice } from './compute-median-adjusted-price'
 import { computeValueIndicatorRange } from './compute-value-indicator-range'
 import { computeAdjustmentNetMagnitudeProfile } from './compute-adjustment-net-magnitude-profile'
 import { computeAdjustmentConditionBias } from './compute-adjustment-condition-bias'
+import { computeAdjustmentGarageImpact } from './compute-adjustment-garage-impact'
+import { computeAdjustedPriceZScore } from './compute-adjusted-price-z-score'
+import { computeAdjustmentYearImpactSummary } from './compute-adjustment-year-impact-summary'
+import { computePanelAdjustmentBalance } from './compute-panel-adjustment-balance'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -887,6 +891,68 @@ export function buildAnalyseHtml(
           Ajustement état&nbsp;:
           <strong style="color:${color};">${dirLabel[condBias.dominantDirection]}</strong>
           <span style="font-size:9pt;color:#8a8780;"> — ↑ ${condBias.countPositive} · ↓ ${condBias.countNegative} · ≈ ${condBias.countZero} · moy. appliqué ${fmtAdj(condBias.avgWhenApplied)}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B171: garage adjustment impact
+  if (adjustments.length > 0) {
+    const garageImpact = computeAdjustmentGarageImpact(adjustments)
+    if (garageImpact && garageImpact.avgWhenApplied !== null) {
+      const dirLabel: Record<string, string> = { positive: 'à la hausse', negative: 'à la baisse', neutral: 'neutre' }
+      const color = garageImpact.dominantDirection === 'positive' ? '#1f7a5c' : garageImpact.dominantDirection === 'negative' ? '#b91c1c' : '#6a6763'
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Ajustement garage&nbsp;:
+          <strong style="color:${color};">${dirLabel[garageImpact.dominantDirection]}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ↑ ${garageImpact.countPositive} · ↓ ${garageImpact.countNegative} · ≈ ${garageImpact.countZero} · moy. appliqué ${fmtAdj(garageImpact.avgWhenApplied)}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B172: adjusted price z-score outliers
+  if (adjustments.length >= 3) {
+    const zScores = computeAdjustedPriceZScore(adjustments)
+    if (zScores && zScores.outlierIds.length > 0) {
+      const outlierLabels = zScores.entries.filter(e => e.outlier).map(e => `${e.comparableLabel} (z=${fmt(e.zScore, 2)})`).join(', ')
+      sections.push(`
+        <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+          <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Prix ajustés atypiques (|z| &gt; 2)</p>
+          <p style="font-size:9pt;color:#b45309;margin:0;">${outlierLabels}</p>
+        </div>
+      `)
+    }
+  }
+
+  // B174: year adjustment impact summary
+  if (adjustments.length > 0) {
+    const yearImpact = computeAdjustmentYearImpactSummary(adjustments)
+    if (yearImpact && yearImpact.totalImpact !== 0) {
+      const color = yearImpact.totalImpact > 0 ? '#1f7a5c' : '#b91c1c'
+      const sign = yearImpact.totalImpact > 0 ? '+' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Impact temporel total&nbsp;:
+          <strong style="color:${color};">${sign}${fmtMoney(yearImpact.totalImpact)}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — moy. ${sign}${fmtAdj(yearImpact.avgPerComp)}/comp. · max ${fmtAdj(yearImpact.maxAbsValue)}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B175: panel adjustment balance
+  if (adjustments.length > 0) {
+    const balance = computePanelAdjustmentBalance(adjustments)
+    if (balance) {
+      const color = balance.netBalance > 0 ? '#1f7a5c' : balance.netBalance < 0 ? '#b91c1c' : '#6a6763'
+      const sign = balance.netBalance > 0 ? '+' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Balance des ajustements&nbsp;:
+          <strong style="color:${color};">${sign}${fmtMoney(balance.netBalance)}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ↑ ${fmtMoney(balance.totalPositive)} · ↓ ${fmtMoney(balance.totalNegative)} · solde ${sign}${fmt(balance.balancePct, 1)} %</span>
         </p>
       `)
     }

@@ -35,6 +35,7 @@ import { computeComparableDateRecencyProfile } from './compute-comparable-date-r
 import { computeComparableHabitatProfile } from './compute-comparable-habitat-profile'
 import { computeComparableStreetDiversity } from './compute-comparable-street-diversity'
 import { computeComparableDataCompleteness } from './compute-comparable-data-completeness'
+import { computeComparablePriceAnomaly } from './compute-comparable-price-anomaly'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -374,6 +375,22 @@ export function buildMarcheHtml(
             <strong style="color:${color};">${selSummary.recommendation}</strong>
             <span style="font-size:9pt;color:#8a8780;"> — qualité moy. ${fmt(selSummary.avgQualityScore, 1)}/10${simNote}${lowNote}</span>
           </p>
+        `)
+      }
+    }
+    // B173: price anomaly ($/m² vs panel median)
+    if (comparables.length >= 2) {
+      const anomaly = computeComparablePriceAnomaly(comparables)
+      if (anomaly && anomaly.anomalyIds.length > 0) {
+        const anomalyLabels = anomaly.entries
+          .filter(e => e.isAnomaly)
+          .map(e => `${e.comparableLabel} (${fmt(e.deviationPct, 0)} %)`)
+          .join(', ')
+        sections.push(`
+          <div style="background:#fffbeb;border:1pt solid #fcd34d;border-radius:4pt;padding:8pt 10pt;margin-top:8pt;">
+            <p style="font-weight:600;color:#b45309;font-size:10pt;margin:0 0 4pt;">⚠ Prix suspects vs $/m² médian du panel (écart &gt; 25 %)</p>
+            <p style="font-size:9pt;color:#b45309;margin:0;">${anomalyLabels} — médiane panel&nbsp;: ${fmt(anomaly.panelMedianPricePerM2, 0)} $/m²</p>
+          </div>
         `)
       }
     }
