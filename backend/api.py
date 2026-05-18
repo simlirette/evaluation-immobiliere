@@ -3630,7 +3630,20 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             )
             return
         if parsed.path == "/health":
-            self._send_json(200, {"status": "ok"})
+            openai_ok = bool(os.environ.get("OPENAI_API_KEY", ""))
+            pymupdf_ok = False
+            try:
+                import fitz as _fitz  # type: ignore  # noqa: F401
+                pymupdf_ok = True
+            except ImportError:
+                pass
+            self._send_json(200, {
+                "status": "ok",
+                "version": "2.0",
+                "openai": openai_ok,
+                "pymupdf": pymupdf_ok,
+                "sessions_dir": str(SESSIONS_DIR),
+            })
             return
         if parsed.path == "/fixtures":
             if not self._require_permission("runtime_read"):
