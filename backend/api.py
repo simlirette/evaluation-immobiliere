@@ -2848,6 +2848,62 @@ def _load_session_artifact_text(session_id: str, step: str, artifact: str) -> st
         return ""
 
 
+_FETCH_ARTIFACT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "fetch_artifact",
+        "description": (
+            "Récupère le contenu d'un artefact produit par le pipeline d'évaluation. "
+            "Utilise cet outil pour obtenir des données précises : fiche bien, "
+            "comparables retenus, calculs de valeur, non-conformités, brouillon rapport."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "step": {
+                    "type": "string",
+                    "enum": [
+                        "mandat-intake",
+                        "data-facts",
+                        "amu-analyst",
+                        "comps-market",
+                        "valuation-draft",
+                        "compliance-qa",
+                        "redaction",
+                    ],
+                    "description": "L'agent/étape qui a produit l'artefact.",
+                },
+                "artifact_name": {
+                    "type": "string",
+                    "description": (
+                        "Nom du fichier artefact, ex: fiche_bien.json, "
+                        "comparables_proposes.json, calculs_approche_comparative.json, "
+                        "rapport_non_conformites.json, brouillon_rapport.md"
+                    ),
+                },
+            },
+            "required": ["step", "artifact_name"],
+        },
+    },
+}
+_TOOL_MAX_ROUNDS = 3
+
+
+def _execute_fetch_artifact(session_id: str, dossier_id: str, step: str, artifact_name: str) -> str:
+    """Lit un artifact de session. Retourne contenu tronqué à 3000 chars."""
+    _MAX_CHARS = 3000
+    path = SESSIONS_DIR / session_id / "artifacts" / dossier_id / f"{step}.{artifact_name}"
+    if not path.exists():
+        return f"Artifact '{step}.{artifact_name}' non trouvé pour le dossier {dossier_id}."
+    try:
+        content = path.read_text(encoding="utf-8")
+        if len(content) > _MAX_CHARS:
+            content = content[:_MAX_CHARS] + "\n… [tronqué]"
+        return content
+    except OSError as exc:
+        return f"Erreur lecture artifact: {exc}"
+
+
 def _llm_client():
     """Retourne un client OpenAI si OPENAI_API_KEY est défini, sinon None."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -2994,22 +3050,80 @@ def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, 
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
     model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
-    response = client.chat.completions.create(
-        model=model,
-        max_tokens=_LLM_MAX_TOKENS,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Question de l'évaluateur : {message}"},
-        ],
-    )
-    answer = response.choices[0].message.content or "(réponse vide)"
+    messages: list[dict] = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Question de l'évaluateur : {message}"},
+    ]
+    answer = "(réponse vide)"
+    total_in = 0
+    total_out = 0
+    stop_reason = None
+    tool_calls_count = 0
+
+    for _round in range(_TOOL_MAX_ROUNDS):
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=_LLM_MAX_TOKENS,
+            messages=messages,
+            tools=[_FETCH_ARTIFACT_TOOL],
+            tool_choice="auto",
+        )
+        if response.usage:
+            total_in += response.usage.prompt_tokens or 0
+            total_out += response.usage.completion_tokens or 0
+        choice = response.choices[0]
+        stop_reason = choice.finish_reason
+
+        if stop_reason != "tool_calls":
+            answer = choice.message.content or "(réponse vide)"
+            break
+
+        # Resolve tool calls before next round
+        tool_calls = choice.message.tool_calls or []
+        tool_calls_count += len(tool_calls)
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in tool_calls
+            ],
+        })
+        for tc in tool_calls:
+            try:
+                args = json.loads(tc.function.arguments)
+                result = _execute_fetch_artifact(
+                    context.get("session_id", ""),
+                    context.get("dossier_id", ""),
+                    str(args.get("step", "")),
+                    str(args.get("artifact_name", "")),
+                )
+            except Exception as exc:
+                result = f"Erreur exécution outil: {exc}"
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+    else:
+        # Max rounds reached — force final answer without tools
+        final = client.chat.completions.create(
+            model=model, max_tokens=_LLM_MAX_TOKENS, messages=messages
+        )
+        if final.usage:
+            total_in += final.usage.prompt_tokens or 0
+            total_out += final.usage.completion_tokens or 0
+        answer = final.choices[0].message.content or "(réponse vide)"
+        stop_reason = final.choices[0].finish_reason
+
     metadata = {
         "llm": True,
         "model": model,
         "prompt_chars": len(system_prompt),
-        "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-        "output_tokens": response.usage.completion_tokens if response.usage else 0,
-        "stop_reason": response.choices[0].finish_reason,
+        "input_tokens": total_in,
+        "output_tokens": total_out,
+        "stop_reason": stop_reason,
+        "tool_calls_count": tool_calls_count,
         "agent_config": profile.get("agent_config", ""),
         "skills_injected": list(DEFAULT_SKILLS_BY_AGENT.get(agent, [])),
     }
@@ -3034,22 +3148,69 @@ def llm_assistant_stream(
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
     model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    messages: list[dict] = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Question de l'évaluateur : {message}"},
+    ]
+    total_in = 0
+    total_out = 0
+    stop_reason = None
+    tool_calls_count = 0
+
+    # Tool-call rounds are non-streaming (tool calls can't be streamed reliably)
+    for _round in range(_TOOL_MAX_ROUNDS - 1):
+        probe = client.chat.completions.create(
+            model=model,
+            max_tokens=_LLM_MAX_TOKENS,
+            messages=messages,
+            tools=[_FETCH_ARTIFACT_TOOL],
+            tool_choice="auto",
+        )
+        if probe.usage:
+            total_in += probe.usage.prompt_tokens or 0
+            total_out += probe.usage.completion_tokens or 0
+        choice = probe.choices[0]
+
+        if choice.finish_reason != "tool_calls":
+            # No tool call needed — will stream below with current messages
+            break
+
+        tool_calls = choice.message.tool_calls or []
+        tool_calls_count += len(tool_calls)
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in tool_calls
+            ],
+        })
+        for tc in tool_calls:
+            try:
+                args = json.loads(tc.function.arguments)
+                result = _execute_fetch_artifact(
+                    context.get("session_id", ""),
+                    context.get("dossier_id", ""),
+                    str(args.get("step", "")),
+                    str(args.get("artifact_name", "")),
+                )
+            except Exception as exc:
+                result = f"Erreur exécution outil: {exc}"
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+
+    # Final answer — stream tokens via write_fn
     stream = client.chat.completions.create(
         model=model,
         max_tokens=_LLM_MAX_TOKENS,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Question de l'évaluateur : {message}"},
-        ],
+        messages=messages,
         stream=True,
         stream_options={"include_usage": True},
     )
-
     full_answer: list[str] = []
-    stop_reason = None
-    total_tokens_in = 0
-    total_tokens_out = 0
-
     for chunk in stream:
         if chunk.choices:
             delta = chunk.choices[0].delta
@@ -3059,16 +3220,17 @@ def llm_assistant_stream(
             if chunk.choices[0].finish_reason:
                 stop_reason = chunk.choices[0].finish_reason
         if hasattr(chunk, "usage") and chunk.usage:
-            total_tokens_in = chunk.usage.prompt_tokens or 0
-            total_tokens_out = chunk.usage.completion_tokens or 0
+            total_in += chunk.usage.prompt_tokens or 0
+            total_out += chunk.usage.completion_tokens or 0
 
     return {
         "llm": True,
         "model": model,
         "prompt_chars": len(system_prompt),
-        "input_tokens": total_tokens_in,
-        "output_tokens": total_tokens_out,
+        "input_tokens": total_in,
+        "output_tokens": total_out,
         "stop_reason": stop_reason,
+        "tool_calls_count": tool_calls_count,
         "agent_config": profile.get("agent_config", ""),
         "skills_injected": list(DEFAULT_SKILLS_BY_AGENT.get(agent, [])),
         "answer": "".join(full_answer),
