@@ -20,6 +20,7 @@ import uuid
 
 from engine.runtime import RuntimeEngine, PipelineConflitError, load_steps_from_pipeline_yaml, safe_path_id
 from engine.orchestrator import PlanOrchestrator, classify_dossier, load_plan_for_mandat
+from engine.skills import DEFAULT_SKILLS_BY_AGENT
 
 
 ROOT = Path(__file__).resolve().parent
@@ -2661,7 +2662,8 @@ def select_assistant_agent(message: str, requested_agent: str) -> str:
 
 
 _OPENAI_MODEL_DEFAULT = "gpt-4o-mini"
-_LLM_MAX_TOKENS = 800
+_LLM_MAX_TOKENS = 1400
+# Kept as fallback only — real prompts loaded from AGENTCONFIG YAMLs via _build_agent_full_prompt()
 _AGENT_SYSTEM_PROMPTS: dict[str, str] = {
     "data-facts": (
         "Tu es l'Agent Dossier, assistant IA spécialisé pour évaluateurs immobiliers agréés.\n"
@@ -2700,6 +2702,121 @@ _AGENT_SYSTEM_LIMITS = (
 )
 
 
+def _extract_skill_knowledge(skill_name: str, max_chars: int = 900) -> str:
+    """Extrait sections 2 (Connaissances) et 4 (Règles critiques) d'un SKILL.md.
+    Retourne le texte tronqué à max_chars. Silencieux si fichier absent."""
+    skill_path = ROOT / "skills" / skill_name / "SKILL.md"
+    if not skill_path.exists():
+        return ""
+    try:
+        text = skill_path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+    sections: list[str] = []
+    current: list[str] | None = None
+    for line in text.splitlines():
+        if line.startswith("## 2.") or line.startswith("## 4."):
+            current = [line]
+        elif line.startswith("## ") and current is not None:
+            sections.append("\n".join(current))
+            current = None
+        elif current is not None:
+            current.append(line)
+    if current:
+        sections.append("\n".join(current))
+
+    combined = "\n\n".join(sections).strip()
+    return combined[:max_chars] if len(combined) > max_chars else combined
+
+
+def _build_agent_full_prompt(agent: str, profile: dict) -> str:
+    """Construit le system prompt complet pour un agent assistant :
+    1. Charge le system_prompt depuis l'AGENTCONFIG YAML (40+ lignes OEAQ)
+    2. Appende les blocs Connaissances + Règles critiques des SKILL.md autorisés
+    Retourne le prompt complet. Fallback vers _AGENT_SYSTEM_PROMPTS si AGENTCONFIG absent."""
+    from engine.skills import load_agent_system_prompt
+
+    agent_config_file = profile.get("agent_config", "")
+    base_prompt = ""
+
+    # 1. Charger AGENTCONFIG system_prompt
+    if agent_config_file and not agent_config_file.startswith("SUPERVISOR"):
+        config_path = ROOT / "integration" / agent_config_file
+        base_prompt = load_agent_system_prompt(config_path)
+
+    if not base_prompt:
+        base_prompt = _AGENT_SYSTEM_PROMPTS.get(agent, (
+            "Tu es un assistant IA expert en évaluation immobilière québécoise.\n"
+            "Répondre avec précision à partir des données fournies uniquement."
+        ))
+
+    # 2. Injecter contenu des SKILL.md (sections Connaissances + Règles critiques)
+    skill_names = DEFAULT_SKILLS_BY_AGENT.get(agent, [])
+    if not skill_names:
+        return base_prompt
+
+    skill_blocks: list[str] = []
+    # Budget: ~3500 chars total pour les skills (env. 2-3 skills complets)
+    budget = 3500
+    used = 0
+    for skill_name in skill_names:
+        if used >= budget:
+            break
+        remaining = budget - used
+        block = _extract_skill_knowledge(skill_name, max_chars=min(900, remaining))
+        if block:
+            skill_blocks.append(f"### {skill_name}\n{block}")
+            used += len(block)
+
+    if not skill_blocks:
+        return base_prompt
+
+    skills_section = (
+        "\n\n---\nSKILLS MÉTHODOLOGIQUES DISPONIBLES (connaissances encodées et règles) :\n"
+        + "\n\n".join(skill_blocks)
+    )
+    return base_prompt + skills_section
+
+
+def _load_session_artifact_json(session_id: str, step: str, artifact: str) -> dict:
+    """Charge un artifact JSON d'une session. Retourne {} si absent."""
+    path = SESSIONS_DIR / session_id / "artifacts" / "D-PILOTE-RES-001" / f"{step}.{artifact}"
+    # Tenter aussi avec le dossier_id réel depuis le session.json
+    if not path.exists():
+        session_path = SESSIONS_DIR / session_id / "session.json"
+        if session_path.exists():
+            try:
+                sess = json.loads(session_path.read_text(encoding="utf-8"))
+                dossier_id = sess.get("dossier_id", "")
+                if dossier_id:
+                    path = SESSIONS_DIR / session_id / "artifacts" / dossier_id / f"{step}.{artifact}"
+            except Exception:
+                pass
+    return read_json_dict(path)
+
+
+def _load_session_artifact_text(session_id: str, step: str, artifact: str) -> str:
+    """Charge un artifact texte/MD d'une session. Retourne '' si absent."""
+    path = SESSIONS_DIR / session_id / "artifacts" / "D-PILOTE-RES-001" / f"{step}.{artifact}"
+    if not path.exists():
+        session_path = SESSIONS_DIR / session_id / "session.json"
+        if session_path.exists():
+            try:
+                sess = json.loads(session_path.read_text(encoding="utf-8"))
+                dossier_id = sess.get("dossier_id", "")
+                if dossier_id:
+                    path = SESSIONS_DIR / session_id / "artifacts" / dossier_id / f"{step}.{artifact}"
+            except Exception:
+                pass
+    if not path.exists():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 def _llm_client():
     """Retourne un client OpenAI si OPENAI_API_KEY est défini, sinon None."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -2713,83 +2830,135 @@ def _llm_client():
 
 
 def _build_llm_context_block(agent: str, context: dict) -> str:
-    """Formate le contexte session en bloc de données pour le prompt système."""
+    """Formate le contexte session + artifacts réels pour le prompt système."""
+    session_id = context.get("session_id", "")
     lines = [
         "DONNÉES DU DOSSIER :",
-        f"- Session : {context.get('session_id', '-')}",
+        f"- Dossier : {context.get('dossier_id', '-')} | Session : {session_id}",
         f"- Statut runtime : {context.get('runtime_status', '-')}",
         f"- Revue interne : {context.get('review_decision', '-')}",
-        f"- Paquet : {context.get('package_status', '-')}",
         f"- Artefacts disponibles : {context.get('artifacts_count', 0)}",
-        f"- Avertissements : {len(context.get('warnings', []))}",
-        f"- Blocages : {len(context.get('blocking_failures', []))}",
+        f"- Avertissements : {len(context.get('warnings', []))} | Blocages : {len(context.get('blocking_failures', []))}",
     ]
+
     if agent == "data-facts":
-        facts = context.get("facts", {})
-        lines += [
-            "",
-            "FAITS EXTRAITS :",
-            f"- Date de référence : {facts.get('date_reference', '-')}",
-            f"- Surface : {facts.get('surface', '-')}",
-            f"- Confiance : {facts.get('confidence', '-')}",
-            f"- Sources référencées : {facts.get('source_ids_count', 0)}",
-        ]
+        # Charger la fiche bien complète + source index
+        fiche = _load_session_artifact_json(session_id, "data-facts", "fiche_bien.json")
+        timeline = _load_session_artifact_json(session_id, "data-facts", "timeline_faits.json")
+        lines += ["", "FICHE BIEN (artifact data-facts.fiche_bien.json) :"]
+        if fiche:
+            for k, v in fiche.items():
+                if k not in ("dossier_id", "step", "artifact", "source_fixture", "schema_version"):
+                    lines.append(f"  {k}: {v}")
+        else:
+            facts = context.get("facts", {})
+            lines += [
+                f"  date_reference: {facts.get('date_reference', '-')}",
+                f"  surface: {facts.get('surface', '-')}",
+                f"  confidence: {facts.get('confidence', '-')}",
+                f"  sources: {facts.get('source_ids_count', 0)} référencées",
+            ]
+        if timeline:
+            faits = timeline.get("faits", [])
+            if faits:
+                lines += ["", f"TIMELINE FAITS ({len(faits)} faits) :"]
+                for f in faits[:8]:
+                    lines.append(f"  - {f.get('date', '-')} : {f.get('fait', '-')}")
+
     elif agent == "comps-market":
-        comps = context.get("comparables", [])[:6]
-        lines += ["", f"COMPARABLES ({context.get('comparables_count', 0)} au total) :"]
-        for c in comps:
+        comps_artifact = _load_session_artifact_json(session_id, "comps-market", "comparables_proposes.json")
+        justif = _load_session_artifact_json(session_id, "comps-market", "justifications_comparables.json")
+        comps_list = comps_artifact.get("comparables", context.get("comparables", []))
+        lines += ["", f"COMPARABLES RETENUS ({len(comps_list)}) :"]
+        for c in comps_list[:8]:
             lines.append(
-                f"- {c.get('comparable_id', '-')} : prix={c.get('prix_vente', '-')},"
-                f" score={c.get('score', '-')}, source={c.get('source_id', '-')},"
-                f" date={c.get('date_vente', '-')}"
+                f"  [{c.get('rank', c.get('comparable_id', '-'))}] {c.get('adresse', c.get('comparable_id', '-'))}"
+                f" | prix={c.get('prix_vente', '-')} | date={c.get('date_vente', '-')}"
+                f" | score={c.get('score', '-')} | source={c.get('source_id', '-')}"
             )
+        if comps_artifact.get("analyse_marche"):
+            lines += ["", "ANALYSE MARCHÉ (LLM) :", comps_artifact["analyse_marche"][:600]]
+        if justif.get("synthese_comparables"):
+            lines += ["", "JUSTIFICATIONS :", justif["synthese_comparables"][:400]]
+
     elif agent == "valuation-draft":
-        values = context.get("valuation_values", {})
+        comp_calc = _load_session_artifact_json(session_id, "valuation-draft", "calculs_approche_comparative.json")
+        cout_calc = _load_session_artifact_json(session_id, "valuation-draft", "calculs_approche_cout.json")
+        rev_calc = _load_session_artifact_json(session_id, "valuation-draft", "calculs_approche_revenu.json")
+        hyp = _load_session_artifact_json(session_id, "valuation-draft", "hypotheses_explicites.json")
+        brouillon = _load_session_artifact_text(session_id, "valuation-draft", "brouillon_valeur.md")
+        lines += ["", "CALCULS DE VALEUR :"]
+        for label, calc in [("Comparaison", comp_calc), ("Coût", cout_calc), ("Revenu", rev_calc)]:
+            if calc and calc.get("value"):
+                trace = calc.get("trace", {})
+                lines.append(
+                    f"  {label}: valeur={calc['value']} | méthode={calc.get('method', '-')}"
+                    f" | n={calc.get('input_count', '-')} | confidence={trace.get('confidence_level', '-')}"
+                )
+                if calc.get("commentaire"):
+                    lines.append(f"    commentaire: {calc['commentaire'][:250]}")
         approaches = context.get("valuation_approaches", [])
-        lines += ["", "APPROCHES DE VALEUR :"]
-        for approach in approaches:
-            lines.append(
-                f"- {approach.get('approach', '-')} : méthode={approach.get('method', '-')},"
-                f" valeur={approach.get('value', '-')}, n_inputs={approach.get('input_count', 0)}"
-            )
-        if values:
-            lines.append("Valeurs synthèse : " + ", ".join(f"{k}={v}" for k, v in values.items()))
+        if approaches and not comp_calc:
+            for a in approaches:
+                lines.append(f"  {a.get('approach', '-')}: {a.get('value', '-')} (n={a.get('input_count', 0)})")
+        if hyp:
+            hypotheses = hyp.get("hypotheses", [])
+            if hypotheses:
+                lines += ["", f"HYPOTHÈSES EXPLICITES ({len(hypotheses)}) :"]
+                for h in hypotheses[:5]:
+                    lines.append(f"  - {h.get('hypothese', h)}")
+        if brouillon:
+            lines += ["", "BROUILLON VALEUR (extrait) :", brouillon[:500]]
+
     elif agent == "compliance-qa":
-        warnings = context.get("warnings", [])
-        blocking = context.get("blocking_failures", [])
+        statut = _load_session_artifact_json(session_id, "compliance-qa", "statut_sortie.json")
+        non_conf = _load_session_artifact_json(session_id, "compliance-qa", "rapport_non_conformites.json")
+        warnings = statut.get("warnings", context.get("warnings", []))
+        blocking = statut.get("blocking_failures", context.get("blocking_failures", []))
         coverage = context.get("coverage", {})
         lines += [
             "",
-            "CONFORMITÉ :",
-            f"- Blocages ({len(blocking)}) : {', '.join(blocking) if blocking else 'aucun'}",
-            f"- Avertissements ({len(warnings)}) : {', '.join(warnings[:8]) if warnings else 'aucun'}",
-            f"- Couverture artefacts : {coverage.get('required_count', 0) - coverage.get('missing_count', 0)}"
+            "CONFORMITÉ OEAQ :",
+            f"  Statut sortie : {statut.get('status', context.get('runtime_status', '-'))}",
+            f"  Blocages ({len(blocking)}) : {', '.join(blocking) if blocking else 'aucun'}",
+            f"  Avertissements ({len(warnings)}) : {', '.join(warnings[:10]) if warnings else 'aucun'}",
+            f"  Couverture artefacts : {coverage.get('required_count', 0) - coverage.get('missing_count', 0)}"
             f" / {coverage.get('required_count', 0)}",
         ]
+        if non_conf.get("analyse_conformite"):
+            lines += ["", "ANALYSE CONFORMITÉ (LLM) :", non_conf["analyse_conformite"][:500]]
+
     elif agent == "redaction":
+        brouillon = _load_session_artifact_text(session_id, "redaction", "brouillon_rapport.md")
+        annexe = _load_session_artifact_text(session_id, "redaction", "annexe_sources.md")
         report = context.get("report", {})
-        preview = str(report.get("preview") or "Non disponible.")[:1500]
+        if not brouillon:
+            brouillon = str(report.get("preview") or "Non disponible.")
         lines += [
             "",
-            f"RAPPORT (disponible: {bool(report.get('available'))}) :",
-            "--- aperçu ---",
-            preview,
-            "--- fin aperçu ---",
+            f"BROUILLON RAPPORT (disponible: {bool(brouillon)}) :",
+            "--- début rapport ---",
+            brouillon[:2000],
+            "--- fin rapport ---",
         ]
+        if annexe:
+            lines += ["", "ANNEXE SOURCES (extrait) :", annexe[:300]]
+
     return "\n".join(lines)
 
 
 def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, dict]:
-    """Appelle GPT pour générer une réponse d'agent. Retourne (réponse, métadonnées).
+    """Appelle GPT pour générer une réponse d'agent.
+    Utilise l'AGENTCONFIG system_prompt + contenu SKILL.md + données artifacts réels.
     Lève RuntimeError si le client LLM n'est pas disponible."""
     client = _llm_client()
     if not client:
         raise RuntimeError("OPENAI_API_KEY non configuré — mode déterministe actif")
 
-    base_prompt = _AGENT_SYSTEM_PROMPTS.get(agent, (
-        "Tu es un assistant IA pour évaluateurs immobiliers agréés.\n"
-        "Répondre avec précision à partir des données fournies uniquement."
-    ))
+    profile = assistant_agent_profile(agent)
+    # Prompt complet : AGENTCONFIG (40+ lignes OEAQ) + skills knowledge (sections 2+4)
+    base_prompt = _build_agent_full_prompt(agent, profile)
+    # Contexte : données réelles des artifacts (pas juste des counts)
     context_block = _build_llm_context_block(agent, context)
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
@@ -2806,9 +2975,12 @@ def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, 
     metadata = {
         "llm": True,
         "model": model,
+        "prompt_chars": len(system_prompt),
         "input_tokens": response.usage.prompt_tokens if response.usage else 0,
         "output_tokens": response.usage.completion_tokens if response.usage else 0,
         "stop_reason": response.choices[0].finish_reason,
+        "agent_config": profile.get("agent_config", ""),
+        "skills_injected": list(DEFAULT_SKILLS_BY_AGENT.get(agent, [])),
     }
     return answer, metadata
 
