@@ -638,6 +638,37 @@ def app_archive_dossier(body: dict) -> dict:
     return {"ok": True, "session_id": session_id, "archived": True}
 
 
+def app_create_dossier(body: dict) -> dict:
+    address = str(body.get("address") or "").strip() or "Nouveau dossier"
+    type_bien = str(body.get("type_bien") or body.get("property_type") or "").strip()
+    neighbourhood = str(body.get("neighbourhood") or body.get("neighborhood") or "").strip()
+    mandat_type = str(body.get("mandat_type") or "EVALUATION_COMPLETE").strip()
+    session = create_session(strict_mode=False)
+    session_id = session["session_id"]
+    dossier_id = f"D-USR-{uuid.uuid4().hex[:8].upper()}"
+    session["app_display_name"] = address
+    session["app_property_type"] = type_bien
+    session["app_neighborhood"] = neighbourhood
+    session["app_mandat_type"] = mandat_type
+    session["dossier_id"] = dossier_id
+    save_session(session)
+    state = app_state(session_id)
+    return {"schema_version": "evaluateur_ai_app_create_v1", "session_id": session_id, "dossier_id": dossier_id, "state": state}
+
+
+def app_rename_dossier(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    new_address = str(body.get("address") or "").strip()
+    if not new_address:
+        raise ValueError("address requis")
+    session = require_session(session_id)
+    session["app_display_name"] = new_address
+    save_session(session)
+    return {"ok": True, "session_id": session_id, "address": new_address}
+
+
 def app_source_documents(knowledge: dict, session: dict | None = None) -> list[dict]:
     sources = knowledge.get("sources", {}) if isinstance(knowledge.get("sources"), dict) else {}
     items = sources.get("items", []) if isinstance(sources.get("items"), list) else []
@@ -3498,6 +3529,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_archive_dossier(body))
+                return
+            if self.path == "/app/create":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_create_dossier(body))
+                return
+            if self.path == "/app/rename":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_rename_dossier(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:

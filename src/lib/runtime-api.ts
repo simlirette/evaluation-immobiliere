@@ -63,6 +63,7 @@ export interface CreateRuntimeDossierInput {
   address: string
   property_type: string
   neighborhood: string
+  mandat_type?: string
   commanditaire?: {
     nom: string
     organisation: string
@@ -122,20 +123,25 @@ export async function fetchRuntimeDossier(sessionId: string): Promise<Dossier | 
 }
 
 export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Promise<Dossier> {
-  const payload = await runtimeJson<{ state: AppState }>('/app/demo', {
+  const payload = await runtimeJson<{ state: AppState }>('/app/create', {
     method: 'POST',
     body: JSON.stringify({
-      fixture: 'case_pilote_residentiel_standard.json',
-      display_name: input.address,
+      address: input.address,
       property_type: input.property_type,
       neighborhood: input.neighborhood,
-      ...(input.commanditaire ? { commanditaire: input.commanditaire } : {}),
-      ...(input.comparables && input.comparables.length > 0 ? { comparables: input.comparables } : {}),
+      ...(input.mandat_type ? { mandat_type: input.mandat_type } : {}),
     }),
   })
   const dossier = payload.state.active?.dossier
   if (!dossier) throw new Error('Aucun dossier runtime cree')
   return dossier
+}
+
+export function renameRuntimeDossier(sessionId: string, address: string): Promise<void> {
+  return runtimeJson('/app/rename', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, address }),
+  }).then(() => undefined)
 }
 
 

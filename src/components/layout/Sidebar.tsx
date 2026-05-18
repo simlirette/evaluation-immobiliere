@@ -8,8 +8,7 @@ import SidebarFooter from './SidebarFooter'
 import ContextMenu from './ContextMenu'
 import Toast from '@/components/shared/Toast'
 import { useContextMenu } from '@/hooks/useContextMenu'
-import { fetchDossiers, deleteDossier, renameDossier, duplicateDossier } from '@/lib/supabase/queries/dossiers'
-import { togglePin } from '@/lib/supabase/queries/pins'
+import { fetchRuntimeDossiers, deleteRuntimeDossier, renameRuntimeDossier, toggleRuntimePin, createRuntimeDossier } from '@/lib/runtime-api'
 import type { Dossier, TabId } from '@/types'
 
 interface Props {
@@ -37,7 +36,7 @@ export default function Sidebar({
   const ctx = useContextMenu()
 
   useEffect(() => {
-    fetchDossiers().then(setDossiers).catch(() => setDossiers([]))
+    fetchRuntimeDossiers().then(setDossiers).catch(() => setDossiers([]))
   }, [refreshKey])
 
   // Close drawer when viewport reaches desktop width
@@ -53,7 +52,7 @@ export default function Sidebar({
     setDossiers(prev => prev.map(d =>
       d.address === name ? { ...d, pinned: !pinned } : d
     ))
-    togglePin(dossier.id, pinned)
+    toggleRuntimePin(dossier.slug, pinned)
     setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
   }
 
@@ -62,7 +61,11 @@ export default function Sidebar({
     if (!dossier) return
     setToast('Duplication en cours…')
     try {
-      const newDossier = await duplicateDossier(dossier)
+      const newDossier = await createRuntimeDossier({
+        address: `Copie de ${dossier.address}`,
+        property_type: dossier.property_type,
+        neighborhood: dossier.neighborhood,
+      })
       setDossiers(prev => [newDossier, ...prev])
       setToast('Dossier dupliqué')
       onDossierSelect(newDossier.slug, newDossier.address)
@@ -75,7 +78,7 @@ export default function Sidebar({
     const dossier = dossiers.find(d => d.address === name)
     if (!dossier) return
     setDossiers(prev => prev.map(d => d.address === name ? { ...d, address: newName } : d))
-    renameDossier(dossier.slug, newName)
+    renameRuntimeDossier(dossier.slug, newName)
     setToast('Dossier renommé')
   }
 
@@ -83,7 +86,7 @@ export default function Sidebar({
     const dossier = dossiers.find(d => d.address === name)
     if (!dossier) return
     setDossiers(prev => prev.filter(d => d.address !== name))
-    deleteDossier(dossier.id)
+    deleteRuntimeDossier(dossier.slug)
     setToast('Dossier supprimé')
   }
 

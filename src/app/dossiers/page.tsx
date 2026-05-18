@@ -8,9 +8,8 @@ import DossierCard from '@/components/dossiers/DossierCard'
 import EmptyState from '@/components/shared/EmptyState'
 import ContextMenu from '@/components/layout/ContextMenu'
 import Toast from '@/components/shared/Toast'
-import { fetchDossiers, deleteDossier, renameDossier, duplicateDossier, updateDossierStatus } from '@/lib/supabase/queries/dossiers'
+import { fetchRuntimeDossiers, deleteRuntimeDossier, renameRuntimeDossier, toggleRuntimePin, createRuntimeDossier } from '@/lib/runtime-api'
 import { nextDossierStatus } from '@/lib/dossier-status'
-import { togglePin } from '@/lib/supabase/queries/pins'
 import { useContextMenu } from '@/hooks/useContextMenu'
 import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
 import { filterDossiers, type StatusFilter } from '@/lib/filter-dossiers'
@@ -116,7 +115,7 @@ export default function MesDossiersPage() {
   const ctx = useContextMenu()
 
   useEffect(() => {
-    fetchDossiers()
+    fetchRuntimeDossiers()
       .then(data => setDossiers(data))
       .finally(() => setLoading(false))
   }, [])
@@ -137,7 +136,7 @@ export default function MesDossiersPage() {
     const d = dossiers.find(x => x.address === name)
     if (!d) return
     setDossiers(prev => prev.map(x => x.address === name ? { ...x, pinned: !pinned } : x))
-    togglePin(d.slug, pinned)
+    toggleRuntimePin(d.slug, pinned)
     setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
   }
 
@@ -145,7 +144,7 @@ export default function MesDossiersPage() {
     const d = dossiers.find(x => x.address === name)
     if (!d) return
     setDossiers(prev => prev.map(x => x.address === name ? { ...x, address: newName } : x))
-    renameDossier(d.slug, newName)
+    renameRuntimeDossier(d.slug, newName)
     setToast('Dossier renommé')
   }
 
@@ -154,7 +153,11 @@ export default function MesDossiersPage() {
     if (!d) return
     setToast('Duplication en cours…')
     try {
-      const newD = await duplicateDossier(d)
+      const newD = await createRuntimeDossier({
+        address: `Copie de ${d.address}`,
+        property_type: d.property_type,
+        neighborhood: d.neighborhood,
+      })
       setDossiers(prev => [newD, ...prev])
       setToast('Dossier dupliqué')
       router.push(`/dossier/${newD.slug}?tab=dossier`)
@@ -167,7 +170,7 @@ export default function MesDossiersPage() {
     const d = dossiers.find(x => x.address === name)
     if (!d) return
     setDossiers(prev => prev.filter(x => x.address !== name))
-    deleteDossier(d.slug)
+    deleteRuntimeDossier(d.slug)
     setToast('Dossier supprimé')
   }
 
@@ -176,7 +179,6 @@ export default function MesDossiersPage() {
     if (!d) return
     const next = nextDossierStatus(d.status)
     setDossiers(prev => prev.map(x => x.id === id ? { ...x, status: next } : x))
-    updateDossierStatus(d.slug, next)
     setToast(`Statut → ${next === 'en-cours' ? 'En cours' : next === 'complet' ? 'Complet' : 'Brouillon'}`)
   }
 
