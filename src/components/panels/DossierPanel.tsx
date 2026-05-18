@@ -16,19 +16,14 @@ import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
 import { createDossier } from '@/lib/supabase/queries/dossiers'
-import { sendRuntimeMessage, fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { useAgentChat } from '@/hooks/useAgentChat'
 import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
 
 interface Props {
   isNew: boolean
   dossierId: string | null
   onPipelineComplete?: () => void
-}
-
-interface AssistantReply {
-  id: string
-  agent: string
-  answer: string
 }
 
 interface UploadStatus {
@@ -562,8 +557,8 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   const [documents, setDocuments] = useState<Document[]>([])
   const [showDropZone, setShowDropZone] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [replies, setReplies] = useState<AssistantReply[]>([])
   const [uploads, setUploads] = useState<UploadStatus[]>([])
+  const { replies, asking, ask } = useAgentChat(dossierId, 'data-facts')
 
   type MandatData = {
     mandat_type: string
@@ -646,18 +641,6 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
     setUploads(errors)
   }
 
-  async function handleAsk(value: string) {
-    if (!dossierId) return
-    const response = await sendRuntimeMessage(dossierId, value, 'data-facts')
-    setReplies(prev => [
-      ...prev,
-      {
-        id: `${Date.now()}`,
-        agent: response.message.agent_label,
-        answer: response.message.answer,
-      },
-    ])
-  }
 
   if (!isNew && (!dossierId || loading)) return <PanelLoader />
 
@@ -717,7 +700,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           </AgentMessage>
         )}
         {documents.length > 0 && <UserMessage>{'Sources rattach\u00e9es au dossier'}</UserMessage>}
-        <AgentMessage agentName="Agent Dossier" last={replies.length === 0}>
+        <AgentMessage agentName="Agent Dossier" last={replies.length === 0 && !asking}>
           {documents.length === 0
             ? "Aucune source runtime n\u2019est encore rattach\u00e9e."
             : "Ces sources viennent des art\u00e9facts runtime. Elles restent \u00e0 valider avant toute conclusion professionnelle."}
@@ -744,13 +727,21 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             </div>
           )
         ))}
-        {replies.map((reply, index) => (
-          <AgentMessage key={reply.id} agentName={reply.agent} last={index === replies.length - 1}>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{reply.answer}</pre>
+        {replies.map((r, i) => (
+          <AgentMessage key={i} agentName={r.agentLabel || 'Agent Dossier'} last={i === replies.length - 1 && !asking}>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+              {r.text}
+              {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+            </pre>
           </AgentMessage>
         ))}
+        {asking && replies.length === 0 && (
+          <AgentMessage agentName="Agent Dossier" last>
+            <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
+          </AgentMessage>
+        )}
       </div>
-      <ChatInput placeholder="Questionner l'Agent Dossier..." onSend={handleAsk} />
+      <ChatInput placeholder="Questionner l'Agent Dossier..." onSend={ask} disabled={asking} />
     </div>
   )
 }

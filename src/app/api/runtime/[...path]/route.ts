@@ -22,7 +22,7 @@ if (IS_PROD && !RUNTIME_TOKEN) {
 
 type Ctx = { params: Promise<{ path: string[] }> }
 
-async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promise<NextResponse> {
+async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promise<Response> {
   const { path } = await ctx.params
   const forwardPath = '/' + path.join('/')
   const search = req.nextUrl.search
@@ -52,6 +52,19 @@ async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promis
       signal: controller.signal,
     })
     clearTimeout(timer)
+
+    // SSE — pipe body directly, do not buffer
+    const contentType = res.headers.get('Content-Type') ?? ''
+    if (contentType.includes('text/event-stream')) {
+      return new Response(res.body, {
+        status: res.status,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          'X-Accel-Buffering': 'no',
+        },
+      })
+    }
 
     const text = await res.text()
     return new NextResponse(text, {

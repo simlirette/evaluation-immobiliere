@@ -232,6 +232,56 @@ export async function sendRuntimeMessage(
   })
 }
 
+export async function streamRuntimeMessage(
+  sessionId: string,
+  message: string,
+  agent: string,
+  onToken: (token: string) => void,
+): Promise<RuntimeMessageResponse> {
+  const response = await fetch(`${BFF_BASE}/app/message/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, message, agent }),
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    let detail = ''
+    try {
+      const payload = await response.json()
+      detail = payload?.error ? `: ${payload.error}` : ''
+    } catch { detail = '' }
+    throw new Error(`Runtime API ${response.status}${detail}`)
+  }
+
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let result: RuntimeMessageResponse | null = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      try {
+        const event = JSON.parse(line.slice(6)) as Record<string, unknown>
+        if (typeof event.token === 'string') {
+          onToken(event.token)
+        } else if (event.done && event.message) {
+          result = { message: event.message, state: event.state } as RuntimeMessageResponse
+        }
+      } catch { /* ignore malformed lines */ }
+    }
+  }
+
+  if (!result) throw new Error('Stream terminé sans événement done')
+  return result
+}
+
 export async function validateRuntimeReview(sessionId: string): Promise<AppState> {
   const payload = await runtimeJson<{ state: AppState }>('/app/review/validate', {
     method: 'POST',

@@ -3016,6 +3016,65 @@ def llm_assistant_answer(message: str, agent: str, context: dict) -> tuple[str, 
     return answer, metadata
 
 
+def llm_assistant_stream(
+    message: str,
+    agent: str,
+    context: dict,
+    write_fn,  # callable(str) → None, called per token
+) -> dict:
+    """Appelle GPT en mode stream, appelle write_fn pour chaque token.
+    Retourne les metadata LLM. Lève RuntimeError si pas de client."""
+    client = _llm_client()
+    if not client:
+        raise RuntimeError("OPENAI_API_KEY non configuré — mode déterministe actif")
+
+    profile = assistant_agent_profile(agent)
+    base_prompt = _build_agent_full_prompt(agent, profile)
+    context_block = _build_llm_context_block(agent, context)
+    system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
+
+    model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    stream = client.chat.completions.create(
+        model=model,
+        max_tokens=_LLM_MAX_TOKENS,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Question de l'évaluateur : {message}"},
+        ],
+        stream=True,
+        stream_options={"include_usage": True},
+    )
+
+    full_answer: list[str] = []
+    stop_reason = None
+    total_tokens_in = 0
+    total_tokens_out = 0
+
+    for chunk in stream:
+        if chunk.choices:
+            delta = chunk.choices[0].delta
+            if delta and delta.content:
+                write_fn(delta.content)
+                full_answer.append(delta.content)
+            if chunk.choices[0].finish_reason:
+                stop_reason = chunk.choices[0].finish_reason
+        if hasattr(chunk, "usage") and chunk.usage:
+            total_tokens_in = chunk.usage.prompt_tokens or 0
+            total_tokens_out = chunk.usage.completion_tokens or 0
+
+    return {
+        "llm": True,
+        "model": model,
+        "prompt_chars": len(system_prompt),
+        "input_tokens": total_tokens_in,
+        "output_tokens": total_tokens_out,
+        "stop_reason": stop_reason,
+        "agent_config": profile.get("agent_config", ""),
+        "skills_injected": list(DEFAULT_SKILLS_BY_AGENT.get(agent, [])),
+        "answer": "".join(full_answer),
+    }
+
+
 def render_assistant_answer(message: str, agent: str, context: dict) -> str:
     profile = assistant_agent_profile(agent)
     lines = [
@@ -3495,6 +3554,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(200, app_send_message(body))
                 return
+            if self.path == "/app/message/stream":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._stream_assistant_message(body)
+                return
             if self.path == "/app/upload":
                 if not self._require_permission("runtime_write"):
                     return
@@ -3645,6 +3709,87 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         except KeyError:
             pass
         self._send_json(404, {"error": f"rapport ops inconnu: {name}"})
+
+    def _stream_assistant_message(self, body: dict) -> None:
+        """POST /app/message/stream — SSE streaming des tokens LLM agent."""
+        try:
+            session = require_session(str(body.get("session_id", "")))
+        except (FileNotFoundError, ValueError) as exc:
+            self._send_json(404, {"error": str(exc)})
+            return
+
+        message = normalize_assistant_message(str(body.get("message") or ""))
+        requested_agent = str(body.get("agent") or "auto").strip() or "auto"
+        context = assistant_context(session)
+        agent = select_assistant_agent(message, requested_agent)
+        profile = assistant_agent_profile(agent)
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self._send_cors_headers()
+        self.end_headers()
+
+        def emit(data: dict) -> None:
+            line = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            self.wfile.write(line.encode("utf-8"))
+            self.wfile.flush()
+
+        full_answer_parts: list[str] = []
+        llm_meta: dict = {}
+
+        try:
+            def on_token(token: str) -> None:
+                full_answer_parts.append(token)
+                emit({"token": token})
+
+            llm_meta = llm_assistant_stream(message, agent, context, on_token)
+            full_answer = "".join(full_answer_parts)
+        except Exception:
+            full_answer = render_assistant_answer(message, agent, context)
+            emit({"token": full_answer})
+
+        response = {
+            "schema_version": "assistant_message_v1",
+            "message_id": uuid.uuid4().hex[:12],
+            "created_at_utc": utc_now_iso(),
+            "session_id": session["session_id"],
+            "run_id": session.get("run_id", ""),
+            "dossier_id": context["dossier_id"],
+            "requested_agent": requested_agent,
+            "agent": agent,
+            "agent_label": profile["label"],
+            "agent_config": profile["agent_config"],
+            "answer": full_answer,
+            "context_summary": {
+                "runtime_status": context["runtime_status"],
+                "review_decision": context["review_decision"],
+                "package_status": context["package_status"],
+                "integrity_ok": context["integrity_ok"],
+                "facts_count": context["facts_count"],
+                "comparables_count": context["comparables_count"],
+                "valuation_approaches_count": context["valuation_approaches_count"],
+                "warnings_count": len(context["warnings"]),
+                "blocking_failures_count": len(context["blocking_failures"]),
+                "artifacts_count": context["artifacts_count"],
+            },
+            "citations": assistant_citations(context),
+            "limits": {
+                "certification_automatic": False,
+                "external_evaluator_responses_included": False,
+                "requires_human_validation": True,
+                "llm_native_agent_loop_connected": bool(llm_meta),
+            },
+            "llm_metadata": llm_meta,
+        }
+        try:
+            append_assistant_exchange(session, message, response)
+        except Exception:
+            pass
+
+        state = app_state(str(body.get("session_id") or ""))
+        emit({"done": True, "message": response, "state": state})
 
     def _stream_events(self, session_id: str | None) -> None:
         if not session_id:

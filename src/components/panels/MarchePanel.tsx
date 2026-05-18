@@ -9,7 +9,8 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
-import { fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
+import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
 import { sortComparables, type ComparableSortKey } from '@/lib/sort-comparables'
@@ -27,7 +28,6 @@ import { computeComparableCompleteness } from '@/lib/compute-comparable-complete
 import { computeDataQualityReport } from '@/lib/compute-data-quality-report'
 import { computeSalesPressureIndex } from '@/lib/compute-sales-pressure-index'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
-import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
 
 interface Props {
@@ -111,9 +111,8 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
   const [sortKey, setSortKey] = useState<ComparableSortKey>('rank')
   const [query, setQuery] = useState('')
-  const [replies, setReplies] = useState<string[]>([])
-  const [asking, setAsking] = useState(false)
   const [loading, setLoading] = useState(true)
+  const { replies, asking, ask } = useAgentChat(dossierId, 'comps-market')
   const [error, setError] = useState(false)
 
   function load() {
@@ -138,18 +137,6 @@ export default function MarchePanel({ dossierId, address }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [replies, asking])
 
-  async function handleAsk(value: string) {
-    if (!dossierId) return
-    setAsking(true)
-    try {
-      const response = await sendRuntimeMessage(dossierId, value, 'comps-market')
-      setReplies(prev => [...prev, response.message.answer])
-    } catch (err) {
-      setReplies(prev => [...prev, formatAgentError(err)])
-    } finally {
-      setAsking(false)
-    }
-  }
 
   if (!dossierId || loading) return <PanelLoader />
   if (error) return <PanelError onRetry={load} />
@@ -325,11 +312,14 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </AgentMessage>
         )}
         {replies.map((r, i) => (
-          <AgentMessage key={i} agentName="Agent Marché" last={i === replies.length - 1 && !asking}>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{r}</pre>
+          <AgentMessage key={i} agentName={r.agentLabel || 'Agent Marché'} last={i === replies.length - 1 && !asking}>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+              {r.text}
+              {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+            </pre>
           </AgentMessage>
         ))}
-        {asking && (
+        {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Marché" last>
             <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
           </AgentMessage>
@@ -362,7 +352,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <ChatInput placeholder="Questionner l'Agent Marché..." onSend={handleAsk} disabled={asking} />
+      <ChatInput placeholder="Questionner l'Agent Marché..." onSend={ask} disabled={asking} />
     </div>
   )
 }

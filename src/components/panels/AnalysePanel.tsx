@@ -10,7 +10,8 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
-import { fetchAppState, fetchRuntimeEnrichment, sendRuntimeMessage } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
@@ -31,7 +32,6 @@ import { computeGrossAdjustmentCeiling } from '@/lib/compute-gross-adjustment-ce
 import { computeAdjustmentSymmetry } from '@/lib/compute-adjustment-symmetry'
 import { computeAdjustmentDirectionBalance } from '@/lib/compute-adjustment-direction-balance'
 import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
-import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, EnrichmentFinancier } from '@/types'
 
 interface Props {
@@ -146,10 +146,9 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   const [conclusion, setConclusion] = useState<number | null>(null)
   const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
   const [financier, setFinancier] = useState<EnrichmentFinancier | null>(null)
-  const [replies, setReplies] = useState<string[]>([])
-  const [asking, setAsking] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const { replies, asking, ask } = useAgentChat(dossierId, 'valuation-draft')
 
   function load() {
     if (!dossierId) return
@@ -175,19 +174,6 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [replies, asking])
-
-  async function handleAsk(value: string) {
-    if (!dossierId) return
-    setAsking(true)
-    try {
-      const response = await sendRuntimeMessage(dossierId, value, 'valuation-draft')
-      setReplies(prev => [...prev, response.message.answer])
-    } catch (err) {
-      setReplies(prev => [...prev, formatAgentError(err)])
-    } finally {
-      setAsking(false)
-    }
-  }
 
   if (!dossierId || loading) return <PanelLoader />
   if (error) return <PanelError onRetry={load} />
@@ -510,11 +496,14 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
         </AgentMessage>
         {replies.map((r, i) => (
-          <AgentMessage key={i} agentName="Agent Analyse" last={i === replies.length - 1 && !asking}>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{r}</pre>
+          <AgentMessage key={i} agentName={r.agentLabel || 'Agent Analyse'} last={i === replies.length - 1 && !asking}>
+            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+              {r.text}
+              {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+            </pre>
           </AgentMessage>
         ))}
-        {asking && (
+        {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Analyse" last>
             <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
           </AgentMessage>
@@ -549,7 +538,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={handleAsk} disabled={asking} />
+      <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={ask} disabled={asking} />
     </div>
   )
 }
