@@ -38,6 +38,8 @@ import { computeComparableDataCompleteness } from './compute-comparable-data-com
 import { computeComparablePriceAnomaly } from './compute-comparable-price-anomaly'
 import { computeComparableRenovationAgeGap } from './compute-comparable-renovation-age-gap'
 import { computePricePerM2ByDecade } from './compute-price-per-m2-by-decade'
+import { computePricePerM2Panel } from './compute-price-per-m2-panel'
+import { computeComparableGarageProfile } from './compute-comparable-garage-profile'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -385,6 +387,33 @@ export function buildMarcheHtml(
         `)
       }
     }
+    // B182: $/m² panel stats
+    if (comparables.length >= 2) {
+      const ppm2Panel = computePricePerM2Panel(comparables)
+      if (ppm2Panel) {
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            $/m² du panel&nbsp;: <strong>${fmt(ppm2Panel.min, 0)} – ${fmt(ppm2Panel.max, 0)} $/m²</strong>
+            <span style="font-size:9pt;color:#8a8780;"> — moy. ${fmt(ppm2Panel.mean, 0)}, médiane ${fmt(ppm2Panel.median, 0)}, CV ${fmt(ppm2Panel.cv, 1)} %</span>
+          </p>
+        `)
+      }
+    }
+
+    // B185: garage type profile
+    if (comparables.length > 0) {
+      const garageProfile = computeComparableGarageProfile(comparables)
+      if (garageProfile && garageProfile.typeCounts.length > 0) {
+        const typeStr = garageProfile.typeCounts.map(t => `${t.type} (${t.count})`).join(', ')
+        const missingNote = garageProfile.missingCount > 0 ? ` · ${garageProfile.missingCount} n.d.` : ''
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Type de garage&nbsp;: <span style="font-size:9pt;">${typeStr}${missingNote}</span>
+          </p>
+        `)
+      }
+    }
+
     // B134: comparable selection summary (quality + similarity aggregate)
     if (adjustments) {
       const qualityScoresForSummary = computeComparableQualityScore(comparables, adjustments)

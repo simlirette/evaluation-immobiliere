@@ -62,6 +62,9 @@ import { computePanelAdjustmentBalance } from './compute-panel-adjustment-balanc
 import { computeAdjustmentSurfaceImpact } from './compute-adjustment-surface-impact'
 import { computeAdjustedPriceRangeNarrowing } from './compute-adjusted-price-range-narrowing'
 import { computeAdjustmentNetPctHistogram } from './compute-adjustment-net-pct-histogram'
+import { computeGrossAdjustmentOEAQCheck } from './compute-gross-adjustment-oeaq-check'
+import { computeAdjustmentMagnitudeRanking } from './compute-adjustment-magnitude-ranking'
+import { computeReconciliationWeightDistribution } from './compute-reconciliation-weight-distribution'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -1006,6 +1009,52 @@ export function buildAnalyseHtml(
           </p>
         `)
       }
+    }
+  }
+
+  // B181: gross adjustment OEAQ check (≤25%)
+  if (adjustments.length > 0) {
+    const oeaqGross = computeGrossAdjustmentOEAQCheck(adjustments)
+    if (oeaqGross) {
+      const color = oeaqGross.compliant ? '#1f7a5c' : '#b91c1c'
+      const note = oeaqGross.compliant
+        ? 'Tous les comparables respectent le plafond brut de 25 %.'
+        : `${oeaqGross.violationCount} comparable(s) dépassent le plafond brut de 25 %.`
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Plafond brut OEAQ (25 %)&nbsp;: <strong style="color:${color};">${oeaqGross.compliant ? '✓ Conforme' : '⚠ Non conforme'}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ${note}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B183: adjustment magnitude ranking
+  if (adjustments.length > 0) {
+    const ranking = computeAdjustmentMagnitudeRanking(adjustments)
+    if (ranking) {
+      const topTwo = ranking.entries.slice(0, 2).map(e => `${e.type} (${fmtMoney(e.totalAbsolute)})`).join(', ')
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Types d'ajustement dominants&nbsp;: <strong>${topTwo}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — par magnitude absolue cumulée</span>
+        </p>
+      `)
+    }
+  }
+
+  // B184: reconciliation weight distribution
+  if (adjustments.length > 0) {
+    const weights = computeReconciliationWeightDistribution(adjustments)
+    if (weights) {
+      const topComp = weights.entries.reduce((a, b) => a.weightPct > b.weightPct ? a : b)
+      const concentration = weights.herfindahl > 0.5 ? 'concentrée' : weights.herfindahl > 0.33 ? 'modérée' : 'équilibrée'
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Pondération de la réconciliation&nbsp;: <strong>${topComp.comparableLabel}</strong> ${fmt(topComp.weightPct, 0)} %
+          <span style="font-size:9pt;color:#8a8780;"> — concentration ${concentration} (H = ${fmt(weights.herfindahl, 2)})</span>
+        </p>
+      `)
     }
   }
 
