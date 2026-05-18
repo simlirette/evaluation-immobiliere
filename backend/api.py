@@ -986,7 +986,18 @@ def app_fixture_adjustments(source_fixture: str) -> list[dict]:
     return [item for item in adjustments if isinstance(item, dict)]
 
 
-def app_adjustment_rows(knowledge: dict, dossier: dict) -> list[dict]:
+def app_adjustment_rows(knowledge: dict, dossier: dict, session_id: str = "") -> list[dict]:
+    # Check for manual adjustments saved by the appraiser
+    if session_id:
+        manual_path = SESSIONS_DIR / safe_path_id(session_id) / "adjustments.json"
+        if manual_path.exists():
+            try:
+                data = json.loads(manual_path.read_text(encoding="utf-8"))
+                if data.get("manual") and isinstance(data.get("adjustments"), list) and data["adjustments"]:
+                    return data["adjustments"]
+            except Exception:
+                pass
+
     comparables = app_comparable_rows(knowledge)
     fixture_adjustments = app_fixture_adjustments(str(dossier.get("source_fixture") or ""))
     source_ids = {str(row.get("source_id") or "") for row in comparables}
@@ -1022,6 +1033,41 @@ def app_adjustment_rows(knowledge: dict, dossier: dict) -> list[dict]:
             }
         )
     return rows
+
+
+def app_save_adjustments(body: dict) -> dict:
+    session_id = str(body.get("session_id", ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable: {session_id}")
+    rows = body.get("adjustments", [])
+    if not isinstance(rows, list):
+        raise ValueError("adjustments doit être une liste")
+    clean: list[dict] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        sp = float(r.get("salePrice") or 0)
+        sa = float(r.get("surface_adj") or 0)
+        ya = float(r.get("year_adj") or 0)
+        ca = float(r.get("condition_adj") or 0)
+        ga = float(r.get("garage_adj") or 0)
+        clean.append({
+            "id": str(r.get("id", "")),
+            "comparable_id": str(r.get("comparable_id", "")),
+            "comparableLabel": str(r.get("comparableLabel", "")),
+            "salePrice": sp,
+            "surface_adj": sa,
+            "year_adj": ya,
+            "condition_adj": ca,
+            "garage_adj": ga,
+            "adjusted": round(sp + sa + ya + ca + ga, 2),
+        })
+    adj_path = SESSIONS_DIR / safe_path_id(session_id) / "adjustments.json"
+    write_json(adj_path, {"manual": True, "adjustments": clean})
+    return {"ok": True, "count": len(clean)}
 
 
 def app_workflow(summary: dict, dossier: dict, package: dict, assistant: dict) -> dict:
@@ -1310,7 +1356,7 @@ def app_session_view(session_id: str) -> dict:
         "documents": app_source_documents(knowledge, session),
         "fact_chips": app_fact_chips(knowledge, dossier),
         "comparables": app_comparable_rows(knowledge),
-        "adjustments": app_adjustment_rows(knowledge, dossier),
+        "adjustments": app_adjustment_rows(knowledge, dossier, session_id=session_id),
         "valuation": {
             "values": dossier.get("valuation", {}).get("values", {}) if isinstance(dossier.get("valuation"), dict) else {},
             "conclusion": conclusion,
@@ -3861,6 +3907,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_rename_dossier(body))
+                return
+            if self.path == "/app/adjustments":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_save_adjustments(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:

@@ -327,6 +327,13 @@ export async function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichm
   return state.active?.enrichment ?? null
 }
 
+export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adjustment[]): Promise<void> {
+  await runtimeJson<{ ok: boolean; count: number }>('/app/adjustments', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, adjustments }),
+  })
+}
+
 export async function exportRapport(
   sessionId: string,
   format: 'docx' | 'html' | 'pdf'

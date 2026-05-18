@@ -10,7 +10,7 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
-import { fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, saveRuntimeAdjustments } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
@@ -148,6 +148,9 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   const [financier, setFinancier] = useState<EnrichmentFinancier | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [draftAdj, setDraftAdj] = useState<Adjustment[]>([])
+  const [adjSaving, setAdjSaving] = useState(false)
   const { replies, asking, ask } = useAgentChat(dossierId, 'valuation-draft')
 
   function load() {
@@ -175,6 +178,32 @@ export default function AnalysePanel({ dossierId, address }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [replies, asking])
 
+  function enterEditMode() {
+    setDraftAdj(adjustments.map(a => ({ ...a })))
+    setEditMode(true)
+  }
+
+  function updateDraft(id: string, field: 'surface_adj' | 'year_adj' | 'condition_adj' | 'garage_adj', value: number) {
+    setDraftAdj(prev => prev.map(row => {
+      if (row.id !== id) return row
+      const updated = { ...row, [field]: value }
+      updated.adjusted = updated.salePrice + updated.surface_adj + updated.year_adj + updated.condition_adj + updated.garage_adj
+      return updated
+    }))
+  }
+
+  async function handleSaveAdjustments() {
+    if (!dossierId) return
+    setAdjSaving(true)
+    try {
+      await saveRuntimeAdjustments(dossierId, draftAdj)
+      setAdjustments(draftAdj)
+      setEditMode(false)
+    } finally {
+      setAdjSaving(false)
+    }
+  }
+
   if (!dossierId || loading) return <PanelLoader />
   if (error) return <PanelError onRetry={load} />
 
@@ -184,7 +213,72 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
-          <AdjustmentsTable rows={adjustments} comparables={comparables} />
+          {editMode ? (
+            <div className="mt-2.5">
+              <div className="overflow-x-auto rounded-xl border border-black/[.08]">
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr>
+                      {['Comparable', 'Surface', 'Temps', 'Condition', 'Garage', 'Prix ajusté'].map(h => (
+                        <th key={h} className={`px-2.5 py-[7px] text-[10px] font-medium text-[#b5b2ac] uppercase tracking-[.06em] border-b border-black/[.07] bg-black/[.02] ${h === 'Comparable' ? 'text-left' : 'text-right'}`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftAdj.map(row => (
+                      <tr key={row.id}>
+                        <td className="px-2.5 py-2 border-b border-black/[.04] text-[11px] text-[#6a6763] max-w-[160px] truncate">{row.comparableLabel}</td>
+                        {(['surface_adj', 'year_adj', 'condition_adj', 'garage_adj'] as const).map(field => (
+                          <td key={field} className="px-1.5 py-1.5 border-b border-black/[.04]">
+                            <input
+                              type="number"
+                              value={row[field]}
+                              onChange={e => updateDraft(row.id, field, Number(e.target.value))}
+                              step={100}
+                              className="w-24 text-right rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40"
+                            />
+                          </td>
+                        ))}
+                        <td className="px-2.5 py-2 border-b border-black/[.04] text-right font-semibold text-[12px] text-[#1a1916] whitespace-nowrap">
+                          {formatPrice(row.adjusted)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center gap-2 mt-2.5">
+                <button
+                  type="button"
+                  onClick={handleSaveAdjustments}
+                  disabled={adjSaving}
+                  className="rounded-full px-3.5 py-1.5 text-[12px] bg-[#334155] text-white disabled:opacity-40 transition-opacity"
+                >
+                  {adjSaving ? 'Sauvegarde…' : 'Sauvegarder les ajustements'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditMode(false)}
+                  className="rounded-full px-3.5 py-1.5 text-[12px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <AdjustmentsTable rows={adjustments} comparables={comparables} />
+              {adjustments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={enterEditMode}
+                  className="mt-2 rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+                >
+                  ✏ Modifier les ajustements
+                </button>
+              )}
+            </>
+          )}
           {adjustments.length > 0 && (() => {
             const ceiling = computeGrossAdjustmentCeiling(adjustments)
             if (!ceiling || ceiling.compliant) return null
