@@ -4,28 +4,26 @@ _Updated: 2026-05-18_
 
 ## Current Goal
 
-Phase 5 COMPLÈTE ✅ (5A + 5B + 5C).
+Phase 6A COMPLÈTE ✅ — Formulaire de saisie dossier avec champs sujet.
 
 ## Plan Status
 
 Phase 1 ✅ · Phase 2 ✅ · Phase 4 ✅
 Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025.
-Phase 5A ✅ (9f023c3) — Grille d'ajustements éditable
-Phase 5B ✅ (00addca) — Pipeline progress streaming
-Phase 5C ✅ (71c0aab) — Conversation transcript UI
+Phase 5A ✅ (9f023c3) · Phase 5B ✅ (00addca) · Phase 5C ✅ (71c0aab)
+Phase 6A ✅ (8cc94d4) — Formulaire saisie + pipeline launch immédiat
 
 ## Decisions
 
-- GET /app/transcript?session_id&agent — lit assistant_messages.jsonl, filtre par agent optionnel.
-- useAgentChat charge transcript au mount (restaure historique entre navigations); userMessage par ChatReply.
-- History multi-tour inclut maintenant les tours user (pas seulement assistant).
-- pipeline_progress.json écrit dans session_dir après chaque étape.
-- Ajustements manuels dans SESSIONS_DIR/{id}/adjustments.json.
-- middleware.ts: AUTH_ENABLED auto-detect placeholder.
+- app_create_dossier: construit case dict complet, lance start_runtime en thread daemon → retour immédiat.
+- NewDossierForm: type_bien select structuré + superficie hab/terrain (pi²), année construction, nb chambres.
+- Routing post-création: /dossier/${dossier.id} (dossier.id = session_id, pas de slug Supabase).
+- Page dossier/[id]: fetchDossier (Supabase) → fetchRuntimeDossier (runtime-api).
+- Pipeline polling déjà géré: status "CREATED" ≠ terminal → setIsRunning(true) automatique.
 
 ## Evidence
 
-- tsc --noEmit 0 erreurs. python import api OK.
+- tsc --noEmit 0 erreurs. python -c "import api" OK.
 
 ## Open Issues
 
