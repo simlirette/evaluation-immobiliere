@@ -639,10 +639,19 @@ def app_archive_dossier(body: dict) -> dict:
 
 
 def app_create_dossier(body: dict) -> dict:
+    import threading as _threading
+    import datetime as _datetime
     address = str(body.get("address") or "").strip() or "Nouveau dossier"
-    type_bien = str(body.get("type_bien") or body.get("property_type") or "").strip()
+    type_bien = str(body.get("type_bien") or body.get("property_type") or "").strip() or "residentiel_unifamilial"
     neighbourhood = str(body.get("neighbourhood") or body.get("neighborhood") or "").strip()
-    mandat_type = str(body.get("mandat_type") or "EVALUATION_COMPLETE").strip()
+    mandat_type = str(body.get("mandat_type") or "residentiel_standard").strip()
+    superficie_habitable = body.get("superficie_habitable")
+    superficie_terrain = body.get("superficie_terrain")
+    annee_construction = body.get("annee_construction")
+    nb_chambres = body.get("nb_chambres")
+    commanditaire = body.get("commanditaire") if isinstance(body.get("commanditaire"), dict) else None
+    comparables_raw = body.get("comparables") if isinstance(body.get("comparables"), list) else []
+
     session = create_session(strict_mode=False)
     session_id = session["session_id"]
     dossier_id = f"D-USR-{uuid.uuid4().hex[:8].upper()}"
@@ -652,6 +661,42 @@ def app_create_dossier(body: dict) -> dict:
     session["app_mandat_type"] = mandat_type
     session["dossier_id"] = dossier_id
     save_session(session)
+
+    # Build case dict from form data — pipeline uses this directly
+    case: dict = {
+        "dossier_id": dossier_id,
+        "type_bien": type_bien,
+        "adresse": address,
+        "zone": neighbourhood or "SECTEUR-NON-SPECIFIE",
+        "date_reference": _datetime.date.today().isoformat(),
+    }
+    if superficie_habitable:
+        case["surface"] = {"value": float(superficie_habitable), "unit": "pi2"}
+    if superficie_terrain:
+        case["surface_terrain"] = {"value": float(superficie_terrain), "unit": "pi2"}
+    if annee_construction:
+        case["annee_construction"] = int(annee_construction)
+    if nb_chambres:
+        case["nb_chambres"] = int(nb_chambres)
+    if commanditaire:
+        case["commanditaire"] = {
+            "nom": str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
+            "organisation": str(commanditaire.get("organisation") or ""),
+            "fin_evaluation": str(commanditaire.get("fin_evaluation") or "non_specifie"),
+        }
+    if comparables_raw:
+        case["comparables"] = [
+            _map_comparable_input(r) for r in comparables_raw if isinstance(r, dict)
+        ]
+
+    def _run_pipeline() -> None:
+        try:
+            start_runtime({"session_id": session_id, "case": case, "source_fixture": "inline"})
+        except Exception:
+            pass
+
+    _threading.Thread(target=_run_pipeline, daemon=True).start()
+
     state = app_state(session_id)
     return {"schema_version": "evaluateur_ai_app_create_v1", "session_id": session_id, "dossier_id": dossier_id, "state": state}
 

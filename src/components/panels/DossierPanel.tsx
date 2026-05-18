@@ -15,8 +15,7 @@ import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipel
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
 import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
-import { createDossier } from '@/lib/supabase/queries/dossiers'
-import { fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
 
@@ -40,6 +39,17 @@ const LAUNCH_STEPS = [
   { label: 'Génération du rapport…', delay: 14000 },
 ]
 
+const TYPE_BIEN_OPTIONS = [
+  { value: 'residentiel_unifamilial', label: 'Unifamiliale' },
+  { value: 'condo', label: 'Condo / appartement' },
+  { value: 'duplex', label: 'Duplex' },
+  { value: 'triplex', label: 'Triplex' },
+  { value: 'quadruplex', label: 'Quadruplex' },
+  { value: 'commercial', label: 'Commercial' },
+  { value: 'terrain', label: 'Terrain' },
+  { value: 'autre', label: 'Autre' },
+]
+
 const FIN_EVAL_OPTIONS = [
   { value: 'hypothecaire', label: 'Hypothécaire / financement' },
   { value: 'succession', label: 'Succession / liquidation' },
@@ -53,9 +63,13 @@ const FIN_EVAL_OPTIONS = [
 function NewDossierForm() {
   const router = useRouter()
   const [formStep, setFormStep] = useState<1 | 2 | 3>(1)
-  const [address, setAddress] = useState('Dossier pilote residentiel')
-  const [propertyType, setPropertyType] = useState('Residentiel unifamilial')
-  const [neighborhood, setNeighborhood] = useState('Zone anonymisee')
+  const [address, setAddress] = useState('')
+  const [typeBien, setTypeBien] = useState('residentiel_unifamilial')
+  const [neighborhood, setNeighborhood] = useState('')
+  const [superficieHab, setSuperficieHab] = useState('')
+  const [superficieTerrain, setSuperficieTerrain] = useState('')
+  const [anneeConstruction, setAnneeConstruction] = useState('')
+  const [nbChambres, setNbChambres] = useState('')
   const [cmdNom, setCmdNom] = useState('')
   const [cmdOrg, setCmdOrg] = useState('')
   const [cmdFin, setCmdFin] = useState('hypothecaire')
@@ -102,7 +116,7 @@ function NewDossierForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!address.trim() || !propertyType.trim() || !neighborhood.trim()) return
+    if (!address.trim() || !neighborhood.trim()) return
     if (!cmdNom.trim()) return
     setLoading(true)
     setStepIndex(0)
@@ -115,10 +129,14 @@ function NewDossierForm() {
     })
 
     try {
-      const dossier = await createDossier({
+      const dossier = await createRuntimeDossier({
         address: address.trim(),
-        property_type: propertyType.trim(),
+        property_type: typeBien,
         neighborhood: neighborhood.trim(),
+        superficie_habitable: superficieHab ? parseFloat(superficieHab) : null,
+        superficie_terrain: superficieTerrain ? parseFloat(superficieTerrain) : null,
+        annee_construction: anneeConstruction ? parseInt(anneeConstruction) : null,
+        nb_chambres: nbChambres ? parseInt(nbChambres) : null,
         commanditaire: {
           nom: cmdNom.trim(),
           organisation: cmdOrg.trim(),
@@ -126,7 +144,7 @@ function NewDossierForm() {
         },
         comparables: comparables.length > 0 ? comparables : undefined,
       })
-      router.push(`/dossier/${dossier.slug}?tab=dossier`)
+      router.push(`/dossier/${dossier.id}?tab=dossier`)
     } catch (err) {
       timersRef.current.forEach(clearTimeout)
       timersRef.current = []
@@ -202,10 +220,11 @@ function NewDossierForm() {
       ) : formStep === 1 ? (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] text-[#8a8780] font-medium">Nom du dossier</label>
+            <label className="text-[12px] text-[#8a8780] font-medium">Adresse du bien <span className="text-red-500">*</span></label>
             <input
               type="text"
               required
+              placeholder="ex. 123 rue Principale, Montréal, QC"
               value={address}
               onChange={e => setAddress(e.target.value)}
               className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
@@ -215,23 +234,82 @@ function NewDossierForm() {
 
           <div className="flex gap-3">
             <div className="flex flex-col gap-1.5 flex-1">
-              <label className="text-[12px] text-[#8a8780] font-medium">Type</label>
+              <label className="text-[12px] text-[#8a8780] font-medium">Type de bien <span className="text-red-500">*</span></label>
+              <select
+                value={typeBien}
+                onChange={e => setTypeBien(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={selectStyle}
+              >
+                {TYPE_BIEN_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Secteur / municipalité <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 required
-                value={propertyType}
-                onChange={e => setPropertyType(e.target.value)}
+                placeholder="ex. Rosemont, Laval"
+                value={neighborhood}
+                onChange={e => setNeighborhood(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Superficie hab. (pi²)</label>
+              <input
+                type="number"
+                min="0"
+                placeholder="ex. 1450"
+                value={superficieHab}
+                onChange={e => setSuperficieHab(e.target.value)}
                 className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
                 style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5 flex-1">
-              <label className="text-[12px] text-[#8a8780] font-medium">Secteur</label>
+              <label className="text-[12px] text-[#8a8780] font-medium">Superficie terrain (pi²)</label>
               <input
-                type="text"
-                required
-                value={neighborhood}
-                onChange={e => setNeighborhood(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="ex. 4500"
+                value={superficieTerrain}
+                onChange={e => setSuperficieTerrain(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Année construction</label>
+              <input
+                type="number"
+                min="1800"
+                max="2099"
+                placeholder="ex. 1995"
+                value={anneeConstruction}
+                onChange={e => setAnneeConstruction(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Nb chambres</label>
+              <input
+                type="number"
+                min="0"
+                max="20"
+                placeholder="ex. 3"
+                value={nbChambres}
+                onChange={e => setNbChambres(e.target.value)}
                 className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
                 style={inputStyle}
               />
@@ -241,7 +319,7 @@ function NewDossierForm() {
           <button
             type="button"
             onClick={() => {
-              if (address.trim() && propertyType.trim() && neighborhood.trim()) {
+              if (address.trim() && neighborhood.trim()) {
                 setError('')
                 setFormStep(2)
               }

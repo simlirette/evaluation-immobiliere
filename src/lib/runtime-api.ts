@@ -69,6 +69,10 @@ export interface CreateRuntimeDossierInput {
   property_type: string
   neighborhood: string
   mandat_type?: string
+  superficie_habitable?: number | null
+  superficie_terrain?: number | null
+  annee_construction?: number | null
+  nb_chambres?: number | null
   commanditaire?: {
     nom: string
     organisation: string
@@ -135,6 +139,12 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
       property_type: input.property_type,
       neighborhood: input.neighborhood,
       ...(input.mandat_type ? { mandat_type: input.mandat_type } : {}),
+      ...(input.superficie_habitable != null ? { superficie_habitable: input.superficie_habitable } : {}),
+      ...(input.superficie_terrain != null ? { superficie_terrain: input.superficie_terrain } : {}),
+      ...(input.annee_construction != null ? { annee_construction: input.annee_construction } : {}),
+      ...(input.nb_chambres != null ? { nb_chambres: input.nb_chambres } : {}),
+      ...(input.commanditaire ? { commanditaire: input.commanditaire } : {}),
+      ...(input.comparables && input.comparables.length > 0 ? { comparables: input.comparables } : {}),
     }),
   })
   const dossier = payload.state.active?.dossier

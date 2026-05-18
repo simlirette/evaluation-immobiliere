@@ -12,8 +12,7 @@ import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import SynthesePanel from '@/components/panels/SynthesePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
-import { fetchDossier } from '@/lib/supabase/queries/dossiers'
-import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { fetchRuntimeDossier, fetchRuntimeEnrichment } from '@/lib/runtime-api'
 import { createClient } from '@/lib/supabase/client'
 import type { TabId } from '@/types'
 
@@ -45,7 +44,7 @@ function DossierShellInner() {
     // Sync active ID with URL immediately so tab changes use the correct slug
     setActiveDossierId(params.id)
     setIsNew(false)
-    fetchDossier(params.id)
+    fetchRuntimeDossier(params.id)
       .then(d => {
         if (d) {
           setCurrentDossierName(d.address)
