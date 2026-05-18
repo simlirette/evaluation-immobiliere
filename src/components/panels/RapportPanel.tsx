@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import RapportArtifact from '@/components/shared/RapportArtifact'
@@ -277,11 +277,14 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
             )}
           </AgentMessage>
           {replies.map((r, i) => (
-            <AgentMessage key={i} agentName={r.agentLabel || 'Agent Rapport'} last={i === replies.length - 1 && !asking}>
-              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
-                {r.text}{r.streaming ? '▊' : ''}
-              </pre>
-            </AgentMessage>
+            <Fragment key={i}>
+              {r.userMessage && <UserMessage>{r.userMessage}</UserMessage>}
+              <AgentMessage agentName={r.agentLabel || 'Agent Rapport'} last={i === replies.length - 1 && !asking}>
+                <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+                  {r.text}{r.streaming ? '▊' : ''}
+                </pre>
+              </AgentMessage>
+            </Fragment>
           ))}
         </div>
         <div className={`${split ? 'px-4 pb-5' : 'px-6 pb-9 w-full flex justify-center'}`}>

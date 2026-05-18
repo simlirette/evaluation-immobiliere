@@ -3705,6 +3705,33 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 "sessions_dir": str(SESSIONS_DIR),
             })
             return
+        if parsed.path == "/app/transcript":
+            if not self._require_permission("runtime_read"):
+                return
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            agent_filter = parse_qs(parsed.query).get("agent", [""])[0]
+            session = load_session(safe_path_id(session_id)) if session_id else None
+            if not session:
+                self._send_json(404, {"error": "session introuvable"})
+                return
+            path = Path(str(session["session_dir"])) / ASSISTANT_MESSAGES_FILENAME
+            messages = load_jsonl(path)
+            exchanges = []
+            for m in messages:
+                if not isinstance(m, dict):
+                    continue
+                agent = str(m.get("assistant", {}).get("agent") or "")
+                if agent_filter and agent != agent_filter:
+                    continue
+                exchanges.append({
+                    "user": str(m.get("user_message") or ""),
+                    "agent": agent,
+                    "agent_label": str(m.get("assistant", {}).get("agent_label") or ""),
+                    "answer": str(m.get("assistant", {}).get("answer") or ""),
+                    "created_at_utc": str(m.get("created_at_utc") or ""),
+                })
+            self._send_json(200, {"exchanges": exchanges, "count": len(exchanges)})
+            return
         if parsed.path == "/fixtures":
             if not self._require_permission("runtime_read"):
                 return

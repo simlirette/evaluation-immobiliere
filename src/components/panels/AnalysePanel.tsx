@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
@@ -590,12 +590,15 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
         </AgentMessage>
         {replies.map((r, i) => (
-          <AgentMessage key={i} agentName={r.agentLabel || 'Agent Analyse'} last={i === replies.length - 1 && !asking}>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
-              {r.text}
-              {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
-            </pre>
-          </AgentMessage>
+          <Fragment key={i}>
+            {r.userMessage && <UserMessage>{r.userMessage}</UserMessage>}
+            <AgentMessage agentName={r.agentLabel || 'Agent Analyse'} last={i === replies.length - 1 && !asking}>
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+                {r.text}
+                {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+              </pre>
+            </AgentMessage>
+          </Fragment>
         ))}
         {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Analyse" last>

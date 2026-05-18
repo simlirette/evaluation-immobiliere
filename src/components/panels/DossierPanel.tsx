@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
@@ -728,12 +728,15 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           )
         ))}
         {replies.map((r, i) => (
-          <AgentMessage key={i} agentName={r.agentLabel || 'Agent Dossier'} last={i === replies.length - 1 && !asking}>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
-              {r.text}
-              {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
-            </pre>
-          </AgentMessage>
+          <Fragment key={i}>
+            {r.userMessage && <UserMessage>{r.userMessage}</UserMessage>}
+            <AgentMessage agentName={r.agentLabel || 'Agent Dossier'} last={i === replies.length - 1 && !asking}>
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+                {r.text}
+                {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+              </pre>
+            </AgentMessage>
+          </Fragment>
         ))}
         {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Dossier" last>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import ComparableItem from '@/components/shared/ComparableItem'
@@ -312,12 +312,15 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </AgentMessage>
         )}
         {replies.map((r, i) => (
-          <AgentMessage key={i} agentName={r.agentLabel || 'Agent Marché'} last={i === replies.length - 1 && !asking}>
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
-              {r.text}
-              {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
-            </pre>
-          </AgentMessage>
+          <Fragment key={i}>
+            {r.userMessage && <UserMessage>{r.userMessage}</UserMessage>}
+            <AgentMessage agentName={r.agentLabel || 'Agent Marché'} last={i === replies.length - 1 && !asking}>
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+                {r.text}
+                {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+              </pre>
+            </AgentMessage>
+          </Fragment>
         ))}
         {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Marché" last>

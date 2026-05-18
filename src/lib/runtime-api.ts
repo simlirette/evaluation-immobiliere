@@ -332,6 +332,22 @@ export async function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichm
   return state.active?.enrichment ?? null
 }
 
+export interface TranscriptExchange {
+  user: string
+  agent: string
+  agent_label: string
+  answer: string
+  created_at_utc: string
+}
+
+export async function fetchRuntimeTranscript(sessionId: string, agent?: string): Promise<TranscriptExchange[]> {
+  const agentParam = agent ? `&agent=${encodeURIComponent(agent)}` : ''
+  const result = await runtimeJson<{ exchanges: TranscriptExchange[]; count: number }>(
+    `/app/transcript?session_id=${encodeURIComponent(sessionId)}${agentParam}`
+  )
+  return result.exchanges
+}
+
 export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adjustment[]): Promise<void> {
   await runtimeJson<{ ok: boolean; count: number }>('/app/adjustments', {
     method: 'POST',
