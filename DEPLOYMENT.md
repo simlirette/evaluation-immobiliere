@@ -30,7 +30,7 @@ Sans volume, les sessions sont perdues à chaque redéploiement.
 
 ### Build
 
-Le `Dockerfile` utilise `python:3.12-slim`. PyMuPDF >= 1.24 embarque ses propres binaires MuPDF — aucune dépendance système supplémentaire requise.
+Le `Dockerfile` utilise `python:3.12-slim`. PyMuPDF >= 1.24 embarque ses propres binaires MuPDF mais requiert `libgomp1` (OpenMP) sur Linux — installé automatiquement par le Dockerfile.
 
 ### Healthcheck
 
