@@ -11,14 +11,13 @@ import PanelError from '@/components/shared/PanelError'
 import {
   fetchAppState,
   generateRuntimePackage,
-  sendRuntimeMessage,
   validateRuntimeReview,
   saveRapport,
   generateRapport,
 } from '@/lib/runtime-api'
+import { useAgentChat } from '@/hooks/useAgentChat'
 import { saveVersion, loadVersions } from '@/lib/rapport-versions'
 import RapportVersionHistory from '@/components/shared/RapportVersionHistory'
-import { formatAgentError } from '@/lib/agent-error'
 import type { Comparable, Adjustment, FactChip } from '@/types'
 import DragHandle from '@/components/shared/DragHandle'
 
@@ -57,8 +56,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<RapportState | null>(null)
-  const [replies, setReplies] = useState<string[]>([])
-  const [asking, setAsking] = useState(false)
+  const { replies, asking, ask } = useAgentChat(dossierId, 'redaction')
   const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -134,16 +132,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   }, [replies, asking])
 
   async function handleAsk(value: string) {
-    if (!dossierId) return
-    setAsking(true)
-    try {
-      const response = await sendRuntimeMessage(dossierId, value, 'redaction')
-      setReplies(prev => [...prev, response.message.answer])
-    } catch (err) {
-      setReplies(prev => [...prev, formatAgentError(err)])
-    } finally {
-      setAsking(false)
-    }
+    await ask(value)
   }
 
   async function handleValidate() {
@@ -288,15 +277,12 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
             )}
           </AgentMessage>
           {replies.map((r, i) => (
-            <AgentMessage key={i} agentName="Agent Rapport" last={i === replies.length - 1 && !asking}>
-              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">{r}</pre>
+            <AgentMessage key={i} agentName={r.agentLabel || 'Agent Rapport'} last={i === replies.length - 1 && !asking}>
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
+                {r.text}{r.streaming ? '▊' : ''}
+              </pre>
             </AgentMessage>
           ))}
-          {asking && (
-            <AgentMessage agentName="Agent Rapport" last>
-              <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
-            </AgentMessage>
-          )}
         </div>
         <div className={`${split ? 'px-4 pb-5' : 'px-6 pb-9 w-full flex justify-center'}`}>
           <ChatInput placeholder="Questionner l'Agent Rapport..." onSend={handleAsk} disabled={asking} />

@@ -11,7 +11,6 @@ import { marked } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm'
 import { exportRapport } from '@/lib/runtime-api'
-import { printWindow } from '@/lib/print-window'
 import { countWords } from '@/lib/count-words'
 
 const td = new TurndownService({
@@ -124,12 +123,16 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
   )
 
   const handleExport = useCallback(
-    async (format: 'docx' | 'html') => {
+    async (format: 'docx' | 'html' | 'pdf') => {
       if (isExporting) return
       setIsExporting(true)
       try {
         const { filename, blob } = await exportRapport(sessionId, format)
-        if (format === 'docx') {
+        if (format === 'html') {
+          const url = URL.createObjectURL(blob)
+          window.open(url, '_blank')
+          setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        } else {
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
@@ -138,10 +141,6 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
           a.click()
           document.body.removeChild(a)
           URL.revokeObjectURL(url)
-        } else {
-          const url = URL.createObjectURL(blob)
-          window.open(url, '_blank')
-          setTimeout(() => URL.revokeObjectURL(url), 10_000)
         }
       } finally {
         setIsExporting(false)
@@ -248,11 +247,12 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
         </button>
         <button
           type="button"
-          onClick={() => printWindow(editor.getHTML(), address ?? 'Rapport évaluation')}
-          title="Aperçu PDF (imprimer depuis le navigateur)"
-          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+          onClick={() => handleExport('pdf')}
+          disabled={isExporting}
+          title="Télécharger PDF"
+          className="rounded-full px-2.5 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] disabled:opacity-40 transition-colors"
         >
-          🖨 PDF
+          {isExporting ? '…' : '⬇ .pdf'}
         </button>
         <button
           type="button"
