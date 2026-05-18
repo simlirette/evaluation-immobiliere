@@ -990,7 +990,18 @@ def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
     return [chip for chip in chips if not chip["label"].endswith(": -")]
 
 
-def app_comparable_rows(knowledge: dict) -> list[dict]:
+def app_comparable_rows(knowledge: dict, session_id: str = "") -> list[dict]:
+    # Check for manual comparables saved by the appraiser
+    if session_id:
+        manual_path = SESSIONS_DIR / safe_path_id(session_id) / "comparables.json"
+        if manual_path.exists():
+            try:
+                data = json.loads(manual_path.read_text(encoding="utf-8"))
+                if data.get("manual") and isinstance(data.get("comparables"), list) and data["comparables"]:
+                    return data["comparables"]
+            except Exception:
+                pass
+
     market = knowledge.get("market_evidence", {}) if isinstance(knowledge.get("market_evidence"), dict) else {}
     comparables = market.get("comparables", []) if isinstance(market.get("comparables"), list) else []
     rows: list[dict] = []
@@ -1023,6 +1034,46 @@ def app_comparable_rows(knowledge: dict) -> list[dict]:
     return rows
 
 
+def app_save_comparables(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    rows_raw = body.get("comparables")
+    if not isinstance(rows_raw, list):
+        raise ValueError("comparables doit être une liste")
+    session_dir = SESSIONS_DIR / safe_path_id(session_id)
+    if not (session_dir / "session.json").exists():
+        raise ValueError(f"Session introuvable: {session_id}")
+    rows = []
+    for i, r in enumerate(rows_raw, 1):
+        if not isinstance(r, dict):
+            continue
+        price = float(r.get("sale_price") or r.get("prix_vente") or 0)
+        source_id = str(r.get("source_id") or "")
+        address = str(r.get("address") or r.get("adresse") or f"Comparable {i}")
+        sale_date = str(r.get("sale_date") or r.get("date_vente") or "")
+        rows.append({
+            "id": str(r.get("id") or f"MC{i}"),
+            "rank": f"C{i}",
+            "address": address,
+            "hab_m2": r.get("hab_m2"),
+            "terrain_m2": r.get("terrain_m2"),
+            "year_built": r.get("year_built"),
+            "renovated_year": r.get("renovated_year"),
+            "garage_type": r.get("garage_type"),
+            "sale_price": price,
+            "sale_date": sale_date,
+            "meta": source_id,
+            "price": app_money(price),
+            "date": app_date_label(sale_date),
+            "score": None,
+            "source_id": source_id,
+        })
+    comp_path = session_dir / "comparables.json"
+    write_json(comp_path, {"manual": True, "comparables": rows})
+    return {"ok": True, "count": len(rows)}
+
+
 def app_fixture_adjustments(source_fixture: str) -> list[dict]:
     if not source_fixture or Path(source_fixture).name != source_fixture:
         return []
@@ -1043,7 +1094,7 @@ def app_adjustment_rows(knowledge: dict, dossier: dict, session_id: str = "") ->
             except Exception:
                 pass
 
-    comparables = app_comparable_rows(knowledge)
+    comparables = app_comparable_rows(knowledge, session_id=session_id)
     fixture_adjustments = app_fixture_adjustments(str(dossier.get("source_fixture") or ""))
     source_ids = {str(row.get("source_id") or "") for row in comparables}
     global_amount = sum(
@@ -1400,7 +1451,7 @@ def app_session_view(session_id: str) -> dict:
         "dossier": card,
         "documents": app_source_documents(knowledge, session),
         "fact_chips": app_fact_chips(knowledge, dossier),
-        "comparables": app_comparable_rows(knowledge),
+        "comparables": app_comparable_rows(knowledge, session_id=session_id),
         "adjustments": app_adjustment_rows(knowledge, dossier, session_id=session_id),
         "valuation": {
             "values": dossier.get("valuation", {}).get("values", {}) if isinstance(dossier.get("valuation"), dict) else {},
@@ -3998,6 +4049,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_save_adjustments(body))
+                return
+            if self.path == "/app/comparables":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_save_comparables(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:

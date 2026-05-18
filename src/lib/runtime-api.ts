@@ -365,6 +365,13 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
   })
 }
 
+export async function saveRuntimeComparables(sessionId: string, comparables: import('@/types').Comparable[]): Promise<void> {
+  await runtimeJson<{ ok: boolean; count: number }>('/app/comparables', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, comparables }),
+  })
+}
+
 export async function exportRapport(
   sessionId: string,
   format: 'docx' | 'html' | 'pdf'

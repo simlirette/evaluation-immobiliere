@@ -10,7 +10,7 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
 import { fetchComparables } from '@/lib/supabase/queries/comparables'
-import { fetchAppState, fetchRuntimeEnrichment, saveRuntimeAdjustments } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, saveRuntimeAdjustments, saveRuntimeComparables } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
@@ -151,6 +151,9 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   const [editMode, setEditMode] = useState(false)
   const [draftAdj, setDraftAdj] = useState<Adjustment[]>([])
   const [adjSaving, setAdjSaving] = useState(false)
+  const [editComps, setEditComps] = useState(false)
+  const [draftComps, setDraftComps] = useState<Comparable[]>([])
+  const [compsSaving, setCompsSaving] = useState(false)
   const { replies, asking, ask } = useAgentChat(dossierId, 'valuation-draft')
 
   function load() {
@@ -204,6 +207,40 @@ export default function AnalysePanel({ dossierId, address }: Props) {
     }
   }
 
+  function enterEditComps() {
+    setDraftComps(comparables.map(c => ({ ...c })))
+    setEditComps(true)
+  }
+
+  function updateDraftComp(id: string, field: keyof Comparable, value: string | number | null) {
+    setDraftComps(prev => prev.map(c => c.id !== id ? c : { ...c, [field]: value }))
+  }
+
+  function addDraftComp() {
+    const id = Math.random().toString(36).slice(2, 10)
+    setDraftComps(prev => [...prev, {
+      id, rank: '', address: '', hab_m2: null, terrain_m2: null,
+      year_built: null, renovated_year: null, garage_type: null,
+      sale_price: 0, sale_date: '', meta: '', price: '', date: '', score: null, source_id: '',
+    }])
+  }
+
+  function removeDraftComp(id: string) {
+    setDraftComps(prev => prev.filter(c => c.id !== id))
+  }
+
+  async function handleSaveComparables() {
+    if (!dossierId) return
+    setCompsSaving(true)
+    try {
+      await saveRuntimeComparables(dossierId, draftComps)
+      setComparables(draftComps)
+      setEditComps(false)
+    } finally {
+      setCompsSaving(false)
+    }
+  }
+
   if (!dossierId || loading) return <PanelLoader />
   if (error) return <PanelError onRetry={load} />
 
@@ -213,6 +250,88 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
+
+          {/* ── Comparables section ── */}
+          {editComps ? (
+            <div className="mt-2.5 flex flex-col gap-2">
+              {draftComps.map((comp, idx) => (
+                <div key={comp.id} className="rounded-[10px] overflow-hidden border border-black/[.08] bg-black/[.015]">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-black/[.06]">
+                    <span className="text-[11px] font-medium text-[#1a1916]">Comparable {idx + 1}</span>
+                    <button type="button" onClick={() => removeDraftComp(comp.id)} className="text-[10px] text-red-400 hover:text-red-600 transition-colors">Supprimer</button>
+                  </div>
+                  <div className="px-3 pb-3 pt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div className="col-span-2 flex flex-col gap-1">
+                      <label className="text-[10px] text-[#8a8780] font-medium">Adresse / Libellé</label>
+                      <input type="text" value={comp.address} onChange={e => updateDraftComp(comp.id, 'address', e.target.value)}
+                        className="w-full rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40"
+                        placeholder="ex. 456 rue des Érables" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-[#8a8780] font-medium">Prix de vente ($)</label>
+                      <input type="number" min="0" value={comp.sale_price || ''} onChange={e => updateDraftComp(comp.id, 'sale_price', parseFloat(e.target.value) || 0)}
+                        className="w-full rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40"
+                        placeholder="450000" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-[#8a8780] font-medium">Date de vente</label>
+                      <input type="date" value={comp.sale_date} onChange={e => updateDraftComp(comp.id, 'sale_date', e.target.value)}
+                        className="w-full rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-[#8a8780] font-medium">Superficie hab. (pi²)</label>
+                      <input type="number" min="0" value={comp.hab_m2 ?? ''} onChange={e => updateDraftComp(comp.id, 'hab_m2', e.target.value ? parseFloat(e.target.value) : null)}
+                        className="w-full rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40"
+                        placeholder="1450" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-[#8a8780] font-medium">Année construction</label>
+                      <input type="number" min="1800" max="2099" value={comp.year_built ?? ''} onChange={e => updateDraftComp(comp.id, 'year_built', e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40"
+                        placeholder="1998" />
+                    </div>
+                    <div className="col-span-2 flex flex-col gap-1">
+                      <label className="text-[10px] text-[#8a8780] font-medium">Source ID (traçabilité OEAQ)</label>
+                      <input type="text" value={comp.source_id ?? ''} onChange={e => updateDraftComp(comp.id, 'source_id', e.target.value)}
+                        className="w-full rounded-[6px] border border-black/[.12] bg-white px-2 py-1 text-[12px] text-[#1a1916] focus:outline-none focus:ring-1 focus:ring-[#334155]/40"
+                        placeholder="CENTRIS-12345678" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={addDraftComp}
+                className="rounded-[10px] py-2 text-[12px] font-medium text-[#334155] border border-dashed border-black/[.15] bg-transparent hover:bg-black/[.03] transition-colors">
+                + Ajouter un comparable
+              </button>
+              <div className="flex items-center gap-2 mt-1">
+                <button type="button" onClick={handleSaveComparables} disabled={compsSaving}
+                  className="rounded-full px-3.5 py-1.5 text-[12px] bg-[#334155] text-white disabled:opacity-40 transition-opacity">
+                  {compsSaving ? 'Sauvegarde\u2026' : 'Sauvegarder les comparables'}
+                </button>
+                <button type="button" onClick={() => setEditComps(false)}
+                  className="rounded-full px-3.5 py-1.5 text-[12px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors">
+                  Annuler
+                </button>
+              </div>
+            </div>
+          ) : comparables.length > 0 ? (
+            <div className="mt-2.5">
+              <div className="flex flex-col divide-y divide-[rgba(0,0,0,.04)] rounded-xl overflow-hidden border border-black/[.06]">
+                {comparables.map(c => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-2 text-[12px]">
+                    <span className="text-[11px] text-[#1a1916] truncate flex-1 min-w-0">{c.address}</span>
+                    <span className="text-[11px] text-[#8a8780] ml-3 flex-shrink-0">{c.price}</span>
+                    <span className="text-[10px] text-[#b5b2ac] ml-2 flex-shrink-0">{c.date}</span>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={enterEditComps}
+                className="mt-2 rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors">
+                ✏ Modifier les comparables
+              </button>
+            </div>
+          ) : null}
+
           {editMode ? (
             <div className="mt-2.5">
               <div className="overflow-x-auto rounded-xl border border-black/[.08]">

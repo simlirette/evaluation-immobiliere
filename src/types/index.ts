@@ -147,6 +147,8 @@ export interface Comparable {
   meta: string         // built from structured fields
   price: string        // formatted
   date: string         // formatted
+  source_id?: string
+  score?: number | null
 }
 
 export interface ComparableInput {
