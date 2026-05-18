@@ -36,6 +36,8 @@ import { computeComparableHabitatProfile } from './compute-comparable-habitat-pr
 import { computeComparableStreetDiversity } from './compute-comparable-street-diversity'
 import { computeComparableDataCompleteness } from './compute-comparable-data-completeness'
 import { computeComparablePriceAnomaly } from './compute-comparable-price-anomaly'
+import { computeComparableRenovationAgeGap } from './compute-comparable-renovation-age-gap'
+import { computePricePerM2ByDecade } from './compute-price-per-m2-by-decade'
 
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null) return '—'
@@ -355,6 +357,33 @@ export function buildMarcheHtml(
           (${fmt(renovationProfile.renovatedPct, 0)} %)${ageNote}${recentNote}
         </p>
       `)
+    }
+    // B177: renovation age gap
+    if (comparables.length > 0) {
+      const renGap = computeComparableRenovationAgeGap(comparables)
+      if (renGap) {
+        const recentNote = renGap.recentlyRenovatedCount > 0
+          ? ` · ${renGap.recentlyRenovatedCount} rénovation${renGap.recentlyRenovatedCount > 1 ? 's' : ''} récente${renGap.recentlyRenovatedCount > 1 ? 's' : ''} (≤ 10 ans)`
+          : ''
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Âge moyen à la rénovation&nbsp;: <strong>${fmt(renGap.avgGap, 0)} ans après construction</strong>
+            <span style="font-size:9pt;color:#8a8780;"> (${renGap.minGap} – ${renGap.maxGap} ans · ${renGap.count} comp.)${recentNote}</span>
+          </p>
+        `)
+      }
+    }
+    // B179: $/m² by decade
+    if (comparables.length > 0) {
+      const byDecade = computePricePerM2ByDecade(comparables)
+      if (byDecade && byDecade.entries.length >= 2) {
+        const decadeStr = byDecade.entries.map(e => `${e.decade}s&nbsp;: ${fmt(e.avgPpm2, 0)} $/m² (${e.count})`).join(' · ')
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            $/m² par décennie&nbsp;: <span style="font-size:9pt;">${decadeStr}</span>
+          </p>
+        `)
+      }
     }
     // B134: comparable selection summary (quality + similarity aggregate)
     if (adjustments) {

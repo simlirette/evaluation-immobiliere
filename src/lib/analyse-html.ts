@@ -59,6 +59,9 @@ import { computeAdjustmentGarageImpact } from './compute-adjustment-garage-impac
 import { computeAdjustedPriceZScore } from './compute-adjusted-price-z-score'
 import { computeAdjustmentYearImpactSummary } from './compute-adjustment-year-impact-summary'
 import { computePanelAdjustmentBalance } from './compute-panel-adjustment-balance'
+import { computeAdjustmentSurfaceImpact } from './compute-adjustment-surface-impact'
+import { computeAdjustedPriceRangeNarrowing } from './compute-adjusted-price-range-narrowing'
+import { computeAdjustmentNetPctHistogram } from './compute-adjustment-net-pct-histogram'
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat('fr-CA', {
@@ -955,6 +958,54 @@ export function buildAnalyseHtml(
           <span style="font-size:9pt;color:#8a8780;"> — ↑ ${fmtMoney(balance.totalPositive)} · ↓ ${fmtMoney(balance.totalNegative)} · solde ${sign}${fmt(balance.balancePct, 1)} %</span>
         </p>
       `)
+    }
+  }
+
+  // B176: surface adjustment impact
+  if (adjustments.length > 0) {
+    const surfaceImpact = computeAdjustmentSurfaceImpact(adjustments)
+    if (surfaceImpact && surfaceImpact.avgWhenApplied !== null) {
+      const dirLabel: Record<string, string> = { positive: 'à la hausse', negative: 'à la baisse', neutral: 'neutre' }
+      const color = surfaceImpact.dominantDirection === 'positive' ? '#1f7a5c' : surfaceImpact.dominantDirection === 'negative' ? '#b91c1c' : '#6a6763'
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Ajustement surface&nbsp;:
+          <strong style="color:${color};">${dirLabel[surfaceImpact.dominantDirection]}</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — ↑ ${surfaceImpact.countPositive} · ↓ ${surfaceImpact.countNegative} · ≈ ${surfaceImpact.countZero} · moy. appliqué ${fmtAdj(surfaceImpact.avgWhenApplied)}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B178: adjusted price range narrowing
+  if (adjustments.length >= 2) {
+    const narrowing = computeAdjustedPriceRangeNarrowing(adjustments)
+    if (narrowing) {
+      const color = narrowing.narrowed ? '#1f7a5c' : '#b45309'
+      const sign = narrowing.narrowingPct > 0 ? '' : ''
+      sections.push(`
+        <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+          Resserrement de la fourchette&nbsp;:
+          <strong style="color:${color};">${narrowing.narrowed ? '✓' : '⚠'} ${fmt(narrowing.narrowingPct, 1)} %</strong>
+          <span style="font-size:9pt;color:#8a8780;"> — brute ${fmtMoney(narrowing.rawRange)} → ajustée ${fmtMoney(narrowing.adjustedRange)}</span>
+        </p>
+      `)
+    }
+  }
+
+  // B180: net pct histogram
+  if (adjustments.length >= 3) {
+    const histogram = computeAdjustmentNetPctHistogram(adjustments)
+    if (histogram) {
+      const nonEmpty = histogram.buckets.filter(b => b.count > 0)
+      if (nonEmpty.length > 1) {
+        const bars = nonEmpty.map(b => `${b.label}&nbsp;(${b.count})`).join(' · ')
+        sections.push(`
+          <p style="font-size:10pt;color:#6a6763;margin-top:4pt;">
+            Distribution des ajustements nets&nbsp;(%)&nbsp;: <span style="font-size:9pt;">${bars}</span>
+          </p>
+        `)
+      }
     }
   }
 
