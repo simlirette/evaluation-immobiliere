@@ -1374,6 +1374,7 @@ def app_session_view(session_id: str) -> dict:
         "assistant": assistant,
         "package": package,
         "workflow": app_workflow(summary, dossier, package, assistant),
+        "pipeline_progress": read_json_dict(SESSIONS_DIR / safe_path_id(session_id) / "pipeline_progress.json") or None,
         "mandat": {
             "mandat_type": session.get("mandat_type"),
             "format_rapport": session.get("format_rapport"),
@@ -1731,6 +1732,18 @@ def start_runtime(body: dict) -> dict:
 
     steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
     engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
+
+    # Write pipeline progress after each step so polling can show real-time progress
+    _all_step_names = [s.name for s in steps]
+    _completed_steps: list[str] = []
+    _progress_path = session_dir / "pipeline_progress.json"
+    write_json(_progress_path, {"steps": _all_step_names, "completed": [], "running": _all_step_names[0] if _all_step_names else None})
+
+    def _on_step_done(step_name: str) -> None:
+        _completed_steps.append(step_name)
+        _next = next((s for s in _all_step_names if s not in _completed_steps), None)
+        write_json(_progress_path, {"steps": _all_step_names, "completed": list(_completed_steps), "running": _next})
+
     try:
         result = engine.run_case_data(
             case,
@@ -1738,6 +1751,7 @@ def start_runtime(body: dict) -> dict:
             source_fixture=source_fixture,
             case_stem=case_key,
             case_subdir=True,
+            on_step_done=_on_step_done,
         )
     except PipelineConflitError as _e:
         result = {

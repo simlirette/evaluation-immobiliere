@@ -46,6 +46,11 @@ export interface AppState {
       can_generate_package: boolean
       steps: Array<{ id: string; label: string; status: string; complete: boolean }>
     }
+    pipeline_progress: {
+      steps: string[]
+      completed: string[]
+      running: string | null
+    } | null
     assistant: {
       agents?: Array<{ agent: string; label: string; status: string; focus: string }>
       transcript?: { messages_count?: number; latest_agent_label?: string }

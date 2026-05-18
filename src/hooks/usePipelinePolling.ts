@@ -23,6 +23,25 @@ export const PIPELINE_TERMINAL_STATUSES = new Set([
   'FAILED',
 ])
 
+const STEP_LABELS: Record<string, string> = {
+  'mandat-intake':   'Analyse du mandat',
+  'data-facts':      'Extraction des faits',
+  'amu-analyst':     'Analyse de marché',
+  'comps-market':    'Sélection des comparables',
+  'valuation-draft': 'Calcul de valeur',
+  'compliance-qa':   'Conformité OEAQ',
+  'redaction':       'Rédaction du rapport',
+}
+
+function progressToSteps(progress: { steps: string[]; completed: string[]; running: string | null }): PipelineStep[] {
+  return progress.steps.map(id => ({
+    id,
+    label: STEP_LABELS[id] ?? id,
+    status: progress.completed.includes(id) ? 'DONE' : id === progress.running ? 'EN_COURS' : 'EN_ATTENTE',
+    complete: progress.completed.includes(id),
+  }))
+}
+
 const POLL_INTERVAL_MS = 2000
 const TIMEOUT_MS = 90_000
 
@@ -64,13 +83,25 @@ export function usePipelinePolling(
       try {
         const app = await fetchAppState(dossierId)
         const status: string = (app.active?.workflow.status as string | null) ?? ''
-        const newSteps = (app.active?.workflow.steps ?? []) as PipelineStep[]
-        setSteps(newSteps)
         setWorkflowStatus(status)
         setError(null)
-        const allDone = newSteps.length > 0 && newSteps.every(s => s.complete)
-        if (PIPELINE_TERMINAL_STATUSES.has(status) || allDone) {
-          stopPolling()
+
+        // Use real-time agent step progress when available, fall back to workflow steps
+        const progress = app.active?.pipeline_progress
+        if (progress && progress.steps.length > 0) {
+          const agentSteps = progressToSteps(progress)
+          setSteps(agentSteps)
+          const allAgentsDone = progress.completed.length === progress.steps.length
+          if (allAgentsDone || PIPELINE_TERMINAL_STATUSES.has(status)) {
+            stopPolling()
+          }
+        } else {
+          const workflowSteps = (app.active?.workflow.steps ?? []) as PipelineStep[]
+          setSteps(workflowSteps)
+          const allDone = workflowSteps.length > 0 && workflowSteps.every(s => s.complete)
+          if (PIPELINE_TERMINAL_STATUSES.has(status) || allDone) {
+            stopPolling()
+          }
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Erreur réseau')

@@ -1713,6 +1713,7 @@ class RuntimeEngine:
         source_fixture: str = "inline",
         case_stem: str | None = None,
         case_subdir: bool = False,
+        on_step_done=None,
     ) -> dict:
         started_at = time.perf_counter()
         events: list[dict] = []
@@ -1791,6 +1792,11 @@ class RuntimeEngine:
                 )
 
             self._record_event(events, audit_log_path, {"event": "step_done", "step": step.name, "dossier_id": dossier_id})
+            if on_step_done is not None:
+                try:
+                    on_step_done(step.name)
+                except Exception:
+                    pass  # progress callback never blocks pipeline
 
             # Gate conflit après mandat-intake
             if step.name == "mandat-intake":
