@@ -329,7 +329,7 @@ export async function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichm
 
 export async function exportRapport(
   sessionId: string,
-  format: 'docx' | 'html'
+  format: 'docx' | 'html' | 'pdf'
 ): Promise<{ filename: string; blob: Blob }> {
   const result = await runtimeJson<{
     ok: boolean
@@ -342,7 +342,7 @@ export async function exportRapport(
   })
 
   let blob: Blob
-  if (format === 'docx') {
+  if (format === 'docx' || format === 'pdf') {
     // data is base64 — decode to bytes
     const binary = atob(result.data)
     const bytes = new Uint8Array(binary.length)

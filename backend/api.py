@@ -883,16 +883,16 @@ def app_generate_rapport(body: dict) -> dict:
 
 
 def app_export_rapport(body: dict) -> dict:
-    """Génère l'export du rapport en .docx ou HTML (base64 JSON)."""
+    """Génère l'export du rapport en .docx, HTML ou PDF (base64 JSON)."""
     import base64
-    from engine.report_export import _generate_docx, _generate_html
+    from engine.report_export import _generate_docx, _generate_html, _generate_pdf
 
     session_id = str(body.get("session_id", "")).strip()
     format_param = str(body.get("format", "")).strip()
     if not session_id:
         raise ValueError("session_id requis")
-    if format_param not in {"docx", "html"}:
-        raise ValueError("format doit être 'docx' ou 'html'")
+    if format_param not in {"docx", "html", "pdf"}:
+        raise ValueError("format doit être 'docx', 'html' ou 'pdf'")
 
     session = require_session(session_id)
     artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
@@ -912,13 +912,21 @@ def app_export_rapport(body: dict) -> dict:
             "filename": f"rapport-{dossier_id}.docx",
             "data": base64.b64encode(data).decode("ascii"),
         }
-    # format == "html"
-    html = _generate_html(md_text, dossier_id)
+    if format_param == "html":
+        html = _generate_html(md_text, dossier_id)
+        return {
+            "ok": True,
+            "content_type": "text/html; charset=utf-8",
+            "filename": f"rapport-{dossier_id}.html",
+            "data": html,
+        }
+    # format == "pdf"
+    data = _generate_pdf(md_text, dossier_id)
     return {
         "ok": True,
-        "content_type": "text/html; charset=utf-8",
-        "filename": f"rapport-{dossier_id}.html",
-        "data": html,
+        "content_type": "application/pdf",
+        "filename": f"rapport-{dossier_id}.pdf",
+        "data": base64.b64encode(data).decode("ascii"),
     }
 
 

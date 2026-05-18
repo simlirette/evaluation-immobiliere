@@ -103,6 +103,51 @@ def _add_inline_paragraph(doc: object, text: str, style: str = "Normal") -> obje
     return p
 
 
+def _generate_pdf(md_text: str, dossier_id: str) -> bytes:
+    """Convertit le markdown en PDF via PyMuPDF fitz.Story (sans dépendances externes)."""
+    import fitz  # type: ignore
+    import markdown as md_lib  # type: ignore
+
+    body = md_lib.markdown(md_text, extensions=["tables", "fenced_code"])
+    html = f"""<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><style>
+body {{ font-family: serif; font-size: 11pt; line-height: 1.65; color: #1a1916; margin: 0; padding: 0; }}
+.watermark {{ background: #fff3cd; border: 1.5px solid #b8860b; border-radius: 4px;
+    padding: 8px 14px; margin-bottom: 20px; font-size: 9pt; font-weight: bold; color: #856404; }}
+h1 {{ font-size: 17pt; font-weight: bold; margin: 0 0 10px; }}
+h2 {{ font-size: 13pt; font-weight: bold; margin: 22px 0 8px;
+    border-bottom: 1px solid #e5e2dc; padding-bottom: 4px; }}
+h3 {{ font-size: 11pt; font-weight: bold; margin: 14px 0 5px; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 9pt; margin: 10px 0; }}
+th {{ text-align: left; padding: 5px 8px; background: #f5f3ef;
+    font-weight: bold; border: 1px solid #ccc; }}
+td {{ padding: 4px 8px; border: 1px solid #ccc; vertical-align: top; }}
+ul, ol {{ padding-left: 20px; margin: 6px 0; }}
+li {{ margin: 2px 0; }}
+blockquote {{ margin: 10px 0; padding: 6px 12px; border-left: 3px solid #ffc107;
+    background: #fffbf0; font-size: 9pt; color: #856404; }}
+</style></head>
+<body>
+<div class="watermark">&#9888; BROUILLON NON CERTIFIÉ — Ce document doit être révisé et signé
+par un évaluateur agréé (É.A.) avant toute diffusion.</div>
+{body}
+</body></html>"""
+
+    buf = io.BytesIO()
+    story = fitz.Story(html=html)
+    writer = fitz.DocumentWriter(buf)
+    mediabox = fitz.paper_rect("a4")
+    where = mediabox + (71, 71, -71, -71)  # ~2.5 cm margins
+    more = True
+    while more:
+        device = writer.begin_page(mediabox)
+        more, _ = story.place(where)
+        story.draw(device)
+        writer.end_page()
+    writer.close()
+    return buf.getvalue()
+
+
 def _generate_docx(md_text: str, dossier_id: str) -> bytes:
     """Convertit le markdown en fichier .docx (python-docx)."""
     from docx import Document  # type: ignore
