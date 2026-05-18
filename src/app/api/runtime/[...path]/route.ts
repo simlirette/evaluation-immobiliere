@@ -9,7 +9,7 @@ const RUNTIME_TOKEN = process.env.RUNTIME_API_TOKEN || ''
 // Default timeout: 30s for reads, 120s for pipeline runs (ingestion + 7 LLM steps)
 const TIMEOUT_MS = 30_000
 const TIMEOUT_PIPELINE_MS = 120_000
-const PIPELINE_PATHS = new Set(['/app/demo', '/app/state'])
+const PIPELINE_PATHS = new Set(['/app/demo', '/app/create', '/app/state'])
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 // Catch misconfigured deployments before they silently fail
