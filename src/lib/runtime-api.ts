@@ -389,6 +389,16 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
   })
 }
 
+export async function saveRuntimeFactOverrides(
+  sessionId: string,
+  overrides: { surface_pi2?: number | null; zone?: string; date_reference?: string }
+): Promise<void> {
+  await runtimeJson<{ ok: boolean }>('/app/facts', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...overrides }),
+  })
+}
+
 export async function saveRuntimeComparables(sessionId: string, comparables: import('@/types').Comparable[]): Promise<void> {
   await runtimeJson<{ ok: boolean; count: number }>('/app/comparables', {
     method: 'POST',

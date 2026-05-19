@@ -1,40 +1,39 @@
 # State — eval-immo
 
-_Updated: 2026-05-18_
+_Updated: 2026-05-19_
 
 ## Current Goal
 
-Phase 9A COMPLÈTE ✅ — mandat_type + date_reference dans NewDossierForm.
+Phase 10 en attente de choix utilisateur (10A–10E proposées).
 
 ## Plan Status
 
-Phase 1 ✅ · Phase 2 ✅ · Phase 4 ✅
-Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025.
-Phase 5A ✅ · Phase 5B ✅ · Phase 5C ✅
-Phase 6A ✅ · Phase 6B ✅ · Phase 6C ✅
-Phase 7 ✅ — Infra deploy
-Phase 8A ✅ — Tests 6A+6C (13/13)
-Phase 8B ✅ — DossierPanel → runtime (ingestion PDF)
-Phase 8C ✅ — Package V1 ZIP + download (engine/package.py)
-Phase 8D ✅ — MarchePanel + AnalysePanel → runtime
-Phase 9A ✅ — mandat_type select + date_reference date dans NewDossierForm (Step 2)
+Phase 1–8D ✅
+Phase 9A ✅ (da056d2) — mandat_type + date_reference dans NewDossierForm
+Phase 9B ✅ (da056d2) — commanditaire display + tests engine/package.py (15/15) + sidebar search
+Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025
+
+Phase 10 options proposées :
+- 10A : Deploy prod Railway + Vercel (opérationnel pur)
+- 10B : Export rapport DOCX/PDF bouton UI
+- 10C : Comparable/Adjustment editor inline
+- 10D : Valuation card synthèse
+- 10E : Fact chips editor manuel
 
 ## Decisions
 
-- Tous les panels (Dossier/Marche/Analyse) lisent comparables/adjustments/docs via runtime — Supabase non requis en dev.
-- engine/package.py: generate_package_from_case → rapport.md + PDF + artifacts + manifest + ZIP.
-- BFF route.ts: passe application/zip en binaire (évite corruption).
-- DossierPanel: fetchRuntimeDocuments+uploadRuntimeDocument — ingestion PDF fonctionnelle.
-- Railway backend: libgomp1 requis (PyMuPDF OpenMP), volume /data/sessions.
-- NewDossierForm Step 2: mandat_type (défaut residentiel_standard) + date_reference (défaut today) envoyés au backend.
+- Tous panels lisent via runtime — Supabase non requis en dev.
+- engine/package.py: ZIP V1 = rapport.md + PDF + artifacts + manifest.
+- BFF: application/zip passé en binaire (évite corruption).
+- Commanditaire sauvé dans session["app_commanditaire"] à la création, lu dans app_session_view.
+- SidebarRecent: recherche client-side (filtre dossiers, apparaît >3 dossiers).
 
 ## Evidence
 
-- tsc --noEmit 0 erreurs. test_phase5.py 8/8. test_phase6.py 13/13. test_pure.py ingestion 16/16.
+- tsc 0 erreurs. test_phase5 8/8. test_phase6 13/13. test_pure 16/16. test_phase9 15/15.
 
 ## Open Issues
 
 - Phase 3 bloquée : attente livres MEFQ + NPP 2025.
-- Mise en prod effective : Railway + Vercel non encore provisionnés.
+- Mise en prod Railway + Vercel non encore provisionnés (Phase 10A).
 - rapport-versions (Supabase) — intentionnel, graceful fail.
-- Tests engine/package.py (Phase 9C) — non démarrés.

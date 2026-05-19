@@ -13,7 +13,7 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PipelineProgress from '@/components/shared/PipelineProgress'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
-import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
 
@@ -693,6 +693,12 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   type CommanditaireData = { nom: string; organisation: string; fin_evaluation: string } | null
   const [commanditaire, setCommanditaire] = useState<CommanditaireData>(null)
 
+  const [editFacts, setEditFacts] = useState(false)
+  const [draftSurface, setDraftSurface] = useState('')
+  const [draftZone, setDraftZone] = useState('')
+  const [draftDate, setDraftDate] = useState('')
+  const [factsSaving, setFactsSaving] = useState(false)
+
   const [isRunning, setIsRunning] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -805,6 +811,90 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {chips.map((c, i) => <Chip key={i} label={c.label} highlight={c.highlight} />)}
             </div>
+            {!editFacts && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftSurface('')
+                  setDraftZone('')
+                  setDraftDate('')
+                  setEditFacts(true)
+                }}
+                className="mt-2 rounded-full px-3 py-1 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+              >
+                ✏ Corriger les faits
+              </button>
+            )}
+            {editFacts && dossierId && (
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-[#8a8780]">Surface (pi²)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="ex. 1450"
+                      value={draftSurface}
+                      onChange={e => setDraftSurface(e.target.value)}
+                      className="rounded-[8px] px-2.5 py-1.5 text-[12px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                      style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-[#8a8780]">Zone</label>
+                    <input
+                      type="text"
+                      placeholder="ex. Rosemont"
+                      value={draftZone}
+                      onChange={e => setDraftZone(e.target.value)}
+                      className="rounded-[8px] px-2.5 py-1.5 text-[12px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                      style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] text-[#8a8780]">Date de référence</label>
+                  <input
+                    type="date"
+                    value={draftDate}
+                    onChange={e => setDraftDate(e.target.value)}
+                    className="rounded-[8px] px-2.5 py-1.5 text-[12px] text-[#1a1916] outline-none"
+                    style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={factsSaving}
+                    onClick={async () => {
+                      setFactsSaving(true)
+                      try {
+                        await saveRuntimeFactOverrides(dossierId, {
+                          surface_pi2: draftSurface ? parseFloat(draftSurface) : null,
+                          zone: draftZone || undefined,
+                          date_reference: draftDate || undefined,
+                        })
+                        const appState = await fetchAppState(dossierId)
+                        setChips(appState.active?.fact_chips ?? [])
+                        setEditFacts(false)
+                      } finally {
+                        setFactsSaving(false)
+                      }
+                    }}
+                    className="rounded-full px-3 py-1.5 text-[11px] bg-[#334155] text-white disabled:opacity-40"
+                  >
+                    {factsSaving ? 'Sauvegarde…' : 'Sauvegarder'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFacts(false)}
+                    className="rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
             {localisation && <LocalisationContexte loc={localisation} />}
           </AgentMessage>
         )}

@@ -617,6 +617,26 @@ def app_dossier_card_from_record(record: dict) -> dict:
     }
 
 
+def app_save_fact_overrides(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    overrides: dict = {}
+    if body.get("surface_pi2") is not None:
+        try:
+            overrides["surface_pi2"] = float(body["surface_pi2"])
+        except (TypeError, ValueError):
+            pass
+    if body.get("zone"):
+        overrides["zone"] = str(body["zone"]).strip()
+    if body.get("date_reference"):
+        overrides["date_reference"] = str(body["date_reference"]).strip()
+    session = require_session(session_id)
+    session["app_fact_overrides"] = overrides
+    save_session(session)
+    return {"ok": True, "overrides": overrides}
+
+
 def app_pin_dossier(body: dict) -> dict:
     session_id = str(body.get("session_id") or "")
     if not session_id:
@@ -982,15 +1002,21 @@ def app_export_rapport(body: dict) -> dict:
     }
 
 
-def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
+def app_fact_chips(knowledge: dict, dossier: dict, overrides: dict | None = None) -> list[dict]:
     subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
     mandate = knowledge.get("mandate", {}) if isinstance(knowledge.get("mandate"), dict) else {}
     facts = dossier.get("facts", {}) if isinstance(dossier.get("facts"), dict) else {}
+    ov = overrides or {}
+    surface_raw = subject.get("surface") or facts.get("surface")
+    if ov.get("surface_pi2"):
+        surface_raw = {"value": float(ov["surface_pi2"]), "unit": "pi2"}
+    zone = ov.get("zone") or subject.get("zone") or "A confirmer"
+    date_ref = ov.get("date_reference") or mandate.get("date_reference") or facts.get("date_reference") or "-"
     chips = [
         {"label": f"Type: {app_property_type_label(subject.get('type_bien'))}", "highlight": True},
-        {"label": f"Surface: {app_surface_label(subject.get('surface') or facts.get('surface'))}", "highlight": True},
-        {"label": f"Zone: {subject.get('zone') or 'A confirmer'}", "highlight": True},
-        {"label": f"Date: {mandate.get('date_reference') or facts.get('date_reference') or '-'}", "highlight": True},
+        {"label": f"Surface: {app_surface_label(surface_raw)}", "highlight": True},
+        {"label": f"Zone: {zone}", "highlight": True},
+        {"label": f"Date: {date_ref}", "highlight": True},
         {"label": f"Confiance: {subject.get('confidence') or facts.get('confidence') or '-'}", "highlight": False},
         {"label": f"Sources: {len(subject.get('source_ids', [])) if isinstance(subject.get('source_ids'), list) else facts.get('source_ids_count', 0)}", "highlight": False},
     ]
@@ -1457,7 +1483,7 @@ def app_session_view(session_id: str) -> dict:
         "session": session,
         "dossier": card,
         "documents": app_source_documents(knowledge, session),
-        "fact_chips": app_fact_chips(knowledge, dossier),
+        "fact_chips": app_fact_chips(knowledge, dossier, overrides=session.get("app_fact_overrides") or {}),
         "comparables": app_comparable_rows(knowledge, session_id=session_id),
         "adjustments": app_adjustment_rows(knowledge, dossier, session_id=session_id),
         "valuation": {
@@ -4086,6 +4112,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_save_comparables(body))
+                return
+            if self.path == "/app/facts":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_save_fact_overrides(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except FileNotFoundError as exc:

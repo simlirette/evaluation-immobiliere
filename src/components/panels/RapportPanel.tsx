@@ -230,6 +230,19 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
           <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
             {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}
+            {state.conclusion && (
+              <div className="mt-3 rounded-[10px] px-4 py-3" style={{ background: 'rgba(31,122,92,.07)', border: '1px solid rgba(31,122,92,.18)' }}>
+                <div className="text-[10px] uppercase tracking-[.07em] font-medium mb-1" style={{ color: '#1f7a5c' }}>
+                  {'Conclusion de valeur propos\u00e9e'}
+                </div>
+                <div className="text-[22px] font-semibold leading-tight" style={{ fontFamily: 'var(--font-serif)', color: '#0f3d2e' }}>
+                  {state.conclusion}
+                </div>
+                {state.complianceStatus && (
+                  <div className="text-[11px] mt-1" style={{ color: '#1f7a5c' }}>{state.complianceStatus}</div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
               {state.steps.map(step => (
                 <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
