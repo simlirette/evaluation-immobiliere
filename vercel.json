@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/runtime/[...path]/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}

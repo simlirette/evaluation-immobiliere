@@ -4,29 +4,25 @@ _Updated: 2026-05-19_
 
 ## Current Goal
 
-Phase 10 en attente de choix utilisateur (10A–10E proposées).
+Phase 10 COMPLÈTE ✅ (2dfc858) — valuation card + fact chips editor.
 
 ## Plan Status
 
-Phase 1–8D ✅
-Phase 9A ✅ (da056d2) — mandat_type + date_reference dans NewDossierForm
-Phase 9B ✅ (da056d2) — commanditaire display + tests engine/package.py (15/15) + sidebar search
+Phase 1–9B ✅
+Phase 10B ✅ (déjà fait — RapportEditor)
+Phase 10C ✅ (déjà fait — AnalysePanel)
+Phase 10D ✅ (2dfc858) — valuation card dans RapportPanel
+Phase 10E ✅ (2dfc858) — fact chips editor inline + /app/facts POST
 Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025
-
-Phase 10 options proposées :
-- 10A : Deploy prod Railway + Vercel (opérationnel pur)
-- 10B : Export rapport DOCX/PDF bouton UI
-- 10C : Comparable/Adjustment editor inline
-- 10D : Valuation card synthèse
-- 10E : Fact chips editor manuel
 
 ## Decisions
 
 - Tous panels lisent via runtime — Supabase non requis en dev.
 - engine/package.py: ZIP V1 = rapport.md + PDF + artifacts + manifest.
 - BFF: application/zip passé en binaire (évite corruption).
-- Commanditaire sauvé dans session["app_commanditaire"] à la création, lu dans app_session_view.
-- SidebarRecent: recherche client-side (filtre dossiers, apparaît >3 dossiers).
+- Commanditaire sauvé dans session["app_commanditaire"] à la création.
+- app_fact_chips accepte overrides={surface_pi2, zone, date_reference} depuis session["app_fact_overrides"].
+- Fact overrides: patch target est engine.report_export._generate_pdf (lazy import).
 
 ## Evidence
 
@@ -35,5 +31,6 @@ Phase 10 options proposées :
 ## Open Issues
 
 - Phase 3 bloquée : attente livres MEFQ + NPP 2025.
-- Mise en prod Railway + Vercel non encore provisionnés (Phase 10A).
+- Mise en prod Railway + Vercel non encore provisionnés.
 - rapport-versions (Supabase) — intentionnel, graceful fail.
+- Tests pour /app/facts endpoint (10E) — non écrits.
