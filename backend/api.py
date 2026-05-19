@@ -1523,6 +1523,56 @@ def app_session_view(session_id: str) -> dict:
     }
 
 
+def app_valuation_trace(session_id: str) -> dict:
+    """Full deterministic trace for the 3 valuation approaches + hypotheses."""
+    session = require_session(session_id)
+    artifact_index = session_artifacts(session_id)
+    approach_files = [
+        ("approche_comparative", "calculs_approche_comparative.json"),
+        ("approche_cout",        "calculs_approche_cout.json"),
+        ("approche_revenu",      "calculs_approche_revenu.json"),
+    ]
+    approaches = []
+    for approach_id, filename in approach_files:
+        payload = read_artifact_json_from_index(session, artifact_index, "valuation-draft", filename)
+        if not payload:
+            continue
+        trace = payload.get("trace", {}) if isinstance(payload.get("trace"), dict) else {}
+        approaches.append({
+            "approach": approach_id,
+            "label": {
+                "approche_comparative": "Approche comparative",
+                "approche_cout": "Approche coût",
+                "approche_revenu": "Approche revenu",
+            }.get(approach_id, approach_id),
+            "method": payload.get("method", ""),
+            "value": payload.get("value"),
+            "input_count": payload.get("input_count", 0),
+            "base_value": trace.get("base_value"),
+            "adjustment_total": trace.get("adjustment_total_validated"),
+            "weights": trace.get("weights_used", []),
+            "policy": trace.get("calculation_policy", []),
+            "selected_comparables": [
+                {
+                    "comparable_id": c.get("comparable_id", ""),
+                    "prix_vente": c.get("prix_vente"),
+                    "score": c.get("score"),
+                    "date_vente": c.get("date_vente", ""),
+                    "source_id": c.get("source_id", ""),
+                }
+                for c in (trace.get("selected_comparables") or [])
+                if isinstance(c, dict)
+            ],
+        })
+    hyp_payload = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "hypotheses_explicites.json")
+    hypotheses = hyp_payload.get("hypotheses", []) if isinstance(hyp_payload.get("hypotheses"), list) else []
+    return {
+        "session_id": session_id,
+        "approaches": approaches,
+        "hypotheses": hypotheses,
+    }
+
+
 def app_state(session_id: str = "") -> dict:
     product = product_summary()
     session_records = list_session_records(limit=50)
@@ -3928,6 +3978,18 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, session_package_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/app/trace":
+            if not self._require_permission("runtime_read"):
+                return
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not session_id:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            try:
+                self._send_json(200, app_valuation_trace(session_id))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
             return
         if parsed.path == "/app/package/download":
             if not self._require_permission("runtime_read"):

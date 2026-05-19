@@ -435,3 +435,36 @@ export async function exportRapport(
 
   return { filename: result.filename, blob }
 }
+
+export interface ValuationApproachTrace {
+  approach: string
+  label: string
+  method: string
+  value: number | null
+  input_count: number
+  base_value: number | null
+  adjustment_total: number | null
+  weights: number[]
+  policy: string[]
+  selected_comparables: Array<{
+    comparable_id: string
+    prix_vente: number | null
+    score: number | null
+    date_vente: string
+    source_id: string
+  }>
+}
+
+export interface ValuationTrace {
+  session_id: string
+  approaches: ValuationApproachTrace[]
+  hypotheses: Array<{ hypothese?: string; [key: string]: unknown }>
+}
+
+export async function fetchValuationTrace(sessionId: string): Promise<ValuationTrace | null> {
+  try {
+    return await runtimeJson<ValuationTrace>(`/app/trace?session_id=${encodeURIComponent(sessionId)}`)
+  } catch {
+    return null
+  }
+}

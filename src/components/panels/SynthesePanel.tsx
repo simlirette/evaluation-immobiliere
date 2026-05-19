@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import PanelSkeleton from '@/components/shared/PanelSkeleton'
 import EmptyState from '@/components/shared/EmptyState'
+import ValuationTrace from '@/components/shared/ValuationTrace'
 import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildSyntheseHtml } from '@/lib/synthese-html'
@@ -265,6 +266,8 @@ export default function SynthesePanel({ dossierId, address, onCritiqueFound }: P
             </div>
           )}
         </div>
+
+        {dossierId && <ValuationTrace sessionId={dossierId} />}
 
         <div className="flex justify-center">
           <button
