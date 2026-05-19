@@ -13,9 +13,7 @@ import PanelLoader from '@/components/shared/PanelLoader'
 import PipelineProgress from '@/components/shared/PipelineProgress'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
-import { fetchDocuments, uploadDocument } from '@/lib/supabase/queries/documents'
-import { fetchPropertyFacts } from '@/lib/supabase/queries/property_facts'
-import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
 
@@ -663,13 +661,12 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
     if (!dossierId) return
     setLoading(true)
     Promise.all([
-      fetchDocuments(dossierId),
-      fetchPropertyFacts(dossierId),
+      fetchRuntimeDocuments(dossierId),
       fetchAppState(dossierId),
       fetchRuntimeEnrichment(dossierId),
-    ]).then(([docs, facts, appState, enrichment]) => {
+    ]).then(([docs, appState, enrichment]) => {
       setDocuments(docs)
-      setChips(facts)
+      setChips(appState.active?.fact_chips ?? [])
       setMandat(appState.active?.mandat ?? null)
       setConflitData(appState.active?.conflit ?? null)
       setLocalisation(enrichment?.localisation ?? null)
@@ -703,7 +700,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
     setUploads(fileArray.map(f => ({ name: f.name, state: 'uploading' as const })))
     setShowDropZone(false)
 
-    const results = await Promise.allSettled(fileArray.map(f => uploadDocument(dossierId, f)))
+    const results = await Promise.allSettled(fileArray.map(f => uploadRuntimeDocument(dossierId, f)))
 
     const newDocs: Document[] = []
     const errors: UploadStatus[] = []
