@@ -11,6 +11,11 @@ export interface AppState {
     dossier: Dossier
     documents: Document[]
     fact_chips: FactChip[]
+    commanditaire: {
+      nom: string
+      organisation: string
+      fin_evaluation: string
+    } | null
     mandat: {
       mandat_type: string
       format_rapport: string
@@ -69,6 +74,7 @@ export interface CreateRuntimeDossierInput {
   property_type: string
   neighborhood: string
   mandat_type?: string
+  date_reference?: string
   superficie_habitable?: number | null
   superficie_terrain?: number | null
   annee_construction?: number | null
@@ -139,6 +145,7 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
       property_type: input.property_type,
       neighborhood: input.neighborhood,
       ...(input.mandat_type ? { mandat_type: input.mandat_type } : {}),
+      ...(input.date_reference ? { date_reference: input.date_reference } : {}),
       ...(input.superficie_habitable != null ? { superficie_habitable: input.superficie_habitable } : {}),
       ...(input.superficie_terrain != null ? { superficie_terrain: input.superficie_terrain } : {}),
       ...(input.annee_construction != null ? { annee_construction: input.annee_construction } : {}),

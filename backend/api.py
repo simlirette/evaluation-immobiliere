@@ -645,6 +645,7 @@ def app_create_dossier(body: dict) -> dict:
     type_bien = str(body.get("type_bien") or body.get("property_type") or "").strip() or "residentiel_unifamilial"
     neighbourhood = str(body.get("neighbourhood") or body.get("neighborhood") or "").strip()
     mandat_type = str(body.get("mandat_type") or "residentiel_standard").strip()
+    date_reference = str(body.get("date_reference") or "").strip() or _datetime.date.today().isoformat()
     superficie_habitable = body.get("superficie_habitable")
     superficie_terrain = body.get("superficie_terrain")
     annee_construction = body.get("annee_construction")
@@ -660,6 +661,12 @@ def app_create_dossier(body: dict) -> dict:
     session["app_neighborhood"] = neighbourhood
     session["app_mandat_type"] = mandat_type
     session["dossier_id"] = dossier_id
+    if commanditaire:
+        session["app_commanditaire"] = {
+            "nom": str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
+            "organisation": str(commanditaire.get("organisation") or ""),
+            "fin_evaluation": str(commanditaire.get("fin_evaluation") or "non_specifie"),
+        }
     save_session(session)
 
     # Build case dict from form data — pipeline uses this directly
@@ -668,7 +675,7 @@ def app_create_dossier(body: dict) -> dict:
         "type_bien": type_bien,
         "adresse": address,
         "zone": neighbourhood or "SECTEUR-NON-SPECIFIE",
-        "date_reference": _datetime.date.today().isoformat(),
+        "date_reference": date_reference,
     }
     if superficie_habitable:
         case["surface"] = {"value": float(superficie_habitable), "unit": "pi2"}
@@ -1471,6 +1478,7 @@ def app_session_view(session_id: str) -> dict:
         "package": package,
         "workflow": app_workflow(summary, dossier, package, assistant),
         "pipeline_progress": read_json_dict(SESSIONS_DIR / safe_path_id(session_id) / "pipeline_progress.json") or None,
+        "commanditaire": session.get("app_commanditaire") or None,
         "mandat": {
             "mandat_type": session.get("mandat_type"),
             "format_rapport": session.get("format_rapport"),

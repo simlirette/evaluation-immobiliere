@@ -58,6 +58,16 @@ const FIN_EVAL_OPTIONS = [
   { value: 'autre', label: 'Autre' },
 ]
 
+const MANDAT_TYPE_OPTIONS = [
+  { value: 'residentiel_standard', label: 'Résidentiel standard' },
+  { value: 'residentiel_rural', label: 'Résidentiel rural' },
+  { value: 'commercial', label: 'Commercial' },
+  { value: 'multilogement', label: 'Multilogement' },
+  { value: 'terrain', label: 'Terrain' },
+  { value: 'industriel', label: 'Industriel' },
+  { value: 'special', label: 'Propriété spéciale' },
+]
+
 function NewDossierForm() {
   const router = useRouter()
   const [formStep, setFormStep] = useState<1 | 2 | 3>(1)
@@ -71,6 +81,8 @@ function NewDossierForm() {
   const [cmdNom, setCmdNom] = useState('')
   const [cmdOrg, setCmdOrg] = useState('')
   const [cmdFin, setCmdFin] = useState('hypothecaire')
+  const [mandatType, setMandatType] = useState('residentiel_standard')
+  const [dateReference, setDateReference] = useState(() => new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
@@ -131,6 +143,8 @@ function NewDossierForm() {
         address: address.trim(),
         property_type: typeBien,
         neighborhood: neighborhood.trim(),
+        mandat_type: mandatType,
+        date_reference: dateReference,
         superficie_habitable: superficieHab ? parseFloat(superficieHab) : null,
         superficie_terrain: superficieTerrain ? parseFloat(superficieTerrain) : null,
         annee_construction: anneeConstruction ? parseInt(anneeConstruction) : null,
@@ -355,18 +369,46 @@ function NewDossierForm() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] text-[#8a8780] font-medium">Fin d&apos;évaluation</label>
-            <select
-              value={cmdFin}
-              onChange={e => setCmdFin(e.target.value)}
-              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
-              style={selectStyle}
-            >
-              {FIN_EVAL_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Fin d&apos;évaluation</label>
+              <select
+                value={cmdFin}
+                onChange={e => setCmdFin(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={selectStyle}
+              >
+                {FIN_EVAL_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Type de mandat</label>
+              <select
+                value={mandatType}
+                onChange={e => setMandatType(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={selectStyle}
+              >
+                {MANDAT_TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Date de référence</label>
+              <input
+                type="date"
+                value={dateReference}
+                onChange={e => setDateReference(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={inputStyle}
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 mt-1">
@@ -648,6 +690,9 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   const [conflit, setConflitData] = useState<ConflitData>(null)
   const [localisation, setLocalisation] = useState<EnrichmentLocalisation | null>(null)
 
+  type CommanditaireData = { nom: string; organisation: string; fin_evaluation: string } | null
+  const [commanditaire, setCommanditaire] = useState<CommanditaireData>(null)
+
   const [isRunning, setIsRunning] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -669,6 +714,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
       setChips(appState.active?.fact_chips ?? [])
       setMandat(appState.active?.mandat ?? null)
       setConflitData(appState.active?.conflit ?? null)
+      setCommanditaire(appState.active?.commanditaire ?? null)
       setLocalisation(enrichment?.localisation ?? null)
       setLoading(false)
       // Démarrer le polling uniquement si le pipeline tourne encore
@@ -762,16 +808,25 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             {localisation && <LocalisationContexte loc={localisation} />}
           </AgentMessage>
         )}
-        {mandat && (
+        {(mandat || commanditaire) && (
           <AgentMessage agentName="Agent Mandat">
             {'Plan de mandat'}
-            <div className="flex flex-wrap gap-1.5 mt-2.5">
-              <Chip label={`Mandat\u00a0: ${mandat.mandat_type.replace(/_/g, '\u00a0')}`} highlight />
-              <Chip label={`Format\u00a0: ${mandat.format_rapport.replace(/_/g, '\u00a0')}`} highlight />
-              {mandat.methodes_requises.map((m, i) => (
-                <Chip key={i} label={m.replace(/_/g, '\u00a0')} />
-              ))}
-            </div>
+            {mandat && (
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                <Chip label={`Mandat\u00a0: ${mandat.mandat_type.replace(/_/g, '\u00a0')}`} highlight />
+                <Chip label={`Format\u00a0: ${mandat.format_rapport.replace(/_/g, '\u00a0')}`} highlight />
+                {mandat.methodes_requises.map((m, i) => (
+                  <Chip key={i} label={m.replace(/_/g, '\u00a0')} />
+                ))}
+              </div>
+            )}
+            {commanditaire && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <Chip label={`Commanditaire\u00a0: ${commanditaire.nom}`} highlight />
+                {commanditaire.organisation && <Chip label={commanditaire.organisation} />}
+                <Chip label={`Fin\u00a0: ${commanditaire.fin_evaluation.replace(/_/g, '\u00a0')}`} />
+              </div>
+            )}
           </AgentMessage>
         )}
         {documents.length > 0 && <UserMessage>{'Sources rattach\u00e9es au dossier'}</UserMessage>}
