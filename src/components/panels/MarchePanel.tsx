@@ -7,9 +7,7 @@ import ComparableItem from '@/components/shared/ComparableItem'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
-import { fetchComparables } from '@/lib/supabase/queries/comparables'
-import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
-import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { fetchRuntimeEnrichment, fetchRuntimeComparables, fetchRuntimeAdjustments } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
@@ -120,8 +118,8 @@ export default function MarchePanel({ dossierId, address }: Props) {
     setLoading(true)
     setError(false)
     Promise.all([
-      fetchComparables(dossierId),
-      fetchAdjustments(dossierId),
+      fetchRuntimeComparables(dossierId),
+      fetchRuntimeAdjustments(dossierId),
       fetchRuntimeEnrichment(dossierId),
     ]).then(([comps, adjs, enrichment]) => {
       setComparables(comps)

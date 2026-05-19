@@ -8,9 +8,7 @@ import ValeurCard from '@/components/shared/ValeurCard'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
-import { fetchAdjustments } from '@/lib/supabase/queries/adjustments'
-import { fetchComparables } from '@/lib/supabase/queries/comparables'
-import { fetchAppState, fetchRuntimeEnrichment, saveRuntimeAdjustments, saveRuntimeComparables } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, fetchRuntimeComparables, fetchRuntimeAdjustments, saveRuntimeAdjustments, saveRuntimeComparables } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
@@ -161,8 +159,8 @@ export default function AnalysePanel({ dossierId, address }: Props) {
     setLoading(true)
     setError(false)
     Promise.all([
-      fetchAdjustments(dossierId),
-      fetchComparables(dossierId),
+      fetchRuntimeAdjustments(dossierId),
+      fetchRuntimeComparables(dossierId),
       fetchAppState(dossierId),
       fetchRuntimeEnrichment(dossierId),
     ]).then(([rows, comps, state, enrichment]) => {
