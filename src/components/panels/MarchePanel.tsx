@@ -270,7 +270,12 @@ export default function MarchePanel({ dossierId, address }: Props) {
                     />
                   )
                 })
-              : query && <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
+              : query
+                ? <div className="text-[12px] text-[#b5b2ac] py-2">Aucun comparable ne correspond à «&nbsp;{query}&nbsp;».</div>
+                : <div className="rounded-[10px] px-4 py-5 text-center" style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}>
+                    <div className="text-[13px] text-[#8a8780] mb-1">Aucun comparable disponible</div>
+                    <div className="text-[12px] text-[#b5b2ac]">Le pipeline n&apos;a pas encore trouvé de ventes comparables.<br />Lancez l&apos;analyse depuis l&apos;onglet Dossier.</div>
+                  </div>
             }
           </div>
         </AgentMessage>

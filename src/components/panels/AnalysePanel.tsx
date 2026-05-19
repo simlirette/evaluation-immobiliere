@@ -328,7 +328,11 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                 ✏ Modifier les comparables
               </button>
             </div>
-          ) : null}
+          ) : (
+            <div className="mt-2.5 rounded-[10px] px-4 py-4 text-center" style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}>
+              <div className="text-[12px] text-[#b5b2ac]">Aucun comparable — lancez l&apos;analyse depuis l&apos;onglet Dossier.</div>
+            </div>
+          )}
 
           {editMode ? (
             <div className="mt-2.5">
@@ -384,15 +388,21 @@ export default function AnalysePanel({ dossierId, address }: Props) {
             </div>
           ) : (
             <>
-              <AdjustmentsTable rows={adjustments} comparables={comparables} />
-              {adjustments.length > 0 && (
-                <button
-                  type="button"
-                  onClick={enterEditMode}
-                  className="mt-2 rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
-                >
-                  ✏ Modifier les ajustements
-                </button>
+              {adjustments.length > 0 ? (
+                <>
+                  <AdjustmentsTable rows={adjustments} comparables={comparables} />
+                  <button
+                    type="button"
+                    onClick={enterEditMode}
+                    className="mt-2 rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+                  >
+                    ✏ Modifier les ajustements
+                  </button>
+                </>
+              ) : (
+                <div className="mt-2 rounded-[10px] px-4 py-4 text-center" style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}>
+                  <div className="text-[12px] text-[#b5b2ac]">Aucun ajustement — le pipeline n&apos;a pas encore calculé les ajustements comparatifs.</div>
+                </div>
               )}
             </>
           )}

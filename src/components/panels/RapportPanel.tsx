@@ -243,14 +243,21 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 )}
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-              {state.steps.map(step => (
-                <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
-                  <div className="text-[#1a1916]">{step.label}</div>
-                  <div className="text-[11px] text-[#8a8780]">{step.status}</div>
-                </div>
-              ))}
-            </div>
+            {state.steps.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                {state.steps.map(step => (
+                  <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
+                    <div className="text-[#1a1916]">{step.label}</div>
+                    <div className="text-[11px] text-[#8a8780]">{step.status}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-[10px] px-4 py-4 text-center" style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}>
+                <div className="text-[13px] text-[#8a8780] mb-1">Pipeline non démarré</div>
+                <div className="text-[12px] text-[#b5b2ac]">Créez un dossier et lancez l&apos;analyse depuis l&apos;onglet Dossier pour générer le rapport.</div>
+              </div>
+            )}
             {state.blockingFailures.length > 0 && (
               <div className="mt-3 rounded-[9px] bg-red-50/80 border border-red-200/60 px-3 py-2">
                 <div className="text-[11px] font-medium text-red-700 mb-1">

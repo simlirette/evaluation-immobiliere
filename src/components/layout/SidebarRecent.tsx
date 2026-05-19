@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import DossierListItem from './DossierListItem'
-import type { Dossier } from '@/types'
+import type { Dossier, DossierStatus } from '@/types'
 
 interface Props {
   dossiers: Dossier[]
@@ -11,12 +11,22 @@ interface Props {
   onContextMenu: (e: React.MouseEvent, name: string, pinned: boolean) => void
 }
 
+type FilterPill = 'all' | DossierStatus
+
+const PILLS: { id: FilterPill; label: string }[] = [
+  { id: 'all', label: 'Tous' },
+  { id: 'en-cours', label: 'En cours' },
+  { id: 'complet', label: 'Prêts' },
+]
+
 export default function SidebarRecent({ dossiers, activeDossierId, onSelect, onContextMenu }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<FilterPill>('all')
 
   const q = query.trim().toLowerCase()
-  const filtered = q ? dossiers.filter(d => d.address.toLowerCase().includes(q)) : dossiers
+  const byStatus = filter === 'all' ? dossiers : dossiers.filter(d => d.status === filter)
+  const filtered = q ? byStatus.filter(d => d.address.toLowerCase().includes(q)) : byStatus
 
   const pinned = filtered.filter(d => d.pinned)
   const recents = filtered.filter(d => !d.pinned)
@@ -37,6 +47,21 @@ export default function SidebarRecent({ dossiers, activeDossierId, onSelect, onC
           />
         </div>
       )}
+      <div className="px-4 pb-2 flex gap-1.5">
+        {PILLS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => { setFilter(p.id); setExpanded(false) }}
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors border"
+            style={filter === p.id
+              ? { background: 'var(--sidebar-active-bg, rgba(0,0,0,.09))', borderColor: 'transparent', color: '#1a1916' }
+              : { background: 'transparent', borderColor: 'var(--input-border)', color: '#8a8780' }
+            }
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <div className="px-3 flex-1 overflow-y-auto scroll-fade">
         {pinned.length > 0 && (
           <>
