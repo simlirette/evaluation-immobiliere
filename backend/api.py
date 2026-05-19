@@ -2541,7 +2541,7 @@ def latest_session_packages_summary(limit: int = 25) -> dict:
 
 
 def generate_v1_package_for_session(session_id: str) -> dict:
-    from outils.generer_paquet_v1_pre_evaluateur import PACKAGE_FILES, generate_package_from_case
+    from engine.package import PACKAGE_FILES, generate_package_from_case
 
     session = require_session(session_id)
     gate = validate_v1_package_source(session)
@@ -3894,6 +3894,30 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, session_package_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            return
+        if parsed.path == "/app/package/download":
+            if not self._require_permission("runtime_read"):
+                return
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            session = load_session(safe_path_id(session_id)) if session_id else None
+            if not session:
+                self._send_json(404, {"error": "session introuvable"})
+                return
+            pkg_dir = session_package_dir(session)
+            from engine.package import PACKAGE_FILES as _PKG_FILES
+            zip_path = pkg_dir / _PKG_FILES["zip"]
+            if not zip_path.exists():
+                self._send_json(404, {"error": "paquet non généré — lancer /app/package d'abord"})
+                return
+            dossier_id = str(session.get("dossier_id") or session_id)
+            zip_bytes = zip_path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="paquet-{dossier_id}.zip"')
+            self.send_header("Content-Length", str(len(zip_bytes)))
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(zip_bytes)
             return
         if parsed.path == "/knowledge/immobilier":
             if not self._require_permission("runtime_read"):

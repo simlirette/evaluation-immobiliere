@@ -12,6 +12,7 @@ import {
   fetchAppState,
   generateRuntimePackage,
   validateRuntimeReview,
+  downloadRuntimePackage,
   saveRapport,
   generateRapport,
 } from '@/lib/runtime-api'
@@ -157,6 +158,18 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     }
   }
 
+  async function handleDownload() {
+    if (!dossierId || !state) return
+    setBusy('download')
+    try {
+      await downloadRuntimePackage(dossierId, state.realDossierId || dossierId)
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function handleSaveReport(content: string) {
     if (!dossierId) return
     await saveRapport(dossierId, content)
@@ -250,6 +263,15 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
               >
                 {busy === 'package' ? 'G\u00e9n\u00e9ration...' : 'G\u00e9n\u00e9rer paquet V1'}
               </button>
+              {state.packageStatus === 'PRET_REVUE_EVALUATEUR_AGREE' && (
+                <button
+                  onClick={handleDownload}
+                  disabled={busy !== ''}
+                  className="rounded-full px-3.5 py-2 text-[12px] bg-[#334155] text-white disabled:opacity-40"
+                >
+                  {busy === 'download' ? 'Téléchargement...' : '↓ Télécharger paquet'}
+                </button>
+              )}
             </div>
             <RapportArtifact
               title="Brouillon de rapport"

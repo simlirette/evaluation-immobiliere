@@ -319,6 +319,23 @@ export async function generateRuntimePackage(sessionId: string): Promise<AppStat
   return payload.state
 }
 
+export async function downloadRuntimePackage(sessionId: string, dossierId: string): Promise<void> {
+  const res = await fetch(`/api/runtime/app/package/download?session_id=${encodeURIComponent(sessionId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Erreur réseau' }))
+    throw new Error((err as { error?: string }).error ?? 'Téléchargement échoué')
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `paquet-${dossierId}.zip`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export async function saveRapport(sessionId: string, content: string): Promise<void> {
   await runtimeJson<{ ok: boolean }>('/app/report', {
     method: 'POST',

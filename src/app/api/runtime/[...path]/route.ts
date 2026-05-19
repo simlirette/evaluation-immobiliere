@@ -66,6 +66,19 @@ async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promis
       })
     }
 
+    // Binary responses (ZIP downloads) — pipe body directly
+    const ct = res.headers.get('Content-Type') ?? ''
+    if (ct.includes('application/zip') || ct.includes('application/octet-stream')) {
+      const disposition = res.headers.get('Content-Disposition') ?? ''
+      return new Response(res.body, {
+        status: res.status,
+        headers: {
+          'Content-Type': ct,
+          ...(disposition ? { 'Content-Disposition': disposition } : {}),
+        },
+      })
+    }
+
     const text = await res.text()
     return new NextResponse(text, {
       status: res.status,
