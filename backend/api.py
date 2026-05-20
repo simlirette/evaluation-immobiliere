@@ -127,11 +127,71 @@ def create_session(strict_mode: bool = True) -> dict:
     return session
 
 
+def _find_session_for_dossier(dossier_id: str) -> str | None:
+    """Return the session_id (hex12) of the latest non-archived session for dossier_id."""
+    if not SESSIONS_DIR.exists():
+        return None
+    candidates: list[tuple[str, str]] = []
+    for path in SESSIONS_DIR.glob("*/session.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if str(data.get("dossier_id") or "") != dossier_id:
+                continue
+            if data.get("app_archived") or data.get("archived"):
+                continue
+            updated = str(data.get("updated_at_utc") or data.get("created_at_utc") or "")
+            session_hex = str(data.get("session_id") or "")
+            if session_hex:
+                candidates.append((updated, session_hex))
+        except Exception:
+            pass
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
+def _archive_stale_sessions() -> int:
+    """Archive file-based sessions older than 30 days that have not been validated."""
+    if not SESSIONS_DIR.exists():
+        return 0
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    count = 0
+    for path in SESSIONS_DIR.glob("*/session.json"):
+        try:
+            session = json.loads(path.read_text(encoding="utf-8"))
+            if session.get("app_archived") or session.get("archived"):
+                continue
+            review = str(session.get("review_decision") or session.get("app_review_decision") or "")
+            if review == "VALIDE":
+                continue
+            created_str = str(session.get("created_at_utc") or "")
+            if not created_str:
+                continue
+            created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+            if created < cutoff:
+                session["app_archived"] = True
+                session["updated_at_utc"] = utc_now_iso()
+                path.write_text(json.dumps(session, ensure_ascii=False, indent=2), encoding="utf-8")
+                count += 1
+        except Exception:
+            pass
+    return count
+
+
 def load_session(session_id: str) -> dict | None:
     session_path = SESSIONS_DIR / safe_path_id(session_id) / "session.json"
-    if not session_path.exists():
-        return None
-    return json.loads(session_path.read_text(encoding="utf-8"))
+    if session_path.exists():
+        return json.loads(session_path.read_text(encoding="utf-8"))
+    # Fallback: session_id might actually be a dossier_id (D-USR-... or D-...)
+    if "-" in session_id:
+        real = _find_session_for_dossier(session_id)
+        if real:
+            session_path = SESSIONS_DIR / real / "session.json"
+            if session_path.exists():
+                return json.loads(session_path.read_text(encoding="utf-8"))
+    return None
 
 
 def save_session(session: dict) -> None:
@@ -599,11 +659,13 @@ def app_status_label(record: dict) -> str:
 
 def app_dossier_card_from_record(record: dict) -> dict:
     session_id = str(record.get("session_id") or "")
-    title = str(record.get("app_display_name") or f"Dossier {record.get('dossier_id') or session_id}")
+    dossier_id = str(record.get("dossier_id") or session_id)
+    title = str(record.get("app_display_name") or f"Dossier {dossier_id}")
     return {
-        "id": session_id,
-        "slug": session_id,
+        "id": dossier_id,
+        "slug": dossier_id,
         "session_id": session_id,
+        "dossier_id": dossier_id,
         "address": title,
         "property_type": str(record.get("app_property_type") or "Runtime immobilier"),
         "neighborhood": str(record.get("app_neighborhood") or record.get("status") or "Session"),
@@ -1460,10 +1522,12 @@ def app_session_view(session_id: str) -> dict:
     reconciliation = knowledge.get("reconciliation", {}) if isinstance(knowledge.get("reconciliation"), dict) else {}
     conclusion = reconciliation.get("conclusion_proposee", {}) if isinstance(reconciliation.get("conclusion_proposee"), dict) else {}
     title = app_title_from_session(session_id, dossier, knowledge)
+    dossier_slug = str(session.get("dossier_id") or session_id)
     card = {
-        "id": session_id,
-        "slug": session_id,
+        "id": dossier_slug,
+        "slug": dossier_slug,
         "session_id": session_id,
+        "dossier_id": dossier_slug,
         "address": str(session.get("app_display_name") or title),
         "property_type": str(session.get("app_property_type") or app_property_type_label(subject.get("type_bien"))),
         "neighborhood": str(session.get("app_neighborhood") or subject.get("zone") or "Zone anonymisee"),
@@ -1576,15 +1640,30 @@ def app_valuation_trace(session_id: str) -> dict:
 def app_state(session_id: str = "") -> dict:
     product = product_summary()
     session_records = list_session_records(limit=50)
+    # Resolve dossier_id (D-USR-... / D-...) to actual session_id (hex12)
+    if session_id and "-" in session_id:
+        resolved = _find_session_for_dossier(session_id)
+        if resolved:
+            session_id = resolved
     active_session_id = safe_path_id(session_id) if session_id else ""
     if not active_session_id and session_records:
         active_session_id = str(session_records[0].get("session_id") or "")
     active = app_session_view(active_session_id) if active_session_id else None
-    dossiers = [app_dossier_card_from_record(record) for record in session_records]
+    all_cards = [app_dossier_card_from_record(record) for record in session_records]
+    # Deduplicate by dossier_id — keep most recent session (list already sorted desc by updated_at)
+    seen_dossier_ids: set[str] = set()
+    dossiers: list[dict] = []
+    for item in all_cards:
+        did = str(item.get("id") or item.get("dossier_id") or "")
+        if did in seen_dossier_ids:
+            continue
+        seen_dossier_ids.add(did)
+        dossiers.append(item)
     if active and isinstance(active, dict):
         active_card = active.get("dossier", {})
+        active_dossier_id = str(active_card.get("id") or active_card.get("dossier_id") or "")
         for index, item in enumerate(dossiers):
-            if item.get("session_id") == active_session_id:
+            if str(item.get("id") or "") == active_dossier_id:
                 dossiers[index] = {**item, **active_card}
                 break
     return {
@@ -1649,13 +1728,21 @@ def app_validate_review(body: dict) -> dict:
             f"Revue bloquee par {count} echec(s) de conformite{detail}. "
             "Corriger les blocages avant de valider."
         )
-    reviewer = str(body.get("reviewer") or "Revue interne locale")
+    # confirmed_by = Supabase user ID injected by BFF (X-Evaluator-Id header)
+    confirmed_by = str(body.get("_evaluator_id") or "").strip()
+    reviewer = str(body.get("reviewer") or confirmed_by or "Revue interne locale")
     notes = str(
         body.get("notes")
         or "Validation interne locale pour generer le paquet V1. "
         "Valeur non certifiee; signature d'un evaluateur agree hors systeme requise."
     )
-    review = save_review({"session_id": session_id, "decision": "VALIDE", "reviewer": reviewer, "notes": notes})
+    review = save_review({
+        "session_id": session_id,
+        "decision": "VALIDE",
+        "reviewer": reviewer,
+        "confirmed_by": confirmed_by,
+        "notes": notes,
+    })
     return {"schema_version": "evaluateur_ai_app_review_v1", "review": review, "state": app_state(session_id)}
 
 
@@ -3685,12 +3772,14 @@ def validate_review_payload(session: dict, body: dict) -> dict:
 def save_review(body: dict) -> dict:
     session = require_session(str(body.get("session_id", "")))
     validated = validate_review_payload(session, body)
+    confirmed_by = str(body.get("confirmed_by") or "").strip()
     review = {
         "schema_version": "session_review_v1",
         "session_id": session["session_id"],
         "run_id": session["run_id"],
         "decision": validated["decision"],
         "reviewer": validated["reviewer"],
+        "confirmed_by": confirmed_by,   # Supabase user ID (vide si non authentifié)
         "notes": validated["notes"],
         "created_at_utc": utc_now_iso(),
     }
@@ -4051,13 +4140,17 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self._send_cors_headers()
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Runtime-Role")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Runtime-Role, X-Evaluator-Id")
         self.end_headers()
         self._write_access_audit(204)
 
     def do_POST(self) -> None:
         try:
             body = self._read_json_body()
+            # Inject authenticated user ID from BFF header for audit logging
+            evaluator_id = str(self.headers.get("X-Evaluator-Id", "") or "").strip()
+            if evaluator_id:
+                body.setdefault("_evaluator_id", evaluator_id)
             if self.path == "/session":
                 if not self._require_permission("runtime_write"):
                     return
@@ -4393,6 +4486,9 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
 def run_server(host: str = "0.0.0.0", port: int = int(os.environ.get("PORT", "8796"))) -> None:
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    archived = _archive_stale_sessions()
+    if archived:
+        print(f"[startup] {archived} session(s) archivée(s) (>30 jours sans validation)")
     server = ThreadingHTTPServer((host, port), RuntimeApiHandler)
     print(f"Runtime API v0: http://{host}:{port}")
     server.serve_forever()
