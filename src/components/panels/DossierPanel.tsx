@@ -11,6 +11,7 @@ import ChatInput from '@/components/shared/ChatInput'
 import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PipelineProgress from '@/components/shared/PipelineProgress'
+import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides } from '@/lib/runtime-api'
@@ -706,6 +707,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
     steps: pipelineSteps,
     workflowStatus: liveStatus,
     error: pipelineError,
+    waitingCheckpoint,
   } = usePipelinePolling(dossierId, isRunning)
 
   useEffect(() => {
@@ -738,13 +740,18 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   useEffect(() => {
     if (!isRunning) return
+    // Segment terminé → attente checkpoint (polling déjà arrêté par usePipelinePolling)
+    if (waitingCheckpoint !== null) {
+      setIsRunning(false)
+      return
+    }
     const allDone = pipelineSteps.length > 0 && pipelineSteps.every(s => s.complete)
     if (PIPELINE_TERMINAL_STATUSES.has(liveStatus) || allDone) {
       setIsRunning(false)
       onPipelineComplete?.()
       setRefreshKey(k => k + 1)
     }
-  }, [liveStatus, pipelineSteps, isRunning, onPipelineComplete])
+  }, [liveStatus, pipelineSteps, isRunning, waitingCheckpoint, onPipelineComplete])
 
   async function handleDrop(files: FileList) {
     if (!dossierId) return
@@ -783,6 +790,22 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
     return (
       <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
         <DropZone onDrop={handleDrop} />
+      </div>
+    )
+  }
+
+  // Checkpoint gate — segment completed, waiting for human confirmation
+  if (waitingCheckpoint !== null && dossierId) {
+    return (
+      <div className="flex flex-col flex-1 overflow-y-auto">
+        <CheckpointReviewPanel
+          dossierId={dossierId}
+          checkpoint={waitingCheckpoint}
+          onConfirmed={() => {
+            setRefreshKey(k => k + 1)
+            setIsRunning(true)  // restart polling for next segment
+          }}
+        />
       </div>
     )
   }

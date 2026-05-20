@@ -4,8 +4,8 @@ _Updated: 2026-05-20 | HEAD: S3_
 
 ## Current Goal
 
-S4 COMPLÈTE ✅ — Compliance Python pur (B001-B007)
-Prochaine : S5 — Extraction PDF élargie + UI CHECKPOINT 1.
+S5 COMPLÈTE ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
+Prochaine : S6 — Import CSV JLR + CHECKPOINT 2.
 
 ## Plan Status
 
@@ -19,7 +19,7 @@ S1 ✅ (f7a5bc4) — Séparation Dossier/Session + Supabase schema
 S2 ✅ (f7a5bc4) — Auth + comptes bureau/É.A.
 S3 ✅ — Pipeline stoppable par checkpoint (4 gates + log horodaté)
 S4 ✅ — Compliance Python pur (B001-B007)
-S5 — Extraction PDF élargie + UI CHECKPOINT 1
+S5 ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
 S6 — Import CSV JLR + CHECKPOINT 2
 S7 — Lettre de mandat
 S8 — Modèles rapport + routing LLM

@@ -8,17 +8,110 @@ from pathlib import Path
 _MAX_VISION_PAGES = 5  # cap Vision fallback pages per PDF
 
 _STRUCTURED_FIELDS_SCHEMA = {
-    "prix_achat": "float|null — prix d'acquisition ou de vente en dollars canadiens",
-    "date_achat": "string ISO YYYY-MM-DD|null — date de la transaction",
-    "no_lot": "string|null — numéro de lot cadastral",
-    "matricule": "string|null — numéro de matricule municipal",
-    "evaluation_municipale_totale": "float|null — valeur totale au rôle d'évaluation",
-    "evaluation_municipale_batiment": "float|null — valeur du bâtiment au rôle",
+    # ── Identification ────────────────────────────────────────────────────────
+    "prix_achat":                    "float|null — prix d'acquisition ou de vente en dollars canadiens",
+    "date_achat":                    "string ISO YYYY-MM-DD|null — date de la transaction",
+    "no_lot":                        "string|null — numéro de lot cadastral",
+    "matricule":                     "string|null — numéro de matricule municipal",
+    # ── Localisation ──────────────────────────────────────────────────────────
+    "adresse_complete":              "string|null — adresse civique complète",
+    "ville":                         "string|null — municipalité ou arrondissement",
+    "code_postal":                   "string|null — code postal (ex. J1G 2A1)",
+    # ── Type et destination ───────────────────────────────────────────────────
+    "type_bien":                     "string|null — type de propriété (ex. unifamiliale, condo, duplex)",
+    "destination":                   "string|null — usage actuel (ex. résidentiel, commercial, mixte)",
+    "zonage":                        "string|null — zonage municipal (ex. R-1, C-2)",
+    # ── Surfaces et évaluation municipale ────────────────────────────────────
+    "surface_habitable":             "float|null — surface habitable en pieds carrés",
+    "surface_terrain":               "float|null — surface du terrain en pieds carrés",
+    "evaluation_municipale_totale":  "float|null — valeur totale au rôle d'évaluation",
+    "evaluation_municipale_batiment":"float|null — valeur du bâtiment au rôle",
     "evaluation_municipale_terrain": "float|null — valeur du terrain au rôle",
-    "surface_habitable": "float|null — surface habitable en pieds carrés",
-    "surface_terrain": "float|null — surface du terrain en pieds carrés",
-    "annee_construction": "int|null — année de construction",
+    # ── Caractéristiques physiques ────────────────────────────────────────────
+    "annee_construction":            "int|null — année de construction",
+    "annee_renovation":              "int|null — année de la dernière rénovation majeure",
+    "nb_pieces":                     "int|null — nombre total de pièces",
+    "nb_chambres":                   "int|null — nombre de chambres à coucher",
+    "nb_salles_bain":                "int|null — nombre de salles de bain",
+    "nb_stationnements":             "int|null — nombre de places de stationnement",
+    "garage":                        "bool|null — présence d'un garage (true/false)",
+    "piscine":                       "bool|null — présence d'une piscine (true/false)",
+    "sous_sol_fini":                 "bool|null — sous-sol aménagé (true/false)",
+    "etat_general":                  "string|null — état général (ex. excellent, bon, moyen, mauvais)",
+    "vue":                           "string|null — type de vue (ex. dégagée, eau, parc, aucune)",
+    "proximite_nuisances":           "string|null — nuisances à proximité (ex. voie ferrée, industrie, aucune)",
+    # ── Parties et mandat ─────────────────────────────────────────────────────
+    "nom_proprietaire":              "string|null — nom du propriétaire inscrit au titre",
+    "nom_commanditaire":             "string|null — nom du commanditaire de l'évaluation",
+    "objet_evaluation":              "string|null — objet déclaré de l'évaluation",
 }
+
+# Libellés français pour l'interface UI CHECKPOINT 1
+_FIELD_LABELS_FR: dict[str, str] = {
+    "prix_achat":                    "Prix d'achat",
+    "date_achat":                    "Date de transaction",
+    "no_lot":                        "No de lot",
+    "matricule":                     "Matricule municipal",
+    "adresse_complete":              "Adresse complète",
+    "ville":                         "Ville / municipalité",
+    "code_postal":                   "Code postal",
+    "type_bien":                     "Type de bien",
+    "destination":                   "Destination",
+    "zonage":                        "Zonage",
+    "surface_habitable":             "Surface habitable (pi²)",
+    "surface_terrain":               "Surface du terrain (pi²)",
+    "evaluation_municipale_totale":  "Éval. munic. totale ($)",
+    "evaluation_municipale_batiment":"Éval. munic. bâtiment ($)",
+    "evaluation_municipale_terrain": "Éval. munic. terrain ($)",
+    "annee_construction":            "Année de construction",
+    "annee_renovation":              "Année de rénovation",
+    "nb_pieces":                     "Nombre de pièces",
+    "nb_chambres":                   "Chambres à coucher",
+    "nb_salles_bain":                "Salles de bain",
+    "nb_stationnements":             "Stationnements",
+    "garage":                        "Garage",
+    "piscine":                       "Piscine",
+    "sous_sol_fini":                 "Sous-sol fini",
+    "etat_general":                  "État général",
+    "vue":                           "Vue",
+    "proximite_nuisances":           "Nuisances à proximité",
+    "nom_proprietaire":              "Propriétaire inscrit",
+    "nom_commanditaire":             "Commanditaire",
+    "objet_evaluation":              "Objet de l'évaluation",
+}
+
+# Champs obligatoires pour la conformité B001 (subset)
+_REQUIRED_INTAKE_FIELDS = {
+    "adresse_complete", "type_bien", "surface_habitable",
+    "evaluation_municipale_totale", "annee_construction",
+}
+
+
+def get_intake_review(case: dict) -> list[dict]:
+    """Retourne la liste des champs d'intake pour UI CHECKPOINT 1.
+
+    Chaque entrée : {key, label, value, missing, required}.
+    missing=True si la valeur est None/absente.
+    required=True si le champ est obligatoire (B001 étendu).
+    """
+    rows = []
+    for key, label in _FIELD_LABELS_FR.items():
+        value = case.get(key)
+        # Normalise les booleans pour affichage
+        if isinstance(value, bool):
+            display = "Oui" if value else "Non"
+        elif value is None:
+            display = None
+        else:
+            display = str(value)
+        rows.append({
+            "key": key,
+            "label": label,
+            "value": display,
+            "missing": value is None,
+            "required": key in _REQUIRED_INTAKE_FIELDS,
+        })
+    return rows
 
 _VISION_PROMPT_DOC = (
     "Tu es un expert en évaluation immobilière québécoise. "
@@ -213,6 +306,10 @@ def parse_structured_fields(docs: list[dict], client) -> dict:
         return {}
 
 
+class IngestionError(Exception):
+    """Levée quand l'extraction PDF échoue de façon critique (visible dans l'UI)."""
+
+
 def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
     """Main entry point. Extract text from uploaded documents, return structured case fields.
 
@@ -230,6 +327,9 @@ def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
     Returns:
         dict of structured case fields (non-null, from _STRUCTURED_FIELDS_SCHEMA).
         Returns {} if no uploaded documents or no content extracted.
+
+    Raises:
+        IngestionError: si des documents sont présents mais qu'aucun texte n'a pu être extrait.
     """
     uploaded = session.get("uploaded_documents", [])
     if not uploaded:
@@ -247,6 +347,8 @@ def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
     uploads_dir = session_dir / "uploads"
 
     extracted_docs: list[dict] = []
+    skipped_files: list[str] = []
+
     for doc in uploaded:
         filename = str(doc.get("filename") or "")
         mime_type = str(doc.get("mime_type") or "")
@@ -254,6 +356,7 @@ def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
             continue
         path = uploads_dir / filename
         if not path.exists():
+            skipped_files.append(filename)
             continue
         result = extract_document(path, mime_type, client)
         # Persist extraction results in session metadata in-place
@@ -261,5 +364,15 @@ def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
         doc["extraction_method"] = result["method"]
         if result["extracted_text"]:
             extracted_docs.append(result)
+        elif result["method"] == "skipped":
+            skipped_files.append(filename)
+
+    # Raise if documents were uploaded but no text could be extracted
+    if uploaded and not extracted_docs:
+        filenames = [d.get("filename", "?") for d in uploaded]
+        raise IngestionError(
+            f"Extraction PDF incomplète — aucun texte extrait de : {', '.join(filenames)}. "
+            "Vérifiez que le document n'est pas protégé par mot de passe ou illisible."
+        )
 
     return parse_structured_fields(extracted_docs, client)

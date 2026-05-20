@@ -13,6 +13,7 @@ export interface PollResult {
   workflowStatus: string
   error: string | null
   isPolling: boolean
+  waitingCheckpoint: number | null
 }
 
 // Statuts qui indiquent que le pipeline est terminé.
@@ -53,6 +54,7 @@ export function usePipelinePolling(
   const [workflowStatus, setWorkflowStatus] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
+  const [waitingCheckpoint, setWaitingCheckpoint] = useState<number | null>(null)
   const startTimeRef = useRef<number | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -91,8 +93,12 @@ export function usePipelinePolling(
         if (progress && progress.steps.length > 0) {
           const agentSteps = progressToSteps(progress)
           setSteps(agentSteps)
+          const wcp = progress.waiting_checkpoint ?? null
+          setWaitingCheckpoint(wcp)
+          // Stop polling when segment completes (waiting for checkpoint confirmation)
+          // or pipeline fully terminates
           const allAgentsDone = progress.completed.length === progress.steps.length
-          if (allAgentsDone || PIPELINE_TERMINAL_STATUSES.has(status)) {
+          if (wcp !== null || allAgentsDone || PIPELINE_TERMINAL_STATUSES.has(status)) {
             stopPolling()
           }
         } else {
@@ -115,5 +121,5 @@ export function usePipelinePolling(
     return stopPolling
   }, [dossierId, enabled, stopPolling])
 
-  return { steps, workflowStatus, error, isPolling }
+  return { steps, workflowStatus, error, isPolling, waitingCheckpoint }
 }

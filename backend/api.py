@@ -1947,6 +1947,38 @@ def app_resume_checkpoint(body: dict) -> dict:
     }
 
 
+def app_get_facts(session_id: str) -> dict:
+    """GET /app/facts — champs d'intake extraits pour UI CHECKPOINT 1.
+
+    Lit le fichier .input.json de la session et retourne la revue des champs
+    extraits (présents vs manquants) pour affichage dans le tableau CP1.
+    """
+    from engine.ingestion import get_intake_review
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    dossier_id = str(session.get("dossier_id") or session_id)
+    case_key = safe_path_id(dossier_id)
+    input_path = session_dir / f"{case_key}.input.json"
+    case: dict = {}
+    if input_path.exists():
+        try:
+            case = json.loads(input_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    rows = get_intake_review(case)
+    missing_count = sum(1 for r in rows if r["missing"])
+    required_missing = [r["label"] for r in rows if r["missing"] and r["required"]]
+    return {
+        "session_id": session_id,
+        "dossier_id": dossier_id,
+        "fields": rows,
+        "total": len(rows),
+        "missing_count": missing_count,
+        "required_missing": required_missing,
+        "ready_to_confirm": len(required_missing) == 0,
+    }
+
+
 def app_get_checkpoint_log(session_id: str) -> dict:
     """GET /app/checkpoint/log — log des checkpoints confirmés pour une session."""
     session = require_session(session_id)
@@ -4158,6 +4190,19 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             try:
                 self._send_json(200, app_get_checkpoint_log(resolved))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
+            return
+        if parsed.path == "/app/facts":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            try:
+                self._send_json(200, app_get_facts(resolved))
             except ValueError as exc:
                 self._send_json(404, {"error": str(exc)})
             return

@@ -55,6 +55,7 @@ export interface AppState {
       steps: string[]
       completed: string[]
       running: string | null
+      waiting_checkpoint: number | null
     } | null
     assistant: {
       agents?: Array<{ agent: string; label: string; status: string; focus: string }>
@@ -403,6 +404,55 @@ export async function saveRuntimeComparables(sessionId: string, comparables: imp
   await runtimeJson<{ ok: boolean; count: number }>('/app/comparables', {
     method: 'POST',
     body: JSON.stringify({ session_id: sessionId, comparables }),
+  })
+}
+
+// ── S5 — Checkpoint 1 review ─────────────────────────────────────────────────
+
+export interface IntakeField {
+  key: string
+  label: string
+  value: string | null
+  missing: boolean
+  required: boolean
+}
+
+export interface IntakeFacts {
+  session_id: string
+  dossier_id: string
+  fields: IntakeField[]
+  total: number
+  missing_count: number
+  required_missing: string[]
+  ready_to_confirm: boolean
+}
+
+export function fetchCheckpointFacts(sessionId: string): Promise<IntakeFacts> {
+  return runtimeJson<IntakeFacts>(`/app/facts?session_id=${encodeURIComponent(sessionId)}`)
+}
+
+export async function confirmCheckpoint(
+  sessionId: string,
+  checkpoint: number,
+  evaluatorId?: string,
+): Promise<void> {
+  await runtimeJson<unknown>('/app/checkpoint/confirm', {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: sessionId,
+      checkpoint,
+      ...(evaluatorId ? { _evaluator_id: evaluatorId } : {}),
+    }),
+  })
+}
+
+export async function resumeCheckpoint(
+  sessionId: string,
+  checkpoint: number,
+): Promise<void> {
+  await runtimeJson<unknown>('/app/checkpoint/resume', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, checkpoint }),
   })
 }
 
