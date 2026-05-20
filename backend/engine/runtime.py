@@ -1714,7 +1714,15 @@ class RuntimeEngine:
         case_stem: str | None = None,
         case_subdir: bool = False,
         on_step_done=None,
+        steps_filter: list[str] | None = None,
     ) -> dict:
+        """Execute pipeline steps.
+
+        Args:
+            steps_filter: If provided, only run steps whose name is in this list.
+                          Used by run_pipeline_until() to execute one checkpoint segment.
+                          None = run all steps (legacy / one-shot mode).
+        """
         started_at = time.perf_counter()
         events: list[dict] = []
         dossier_id = str(case.get("dossier_id") or "unknown")
@@ -1730,6 +1738,8 @@ class RuntimeEngine:
             self._record_event(events, audit_log_path, {"event": "warning_detected", "dossier_id": dossier_id, "warning": warning})
 
         for step in self.steps:
+            if steps_filter is not None and step.name not in steps_filter:
+                continue  # skip steps not in this checkpoint segment
             step_start_event = {"event": "step_start", "step": step.name, "dossier_id": dossier_id}
             if step.skills:
                 step_start_event["skills_allowed"] = step.skills

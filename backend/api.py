@@ -19,6 +19,16 @@ import os
 import uuid
 
 from engine.runtime import RuntimeEngine, PipelineConflitError, load_steps_from_pipeline_yaml, safe_path_id
+from engine.checkpoints import (
+    CHECKPOINT_LABELS,
+    CHECKPOINT_STEPS,
+    CheckpointRequiredError,
+    assert_checkpoint_confirmed,
+    confirm_checkpoint,
+    is_checkpoint_confirmed,
+    read_checkpoint_log,
+    checkpoint_log_path,
+)
 from engine.orchestrator import PlanOrchestrator, classify_dossier, load_plan_for_mandat
 from engine.skills import DEFAULT_SKILLS_BY_AGENT
 
@@ -178,6 +188,19 @@ def _archive_stale_sessions() -> int:
         except Exception:
             pass
     return count
+
+
+def _normalize_session_id(raw_id: str) -> str:
+    """Résout un raw_id qui peut être un dossier_id (D-...) ou un session_id (hex12).
+
+    Utilisé dans les handlers qui reçoivent 'session_id' du frontend alors que
+    depuis S1 le slug = dossier_id.
+    """
+    if raw_id and "-" in raw_id:
+        resolved = _find_session_for_dossier(raw_id)
+        if resolved:
+            return resolved
+    return raw_id
 
 
 def load_session(session_id: str) -> dict | None:
@@ -780,7 +803,11 @@ def app_create_dossier(body: dict) -> dict:
 
     def _run_pipeline() -> None:
         try:
-            start_runtime({"session_id": session_id, "case": case, "source_fixture": "inline"})
+            # S3 : pipeline gated — run segment 1 only (steps mandat-intake + data-facts)
+            # Évaluateur confirme CHECKPOINT 1 (faits_bien_sujet) avant de continuer
+            _session = load_session(session_id)
+            if _session:
+                _run_pipeline_segment(_session, case, checkpoint=1)
         except Exception:
             pass
 
@@ -1744,6 +1771,194 @@ def app_validate_review(body: dict) -> dict:
         "notes": notes,
     })
     return {"schema_version": "evaluateur_ai_app_review_v1", "review": review, "state": app_state(session_id)}
+
+
+# ── S3 — Checkpoint gates ─────────────────────────────────────────────────────
+
+def _run_pipeline_segment(session: dict, case: dict, checkpoint: int) -> dict:
+    """Run the pipeline steps for a given checkpoint segment and persist results."""
+    session_dir = Path(str(session["session_dir"]))
+    session_id = str(session["session_id"])
+    source_fixture = str(session.get("source_fixture") or "inline")
+    case_key = safe_path_id(str(case.get("dossier_id") or session_id))
+
+    step_names = CHECKPOINT_STEPS.get(checkpoint, [])
+    steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
+    engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
+
+    all_step_names = [s.name for s in steps]
+    progress_path = session_dir / "pipeline_progress.json"
+    # Read existing completed steps (prior segments)
+    existing_progress = read_json_dict(progress_path)
+    completed_steps: list[str] = list(existing_progress.get("completed") or [])
+
+    def _on_step_done(step_name: str) -> None:
+        if step_name not in completed_steps:
+            completed_steps.append(step_name)
+        remaining = [s for s in all_step_names if s not in completed_steps]
+        next_step = remaining[0] if remaining else None
+        write_json(progress_path, {
+            "steps": all_step_names,
+            "completed": list(completed_steps),
+            "running": next_step,
+            "waiting_checkpoint": checkpoint if next_step else None,
+        })
+
+    # Initialise progress if first segment
+    if not existing_progress:
+        write_json(progress_path, {
+            "steps": all_step_names,
+            "completed": [],
+            "running": step_names[0] if step_names else None,
+            "waiting_checkpoint": None,
+        })
+
+    try:
+        result = engine.run_case_data(
+            case,
+            session_dir / "artifacts",
+            source_fixture=source_fixture,
+            case_stem=case_key,
+            case_subdir=True,
+            on_step_done=_on_step_done,
+            steps_filter=step_names,
+        )
+    except PipelineConflitError as exc:
+        result = {
+            "dossier_id": case.get("dossier_id", ""),
+            "status": "CONFLIT_DETECTE",
+            "blocking_failures": [f"CONFLIT: {exc}"],
+            "warnings": [],
+            "events": [],
+            "artifact_dir": str(session_dir / "artifacts"),
+        }
+
+    # Mark segment as waiting for checkpoint (not pipeline-blocking)
+    _remaining = [s for s in all_step_names if s not in completed_steps]
+    write_json(progress_path, {
+        "steps": all_step_names,
+        "completed": list(completed_steps),
+        "running": None,
+        "waiting_checkpoint": checkpoint,
+    })
+
+    result_path = session_dir / "result.json"
+    events_path = session_dir / "events.jsonl"
+    artifact_index_path = session_dir / "artifact_index.json"
+    knowledge_snapshot_path = session_dir / "knowledge_snapshot.json"
+
+    enriched_events = enrich_events(result["events"], session)
+    result["events"] = enriched_events
+    artifact_index = build_artifact_index(enriched_events)
+    knowledge_snapshot = build_knowledge_snapshot(session, result, artifact_index)
+
+    write_json(result_path, result)
+    events_path.write_text(
+        "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in enriched_events),
+        encoding="utf-8",
+    )
+    write_json(artifact_index_path, artifact_index)
+    write_json(knowledge_snapshot_path, knowledge_snapshot)
+
+    session.update({
+        "status": result["status"],
+        "dossier_id": result["dossier_id"],
+        "result_path": str(result_path),
+        "events_path": str(events_path),
+        "artifact_dir": result["artifact_dir"],
+        "artifact_index_path": str(artifact_index_path),
+        "knowledge_snapshot_path": str(knowledge_snapshot_path),
+        "current_checkpoint": checkpoint,
+    })
+    save_session(session)
+    return result
+
+
+def app_confirm_checkpoint(body: dict) -> dict:
+    """POST /app/checkpoint/confirm — évaluateur confirme un checkpoint.
+
+    Body: { session_id, checkpoint (1-4), confirmed_by (Supabase uid) }
+    """
+    session_id = _normalize_session_id(str(body.get("session_id") or ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    checkpoint = int(body.get("checkpoint") or 0)
+    if checkpoint not in CHECKPOINT_LABELS:
+        raise ValueError(f"checkpoint invalide : {checkpoint}. Valeurs : 1-4.")
+    confirmed_by = str(body.get("_evaluator_id") or body.get("confirmed_by") or "")
+
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    entry = confirm_checkpoint(session_dir, checkpoint, confirmed_by)
+    return {
+        "schema_version": "evaluateur_ai_checkpoint_confirm_v1",
+        "checkpoint": checkpoint,
+        "label": CHECKPOINT_LABELS[checkpoint],
+        "entry": entry,
+        "state": app_state(session_id),
+    }
+
+
+def app_resume_checkpoint(body: dict) -> dict:
+    """POST /app/checkpoint/resume — déclenche le segment suivant après confirmation.
+
+    Gate bloquant : lève CheckpointRequiredError (→ HTTP 409) si CP précédent non confirmé.
+    Body: { session_id, checkpoint (segment à exécuter : 2, 3 ou 4) }
+    """
+    session_id = _normalize_session_id(str(body.get("session_id") or ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    checkpoint = int(body.get("checkpoint") or 0)
+    if checkpoint not in CHECKPOINT_STEPS or checkpoint < 2:
+        raise ValueError(f"checkpoint invalide pour resume : {checkpoint}. Valeurs : 2, 3, 4.")
+
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+
+    # ── Gate bloquant ──────────────────────────────────────────────────────────
+    required_previous = checkpoint - 1
+    assert_checkpoint_confirmed(session_dir, required_previous)
+
+    # Load case from session artifacts / inputs
+    case_key = safe_path_id(str(session.get("dossier_id") or session_id))
+    input_path = session_dir / f"{case_key}.input.json"
+    if not input_path.exists():
+        raise ValueError(f"Données d'entrée introuvables pour la session {session_id}")
+    case = json.loads(input_path.read_text(encoding="utf-8"))
+
+    import threading as _threading
+    result_holder: list[dict] = []
+    error_holder: list[Exception] = []
+
+    def _run() -> None:
+        try:
+            result_holder.append(_run_pipeline_segment(session, case, checkpoint))
+        except Exception as exc:
+            error_holder.append(exc)
+
+    _threading.Thread(target=_run, daemon=True).start()
+
+    return {
+        "schema_version": "evaluateur_ai_checkpoint_resume_v1",
+        "checkpoint": checkpoint,
+        "label": CHECKPOINT_LABELS[checkpoint],
+        "status": "running",
+        "state": app_state(session_id),
+    }
+
+
+def app_get_checkpoint_log(session_id: str) -> dict:
+    """GET /app/checkpoint/log — log des checkpoints confirmés pour une session."""
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    entries = read_checkpoint_log(session_dir)
+    return {
+        "schema_version": "evaluateur_ai_checkpoint_log_v1",
+        "session_id": session_id,
+        "dossier_id": str(session.get("dossier_id") or ""),
+        "entries": entries,
+        "confirmed_checkpoints": [e["checkpoint"] for e in entries if e.get("confirmed_at")],
+    }
 
 
 def app_generate_package(body: dict) -> dict:
@@ -3933,6 +4148,19 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, app_state(parse_qs(parsed.query).get("session_id", [""])[0]))
             return
+        if parsed.path == "/app/checkpoint/log":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            try:
+                self._send_json(200, app_get_checkpoint_log(resolved))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
+            return
         if parsed.path in {"/ops/ui", "/ops/cockpit"}:
             self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
             return
@@ -4188,6 +4416,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(200, generate_v1_package_for_session(str(body.get("session_id", ""))))
                 return
+            if self.path == "/app/checkpoint/confirm":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_confirm_checkpoint(body))
+                return
+            if self.path == "/app/checkpoint/resume":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_resume_checkpoint(body))
+                return
             if self.path == "/app/review/validate":
                 if not self._require_permission("review_write"):
                     return
@@ -4274,6 +4512,13 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 self._send_json(200, app_save_fact_overrides(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
+        except CheckpointRequiredError as exc:
+            self._send_json(409, {
+                "error": str(exc),
+                "code": "CHECKPOINT_REQUIRED",
+                "required_checkpoint": exc.required_checkpoint,
+                "label": CHECKPOINT_LABELS.get(exc.required_checkpoint, ""),
+            })
         except FileNotFoundError as exc:
             self._send_json(404, {"error": str(exc)})
         except ValueError as exc:
