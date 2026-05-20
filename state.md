@@ -1,33 +1,53 @@
 # State — eval-immo
 
-_Updated: 2026-05-19_
+_Updated: 2026-05-20 | HEAD: f7a5bc4_
 
 ## Current Goal
 
-Phase 11B COMPLÈTE ✅ (1b17b28) — deploy config Railway + Vercel prête.
+S1+S2 COMPLÈTES ✅ — Séparation Dossier/Session + Auth bureau/É.A.
+Prochaine : S3 — Pipeline stoppable par checkpoint (ouvrir nouvelle session).
 
 ## Plan Status
 
-Phase 1–10E ✅
-Phase 11B ✅ (1b17b28) — vercel.json + DEPLOYMENT.md + BFF timeout fix
-Phase 3 BLOQUÉE — attente livres MEFQ + NPP 2025
+### Phases antérieures (UI/pipeline)
+Phase 1–15A ✅ (voir git log — HEAD antérieur à f7a5bc4)
 
-## Decisions
+### Plan d'exécution vers démo bureau É.A. (établi 2026-05-20)
+Plan complet : `_audit/2026-05-20/05_PLAN-EXECUTION.md`
 
-- Tous panels lisent via runtime — Supabase non requis en dev.
-- BFF timeout : 120s pour /app/create, /app/state, /app/package, /app/review/validate. 30s sinon.
-- vercel.json : maxDuration 120s (Vercel Pro requis pour dépasser 60s).
-- EVAL_RUNTIME_ALLOWED_ORIGIN doit correspondre exactement à l'URL Vercel (sans slash final).
-- app_fact_chips overrides stockés dans session["app_fact_overrides"].
-- Commanditaire stocké dans session["app_commanditaire"].
+S1 ✅ (f7a5bc4) — Séparation Dossier/Session + Supabase schema
+S2 ✅ (f7a5bc4) — Auth + comptes bureau/É.A.
+S3 ⏳ — Pipeline stoppable par checkpoint (4 gates + log horodaté) — Effort L
+S4 — Compliance Python pur (B001-B007)
+S5 — Extraction PDF élargie + UI CHECKPOINT 1
+S6 — Import CSV JLR + CHECKPOINT 2
+S7 — Lettre de mandat
+S8 — Modèles rapport + routing LLM
+S9 — Approches conditionnelles + watermark proxy
+S10 — Éditeur rapport + export
+S11 — Dossier démo anonymisé
+S12 — Roadmap bureau
+
+## Decisions (S1+S2)
+
+- Dossier slug = dossier_id (D-USR-XXXXXXXX), jamais le session UUID hex12
+- load_session() résout dossier_id → session_id via scan filesystem (fallback)
+- app_state() déduplique par dossier_id — une card par dossier même si N sessions
+- Sessions > 30 jours non-validées → archivées au démarrage (_archive_stale_sessions)
+- confirmed_by = UUID Supabase (via X-Evaluator-Id BFF header), persiste dans review.json
+- Middleware AUTH_ENABLED guard — passthrough si Supabase non configuré (dev local)
+- /admin/* réservé bureau_admin (check profiles table en middleware)
+- inviteUserByEmail via service role key (SUPABASE_SERVICE_ROLE_KEY, server-only)
 
 ## Evidence
 
-- tsc 0 erreurs. test_phase5 8/8. test_phase6 13/13. test_pure 16/16. test_phase9 15/15.
+- 35 tests verts (24 S1 + 11 S2) — test_s1_dossier_session.py, test_s2_auth.py
+- tsc 0 erreurs post-S2
+- python -c "import api; print('OK')" ✅
 
 ## Open Issues
 
-- Mise en prod : Railway + Vercel à provisionner (guide complet dans DEPLOYMENT.md).
-- Tests /app/facts endpoint (Phase 10E) — non écrits.
-- Phase 3 bloquée : attente livres MEFQ + NPP 2025.
-- rapport-versions (Supabase) — intentionnel, graceful fail.
+- S3 à démarrer (nouvelle session) : run_pipeline_until + resume_from_checkpoint + gates 409
+- Migrations 002+003 à appliquer sur Supabase prod (après provisioning Railway+Vercel)
+- A1 : avocat Loi 25 + §6.5 OEAQ (avant S2 prod)
+- A2 : CSV JLR export (avant S6)
