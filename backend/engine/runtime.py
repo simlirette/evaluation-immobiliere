@@ -10,6 +10,7 @@ import time
 import ast
 
 from engine.audit import append_audit_log
+from engine.compliance import run_compliance
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
 from engine.tools import search_comparables, validate_schema
 from engine.valuation import calculate_valuation_trace
@@ -424,55 +425,28 @@ class RuntimeEngine:
         return payload
 
     def _compute_qa(self, case: dict) -> tuple[str, list[str], list[str]]:
-        blocking: list[str] = []
-        warnings: list[str] = []
+        # Délègue à engine/compliance.py (B001-B007 + W001-W003 déterministes)
+        sensitive_amount_min = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "ajustement_sensible_montant_min"), 25000)
+        )
+        max_distance_warning = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "max_comparable_distance_km_warning"), 30)
+        )
+        confidence_min = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "confidence_min_warning"), 0.60)
+        )
+        report = run_compliance(
+            case,
+            sensitive_amount_min=sensitive_amount_min,
+            max_distance_warning_km=max_distance_warning,
+            confidence_min=confidence_min,
+        )
 
-        if not case.get("dossier_id"):
-            blocking.append("B001: dossier_id manquant")
-        if not case.get("date_reference"):
-            blocking.append("B001: date_reference manquante")
-
-        reference_date = _parse_iso_date(case.get("date_reference"))
-
-        for c in case.get("comparables", []):
-            if "source_id" not in c:
-                blocking.append("B002: comparable sans source_id")
-            sale_date = _parse_iso_date(c.get("date_vente"))
-            if reference_date and sale_date and sale_date > reference_date:
-                blocking.append("B003: vente comparable future vs date_reference")
-            max_distance_warning = float(
-                _contract_value(("contracts", "rapport_conformite", "constraints", "max_comparable_distance_km_warning"), 30)
-            )
-            if c.get("distance_km", 0) and float(c.get("distance_km", 0)) > max_distance_warning:
-                warnings.append("W002: comparable eloigne")
-
-        for a in case.get("ajustements", []):
-            if "source_id" not in a:
-                blocking.append("B002: ajustement sans source_id")
-            sensitive_amount_min = float(
-                _contract_value(("contracts", "rapport_conformite", "constraints", "ajustement_sensible_montant_min"), 25000)
-            )
-            if a.get("montant", 0) >= sensitive_amount_min and not a.get("validation_humaine", False):
-                blocking.append("B005: ajustement sensible sans validation_humaine")
+        blocking = report.blocking_strings()
+        warnings = list(report.warnings)
 
         if self.strict_mode and case.get("comparables") and not all("source_id" in c for c in case.get("comparables", [])):
             blocking.append("STRICT: sortie refusee, comparable sans source")
-
-        subject_unit = case.get("surface", {}).get("unit")
-        comp_units = {c.get("surface", {}).get("unit") for c in case.get("comparables", []) if isinstance(c.get("surface"), dict)}
-        if subject_unit and comp_units and any(u and u != subject_unit for u in comp_units):
-            blocking.append("B004: unite incoherente sujet/comparables")
-
-        confidence_min_warning = float(
-            _contract_value(("contracts", "rapport_conformite", "constraints", "confidence_min_warning"), 0.60)
-        )
-        if case.get("confidence", 1) < confidence_min_warning:
-            warnings.append("W001: confiance faible")
-
-        for h in case.get("hypotheses", []):
-            source_ids = h.get("source_ids", [])
-            if len(source_ids) < 2:
-                warnings.append("W003: hypothese non corroboree par une deuxieme source")
 
         blocking = _unique(blocking)
         warnings = _unique(warnings)

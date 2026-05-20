@@ -4,8 +4,8 @@ _Updated: 2026-05-20 | HEAD: S3_
 
 ## Current Goal
 
-S3 COMPLÈTE ✅ — Pipeline stoppable par checkpoint (4 gates + log horodaté)
-Prochaine : S4 — Compliance Python pur (B001-B007).
+S4 COMPLÈTE ✅ — Compliance Python pur (B001-B007)
+Prochaine : S5 — Extraction PDF élargie + UI CHECKPOINT 1.
 
 ## Plan Status
 
@@ -18,7 +18,7 @@ Plan complet : `_audit/2026-05-20/05_PLAN-EXECUTION.md`
 S1 ✅ (f7a5bc4) — Séparation Dossier/Session + Supabase schema
 S2 ✅ (f7a5bc4) — Auth + comptes bureau/É.A.
 S3 ✅ — Pipeline stoppable par checkpoint (4 gates + log horodaté)
-S4 — Compliance Python pur (B001-B007)
+S4 ✅ — Compliance Python pur (B001-B007)
 S5 — Extraction PDF élargie + UI CHECKPOINT 1
 S6 — Import CSV JLR + CHECKPOINT 2
 S7 — Lettre de mandat
@@ -53,7 +53,7 @@ S12 — Roadmap bureau
 
 ## Evidence
 
-- 62 tests verts (24 S1 + 11 S2 + 27 S3) — test_s1_dossier_session.py, test_s2_auth.py, test_s3_checkpoints.py
+- 99 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4) — test_s1_dossier_session.py, test_s2_auth.py, test_s3_checkpoints.py, test_s4_compliance.py
 - tsc 0 erreurs post-S2
 - python -c "import api; print('OK')" ✅
 
