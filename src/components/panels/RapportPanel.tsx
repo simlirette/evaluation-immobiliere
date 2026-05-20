@@ -8,6 +8,7 @@ import RapportDoc from '@/components/shared/RapportDoc'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
+import Toast from '@/components/shared/Toast'
 import {
   fetchAppState,
   generateRuntimePackage,
@@ -62,6 +63,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   async function reload() {
     if (!dossierId) return
@@ -164,7 +166,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     try {
       await downloadRuntimePackage(dossierId, state.realDossierId || dossierId)
     } catch (e) {
-      alert((e as Error).message)
+      setToast((e as Error).message)
     } finally {
       setBusy('')
     }
@@ -184,7 +186,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   async function handleSaveVersion(markdown: string) {
     if (!dossierId || !state) return
     if (state.versionCount >= 6) {
-      alert('Quota atteint : 5 versions manuelles + 1 initiale maximum. Aucune nouvelle version sauvegardée.')
+      setToast('Quota atteint — 5 versions manuelles maximum.')
       return
     }
     const now = new Date()
@@ -193,7 +195,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       await saveVersion(dossierId, state.realDossierId, markdown, 'abrege', label, false)
       setState(prev => prev ? { ...prev, versionCount: prev.versionCount + 1 } : prev)
     } catch {
-      alert('Version non sauvegardée — vérifier la connexion Supabase.')
+      setToast('Version non sauvegardée — vérifier la connexion Supabase.')
     }
   }
 
@@ -221,7 +223,8 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   if (error) return <PanelError onRetry={() => { setError(false); setLoading(true); reload().catch(() => { setError(true); setLoading(false) }) }} />
 
   return (
-    <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
+    <div className={`relative flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <div
         className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}
         style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0 } : undefined}
