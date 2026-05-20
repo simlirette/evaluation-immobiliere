@@ -306,6 +306,174 @@ def parse_structured_fields(docs: list[dict], client) -> dict:
         return {}
 
 
+# ── JLR CSV ───────────────────────────────────────────────────────────────────
+
+# Colonnes JLR connues (aliases acceptés)
+_JLR_COL_ALIASES: dict[str, list[str]] = {
+    "adresse":            ["adresse", "address", "adresse_propriete"],
+    "prix_vente":         ["prix_vente", "prix_transaction", "price", "prix"],
+    "date_vente":         ["date_vente", "date_transaction", "date_contrat", "date"],
+    "surface_habitable":  ["surface_habitable", "superficie_habitable", "sf_habitable", "superficie", "area_sqft"],
+    "surface_terrain":    ["surface_terrain", "superficie_terrain", "terrain_sqft"],
+    "nb_pieces":          ["nb_pieces", "pieces", "rooms", "nombre_pieces"],
+    "nb_chambres":        ["nb_chambres", "chambres", "bedrooms", "nombre_chambres"],
+    "nb_stationnements":  ["nb_stationnements", "stationnements", "parking"],
+    "annee_construction": ["annee_construction", "annee", "year_built", "an_construction"],
+    "type_bien":          ["type_bien", "type_propriete", "property_type", "type"],
+    "source_id":          ["no_fiche", "fiche", "fiche_jlr", "source_id", "numero_fiche", "ref"],
+    "latitude":           ["latitude", "lat"],
+    "longitude":          ["longitude", "lon", "lng"],
+    "distance_km":        ["distance_km", "distance"],
+}
+
+
+def _jlr_resolve_col(header: list[str]) -> dict[str, str]:
+    """Retourne {champ_cible: col_csv} pour chaque alias trouvé dans le header."""
+    header_lower = {h.strip().lower(): h for h in header}
+    mapping: dict[str, str] = {}
+    for field, aliases in _JLR_COL_ALIASES.items():
+        for alias in aliases:
+            if alias in header_lower:
+                mapping[field] = header_lower[alias]
+                break
+    return mapping
+
+
+def _jlr_float(val: str) -> float | None:
+    """Parse float from JLR CSV cell (handles spaces, commas as thousands sep)."""
+    if not val or not val.strip():
+        return None
+    cleaned = val.strip().replace("\u00a0", "").replace(",", "").replace(" ", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _jlr_int(val: str) -> int | None:
+    f = _jlr_float(val)
+    return int(f) if f is not None else None
+
+
+def parse_jlr_csv(path: Path) -> list[dict]:
+    """Parse un export CSV JLR et retourne une liste de comparables normalisés.
+
+    Chaque comparable contient les champs cibles de _JLR_COL_ALIASES
+    ainsi qu'un ``source_id`` auto-généré si absent.
+
+    Raises:
+        ValueError: si le fichier ne peut pas être lu ou si aucune ligne valide n'est trouvée.
+    """
+    import csv as _csv
+
+    if not path.exists():
+        raise ValueError(f"Fichier CSV introuvable : {path}")
+
+    try:
+        raw = path.read_bytes()
+        # Détection BOM UTF-8 (fréquent dans les exports JLR)
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("latin-1")
+        except Exception as exc:
+            raise ValueError(f"Encodage CSV non supporté : {exc}") from exc
+
+    lines = text.splitlines()
+    if not lines:
+        raise ValueError("CSV vide")
+
+    # Détection auto du séparateur (virgule ou point-virgule)
+    sample = lines[0]
+    sep = ";" if sample.count(";") > sample.count(",") else ","
+
+    reader = _csv.DictReader(lines, delimiter=sep)
+    header = reader.fieldnames or []
+    if not header:
+        raise ValueError("CSV sans en-têtes")
+
+    col_map = _jlr_resolve_col(list(header))
+    if not col_map.get("prix_vente") and not col_map.get("adresse"):
+        raise ValueError(
+            "Le CSV ne contient aucune colonne reconnue. "
+            "Colonnes attendues : adresse, prix_vente, date_vente, surface_habitable, …"
+        )
+
+    rows: list[dict] = []
+    for i, row in enumerate(reader):
+        def _get(field: str) -> str:
+            col = col_map.get(field)
+            return row.get(col, "").strip() if col else ""
+
+        prix = _jlr_float(_get("prix_vente"))
+        if prix is None or prix <= 0:
+            continue  # ligne sans prix valide ignorée
+
+        adresse = _get("adresse") or f"Comparable JLR {i + 1}"
+        source_id = _get("source_id") or f"JLR-{i + 1:04d}"
+
+        comp: dict = {
+            "comparable_id": source_id,
+            "source_id":     source_id,
+            "adresse":       adresse,
+            "prix_vente":    prix,
+            "date_vente":    _get("date_vente") or "",
+        }
+
+        surf_hab = _jlr_float(_get("surface_habitable"))
+        if surf_hab is not None:
+            comp["surface_habitable"] = surf_hab
+            # Stockage au format attendu par tools.score_comparable
+            comp["surface"] = {"value": surf_hab, "unit": "pi2"}
+
+        surf_terrain = _jlr_float(_get("surface_terrain"))
+        if surf_terrain is not None:
+            comp["surface_terrain"] = surf_terrain
+
+        nb_pieces = _jlr_int(_get("nb_pieces"))
+        if nb_pieces is not None:
+            comp["nb_pieces"] = nb_pieces
+
+        nb_chambres = _jlr_int(_get("nb_chambres"))
+        if nb_chambres is not None:
+            comp["nb_chambres"] = nb_chambres
+
+        nb_stat = _jlr_int(_get("nb_stationnements"))
+        if nb_stat is not None:
+            comp["nb_stationnements"] = nb_stat
+
+        annee = _jlr_int(_get("annee_construction"))
+        if annee is not None:
+            comp["annee_construction"] = annee
+
+        type_bien = _get("type_bien")
+        if type_bien:
+            comp["type_bien"] = type_bien.lower().strip()
+
+        lat = _jlr_float(_get("latitude"))
+        lon = _jlr_float(_get("longitude"))
+        if lat is not None and lon is not None:
+            comp["latitude"] = lat
+            comp["longitude"] = lon
+
+        dist = _jlr_float(_get("distance_km"))
+        if dist is not None:
+            comp["distance_km"] = dist
+
+        # Source quality tag for scoring
+        comp["source_type"] = "mls_centris"
+
+        rows.append(comp)
+
+    if not rows:
+        raise ValueError(
+            "Aucune ligne valide dans le CSV JLR. "
+            "Vérifiez que la colonne prix_vente contient des montants numériques."
+        )
+
+    return rows
+
+
 class IngestionError(Exception):
     """Levée quand l'extraction PDF échoue de façon critique (visible dans l'UI)."""
 

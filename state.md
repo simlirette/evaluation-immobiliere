@@ -1,11 +1,11 @@
 # State — eval-immo
 
-_Updated: 2026-05-20 | HEAD: S3_
+_Updated: 2026-05-20 | HEAD: S6_
 
 ## Current Goal
 
-S5 COMPLÈTE ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
-Prochaine : S6 — Import CSV JLR + CHECKPOINT 2.
+S6 COMPLÈTE ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
+Prochaine : S7 — Lettre de mandat.
 
 ## Plan Status
 
@@ -20,7 +20,7 @@ S2 ✅ (f7a5bc4) — Auth + comptes bureau/É.A.
 S3 ✅ — Pipeline stoppable par checkpoint (4 gates + log horodaté)
 S4 ✅ — Compliance Python pur (B001-B007)
 S5 ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
-S6 — Import CSV JLR + CHECKPOINT 2
+S6 ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
 S7 — Lettre de mandat
 S8 — Modèles rapport + routing LLM
 S9 — Approches conditionnelles + watermark proxy
@@ -53,12 +53,12 @@ S12 — Roadmap bureau
 
 ## Evidence
 
-- 99 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4) — test_s1_dossier_session.py, test_s2_auth.py, test_s3_checkpoints.py, test_s4_compliance.py
-- tsc 0 erreurs post-S2
+- 114 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6) — test_s1_dossier_session.py, test_s2_auth.py, test_s3_checkpoints.py, test_s4_compliance.py, test_s6.py
+- tsc 0 erreurs post-S6
 - python -c "import api; print('OK')" ✅
 
 ## Open Issues
 
 - Migrations 002+003 à appliquer sur Supabase prod (après provisioning Railway+Vercel)
 - A1 : avocat Loi 25 + §6.5 OEAQ (avant S2 prod)
-- A2 : CSV JLR export (avant S6)
+- A2 : CSV JLR export format réel à valider avec l'É.A. (parse_jlr_csv implémenté, aliases configurables)

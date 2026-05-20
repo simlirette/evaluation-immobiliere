@@ -1979,6 +1979,248 @@ def app_get_facts(session_id: str) -> dict:
     }
 
 
+def app_upload_jlr_csv(body: dict) -> dict:
+    """POST /app/jlr/upload — Importe un export CSV JLR et retourne les comparables scorés.
+
+    body: {session_id, filename, content_b64}
+    Returns: {ok, candidates, total, session_id}
+    """
+    from engine.ingestion import parse_jlr_csv
+    from engine.tools import score_comparable, JLR_SCORING_WEIGHTS
+
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable : {session_id}")
+
+    filename = str(body.get("filename") or "jlr_export.csv")
+    content_b64 = str(body.get("content_b64") or "")
+    if not content_b64:
+        raise ValueError("content_b64 requis")
+
+    import base64 as _b64
+    try:
+        csv_bytes = _b64.b64decode(content_b64)
+    except Exception as exc:
+        raise ValueError(f"content_b64 invalide : {exc}") from exc
+
+    session_dir = Path(str(session["session_dir"]))
+    uploads_dir = session_dir / "uploads"
+    uploads_dir.mkdir(exist_ok=True)
+
+    # Sanitize filename
+    safe_name = "".join(c for c in Path(filename).name if c.isalnum() or c in "._- ")[:80]
+    if not safe_name.endswith(".csv"):
+        safe_name = "jlr_export.csv"
+    csv_path = uploads_dir / safe_name
+
+    csv_path.write_bytes(csv_bytes)
+
+    # Parse CSV
+    pool = parse_jlr_csv(csv_path)
+
+    # Charger le cas sujet (pour scoring contextuel)
+    dossier_id = str(session.get("dossier_id") or session_id)
+    case_key = safe_path_id(dossier_id)
+    input_path = session_dir / f"{case_key}.input.json"
+    subject: dict = {}
+    if input_path.exists():
+        try:
+            subject = json.loads(input_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Date de référence = aujourd'hui si non disponible dans le cas
+    date_ref = str(subject.get("date_achat") or subject.get("date_reference") or utc_now_iso()[:10])
+
+    # Prépare le sujet pour scoring surface
+    subj_surface = subject.get("surface_habitable")
+    subject_for_score: dict = {}
+    if subj_surface:
+        subject_for_score = {
+            "surface": {"value": float(subj_surface), "unit": "pi2"},
+            "type_bien": str(subject.get("type_bien") or ""),
+        }
+
+    # Score chaque comparable avec les poids JLR
+    candidates = []
+    for comp in pool:
+        details = score_comparable(
+            comp,
+            subject=subject_for_score or None,
+            date_reference=date_ref,
+            weights=JLR_SCORING_WEIGHTS,
+        )
+        candidates.append({
+            "id":               str(comp.get("comparable_id") or comp.get("source_id")),
+            "adresse":          str(comp.get("adresse") or ""),
+            "prix_vente":       float(comp.get("prix_vente") or 0),
+            "date_vente":       str(comp.get("date_vente") or ""),
+            "surface_habitable": comp.get("surface_habitable"),
+            "surface_terrain":  comp.get("surface_terrain"),
+            "nb_chambres":      comp.get("nb_chambres"),
+            "nb_pieces":        comp.get("nb_pieces"),
+            "type_bien":        comp.get("type_bien"),
+            "source_id":        str(comp.get("source_id") or ""),
+            "distance_km":      comp.get("distance_km"),
+            "score":            float(details["score"]),
+            "score_details":    details,
+        })
+
+    # Trier par score décroissant, retenir top 8
+    candidates.sort(key=lambda c: c["score"], reverse=True)
+    top_candidates = candidates[:8]
+
+    # Persister pour GET ultérieur
+    write_json(session_dir / "jlr_candidates.json", {
+        "schema_version": "jlr_candidates_v1",
+        "session_id": session_id,
+        "csv_filename": safe_name,
+        "total_parsed": len(pool),
+        "candidates": top_candidates,
+    })
+
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "total_parsed": len(pool),
+        "candidates": top_candidates,
+        "total": len(top_candidates),
+    }
+
+
+def app_get_comparable_candidates(session_id: str) -> dict:
+    """GET /app/comparables/candidates — Retourne les comparables JLR scorés d'une session."""
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    candidates_path = session_dir / "jlr_candidates.json"
+
+    dossier_id = str(session.get("dossier_id") or session_id)
+    case_key = safe_path_id(dossier_id)
+    input_path = session_dir / f"{case_key}.input.json"
+    subject_address: str | None = None
+    if input_path.exists():
+        try:
+            case = json.loads(input_path.read_text(encoding="utf-8"))
+            subject_address = str(case.get("adresse_complete") or "")
+        except Exception:
+            pass
+
+    if not candidates_path.exists():
+        return {
+            "session_id": session_id,
+            "candidates": [],
+            "total": 0,
+            "subject_address": subject_address,
+        }
+
+    data = read_json_dict(candidates_path)
+    candidates = data.get("candidates") or []
+    return {
+        "session_id": session_id,
+        "candidates": candidates,
+        "total": len(candidates),
+        "subject_address": subject_address,
+    }
+
+
+def app_confirm_comparables(body: dict) -> dict:
+    """POST /app/checkpoint/comparables — Confirme les comparables sélectionnés et le CHECKPOINT 2.
+
+    body: {session_id, selected_ids: list[str]}
+    - Valide qu'au moins 3 comparables sont sélectionnés (règle B007)
+    - Sauvegarde les comparables sélectionnés dans comparables.json
+    - Enregistre le checkpoint 2 dans checkpoint_log.jsonl
+    """
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable : {session_id}")
+
+    selected_ids = body.get("selected_ids")
+    if not isinstance(selected_ids, list):
+        raise ValueError("selected_ids doit être une liste")
+    selected_ids = [str(s) for s in selected_ids if s]
+
+    if len(selected_ids) < 3:
+        raise ValueError(
+            f"Au moins 3 comparables requis par la règle B007 — "
+            f"{len(selected_ids)} sélectionné(s)."
+        )
+
+    session_dir = Path(str(session["session_dir"]))
+
+    # Retrouver les données complètes depuis jlr_candidates.json
+    candidates_path = session_dir / "jlr_candidates.json"
+    all_candidates: list[dict] = []
+    if candidates_path.exists():
+        data = read_json_dict(candidates_path)
+        all_candidates = data.get("candidates") or []
+
+    selected_map = {c["id"]: c for c in all_candidates}
+    rows = []
+    for i, sid in enumerate(selected_ids, 1):
+        cand = selected_map.get(sid)
+        if cand:
+            price = float(cand.get("prix_vente") or 0)
+            sale_date = str(cand.get("date_vente") or "")
+            rows.append({
+                "id":            cand["id"],
+                "rank":          f"C{i}",
+                "address":       str(cand.get("adresse") or f"Comparable {i}"),
+                "hab_m2":        cand.get("surface_habitable"),
+                "terrain_m2":    cand.get("surface_terrain"),
+                "year_built":    cand.get("annee_construction"),
+                "renovated_year": None,
+                "garage_type":   None,
+                "sale_price":    price,
+                "sale_date":     sale_date,
+                "meta":          cand.get("source_id", ""),
+                "price":         app_money(price),
+                "date":          app_date_label(sale_date),
+                "score":         cand.get("score"),
+                "source_id":     str(cand.get("source_id") or ""),
+            })
+        else:
+            # Comparable non trouvé dans les candidats — inclure avec données minimales
+            rows.append({
+                "id":            sid,
+                "rank":          f"C{i}",
+                "address":       f"Comparable {i}",
+                "hab_m2":        None,
+                "terrain_m2":    None,
+                "year_built":    None,
+                "renovated_year": None,
+                "garage_type":   None,
+                "sale_price":    0.0,
+                "sale_date":     "",
+                "meta":          sid,
+                "price":         "$0",
+                "date":          "",
+                "score":         None,
+                "source_id":     sid,
+            })
+
+    # Sauvegarder comparables.json
+    comp_path = session_dir / "comparables.json"
+    write_json(comp_path, {"manual": True, "comparables": rows})
+
+    # Confirmer checkpoint 2
+    confirmed_by = str(body.get("_evaluator_id") or "")
+    entry = confirm_checkpoint(session_dir, 2, confirmed_by)
+
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "count": len(rows),
+        "checkpoint_entry": entry,
+    }
+
+
 def app_get_checkpoint_log(session_id: str) -> dict:
     """GET /app/checkpoint/log — log des checkpoints confirmés pour une session."""
     session = require_session(session_id)
@@ -4206,6 +4448,19 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json(404, {"error": str(exc)})
             return
+        if parsed.path == "/app/comparables/candidates":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            try:
+                self._send_json(200, app_get_comparable_candidates(resolved))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
+            return
         if parsed.path in {"/ops/ui", "/ops/cockpit"}:
             self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
             return
@@ -4555,6 +4810,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 self._send_json(200, app_save_fact_overrides(body))
+                return
+            if self.path == "/app/jlr/upload":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_upload_jlr_csv(body))
+                return
+            if self.path == "/app/checkpoint/comparables":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, app_confirm_comparables(body))
                 return
             self._send_json(404, {"error": "route introuvable"})
         except CheckpointRequiredError as exc:

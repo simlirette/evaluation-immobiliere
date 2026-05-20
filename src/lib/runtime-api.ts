@@ -518,3 +518,73 @@ export async function fetchValuationTrace(sessionId: string): Promise<ValuationT
     return null
   }
 }
+
+// ── S6 — Checkpoint 2 — Import JLR + sélection comparables ──────────────────
+
+export interface ComparableCandidate {
+  id: string
+  adresse: string
+  prix_vente: number
+  date_vente: string
+  surface_habitable: number | null
+  surface_terrain: number | null
+  nb_chambres: number | null
+  nb_pieces: number | null
+  type_bien: string | null
+  source_id: string
+  distance_km: number | null
+  score: number
+  score_details: {
+    components: Record<string, number>
+    rationale: string[]
+    score: number
+  }
+}
+
+export interface ComparableCandidatesResult {
+  session_id: string
+  candidates: ComparableCandidate[]
+  total: number
+  subject_address: string | null
+}
+
+export function fetchComparableCandidates(sessionId: string): Promise<ComparableCandidatesResult> {
+  return runtimeJson<ComparableCandidatesResult>(
+    `/app/comparables/candidates?session_id=${encodeURIComponent(sessionId)}`
+  )
+}
+
+export async function uploadJlrCsv(sessionId: string, file: File): Promise<ComparableCandidatesResult> {
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    throw new Error('Format non supporté. Fichier CSV uniquement.')
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Fichier trop volumineux (maximum 5 Mo).')
+  }
+
+  const content_b64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1])
+    }
+    reader.onerror = () => reject(new Error('Lecture du fichier échouée.'))
+    reader.readAsDataURL(file)
+  })
+
+  return runtimeJson<ComparableCandidatesResult>('/app/jlr/upload', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, filename: file.name, content_b64 }),
+  })
+}
+
+export async function confirmComparables(
+  sessionId: string,
+  selectedIds: string[],
+  checkpoint: number,
+): Promise<void> {
+  await runtimeJson<{ ok: boolean }>('/app/checkpoint/comparables', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, selected_ids: selectedIds }),
+  })
+}

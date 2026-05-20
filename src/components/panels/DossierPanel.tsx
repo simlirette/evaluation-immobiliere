@@ -12,6 +12,7 @@ import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PipelineProgress from '@/components/shared/PipelineProgress'
 import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
+import CheckpointComparablePanel from '@/components/panels/CheckpointComparablePanel'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides } from '@/lib/runtime-api'
@@ -796,16 +797,24 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   // Checkpoint gate — segment completed, waiting for human confirmation
   if (waitingCheckpoint !== null && dossierId) {
+    const onConfirmed = () => {
+      setRefreshKey(k => k + 1)
+      setIsRunning(true)  // restart polling for next segment
+    }
     return (
       <div className="flex flex-col flex-1 overflow-y-auto">
-        <CheckpointReviewPanel
-          dossierId={dossierId}
-          checkpoint={waitingCheckpoint}
-          onConfirmed={() => {
-            setRefreshKey(k => k + 1)
-            setIsRunning(true)  // restart polling for next segment
-          }}
-        />
+        {waitingCheckpoint === 2
+          ? <CheckpointComparablePanel
+              dossierId={dossierId}
+              checkpoint={waitingCheckpoint}
+              onConfirmed={onConfirmed}
+            />
+          : <CheckpointReviewPanel
+              dossierId={dossierId}
+              checkpoint={waitingCheckpoint}
+              onConfirmed={onConfirmed}
+            />
+        }
       </div>
     )
   }

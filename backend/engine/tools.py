@@ -28,6 +28,14 @@ SOURCE_QUALITY = {
     "photo_non_geolocalisee": 0.45,
 }
 
+# Pondération S6 — scoring comparable JLR (plan 2026-05-20)
+JLR_SCORING_WEIGHTS = {
+    "surface_similarity": 0.40,
+    "recency":            0.30,
+    "distance":           0.20,
+    "type_match":         0.10,
+}
+
 
 @dataclass
 class Comparable:
@@ -109,6 +117,7 @@ def score_comparable(
         "surface_similarity": _surface_similarity_score(item, subject),
         "confidence": _bounded(_to_float(item.get("confidence", 0.65))),
         "source_quality": _source_quality_score(item),
+        "type_match": _type_match_score(item, subject),
     }
     weighted_score = sum(components[key] * active_weights.get(key, 0.0) for key in components)
     penalties = _score_penalties(item, subject=subject, date_reference=date_reference)
@@ -157,6 +166,62 @@ def _surface_similarity_score(item: dict, subject: dict | None) -> float:
     if subject_surface.get("unit") and comp_surface.get("unit") and subject_surface.get("unit") != comp_surface.get("unit"):
         return 0.0
     return _bounded(min(subject_value, comp_value) / max(subject_value, comp_value))
+
+
+def _type_match_score(item: dict, subject: dict | None) -> float:
+    """Score 0..1 selon la correspondance type_bien sujet/comparable."""
+    if not subject:
+        return 0.5
+    subj_type = str(subject.get("type_bien") or "").lower().strip()
+    comp_type = str(item.get("type_bien") or "").lower().strip()
+    if not subj_type or not comp_type:
+        return 0.5
+    if subj_type == comp_type:
+        return 1.0
+    # Correspondances partielles (familles de biens)
+    _FAMILIES = [
+        {"unifamiliale", "maison", "cottage", "jumelé", "jumelé détaché"},
+        {"condo", "appartement", "copropriété"},
+        {"duplex", "triplex", "plex", "immeuble_revenus"},
+        {"commercial", "bureau", "commercial mixte"},
+        {"terrain", "lot"},
+    ]
+    for family in _FAMILIES:
+        if any(t in subj_type for t in family) and any(t in comp_type for t in family):
+            return 0.7
+    return 0.2
+
+
+def score_justification_fr(score_details: dict) -> str:
+    """Résume le score en une phrase française pour l'interface UI CHECKPOINT 2."""
+    score = float(score_details.get("score") or score_details.get("weighted_score") or 0)
+    components = score_details.get("components") or {}
+    rationale = score_details.get("rationale") or []
+
+    if score >= 0.75:
+        qualif = "Très pertinent"
+    elif score >= 0.55:
+        qualif = "Pertinent"
+    elif score >= 0.35:
+        qualif = "Acceptable"
+    else:
+        qualif = "Faible pertinence"
+
+    # Composante dominante
+    if components:
+        strongest = max(components, key=lambda k: components.get(k) or 0)
+        label_map = {
+            "surface_similarity": "surface similaire",
+            "recency":            "vente récente",
+            "distance":           "proximité géographique",
+            "type_match":         "même type de bien",
+            "confidence":         "données de confiance",
+            "source_quality":     "source fiable",
+        }
+        dominant = label_map.get(strongest, strongest)
+        return f"{qualif} — {dominant} ({score:.0%})"
+
+    return f"{qualif} ({score:.0%})"
 
 
 def _source_quality_score(item: dict) -> float:
