@@ -763,6 +763,28 @@ def app_create_dossier(body: dict) -> dict:
     date_livraison = str(body.get("date_livraison") or "").strip()
     nom_evaluateur = str(body.get("nom_evaluateur") or "").strip()
 
+    # Valider les conversions numériques AVANT create_session pour éviter les sessions orphelines
+    if superficie_habitable:
+        try:
+            float(superficie_habitable)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_habitable invalide : {superficie_habitable!r}") from exc
+    if superficie_terrain:
+        try:
+            float(superficie_terrain)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_terrain invalide : {superficie_terrain!r}") from exc
+    if annee_construction:
+        try:
+            int(annee_construction)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"annee_construction invalide : {annee_construction!r}") from exc
+    if nb_chambres:
+        try:
+            int(nb_chambres)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"nb_chambres invalide : {nb_chambres!r}") from exc
+
     session = create_session(strict_mode=False)
     session_id = session["session_id"]
     dossier_id = f"D-USR-{uuid.uuid4().hex[:8].upper()}"
@@ -783,9 +805,8 @@ def app_create_dossier(body: dict) -> dict:
         session["app_date_livraison"] = date_livraison
     if nom_evaluateur:
         session["app_nom_evaluateur"] = nom_evaluateur
-    save_session(session)
-
-    # Build case dict from form data — pipeline uses this directly
+    # Build case dict BEFORE save_session — si une conversion échoue (float/int),
+    # on ne sauvegarde pas une session orpheline sans données.
     case: dict = {
         "dossier_id": dossier_id,
         "type_bien": type_bien,
@@ -794,13 +815,25 @@ def app_create_dossier(body: dict) -> dict:
         "date_reference": date_reference,
     }
     if superficie_habitable:
-        case["surface"] = {"value": float(superficie_habitable), "unit": "pi2"}
+        try:
+            case["surface"] = {"value": float(superficie_habitable), "unit": "pi2"}
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_habitable invalide : {superficie_habitable!r}") from exc
     if superficie_terrain:
-        case["surface_terrain"] = {"value": float(superficie_terrain), "unit": "pi2"}
+        try:
+            case["surface_terrain"] = {"value": float(superficie_terrain), "unit": "pi2"}
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_terrain invalide : {superficie_terrain!r}") from exc
     if annee_construction:
-        case["annee_construction"] = int(annee_construction)
+        try:
+            case["annee_construction"] = int(annee_construction)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"annee_construction invalide : {annee_construction!r}") from exc
     if nb_chambres:
-        case["nb_chambres"] = int(nb_chambres)
+        try:
+            case["nb_chambres"] = int(nb_chambres)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"nb_chambres invalide : {nb_chambres!r}") from exc
     if commanditaire:
         case["commanditaire"] = {
             "nom": str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
@@ -811,6 +844,9 @@ def app_create_dossier(body: dict) -> dict:
         case["comparables"] = [
             _map_comparable_input(r) for r in comparables_raw if isinstance(r, dict)
         ]
+
+    # Case dict valide — sauvegarder la session maintenant
+    save_session(session)
 
     def _run_pipeline() -> None:
         try:
@@ -2053,11 +2089,18 @@ def app_upload_jlr_csv(body: dict) -> dict:
     if not content_b64:
         raise ValueError("content_b64 requis")
 
+    _CSV_MAX_BYTES = 5 * 1024 * 1024  # 5 MB — un export JLR typique est < 500 KB
     import base64 as _b64
     try:
         csv_bytes = _b64.b64decode(content_b64)
     except Exception as exc:
         raise ValueError(f"content_b64 invalide : {exc}") from exc
+
+    if len(csv_bytes) > _CSV_MAX_BYTES:
+        raise ValueError(
+            f"Fichier CSV trop volumineux ({len(csv_bytes) // 1024} KB). "
+            f"Maximum : {_CSV_MAX_BYTES // 1024} KB. Exporter un sous-ensemble de transactions JLR."
+        )
 
     session_dir = Path(str(session["session_dir"]))
     uploads_dir = session_dir / "uploads"
@@ -2215,48 +2258,37 @@ def app_confirm_comparables(body: dict) -> dict:
         all_candidates = data.get("candidates") or []
 
     selected_map = {c["id"]: c for c in all_candidates}
+
+    # Rejeter tout ID qui ne correspond pas à un candidat scoré connu
+    unknown_ids = [sid for sid in selected_ids if sid not in selected_map]
+    if unknown_ids:
+        raise ValueError(
+            f"Comparables inconnus (non présents dans les candidats JLR scorés) : "
+            f"{', '.join(unknown_ids[:5])}. Importer le CSV JLR avant de confirmer."
+        )
+
     rows = []
     for i, sid in enumerate(selected_ids, 1):
-        cand = selected_map.get(sid)
-        if cand:
-            price = float(cand.get("prix_vente") or 0)
-            sale_date = str(cand.get("date_vente") or "")
-            rows.append({
-                "id":            cand["id"],
-                "rank":          f"C{i}",
-                "address":       str(cand.get("adresse") or f"Comparable {i}"),
-                "hab_m2":        cand.get("surface_habitable"),
-                "terrain_m2":    cand.get("surface_terrain"),
-                "year_built":    cand.get("annee_construction"),
-                "renovated_year": None,
-                "garage_type":   None,
-                "sale_price":    price,
-                "sale_date":     sale_date,
-                "meta":          cand.get("source_id", ""),
-                "price":         app_money(price),
-                "date":          app_date_label(sale_date),
-                "score":         cand.get("score"),
-                "source_id":     str(cand.get("source_id") or ""),
-            })
-        else:
-            # Comparable non trouvé dans les candidats — inclure avec données minimales
-            rows.append({
-                "id":            sid,
-                "rank":          f"C{i}",
-                "address":       f"Comparable {i}",
-                "hab_m2":        None,
-                "terrain_m2":    None,
-                "year_built":    None,
-                "renovated_year": None,
-                "garage_type":   None,
-                "sale_price":    0.0,
-                "sale_date":     "",
-                "meta":          sid,
-                "price":         "$0",
-                "date":          "",
-                "score":         None,
-                "source_id":     sid,
-            })
+        cand = selected_map[sid]
+        price = float(cand.get("prix_vente") or 0)
+        sale_date = str(cand.get("date_vente") or "")
+        rows.append({
+            "id":            cand["id"],
+            "rank":          f"C{i}",
+            "address":       str(cand.get("adresse") or f"Comparable {i}"),
+            "hab_m2":        cand.get("surface_habitable"),
+            "terrain_m2":    cand.get("surface_terrain"),
+            "year_built":    cand.get("annee_construction"),
+            "renovated_year": None,
+            "garage_type":   None,
+            "sale_price":    price,
+            "sale_date":     sale_date,
+            "meta":          cand.get("source_id", ""),
+            "price":         app_money(price),
+            "date":          app_date_label(sale_date),
+            "score":         cand.get("score"),
+            "source_id":     str(cand.get("source_id") or ""),
+        })
 
     # Sauvegarder comparables.json
     comp_path = session_dir / "comparables.json"

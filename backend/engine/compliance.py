@@ -179,10 +179,17 @@ def check_B005(
     sensitive_amount_min: float = _DEFAULT_SENSITIVE_AMOUNT_MIN,
 ) -> ComplianceResult:
     """Ajustement sensible (≥ seuil $) sans validation_humaine = True."""
+    def _montant_float(a: dict) -> float:
+        try:
+            v = a.get("montant")
+            return abs(float(v)) if v is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
     bad: list[str] = [
         f"#{i} ({a.get('montant', '?')} $)"
         for i, a in enumerate(case.get("ajustements", []), 1)
-        if float(a.get("montant", 0)) >= sensitive_amount_min
+        if _montant_float(a) >= sensitive_amount_min
         and not a.get("validation_humaine", False)
     ]
     violated = bool(bad)

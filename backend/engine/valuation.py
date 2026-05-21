@@ -81,6 +81,12 @@ def calculate_valuation_trace(case: dict, approach: str) -> dict[str, object]:
     # Watermark proxy obligatoire pour cout et revenu (S9)
     if approach in ("approche_cout", "approche_revenu"):
         result["AVERTISSEMENT"] = _PROXY_WARNING.format(method=method)
+    # Avertissement si aucun comparable n'a pu être utilisé — valeur 0 non fiable
+    if not prices:
+        result["AVERTISSEMENT"] = (
+            "AUCUN COMPARABLE DISPONIBLE — valeur calculée nulle. "
+            "Importer et confirmer des comparables avant de générer le rapport."
+        )
     return result
 
 
