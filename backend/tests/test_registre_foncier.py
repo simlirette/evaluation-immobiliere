@@ -1,5 +1,5 @@
 # backend/tests/test_registre_foncier.py
-"""Tests pour le module registre_foncier — OCR parsing, cache, scraping (mocké)."""
+"""Tests pour le module registre_foncier — HTML parsing, cache, scraping (mocké)."""
 from __future__ import annotations
 
 import json
@@ -12,98 +12,189 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # ---------------------------------------------------------------------------
-# Fixtures texte OCR synthétiques
+# Fixture HTML synthétique — structure SIRF validée 2026-05-21
 # ---------------------------------------------------------------------------
 
-ACTE_SIMPLE = """
-ACTE DE VENTE
+# Table SIRF réelle : colonnes Date | Numéro d'inscription | Nature de l'acte |
+# Qualité | Nom des parties | Remarques | Avis d'adresse | Radiations
+# Prix dans la colonne Remarques. Vendeur/Acheteur via rowspan (2 rangées).
 
-Les soussignés déclarent avoir procédé à la vente et cession
-de l'immeuble ci-après désigné pour la somme de 485 000,00 $
-(quatre cent quatre-vingt-cinq mille dollars).
-
-Date de la vente : le 15 mars 2024
-
-VENDEUR : TREMBLAY, Jean-Pierre
-ACHETEUR : GAGNON, Marie-Andrée
-
-DÉSIGNATION CADASTRALE : 1 234 567
+SIRF_HTML_VENTE_SIMPLE = """
+<html><body>
+<table>
+  <tr>
+    <td>2024-05-23</td>
+    <td><a href="#">20 145 678</a></td>
+    <td>Vente</td>
+    <td>Vendeur</td>
+    <td>TREMBLAY, Jean-Pierre</td>
+    <td>848&nbsp;000,00&nbsp;$</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td>Acheteur</td>
+    <td>GAGNON, Marie-Andrée</td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+</body></html>
 """
 
-ACTE_PRIX_EN_CHIFFRES = """
-CONTRAT DE VENTE
-
-Prix de vente : 735 500 $
-Signé le 3 juin 2023
-
-Vendeur: DUMONT, Robert
-Acheteur: LAPOINTE, Sylvie
+SIRF_HTML_VENTE_INLINE_PARTIES = """
+<html><body>
+<table>
+  <tr>
+    <td>2023-11-10</td>
+    <td><a href="#">19 999 001</a></td>
+    <td>Vente</td>
+    <td>Vendeur</td>
+    <td>DUMONT, Robert</td>
+    <td>735 500,00 $</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+</body></html>
 """
 
-ACTE_CONTREPARTIE = """
-CESSION D'IMMEUBLE
-
-Moyennant une contrepartie de 1 200 000,00 $
-En date du 2022-11-28
-
-V: INVEST-NORD INC.
-A: PLACEMENTS CÔTÉ INC.
+SIRF_HTML_MULTI_VENTES = """
+<html><body>
+<table>
+  <tr>
+    <td>2019-06-01</td>
+    <td><a href="#">11 000 001</a></td>
+    <td>Vente</td>
+    <td>Vendeur</td>
+    <td>ANCIENNE, Corp.</td>
+    <td>300 000,00 $</td>
+    <td></td><td></td>
+  </tr>
+  <tr>
+    <td>2023-03-15</td>
+    <td><a href="#">18 500 222</a></td>
+    <td>Vente</td>
+    <td>Vendeur</td>
+    <td>RÉCENTE, Inc.</td>
+    <td>1 200 000,00 $</td>
+    <td></td><td></td>
+  </tr>
+</table>
+</body></html>
 """
 
-ACTE_PRIX_INTROUVABLE = """
-ACTE DIVERS
-Aucune mention de prix.
-Date inconnue.
+SIRF_HTML_SANS_VENTE = """
+<html><body>
+<table>
+  <tr>
+    <td>2022-01-01</td>
+    <td><a href="#">15 000 000</a></td>
+    <td>Hypothèque</td>
+    <td>Créancier</td>
+    <td>BANQUE X</td>
+    <td></td><td></td><td></td>
+  </tr>
+</table>
+</body></html>
+"""
+
+SIRF_HTML_PRIX_SANS_CENTS = """
+<html><body>
+<table>
+  <tr>
+    <td>2024-09-01</td>
+    <td><a href="#">21 000 000</a></td>
+    <td>Vente</td>
+    <td>Vendeur</td>
+    <td>VENDOR X</td>
+    <td>500 000 $</td>
+    <td></td><td></td>
+  </tr>
+</table>
+</body></html>
 """
 
 
 # ---------------------------------------------------------------------------
-# Tests parse_transaction_text
+# Tests _format_lot_number
 # ---------------------------------------------------------------------------
 
-class TestParseTransactionText:
-    """Tests pour _parse_transaction_text() — extraction prix/date/parties depuis texte OCR."""
+class TestFormatLotNumber:
+    def test_7_digits(self):
+        from engine.registre_foncier import _format_lot_number
+        assert _format_lot_number(2274178) == " 2 274 178"
 
-    def test_prix_somme_de(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_SIMPLE)
-        assert result["prix_vente"] == 485000.0
+    def test_leading_space(self):
+        from engine.registre_foncier import _format_lot_number
+        result = _format_lot_number(1234567)
+        assert result.startswith(" ")
 
-    def test_date_textuelle_mars(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_SIMPLE)
-        assert result["date_vente"] == "2024-03-15"
+    def test_1_000_000(self):
+        from engine.registre_foncier import _format_lot_number
+        assert _format_lot_number(1000000) == " 1 000 000"
 
-    def test_vendeur_acheteur(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_SIMPLE)
+    def test_small_lot(self):
+        from engine.registre_foncier import _format_lot_number
+        # 6-digit lot : 123456 → " 123 456"
+        assert _format_lot_number(123456) == " 123 456"
+
+
+# ---------------------------------------------------------------------------
+# Tests _parse_index_html
+# ---------------------------------------------------------------------------
+
+class TestParseIndexHtml:
+    def test_prix_extrait(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
+        assert result["prix_vente"] == 848000.0
+
+    def test_date_extraite(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
+        assert result["date_vente"] == "2024-05-23"
+
+    def test_source_doc_extrait(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
+        assert result["source_doc"] == "20145678"
+
+    def test_vendeur_via_rowspan(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
         assert "TREMBLAY" in result["vendeur"]
+
+    def test_acheteur_via_rowspan(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
         assert "GAGNON" in result["acheteur"]
 
-    def test_prix_label_direct(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_PRIX_EN_CHIFFRES)
-        assert result["prix_vente"] == 735500.0
+    def test_prix_sans_cents(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_PRIX_SANS_CENTS)
+        assert result["prix_vente"] == 500000.0
 
-    def test_date_iso_format(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_CONTREPARTIE)
-        assert result["date_vente"] == "2022-11-28"
+    def test_sans_vente_returns_empty(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_SANS_VENTE)
+        assert result == {}
 
-    def test_contrepartie_pattern(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_CONTREPARTIE)
+    def test_multi_ventes_retourne_plus_recente(self):
+        from engine.registre_foncier import _parse_index_html
+        # rdOrdreAffch=C → chronologique → dernier = plus récent
+        result = _parse_index_html(SIRF_HTML_MULTI_VENTES)
         assert result["prix_vente"] == 1200000.0
+        assert result["date_vente"] == "2023-03-15"
 
-    def test_prix_introuvable_returns_zero(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_PRIX_INTROUVABLE)
-        assert result["prix_vente"] == 0.0
-
-    def test_date_introuvable_returns_empty(self):
-        from engine.registre_foncier import _parse_transaction_text
-        result = _parse_transaction_text(ACTE_PRIX_INTROUVABLE)
-        assert result["date_vente"] == ""
+    def test_vendeur_inline(self):
+        from engine.registre_foncier import _parse_index_html
+        result = _parse_index_html(SIRF_HTML_VENTE_INLINE_PARTIES)
+        assert "DUMONT" in result["vendeur"]
 
 
 # ---------------------------------------------------------------------------
