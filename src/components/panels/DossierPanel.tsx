@@ -15,7 +15,7 @@ import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
 import CheckpointComparablePanel from '@/components/panels/CheckpointComparablePanel'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
-import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
 
@@ -85,6 +85,9 @@ function NewDossierForm() {
   const [cmdFin, setCmdFin] = useState('hypothecaire')
   const [mandatType, setMandatType] = useState('residentiel_standard')
   const [dateReference, setDateReference] = useState(() => new Date().toISOString().split('T')[0])
+  const [honoraires, setHonoraires] = useState('')
+  const [dateLivraison, setDateLivraison] = useState('')
+  const [nomEvaluateur, setNomEvaluateur] = useState('')
   const [loading, setLoading] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
@@ -157,6 +160,9 @@ function NewDossierForm() {
           fin_evaluation: cmdFin,
         },
         comparables: comparables.length > 0 ? comparables : undefined,
+        honoraires: honoraires.trim() || undefined,
+        date_livraison: dateLivraison || undefined,
+        nom_evaluateur: nomEvaluateur.trim() || undefined,
       })
       router.push(`/dossier/${dossier.id}?tab=dossier`)
     } catch (err) {
@@ -345,7 +351,7 @@ function NewDossierForm() {
           </button>
         </div>
       ) : formStep === 2 ? (
-        <form onSubmit={e => { e.preventDefault(); if (cmdNom.trim()) { setError(''); setFormStep(3) } }} className="flex flex-col gap-4">
+        <form onSubmit={e => { e.preventDefault(); if (cmdNom.trim() && honoraires.trim() && dateLivraison && nomEvaluateur.trim()) { setError(''); setFormStep(3) } }} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[12px] text-[#8a8780] font-medium">Nom du commanditaire <span className="text-red-500">*</span></label>
             <input
@@ -411,6 +417,45 @@ function NewDossierForm() {
                 style={inputStyle}
               />
             </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Honoraires <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                required
+                placeholder="ex. 1 200 $"
+                value={honoraires}
+                onChange={e => setHonoraires(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Date de livraison <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                required
+                value={dateLivraison}
+                onChange={e => setDateLivraison(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] text-[#8a8780] font-medium">Évaluateur signataire <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              required
+              placeholder="ex. Marie Tremblay, É.A."
+              value={nomEvaluateur}
+              onChange={e => setNomEvaluateur(e.target.value)}
+              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+              style={inputStyle}
+            />
           </div>
 
           <div className="flex gap-2 mt-1">
@@ -703,6 +748,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   const [isRunning, setIsRunning] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [mandatDownloading, setMandatDownloading] = useState(false)
 
   const {
     steps: pipelineSteps,
@@ -967,6 +1013,18 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           >
             + Ajouter un fichier local
           </button>
+          {dossierId && (
+            <button
+              onClick={async () => {
+                setMandatDownloading(true)
+                try { await downloadLettreMandat(dossierId) } finally { setMandatDownloading(false) }
+              }}
+              disabled={mandatDownloading}
+              className="mt-1 text-[12px] text-[#8a8780] hover:text-[#1a1916] underline underline-offset-2 bg-transparent border-none cursor-pointer font-sans disabled:opacity-40"
+            >
+              {mandatDownloading ? 'Génération…' : '↓ Lettre de mandat (PDF)'}
+            </button>
+          )}
         </AgentMessage>
         {uploads.map((u, i) => (
           u.state === 'uploading' ? (

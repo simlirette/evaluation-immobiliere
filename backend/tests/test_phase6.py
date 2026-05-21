@@ -118,20 +118,20 @@ class TestCreateDossier:
             api.SESSIONS_DIR = original
 
     def test_pipeline_launched_in_background(self, tmp_path):
-        """start_runtime is called (in daemon thread) — not blocking."""
+        """_run_pipeline_segment is called (in daemon thread) — not blocking."""
         import threading
         original = _patch_sessions(tmp_path)
         call_event = threading.Event()
 
-        def fake_start_runtime(payload):
+        def fake_run_segment(session, case, checkpoint):
             call_event.set()
 
         try:
-            with patch("api.start_runtime", side_effect=fake_start_runtime):
+            with patch("api._run_pipeline_segment", side_effect=fake_run_segment):
                 api.app_create_dossier({"address": "Pipeline test"})
-            # Give the daemon thread up to 2s to call start_runtime
+            # Give the daemon thread up to 2s to call _run_pipeline_segment
             called = call_event.wait(timeout=2.0)
-            assert called, "start_runtime was not called within 2s"
+            assert called, "_run_pipeline_segment was not called within 2s"
         finally:
             api.SESSIONS_DIR = original
 

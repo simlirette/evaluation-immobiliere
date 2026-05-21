@@ -1,11 +1,11 @@
 # State — eval-immo
 
-_Updated: 2026-05-20 | HEAD: S6_
+_Updated: 2026-05-20 | HEAD: S7_
 
 ## Current Goal
 
-S6 COMPLÈTE ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
-Prochaine : S7 — Lettre de mandat.
+S7 COMPLÈTE ✅ — Lettre de mandat §6.3 OEAQ
+Prochaine : S8 — Modèles rapport + routing LLM par tâche.
 
 ## Plan Status
 
@@ -21,7 +21,7 @@ S3 ✅ — Pipeline stoppable par checkpoint (4 gates + log horodaté)
 S4 ✅ — Compliance Python pur (B001-B007)
 S5 ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
 S6 ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
-S7 — Lettre de mandat
+S7 ✅ — Lettre de mandat (20 tests, template §6.3, PDF, formulaire requis)
 S8 — Modèles rapport + routing LLM
 S9 — Approches conditionnelles + watermark proxy
 S10 — Éditeur rapport + export
@@ -53,8 +53,9 @@ S12 — Roadmap bureau
 
 ## Evidence
 
-- 114 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6) — test_s1_dossier_session.py, test_s2_auth.py, test_s3_checkpoints.py, test_s4_compliance.py, test_s6.py
-- tsc 0 erreurs post-S6
+- 134 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7) — test_s1..test_s7_lettre_mandat.py
+- tsc 0 erreurs post-S7
+- Formulaire "Nouveau dossier" : honoraires + date_livraison + nom_evaluateur → requis (bloque soumission)
 - python -c "import api; print('OK')" ✅
 
 ## Open Issues

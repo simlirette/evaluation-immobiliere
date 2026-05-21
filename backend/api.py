@@ -35,6 +35,7 @@ from engine.skills import DEFAULT_SKILLS_BY_AGENT
 
 ROOT = Path(__file__).resolve().parent
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
+TEMPLATES_DIR = ROOT / "templates"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 # SESSIONS_DIR can be overridden via env var for persistent volume mounts (e.g. Railway volume)
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "")) if os.environ.get("SESSIONS_DIR") else ROOT / "runtime_sessions"
@@ -757,6 +758,10 @@ def app_create_dossier(body: dict) -> dict:
     nb_chambres = body.get("nb_chambres")
     commanditaire = body.get("commanditaire") if isinstance(body.get("commanditaire"), dict) else None
     comparables_raw = body.get("comparables") if isinstance(body.get("comparables"), list) else []
+    # S7 — lettre de mandat fields
+    honoraires = str(body.get("honoraires") or "").strip()
+    date_livraison = str(body.get("date_livraison") or "").strip()
+    nom_evaluateur = str(body.get("nom_evaluateur") or "").strip()
 
     session = create_session(strict_mode=False)
     session_id = session["session_id"]
@@ -772,6 +777,12 @@ def app_create_dossier(body: dict) -> dict:
             "organisation": str(commanditaire.get("organisation") or ""),
             "fin_evaluation": str(commanditaire.get("fin_evaluation") or "non_specifie"),
         }
+    if honoraires:
+        session["app_honoraires"] = honoraires
+    if date_livraison:
+        session["app_date_livraison"] = date_livraison
+    if nom_evaluateur:
+        session["app_nom_evaluateur"] = nom_evaluateur
     save_session(session)
 
     # Build case dict from form data — pipeline uses this directly
@@ -2218,6 +2229,114 @@ def app_confirm_comparables(body: dict) -> dict:
         "session_id": session_id,
         "count": len(rows),
         "checkpoint_entry": entry,
+    }
+
+
+def app_generate_lettre_mandat(body: dict) -> dict:
+    """POST /app/mandat/lettre — génère la lettre de mandat §6.3 OEAQ en PDF (base64).
+
+    Body: { session_id, [format: "pdf"|"html"|"md"] }
+    Retourne: { session_id, dossier_id, format, content_b64 | content, filename }
+    """
+    import base64
+    import datetime as _datetime
+    from pathlib import Path as _Path
+    try:
+        from jinja2 import Template as _JinjaTemplate  # type: ignore
+    except ImportError:
+        raise RuntimeError("jinja2 non installé — pip install jinja2")
+    from engine.report_export import _generate_pdf, _generate_html
+
+    session_id = _normalize_session_id(str(body.get("session_id") or ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    fmt = str(body.get("format") or "pdf").strip().lower()
+    if fmt not in {"pdf", "html", "md"}:
+        raise ValueError("format doit être 'pdf', 'html' ou 'md'")
+
+    session = require_session(session_id)
+    dossier_id = str(session.get("dossier_id") or session_id)
+    commanditaire = session.get("app_commanditaire") or {}
+
+    # Résolution objet évaluation
+    fin_eval_map = {
+        "hypothecaire": "Évaluation aux fins de financement hypothécaire",
+        "succession": "Évaluation aux fins de succession ou liquidation",
+        "litige": "Évaluation aux fins de litige judiciaire",
+        "assurance": "Évaluation aux fins de valeur assurable",
+        "commercial": "Évaluation aux fins d'investissement commercial",
+        "expropriation": "Évaluation aux fins d'expropriation",
+        "vente": "Évaluation aux fins de mise en vente",
+        "financement": "Évaluation aux fins de financement hypothécaire",
+    }
+    fin_eval_raw = str(commanditaire.get("fin_evaluation") or "").lower()
+    objet = fin_eval_map.get(fin_eval_raw, str(commanditaire.get("fin_evaluation") or "Non spécifié"))
+
+    type_bien_map = {
+        "residentiel_unifamilial": "Résidentiel unifamilial",
+        "condo": "Condo / appartement",
+        "duplex": "Duplex",
+        "triplex": "Triplex",
+        "quadruplex": "Quadruplex",
+        "commercial": "Commercial",
+        "terrain": "Terrain nu",
+    }
+    type_bien_raw = str(session.get("app_property_type") or "").lower()
+    type_bien_label = type_bien_map.get(type_bien_raw, str(session.get("app_property_type") or "Résidentiel"))
+
+    template_path = TEMPLATES_DIR / "lettre_mandat_residentiels.md"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template introuvable : {template_path}")
+
+    template_src = template_path.read_text(encoding="utf-8")
+    tmpl = _JinjaTemplate(template_src)
+
+    md_content = tmpl.render(
+        date_emission=_datetime.date.today().strftime("%d %B %Y"),
+        nom_commanditaire=str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
+        organisation_commanditaire=str(commanditaire.get("organisation") or ""),
+        adresse_propriete=str(session.get("app_display_name") or "[ADRESSE]"),
+        type_bien=type_bien_label,
+        objet_evaluation=objet,
+        date_reference=str(session.get("app_date_reference") or _datetime.date.today().isoformat()),
+        date_livraison=str(session.get("app_date_livraison") or "[DATE LIVRAISON]"),
+        honoraires=str(session.get("app_honoraires") or "[HONORAIRES]"),
+        nom_evaluateur=str(session.get("app_nom_evaluateur") or "[ÉVALUATEUR AGRÉÉ]"),
+        bureau_nom="",
+        bureau_adresse="",
+        bureau_telephone="",
+        bureau_email="",
+    )
+
+    filename_base = f"lettre-mandat-{safe_path_id(dossier_id)}"
+
+    if fmt == "md":
+        return {
+            "session_id": session_id,
+            "dossier_id": dossier_id,
+            "format": "md",
+            "content": md_content,
+            "filename": f"{filename_base}.md",
+        }
+
+    if fmt == "html":
+        html = _generate_html(md_content, dossier_id)
+        return {
+            "session_id": session_id,
+            "dossier_id": dossier_id,
+            "format": "html",
+            "content": html,
+            "filename": f"{filename_base}.html",
+        }
+
+    # PDF
+    pdf_bytes = _generate_pdf(md_content, dossier_id)
+    return {
+        "session_id": session_id,
+        "dossier_id": dossier_id,
+        "format": "pdf",
+        "content_b64": base64.b64encode(pdf_bytes).decode("ascii"),
+        "filename": f"{filename_base}.pdf",
     }
 
 
@@ -4715,6 +4834,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("review_write"):
                     return
                 self._send_json(200, generate_v1_package_for_session(str(body.get("session_id", ""))))
+                return
+            if self.path == "/app/mandat/lettre":
+                if not self._require_permission("runtime_read"):
+                    return
+                self._send_json(200, app_generate_lettre_mandat(body))
                 return
             if self.path == "/app/checkpoint/confirm":
                 if not self._require_permission("runtime_write"):

@@ -86,6 +86,10 @@ export interface CreateRuntimeDossierInput {
     fin_evaluation: string
   }
   comparables?: import('@/types').ComparableInput[]
+  // S7 — lettre de mandat
+  honoraires?: string
+  date_livraison?: string
+  nom_evaluateur?: string
 }
 
 interface RuntimeMessageResponse {
@@ -153,6 +157,9 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
       ...(input.nb_chambres != null ? { nb_chambres: input.nb_chambres } : {}),
       ...(input.commanditaire ? { commanditaire: input.commanditaire } : {}),
       ...(input.comparables && input.comparables.length > 0 ? { comparables: input.comparables } : {}),
+      ...(input.honoraires ? { honoraires: input.honoraires } : {}),
+      ...(input.date_livraison ? { date_livraison: input.date_livraison } : {}),
+      ...(input.nom_evaluateur ? { nom_evaluateur: input.nom_evaluateur } : {}),
     }),
   })
   const dossier = payload.state.active?.dossier
@@ -587,4 +594,30 @@ export async function confirmComparables(
     method: 'POST',
     body: JSON.stringify({ session_id: sessionId, selected_ids: selectedIds }),
   })
+}
+
+// ── S7 — Lettre de mandat ─────────────────────────────────────────────────────
+
+export async function downloadLettreMandat(sessionId: string): Promise<void> {
+  const result = await runtimeJson<{
+    dossier_id: string
+    format: string
+    content_b64?: string
+    filename: string
+  }>('/app/mandat/lettre', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, format: 'pdf' }),
+  })
+
+  if (!result.content_b64) throw new Error('PDF non généré')
+  const bytes = Uint8Array.from(atob(result.content_b64), c => c.charCodeAt(0))
+  const blob = new Blob([bytes], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = result.filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
