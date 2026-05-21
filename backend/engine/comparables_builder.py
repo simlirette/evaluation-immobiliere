@@ -18,6 +18,12 @@ from pathlib import Path
 
 logger = logging.getLogger("comparables_builder")
 
+try:
+    from engine.registre_foncier import enrich_pool_with_sirf as _enrich_sirf
+    _SIRF_AVAILABLE = True
+except ImportError:
+    _SIRF_AVAILABLE = False
+
 # Correspondance ville → city_code MAMH (sous-ensemble des cities supportées)
 _CITY_KEYWORDS: list[tuple[str, str]] = [
     ("montreal", "montreal"),
@@ -185,7 +191,7 @@ def build_comparable_pool(
     subject_lat, subject_lon = coords
 
     if city_code in _XML_CITIES:
-        return _build_pool_xml(
+        pool = _build_pool_xml(
             city_code=city_code,
             subject_lat=subject_lat,
             subject_lon=subject_lon,
@@ -196,7 +202,7 @@ def build_comparable_pool(
             max_candidates=max_candidates,
         )
     elif city_code == "montreal":
-        return _build_pool_montreal(
+        pool = _build_pool_montreal(
             subject_address=subject_address,
             subject_lat=subject_lat,
             subject_lon=subject_lon,
@@ -208,6 +214,14 @@ def build_comparable_pool(
     else:
         logger.info("city_code '%s' sans MAMH configuré — pool vide", city_code)
         return []
+
+    if _SIRF_AVAILABLE and pool:
+        try:
+            pool = _enrich_sirf(pool, cache_dir=cache_dir)
+        except Exception as exc:
+            logger.warning("enrich_pool_with_sirf failed (non-bloquant): %s", exc)
+
+    return pool
 
 
 def _build_pool_xml(
