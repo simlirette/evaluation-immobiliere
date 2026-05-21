@@ -138,9 +138,12 @@ def _comparable_score(item: dict) -> float:
 
 
 def _distance_score(item: dict, limits: dict[str, float]) -> float:
-    distance = _to_float(item.get("distance_km"))
-    if distance <= 0:
+    raw = item.get("distance_km")
+    distance = _to_float(raw)
+    if raw is None:          # distance inconnue → neutre
         return 0.5
+    if distance <= 0:        # distance nulle = même secteur → parfait
+        return 1.0
     max_distance = max(_to_float(limits.get("max_distance_km")), 1.0)
     return _bounded(1 - min(distance / max_distance, 1.0))
 

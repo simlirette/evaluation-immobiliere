@@ -19,7 +19,8 @@
   "commanditaire": {
     "nom": "Marie Gagnon",
     "organisation": "Financement Résidentiel Québec Inc.",
-    "fin_evaluation": "2025-09-30",
+    "fin_evaluation": "hypothecaire",
+    "date_livraison": "2025-09-30",
     "date_reference": "2025-09-15"
   },
   "evaluateur": {

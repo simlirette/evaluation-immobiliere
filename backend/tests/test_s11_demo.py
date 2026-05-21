@@ -183,6 +183,30 @@ class TestDemoCompliance:
         result = check_B007(self._case())
         assert not result.violated, f"B007 échoue : {result.explanation_fr}"
 
+    def test_b005_passes(self):
+        """B005 — ajustements < 25 000 $ donc aucun ne déclenche la règle."""
+        from engine.compliance import check_B005
+        result = check_B005(self._case())
+        assert not result.violated, f"B005 échoue : {result.explanation_fr}"
+
+    def test_b006_not_blocked_without_valeur_estimee(self):
+        """B006 — sans valeur_estimee, la règle est non-bloquante (non vérifiable)."""
+        from engine.compliance import check_B006
+        result = check_B006(self._case())
+        # Sans valeur_estimee, B006 doit passer (pas de valeur à vérifier)
+        assert not result.violated, f"B006 échoue : {result.explanation_fr}"
+
+    def test_fin_evaluation_is_semantic_key(self):
+        """commanditaire.fin_evaluation doit être une clé sémantique, pas une date ISO."""
+        case = self._case()
+        fin_eval = case.get("commanditaire", {}).get("fin_evaluation", "")
+        # Une date ISO contient '-' entre les chiffres (ex: "2025-09-30")
+        import re
+        assert not re.match(r"^\d{4}-\d{2}-\d{2}$", fin_eval), (
+            f"fin_evaluation est une date ISO '{fin_eval}' — "
+            "la lettre de mandat affichera la date brute. Utiliser 'hypothecaire' ou similaire."
+        )
+
 
 # ── Script seed — importable et structuré ────────────────────────────────────
 

@@ -819,8 +819,21 @@ def app_create_dossier(body: dict) -> dict:
             _session = load_session(session_id)
             if _session:
                 _run_pipeline_segment(_session, case, checkpoint=1)
-        except Exception:
-            pass
+        except Exception as _exc:
+            import logging as _log
+            _log.getLogger(__name__).error(
+                "Pipeline échoué pour session %s : %s", session_id, _exc, exc_info=True
+            )
+            # Persiste l'erreur dans session.json pour que app_state puisse la remonter
+            try:
+                _sdir = Path(SESSIONS_DIR) / safe_path_id(session_id)
+                _sj = _sdir / "session.json"
+                if _sj.exists():
+                    _sd = json.loads(_sj.read_text(encoding="utf-8"))
+                    _sd["pipeline_error"] = f"{type(_exc).__name__}: {_exc}"
+                    _sj.write_text(json.dumps(_sd, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
 
     _threading.Thread(target=_run_pipeline, daemon=True).start()
 
