@@ -1,11 +1,11 @@
 # State — eval-immo
 
-_Updated: 2026-05-20 | HEAD: S7_
+_Updated: 2026-05-20 | HEAD: S8_
 
 ## Current Goal
 
-S7 COMPLÈTE ✅ — Lettre de mandat §6.3 OEAQ
-Prochaine : S8 — Modèles rapport + routing LLM par tâche.
+S8 COMPLÈTE ✅ — Modèles rapport + routing LLM par tâche
+Prochaine : S9 — Approches conditionnelles + watermark proxy.
 
 ## Plan Status
 
@@ -22,7 +22,7 @@ S4 ✅ — Compliance Python pur (B001-B007)
 S5 ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
 S6 ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
 S7 ✅ — Lettre de mandat (20 tests, template §6.3, PDF, formulaire requis)
-S8 — Modèles rapport + routing LLM
+S8 ✅ — Routing LLM par tâche (36 tests, gpt-4o rapport, coût < $0.10, 3 templates OEAQ)
 S9 — Approches conditionnelles + watermark proxy
 S10 — Éditeur rapport + export
 S11 — Dossier démo anonymisé
@@ -53,7 +53,7 @@ S12 — Roadmap bureau
 
 ## Evidence
 
-- 134 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7) — test_s1..test_s7_lettre_mandat.py
+- 170 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7 + 36 S8) — test_s1..test_s8_routing.py
 - tsc 0 erreurs post-S7
 - Formulaire "Nouveau dossier" : honoraires + date_livraison + nom_evaluateur → requis (bloque soumission)
 - python -c "import api; print('OK')" ✅

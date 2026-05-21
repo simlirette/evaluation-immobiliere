@@ -11,6 +11,7 @@ import ast
 
 from engine.audit import append_audit_log
 from engine.compliance import run_compliance
+from engine.llm_routing import get_llm_model, estimate_llm_cost
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
 from engine.tools import search_comparables, validate_schema
 from engine.valuation import calculate_valuation_trace
@@ -2076,6 +2077,35 @@ _RAPPORT_SYSTEM_PROMPT_COMPLET = (
 )
 
 
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+
+# Mapping type_bien → fichier template rapport
+_RAPPORT_TEMPLATE_MAP: dict[str, str] = {
+    "residentiel_unifamilial": "rapport_residentiel_unifamilial.md",
+    "condo":                   "rapport_residentiel_unifamilial.md",  # même structure
+    "duplex":                  "rapport_residentiel_unifamilial.md",
+    "triplex":                 "rapport_residentiel_unifamilial.md",
+    "quadruplex":              "rapport_residentiel_unifamilial.md",
+    "immeuble_revenus":        "rapport_immeuble_revenus.md",
+    "commercial":              "rapport_commercial.md",
+    "terrain":                 "rapport_residentiel_unifamilial.md",  # même structure de base
+}
+
+
+def _load_rapport_template(type_bien: str) -> str | None:
+    """Charge le template de rapport selon le type de bien. Retourne None si absent."""
+    filename = _RAPPORT_TEMPLATE_MAP.get(str(type_bien or "").lower())
+    if not filename:
+        filename = "rapport_residentiel_unifamilial.md"
+    path = _TEMPLATES_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
 def _fmt_cad(value: float) -> str:
     """Formate un montant en dollars canadiens."""
     return f"{round(value):,}".replace(",", "\u00a0") + " $"
@@ -2155,11 +2185,26 @@ def _build_rapport_prompt_v2(
         lines += ["", f"HYPOTHÈSES ({len(hypotheses)}):"]
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
+
+    # Inject template structure as guidance if available
+    template_txt = _load_rapport_template(case.get("type_bien", ""))
+    if template_txt:
+        lines += [
+            "",
+            "STRUCTURE DU RAPPORT (respecter cet ordre de sections) :",
+            "---",
+            template_txt[:3000],  # cap at 3000 chars to stay within context
+            "---",
+        ]
     return "\n".join(lines)
 
 
-def _generate_rapport_llm(prompt: str, format: str = "abrege") -> str | None:
-    """Appelle OpenAI pour générer le rapport. Retourne None si indisponible."""
+def _generate_rapport_llm(prompt: str, format: str = "abrege") -> dict | None:
+    """Appelle OpenAI pour générer le rapport.
+
+    Retourne None si indisponible, sinon dict avec:
+        {"text": str, "model": str, "tokens_in": int, "tokens_out": int, "cost_usd": float}
+    """
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         return None
@@ -2169,15 +2214,27 @@ def _generate_rapport_llm(prompt: str, format: str = "abrege") -> str | None:
         system_prompt = (
             _RAPPORT_SYSTEM_PROMPT_COMPLET if format == "complet" else _RAPPORT_SYSTEM_PROMPT_ABREGE
         )
+        model = get_llm_model("redaction_rapport")
         resp = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=model,
             max_tokens=_RAPPORT_MAX_TOKENS,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
         )
-        return resp.choices[0].message.content or None
+        text = resp.choices[0].message.content or None
+        if not text:
+            return None
+        tokens_in = getattr(resp.usage, "prompt_tokens", 0) or 0
+        tokens_out = getattr(resp.usage, "completion_tokens", 0) or 0
+        return {
+            "text": text,
+            "model": model,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "cost_usd": estimate_llm_cost(model, tokens_in, tokens_out),
+        }
     except Exception:
         return None
 
@@ -2299,15 +2356,18 @@ def generate_brouillon_rapport(
     warnings: list,
     format: str = "abrege",
 ) -> str:
-    """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe."""
+    """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe.
+
+    Retourne toujours un str. Métadonnées LLM (modèle, coût) disponibles via _generate_rapport_llm().
+    """
     prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings)
-    llm_text = _generate_rapport_llm(prompt, format)
-    if llm_text:
+    llm_result = _generate_rapport_llm(prompt, format)
+    if llm_result and llm_result.get("text"):
         disclaimer = (
             "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
             "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
         )
-        return disclaimer + llm_text
+        return disclaimer + llm_result["text"]
     return _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
 
 

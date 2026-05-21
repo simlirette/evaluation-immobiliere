@@ -1022,7 +1022,8 @@ def app_save_rapport(body: dict) -> dict:
 
 def app_generate_rapport(body: dict) -> dict:
     """Régénère brouillon_rapport.md via LLM (ou fallback déterministe), sauvegarde et retourne le contenu."""
-    from engine.runtime import generate_brouillon_rapport
+    from engine.runtime import generate_brouillon_rapport, _generate_rapport_llm, _build_rapport_prompt_v2
+    from engine.llm_routing import get_llm_model, estimate_llm_cost
     session_id = str(body.get("session_id", "")).strip()
     format_param = str(body.get("format", "abrege")).strip()
     if not session_id:
@@ -1042,16 +1043,40 @@ def app_generate_rapport(body: dict) -> dict:
     status = str(compliance.get("status", "BROUILLON") or "BROUILLON")
     blocking = list(compliance.get("blocking_failures", []) or [])
     warnings = list(compliance.get("warnings", []) or [])
-    rapport_md = generate_brouillon_rapport(
-        case, valuation_values, status, blocking, warnings, format=format_param
-    )
+
+    # Run LLM directly here to capture cost metadata
+    prompt = _build_rapport_prompt_v2(case, format_param, valuation_values, status, blocking, warnings)
+    llm_result = _generate_rapport_llm(prompt, format_param)
+    if llm_result and llm_result.get("text"):
+        disclaimer = (
+            "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
+            "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
+        )
+        rapport_md = disclaimer + llm_result["text"]
+        llm_meta = {
+            "model": llm_result["model"],
+            "tokens_in": llm_result["tokens_in"],
+            "tokens_out": llm_result["tokens_out"],
+            "cost_usd": llm_result["cost_usd"],
+        }
+    else:
+        from engine.runtime import _generate_rapport_deterministic
+        rapport_md = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+        llm_meta = {"model": "deterministic", "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0}
+
     artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
     if artifact:
         _, artifact_path = resolve_session_artifact(
             session, event_id=str(artifact.get("event_id") or "")
         )
         artifact_path.write_text(rapport_md, encoding="utf-8")
-    return {"ok": True, "content": rapport_md, "session_id": session_id, "format": format_param}
+    return {
+        "ok": True,
+        "content": rapport_md,
+        "session_id": session_id,
+        "format": format_param,
+        "llm": llm_meta,
+    }
 
 
 def app_export_rapport(body: dict) -> dict:
@@ -4053,7 +4078,8 @@ def llm_assistant_answer(
     context_block = _build_llm_context_block(agent, context)
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
-    model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    from engine.llm_routing import get_llm_model as _get_llm_model
+    model = _get_llm_model("assistant_qa")
     # Inject prior turns between system prompt and latest user message
     prior: list[dict] = [
         {"role": str(h.get("role", "user")), "content": str(h.get("content", ""))}

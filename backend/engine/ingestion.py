@@ -5,6 +5,8 @@ import base64
 import json
 from pathlib import Path
 
+from engine.llm_routing import get_llm_model
+
 _MAX_VISION_PAGES = 5  # cap Vision fallback pages per PDF
 
 _STRUCTURED_FIELDS_SCHEMA = {
@@ -176,7 +178,7 @@ def describe_with_vision(b64_image: str, client, prompt: str = _VISION_PROMPT_DO
         return ""
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o",
+            model=get_llm_model("extraction_pdf"),
             max_tokens=800,
             messages=[
                 {
@@ -206,7 +208,7 @@ def _describe_image_file(path: Path, client) -> str:
         suffix = path.suffix.lower()
         mime = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
         resp = client.chat.completions.create(
-            model="gpt-4o",
+            model=get_llm_model("extraction_pdf"),
             max_tokens=800,
             messages=[
                 {
@@ -292,7 +294,7 @@ def parse_structured_fields(docs: list[dict], client) -> dict:
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o",
+            model=get_llm_model("parse_structured"),
             max_tokens=600,
             response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],
