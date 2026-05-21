@@ -2497,6 +2497,7 @@ def build_role_xml_index(xml_path: Path, index_path: Path, city_code: str = "") 
     logger.info("Building XML index for %s → %s", xml_path.name, index_path.name)
     by_matricule: dict[str, dict] = {}
     by_address: dict[str, list[dict]] = {}
+    by_lot: dict[str, dict] = {}
     count = 0
 
     for _event, elem in ET.iterparse(str(xml_path), events=("end",)):
@@ -2550,6 +2551,10 @@ def build_role_xml_index(xml_path: Path, index_path: Path, city_code: str = "") 
             addr_key = f"{civique}|{_norm(f'{type_voie or ''} {nom_voie}')}"
             by_address.setdefault(addr_key, []).append(rec)
 
+        no_lot_val = rec.get("no_lot")
+        if no_lot_val:
+            by_lot[str(no_lot_val)] = rec
+
         count += 1
         if count % 50_000 == 0:
             logger.info("  %d UEV indexées…", count)
@@ -2561,6 +2566,7 @@ def build_role_xml_index(xml_path: Path, index_path: Path, city_code: str = "") 
         json.dumps({
             "by_matricule": by_matricule,
             "by_address": by_address,
+            "by_lot": by_lot,
             "city_code": city_code,
             "_built_at": time.time(),
             "_count": count,
@@ -2613,6 +2619,71 @@ def lookup_role_xml(
                 row = candidates[0]
 
     return row or {}
+
+
+def lookup_role_by_lot(index_path: Path, no_lot: int) -> dict:
+    """
+    Look up a property in a MAMH XML index by cadastral lot number.
+    Returns {} if not found or index absent.
+    """
+    if not index_path.exists():
+        return {}
+    try:
+        idx = _load_xml_index(index_path)
+    except Exception as exc:
+        logger.debug("XML index load failed: %s", exc)
+        return {}
+    by_lot = idx.get("by_lot", {})
+    return by_lot.get(str(no_lot), {})
+
+
+def lookup_role_mtl_by_civic(
+    csv_path: Path,
+    nom_rue_norm: str,
+    civique_ref: int,
+    window: int = 200,
+) -> list[dict]:
+    """
+    Retourne les propriétés MAMH MTL sur la même rue dont le numéro civique
+    est dans [civique_ref - window, civique_ref + window].
+    Utilisé comme heuristique spatiale quand Infolot n'a pas de no_lot MTL.
+    Retourne [] si CSV absent ou aucun résultat.
+    """
+    if not csv_path.exists():
+        return []
+    try:
+        idx = _load_role_index(csv_path)
+    except Exception:
+        return []
+
+    results = []
+    lo, hi = civique_ref - window, civique_ref + window
+    for key, rows in idx["address"].items():
+        parts = key.split("|", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            civic_num = int(parts[0])
+        except ValueError:
+            continue
+        if _norm(parts[1]) != _norm(nom_rue_norm):
+            continue
+        if lo <= civic_num <= hi:
+            for row in rows:
+                results.append({
+                    "source": "role-mtl-csv",
+                    "matricule83": row.get("MATRICULE83", ""),
+                    "adresse_civique": row.get("CIVIQUE_DEBUT", ""),
+                    "nom_rue": row.get("NOM_RUE", ""),
+                    "annee_construction": int(row["ANNEE_CONSTRUCTION"]) if row.get("ANNEE_CONSTRUCTION", "").strip() not in ("", "0") else None,
+                    "superficie_batiment_m2": float(row["SUPERFICIE_BATIMENT"]) if row.get("SUPERFICIE_BATIMENT", "").strip() not in ("", "0", "0.0") else None,
+                    "superficie_terrain_m2": float(row["SUPERFICIE_TERRAIN"]) if row.get("SUPERFICIE_TERRAIN", "").strip() not in ("", "0", "0.0") else None,
+                    "nb_logements": int(row["NOMBRE_LOGEMENT"]) if row.get("NOMBRE_LOGEMENT", "").strip() not in ("", "0") else 0,
+                    "code_cubf": int(row["CODE_UTILISATION"]) if row.get("CODE_UTILISATION", "").strip() not in ("", "0") else None,
+                    "municipalite": row.get("MUNICIPALITE", ""),
+                    "civic_num": civic_num,
+                })
+    return results
 
 
 # ── Geocoding (Nominatim OSM) ─────────────────────────────────────────────────

@@ -1594,6 +1594,29 @@ class RuntimeEngine:
 
         if step == "comps-market" and artifact == "comparables_proposes.json":
             payload["date_reference"] = case.get("date_reference")
+
+            # Auto-alimenter le pool si aucun comparable n'a été chargé (CSV JLR absent)
+            if not case.get("comparables"):
+                try:
+                    from engine.comparables_builder import build_comparable_pool
+                    address = str(case.get("adresse_complete") or "")
+                    if address:
+                        auto_pool = build_comparable_pool(
+                            subject_address=address,
+                            subject_surface_m2=float(case.get("surface_habitable") or 0),
+                            subject_type_bien=str(case.get("type_bien") or ""),
+                            subject_annee_construction=int(case.get("annee_construction") or 0),
+                            cache_dir=Path("data_cache"),
+                        )
+                        if auto_pool:
+                            case["comparables"] = auto_pool
+                            logger.info(
+                                "Pool auto-alimenté Infolot+MAMH: %d candidats pour '%s'",
+                                len(auto_pool), address,
+                            )
+                except Exception as exc:
+                    logger.warning("build_comparable_pool failed (non-bloquant): %s", exc)
+
             payload["comparables"] = [
                 c.__dict__
                 for c in search_comparables(
