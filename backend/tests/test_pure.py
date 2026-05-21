@@ -1387,7 +1387,7 @@ class TestExportRapport_InvalidFormat:
             encoding="utf-8")
 
         with pytest.raises(ValueError, match="format"):
-            api_module.app_export_rapport({"session_id": session_id, "format": "pdf"})
+            api_module.app_export_rapport({"session_id": session_id, "format": "invalid"})
 
 
 # ── TestDataEnrichment ────────────────────────────────────────────────────────
