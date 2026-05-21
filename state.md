@@ -6,7 +6,8 @@ _Updated: 2026-05-21 | HEAD: S12 — PLAN COMPLET_
 
 S12 COMPLÈTE ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md)
 Révision code ✅ — 4 findings corrigés (bloquant démo + pipeline log + distance score + B005/B006 tests)
-PLAN COMPLET S1–S12 ✅ — 237 tests verts. Prêt pour démo bureau.
+Red team ✅ — 6 vulnérabilités corrigées (comparables fantômes, CSV DoS, B005 crash, session orpheline, valuation 0 silencieux, distance score)
+PLAN COMPLET S1–S12 ✅ — 253 tests verts. Prêt pour démo bureau.
 
 ## Plan Status
 
@@ -54,7 +55,7 @@ S12 ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md) — tarif, chrono, 
 
 ## Evidence
 
-- 237 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7 + 36 S8 + 22 S9 + 13 S10 + 32 S11) — test_s1..test_s11_demo.py
+- 253 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7 + 36 S8 + 22 S9 + 13 S10 + 32 S11 + 16 red-team) — test_s1..test_s12_redteam.py
 - tsc 0 erreurs post-S7
 - Formulaire "Nouveau dossier" : honoraires + date_livraison + nom_evaluateur → requis (bloque soumission)
 - python -c "import api; print('OK')" ✅
