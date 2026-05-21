@@ -69,3 +69,80 @@ def test_lookup_role_by_lot_missing():
         index_path = Path(tmp) / "nonexistent.json"
         result = lookup_role_by_lot(index_path, no_lot=9999)
         assert result == {}
+
+
+import math
+from unittest.mock import patch, MagicMock
+from engine.comparables_builder import (
+    _pool_item_from_mamh_record,
+    _detect_city_code,
+    _filter_by_type_and_surface,
+)
+
+# ── Tests pool_item_from_mamh_record ──────────────────────────────────────────
+
+def test_pool_item_basic():
+    rec = {
+        "source": "mamh-xml",
+        "matricule83": "1234-56-7890-A-000-0000",
+        "adresse_civique": "456",
+        "nom_rue": "RUE DES ÉRABLES",
+        "no_lot": 4567890,
+        "annee_construction": 1985,
+        "superficie_batiment_m2": 120.5,
+        "superficie_terrain_m2": 350.0,
+        "nb_logements": 1,
+        "code_cubf": 1000,
+        "valeur_totale": 340000.0,
+        "city_code": "quebec",
+    }
+    lot = {"no_lot": 4567890, "lat": 46.82, "lon": -71.22, "distance_km": 0.8}
+    item = _pool_item_from_mamh_record(rec, lot)
+    assert item["source_id"] == "MAMH-4567890"
+    assert item["source_type"] == "role_evaluation_municipale"
+    assert item["distance_km"] == pytest.approx(0.8)
+    assert item["surface"]["value"] == pytest.approx(120.5)
+    assert item["surface"]["unit"] == "m2"
+    assert item["prix_vente"] == 0.0
+    assert item["date_vente"] == ""
+    assert item["annee_construction"] == 1985
+
+def test_pool_item_missing_superficie():
+    rec = {"source": "mamh-xml", "matricule83": "X", "superficie_batiment_m2": None,
+           "superficie_terrain_m2": None, "nb_logements": 0, "code_cubf": None,
+           "valeur_totale": None, "no_lot": 111, "city_code": "laval",
+           "adresse_civique": "1", "nom_rue": "MAIN", "annee_construction": None}
+    lot = {"no_lot": 111, "lat": 45.5, "lon": -73.7, "distance_km": 1.2}
+    item = _pool_item_from_mamh_record(rec, lot)
+    assert item["surface"]["value"] == 0.0
+
+# ── Tests _detect_city_code ───────────────────────────────────────────────────
+
+def test_detect_montreal():
+    assert _detect_city_code("123 rue Sherbrooke, Montréal") == "montreal"
+
+def test_detect_laval():
+    assert _detect_city_code("45 boul. Cartier, Laval, QC") == "laval"
+
+def test_detect_unknown():
+    assert _detect_city_code("123 Main Street") is None
+
+# ── Tests _filter_by_type_and_surface ────────────────────────────────────────
+
+def test_filter_keeps_similar():
+    pool = [
+        {"surface": {"value": 110.0, "unit": "m2"}, "type_bien": "unifamiliale"},
+        {"surface": {"value": 200.0, "unit": "m2"}, "type_bien": "unifamiliale"},  # trop grand
+        {"surface": {"value": 95.0, "unit": "m2"}, "type_bien": "unifamiliale"},
+        {"surface": {"value": 50.0, "unit": "m2"}, "type_bien": "condo"},  # mauvais type
+    ]
+    result = _filter_by_type_and_surface(
+        pool,
+        subject_surface_m2=100.0,
+        subject_type_bien="unifamiliale",
+        surface_tolerance=0.5,
+    )
+    assert len(result) == 2
+    surfaces = [p["surface"]["value"] for p in result]
+    assert 110.0 in surfaces
+    assert 95.0 in surfaces
