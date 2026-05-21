@@ -1,0 +1,132 @@
+{
+  "dossier_id": "D-DEMO-2026-LAV",
+  "mandat_type": "residentiel_standard",
+  "format_rapport": "abrege",
+  "methodes_requises": ["approche_comparative"],
+  "methode_preponderante": "approche_comparative",
+  "umpp_requis": true,
+  "type_bien": "unifamiliale",
+  "date_reference": "2025-09-15",
+  "adresse": "287, rue des Hirondelles, Laval (Chomedey), QC  H7W 2M4",
+  "display_name": "287 rue des Hirondelles, Laval",
+  "zone": "Chomedey, Laval",
+  "surface": { "value": 1680, "unit": "pi2" },
+  "surface_terrain": 5800,
+  "annee_construction": 1985,
+  "nb_logements": 1,
+  "nb_chambres": 3,
+  "nb_stationnements": 2,
+  "commanditaire": {
+    "nom": "Marie Gagnon",
+    "organisation": "Financement Résidentiel Québec Inc.",
+    "fin_evaluation": "2025-09-30",
+    "date_reference": "2025-09-15"
+  },
+  "evaluateur": {
+    "nom": "Jean-Marc Beausoleil",
+    "titre": "É.A.",
+    "numero_oeaq": "2301-0847"
+  },
+  "comparables": [
+    {
+      "comparable_id": "JLR-2025-00341",
+      "source_id": "JLR-2025-00341",
+      "adresse": "312, rue des Bouleaux, Laval (Chomedey)",
+      "prix_vente": 572000,
+      "date_vente": "2025-07-14",
+      "distance_km": 1.2,
+      "surface": { "value": 1710, "unit": "pi2" },
+      "surface_terrain": 6100,
+      "annee_construction": 1984,
+      "nb_chambres": 3,
+      "type_bien": "unifamiliale",
+      "confidence": 0.94
+    },
+    {
+      "comparable_id": "JLR-2025-00289",
+      "source_id": "JLR-2025-00289",
+      "adresse": "45, rue Marguerite, Laval (Chomedey)",
+      "prix_vente": 548000,
+      "date_vente": "2025-06-02",
+      "distance_km": 0.9,
+      "surface": { "value": 1590, "unit": "pi2" },
+      "surface_terrain": 5400,
+      "annee_construction": 1983,
+      "nb_chambres": 3,
+      "type_bien": "unifamiliale",
+      "confidence": 0.91
+    },
+    {
+      "comparable_id": "JLR-2025-00402",
+      "source_id": "JLR-2025-00402",
+      "adresse": "178, boul. des Laurentides, Laval (Chomedey)",
+      "prix_vente": 601000,
+      "date_vente": "2025-08-19",
+      "distance_km": 2.1,
+      "surface": { "value": 1820, "unit": "pi2" },
+      "surface_terrain": 6400,
+      "annee_construction": 1987,
+      "nb_chambres": 4,
+      "type_bien": "unifamiliale",
+      "confidence": 0.89
+    },
+    {
+      "comparable_id": "JLR-2025-00251",
+      "source_id": "JLR-2025-00251",
+      "adresse": "89, rue Plante, Laval (Chomedey)",
+      "prix_vente": 535000,
+      "date_vente": "2025-05-30",
+      "distance_km": 1.7,
+      "surface": { "value": 1480, "unit": "pi2" },
+      "surface_terrain": 5100,
+      "annee_construction": 1982,
+      "nb_chambres": 3,
+      "type_bien": "unifamiliale",
+      "confidence": 0.87
+    },
+    {
+      "comparable_id": "JLR-2025-00428",
+      "source_id": "JLR-2025-00428",
+      "adresse": "234, av. Sainte-Rose, Laval (Fabreville)",
+      "prix_vente": 588000,
+      "date_vente": "2025-09-03",
+      "distance_km": 3.4,
+      "surface": { "value": 1700, "unit": "pi2" },
+      "surface_terrain": 5900,
+      "annee_construction": 1988,
+      "nb_chambres": 3,
+      "type_bien": "unifamiliale",
+      "confidence": 0.85
+    }
+  ],
+  "ajustements": [
+    {
+      "ajustement_id": "AJ-LAV-001",
+      "source_id": "JLR-2025-00402",
+      "description": "Ajustement superficie — sujet 140 pi² inférieur au comparable",
+      "montant": -11200,
+      "validation_humaine": true
+    },
+    {
+      "ajustement_id": "AJ-LAV-002",
+      "source_id": "JLR-2025-00251",
+      "description": "Ajustement superficie — sujet 200 pi² supérieur au comparable",
+      "montant": 16000,
+      "validation_humaine": true
+    }
+  ],
+  "hypotheses_explicites": [
+    "L'état intérieur est supposé similaire à la moyenne du secteur Chomedey (2025).",
+    "Aucun vice caché apparent au moment de l'inspection visuelle du 2025-08-28.",
+    "Le zonage résidentiel R1 est maintenu — aucune demande de dérogation en cours."
+  ],
+  "timeline": [
+    { "type": "mandat", "date": "2025-08-20", "source_id": "MANDAT-LAV-001" },
+    { "type": "inspection", "date": "2025-08-28", "source_id": "INSP-LAV-001" },
+    { "type": "collecte_documents", "date": "2025-09-02", "source_id": "DOCS-LAV-001" },
+    { "type": "extraction_comparables_jlr", "date": "2025-09-05", "source_id": "JLR-EXPORT-LAV" }
+  ],
+  "confidence": 0.91,
+  "_demo": true,
+  "_note": "Dossier démo anonymisé — S11. Adresse fictive, données représentatives marché Chomedey 2025."
+}

@@ -1,11 +1,11 @@
 # State — eval-immo
 
-_Updated: 2026-05-20 | HEAD: S9_
+_Updated: 2026-05-21 | HEAD: S11_
 
 ## Current Goal
 
-S9 COMPLÈTE ✅ — Approches conditionnelles par type_bien + watermark proxy
-Prochaine : S10 — Éditeur rapport + export propre.
+S11 COMPLÈTE ✅ — Dossier démo D-DEMO-2026-LAV + chrono + 29 tests
+Prochaine : S12 — Roadmap bureau JLR/Altus.
 
 ## Plan Status
 
@@ -24,8 +24,8 @@ S6 ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
 S7 ✅ — Lettre de mandat (20 tests, template §6.3, PDF, formulaire requis)
 S8 ✅ — Routing LLM par tâche (36 tests, gpt-4o rapport, coût < $0.10, 3 templates OEAQ)
 S9 ✅ — Approches conditionnelles + watermark proxy (22 tests)
-S10 — Éditeur rapport + export
-S11 — Dossier démo anonymisé
+S10 ✅ — Éditeur rapport + export propre (13 tests — PDF sans session_id/snapshot_hash/proxy)
+S11 ✅ — Dossier démo D-DEMO-2026-LAV (Laval unifamiliale) + chrono + seed script (29 tests)
 S12 — Roadmap bureau
 
 ## Decisions (S3)
@@ -53,7 +53,7 @@ S12 — Roadmap bureau
 
 ## Evidence
 
-- 192 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7 + 36 S8 + 22 S9) — test_s1..test_s9_approches.py
+- 234 tests verts (24 S1 + 11 S2 + 27 S3 + 37 S4 + 15 S6 + 20 S7 + 36 S8 + 22 S9 + 13 S10 + 29 S11) — test_s1..test_s11_demo.py
 - tsc 0 erreurs post-S7
 - Formulaire "Nouveau dossier" : honoraires + date_livraison + nom_evaluateur → requis (bloque soumission)
 - python -c "import api; print('OK')" ✅
