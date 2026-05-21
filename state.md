@@ -1,13 +1,13 @@
 # State — eval-immo
 
-_Updated: 2026-05-21 | HEAD: S12 — PLAN COMPLET_
+_Updated: 2026-05-21 | HEAD: Infolot+MAMH pipeline ✅_
 
 ## Current Goal
 
 S12 COMPLÈTE ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md)
-Révision code ✅ — 4 findings corrigés (bloquant démo + pipeline log + distance score + B005/B006 tests)
-Red team ✅ — 6 vulnérabilités corrigées (comparables fantômes, CSV DoS, B005 crash, session orpheline, valuation 0 silencieux, distance score)
+Infolot+MAMH pipeline ✅ — Auto-comparables WFS cadastre + rôle municipal (plan 2026-05-21 mergé master)
 PLAN COMPLET S1–S12 ✅ — 253 tests verts. Prêt pour démo bureau.
+Prochaine priorité : valider endpoint WFS live + SIRF prix_vente (Phase 2)
 
 ## Plan Status
 
@@ -23,6 +23,7 @@ S3 ✅ — Pipeline stoppable par checkpoint (4 gates + log horodaté)
 S4 ✅ — Compliance Python pur (B001-B007)
 S5 ✅ — Extraction PDF élargie (30 champs) + UI CHECKPOINT 1
 S6 ✅ — Import CSV JLR + scoring comparables + CHECKPOINT 2
+Infolot+MAMH ✅ — Auto-pool comparables (engine/infolot.py + engine/comparables_builder.py + data_enrichment by_lot + runtime auto-feed)
 S7 ✅ — Lettre de mandat (20 tests, template §6.3, PDF, formulaire requis)
 S8 ✅ — Routing LLM par tâche (36 tests, gpt-4o rapport, coût < $0.10, 3 templates OEAQ)
 S9 ✅ — Approches conditionnelles + watermark proxy (22 tests)
