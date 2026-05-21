@@ -1,11 +1,11 @@
 # State — eval-immo
 
-_Updated: 2026-05-21 | HEAD: S11_
+_Updated: 2026-05-21 | HEAD: S12 — PLAN COMPLET_
 
 ## Current Goal
 
-S11 COMPLÈTE ✅ — Dossier démo D-DEMO-2026-LAV + chrono + 29 tests
-Prochaine : S12 — Roadmap bureau JLR/Altus.
+S12 COMPLÈTE ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md)
+PLAN COMPLET S1–S12 ✅ — Prêt pour démo bureau.
 
 ## Plan Status
 
@@ -26,7 +26,7 @@ S8 ✅ — Routing LLM par tâche (36 tests, gpt-4o rapport, coût < $0.10, 3 te
 S9 ✅ — Approches conditionnelles + watermark proxy (22 tests)
 S10 ✅ — Éditeur rapport + export propre (13 tests — PDF sans session_id/snapshot_hash/proxy)
 S11 ✅ — Dossier démo D-DEMO-2026-LAV (Laval unifamiliale) + chrono + seed script (29 tests)
-S12 — Roadmap bureau
+S12 ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md) — tarif, chrono, roadmap 6 mois
 
 ## Decisions (S3)
 
