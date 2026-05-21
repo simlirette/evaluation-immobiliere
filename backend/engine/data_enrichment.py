@@ -693,22 +693,19 @@ def detect_city(display_name: str, zone: str = "") -> str:
     return "montreal"
 
 
-# ── SCHL rental market (StatCan WDS) ─────────────────────────────────────────
+# ── StatCan WDS — DÉSACTIVÉ (S9 2026-05-20) ──────────────────────────────────
+# Source non utilisée par les É.A. québécois. Toutes les fonctions WDS retournent
+# un dict vide pour ne pas bloquer le pipeline; les données manquantes sont ignorées
+# par enrich_case via les blocs try/except existants.
 
-def _wds_post(endpoint: str, payload: Any, timeout: float = _HTTP_TIMEOUT) -> Any:
-    import httpx  # type: ignore
-    url = _WDS_BASE + endpoint
-    r = httpx.post(url, json=payload, timeout=timeout, follow_redirects=True)
-    r.raise_for_status()
-    return r.json()
+def _wds_post(endpoint: str, payload: Any, timeout: float = _HTTP_TIMEOUT) -> Any:  # noqa: ARG001
+    """StatCan WDS désactivé — retourne None immédiatement."""
+    return None
 
 
-def _wds_get(endpoint: str, timeout: float = _HTTP_TIMEOUT) -> Any:
-    import httpx  # type: ignore
-    url = _WDS_BASE + endpoint
-    r = httpx.get(url, timeout=timeout, follow_redirects=True)
-    r.raise_for_status()
-    return r.json()
+def _wds_get(endpoint: str, timeout: float = _HTTP_TIMEOUT) -> Any:  # noqa: ARG001
+    """StatCan WDS désactivé — retourne None immédiatement."""
+    return None
 
 
 def _cube_metadata(pid: int, cache_dir: Path) -> dict:

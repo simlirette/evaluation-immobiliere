@@ -14,7 +14,7 @@ from engine.compliance import run_compliance
 from engine.llm_routing import get_llm_model, estimate_llm_cost
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
 from engine.tools import search_comparables, validate_schema
-from engine.valuation import calculate_valuation_trace
+from engine.valuation import calculate_valuation_trace, applicable_approaches
 
 
 @dataclass
@@ -1627,7 +1627,12 @@ class RuntimeEngine:
                 "calculs_approche_cout.json": "approche_cout",
                 "calculs_approche_revenu.json": "approche_revenu",
             }
-            payload.update(calculate_valuation_trace(case, approach_by_artifact[artifact]))
+            approach_id = approach_by_artifact[artifact]
+            type_bien = str(case.get("type_bien") or "")
+            if approach_id in ("approche_cout", "approche_revenu") and approach_id not in applicable_approaches(type_bien):
+                payload.update({"approach": approach_id, "applicable": False, "value": None, "input_count": 0})
+            else:
+                payload.update(calculate_valuation_trace(case, approach_id))
 
         if step == "valuation-draft" and artifact == "hypotheses_explicites.json":
             payload["hypotheses"] = case.get("hypotheses", [])

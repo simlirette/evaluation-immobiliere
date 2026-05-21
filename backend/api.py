@@ -1665,7 +1665,7 @@ def app_valuation_trace(session_id: str) -> dict:
         if not payload:
             continue
         trace = payload.get("trace", {}) if isinstance(payload.get("trace"), dict) else {}
-        approaches.append({
+        entry: dict = {
             "approach": approach_id,
             "label": {
                 "approche_comparative": "Approche comparative",
@@ -1674,6 +1674,7 @@ def app_valuation_trace(session_id: str) -> dict:
             }.get(approach_id, approach_id),
             "method": payload.get("method", ""),
             "value": payload.get("value"),
+            "applicable": payload.get("applicable", True),
             "input_count": payload.get("input_count", 0),
             "base_value": trace.get("base_value"),
             "adjustment_total": trace.get("adjustment_total_validated"),
@@ -1690,7 +1691,10 @@ def app_valuation_trace(session_id: str) -> dict:
                 for c in (trace.get("selected_comparables") or [])
                 if isinstance(c, dict)
             ],
-        })
+        }
+        if payload.get("AVERTISSEMENT"):
+            entry["AVERTISSEMENT"] = payload["AVERTISSEMENT"]
+        approaches.append(entry)
     hyp_payload = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "hypotheses_explicites.json")
     hypotheses = hyp_payload.get("hypotheses", []) if isinstance(hyp_payload.get("hypotheses"), list) else []
     return {
