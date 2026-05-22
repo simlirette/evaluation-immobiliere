@@ -108,8 +108,18 @@ describe('runtime BFF route auth', () => {
     process.env.RUNTIME_API_TOKEN = 'runtime-secret'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
 
-    await expect(loadRoute({ id: 'user-123' })).rejects.toThrow(/localhost/)
+    const route = await loadRoute({ id: 'user-123' })
+    const response = await route.GET(
+      new NextRequest('http://app.test/api/runtime/app/state'),
+      ctx(['app', 'state']),
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({ error: expect.stringMatching(/localhost/) })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects non-HTTPS runtime URLs in production', async () => {
@@ -118,7 +128,17 @@ describe('runtime BFF route auth', () => {
     process.env.RUNTIME_API_TOKEN = 'runtime-secret'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
 
-    await expect(loadRoute({ id: 'user-123' })).rejects.toThrow(/HTTPS/)
+    const route = await loadRoute({ id: 'user-123' })
+    const response = await route.GET(
+      new NextRequest('http://app.test/api/runtime/app/state'),
+      ctx(['app', 'state']),
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({ error: expect.stringMatching(/HTTPS/) })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

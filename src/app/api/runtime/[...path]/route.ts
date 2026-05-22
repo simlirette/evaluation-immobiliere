@@ -19,34 +19,35 @@ const AUTH_ENABLED =
   Boolean(SUPABASE_ANON_KEY) &&
   !SUPABASE_ANON_KEY.includes('<anon-key>')
 
-function runtimeUrl(): URL {
-  try {
-    return new URL(RUNTIME_URL)
-  } catch {
-    throw new Error('[BFF] RUNTIME_API_URL invalide en production - configurer URL Railway absolue.')
-  }
-}
-
 function isLocalRuntimeUrl(url: URL): boolean {
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
   return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(host)
 }
 
-// Catch misconfigured deployments before they silently fail
-if (IS_PROD) {
-  const parsedRuntimeUrl = runtimeUrl()
+function runtimeConfigError(): string | null {
+  if (!IS_PROD) return null
+
+  let parsedRuntimeUrl: URL
+  try {
+    parsedRuntimeUrl = new URL(RUNTIME_URL)
+  } catch {
+    return '[BFF] RUNTIME_API_URL invalide en production - configurer URL Railway absolue.'
+  }
+
   if (parsedRuntimeUrl.protocol !== 'https:') {
-    throw new Error('[BFF] RUNTIME_API_URL doit etre HTTPS en production - configurer URL Railway publique.')
+    return '[BFF] RUNTIME_API_URL doit etre HTTPS en production - configurer URL Railway publique.'
   }
   if (isLocalRuntimeUrl(parsedRuntimeUrl)) {
-    throw new Error('[BFF] RUNTIME_API_URL pointe vers localhost en production - configurer la variable Railway.')
+    return '[BFF] RUNTIME_API_URL pointe vers localhost en production - configurer la variable Railway.'
   }
   if (!RUNTIME_TOKEN) {
-    throw new Error('[BFF] RUNTIME_API_TOKEN absent en production - requetes runtime refusees.')
+    return '[BFF] RUNTIME_API_TOKEN absent en production - requetes runtime refusees.'
   }
   if (!AUTH_ENABLED) {
-    throw new Error('[BFF] Supabase auth absent en production - configurer NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+    return '[BFF] Supabase auth absent en production - configurer NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.'
   }
+
+  return null
 }
 
 type Ctx = { params: Promise<{ path: string[] }> }
@@ -59,6 +60,11 @@ async function authenticatedUserId(): Promise<string | null> {
 }
 
 async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promise<Response> {
+  const configError = runtimeConfigError()
+  if (configError) {
+    return NextResponse.json({ error: configError }, { status: 500 })
+  }
+
   const { path } = await ctx.params
   const forwardPath = '/' + path.join('/')
   const search = req.nextUrl.search
