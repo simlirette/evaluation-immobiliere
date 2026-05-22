@@ -46,6 +46,13 @@ describe('computeNetAdjustment', () => {
     expect(result.net).toBe(5000)
   })
 
+  it('negative salePrice has zero percentages', () => {
+    const result = computeNetAdjustment(mkAdj({ salePrice: -400000, surface_adj: 5000 }))
+    expect(result.netPct).toBe(0)
+    expect(result.absPct).toBe(0)
+    expect(result.net).toBe(5000)
+  })
+
   it('sums all four adjustment fields', () => {
     const result = computeNetAdjustment(mkAdj({
       surface_adj: 10000, year_adj: -5000, condition_adj: 3000, garage_adj: -2000,

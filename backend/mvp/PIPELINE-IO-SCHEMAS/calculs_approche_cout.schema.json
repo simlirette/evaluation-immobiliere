@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/calculs_approche_cout.schema.json",
+  "title": "calculs_approche_cout.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "valuation-draft" },
+    "artifact": { "const": "calculs_approche_cout.json" },
+    "source_fixture": { "type": "string" },
+    "approach": { "const": "approche_cout" },
+    "applicable": { "type": "boolean" },
+    "method": { "type": "string" },
+    "value": { "type": ["number", "null"], "minimum": 0 },
+    "input_count": { "type": "integer", "minimum": 0 },
+    "calculation_status": { "type": "string" },
+    "trace": { "type": "object" },
+    "AVERTISSEMENT": { "type": "string" },
+    "commentaire": { "type": "string" }
+  }
+}

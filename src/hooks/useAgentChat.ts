@@ -19,7 +19,9 @@ export function useAgentChat(sessionId: string | null, defaultAgent = 'auto') {
   const [transcriptLoaded, setTranscriptLoaded] = useState(false)
   // Stable ref to current replies for history building (avoids stale closure)
   const repliesRef = useRef<ChatReply[]>([])
-  repliesRef.current = replies
+  useEffect(() => {
+    repliesRef.current = replies
+  }, [replies])
 
   // Load persisted transcript on mount (restores history across tab switches)
   useEffect(() => {

@@ -2,6 +2,21 @@ import type { Adjustment, Comparable, Document, Dossier, Enrichment, FactChip } 
 
 const BFF_BASE = '/api/runtime'
 
+export interface CertifiabilityGate {
+  ok: boolean
+  status?: string
+  blocking_errors?: string[]
+  blocking_messages?: string[]
+  blocking_errors_count?: number
+  actual_review_decision?: string
+  integrity_ok?: boolean
+  compliance_status?: string
+  compliance_blocking_failures_count?: number
+  comparative_input_count?: number
+  comparative_value?: number | null
+  report_available?: boolean
+}
+
 export interface AppState {
   schema_version: string
   status: string
@@ -11,6 +26,11 @@ export interface AppState {
     dossier: Dossier
     documents: Document[]
     fact_chips: FactChip[]
+    commanditaire: {
+      nom: string
+      organisation: string
+      fin_evaluation: string
+    } | null
     mandat: {
       mandat_type: string
       format_rapport: string
@@ -39,18 +59,25 @@ export interface AppState {
       preview: string
       title: string
       subtitle: string
+      certifiability_gate?: CertifiabilityGate
     }
     workflow: {
       status: string
       can_validate_review: boolean
       can_generate_package: boolean
       steps: Array<{ id: string; label: string; status: string; complete: boolean }>
+      certifiability_gate?: CertifiabilityGate
+      package_gate?: CertifiabilityGate
+      blocking_messages?: string[]
     }
     pipeline_progress: {
       steps: string[]
       completed: string[]
       running: string | null
+      waiting_checkpoint: number | null
     } | null
+    pipeline_error?: string | null
+    ingestion_error?: string | null
     assistant: {
       agents?: Array<{ agent: string; label: string; status: string; focus: string }>
       transcript?: { messages_count?: number; latest_agent_label?: string }
@@ -59,6 +86,7 @@ export interface AppState {
       status: string
       manifest?: Record<string, unknown>
       files?: string[]
+      gate?: CertifiabilityGate
     }
     enrichment: Enrichment | null
   }
@@ -69,6 +97,7 @@ export interface CreateRuntimeDossierInput {
   property_type: string
   neighborhood: string
   mandat_type?: string
+  date_reference?: string
   superficie_habitable?: number | null
   superficie_terrain?: number | null
   annee_construction?: number | null
@@ -79,6 +108,10 @@ export interface CreateRuntimeDossierInput {
     fin_evaluation: string
   }
   comparables?: import('@/types').ComparableInput[]
+  // S7 — lettre de mandat
+  honoraires?: string
+  date_livraison?: string
+  nom_evaluateur?: string
 }
 
 interface RuntimeMessageResponse {
@@ -139,12 +172,16 @@ export async function createRuntimeDossier(input: CreateRuntimeDossierInput): Pr
       property_type: input.property_type,
       neighborhood: input.neighborhood,
       ...(input.mandat_type ? { mandat_type: input.mandat_type } : {}),
+      ...(input.date_reference ? { date_reference: input.date_reference } : {}),
       ...(input.superficie_habitable != null ? { superficie_habitable: input.superficie_habitable } : {}),
       ...(input.superficie_terrain != null ? { superficie_terrain: input.superficie_terrain } : {}),
       ...(input.annee_construction != null ? { annee_construction: input.annee_construction } : {}),
       ...(input.nb_chambres != null ? { nb_chambres: input.nb_chambres } : {}),
       ...(input.commanditaire ? { commanditaire: input.commanditaire } : {}),
       ...(input.comparables && input.comparables.length > 0 ? { comparables: input.comparables } : {}),
+      ...(input.honoraires ? { honoraires: input.honoraires } : {}),
+      ...(input.date_livraison ? { date_livraison: input.date_livraison } : {}),
+      ...(input.nom_evaluateur ? { nom_evaluateur: input.nom_evaluateur } : {}),
     }),
   })
   const dossier = payload.state.active?.dossier
@@ -181,14 +218,46 @@ export async function fetchRuntimeDocuments(sessionId: string): Promise<Document
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const UPLOAD_ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+const UPLOAD_EXTENSIONS_BY_TYPE: Record<string, string[]> = {
+  'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+}
+
+function assertUploadFilename(file: File) {
+  if (file.name.includes('/') || file.name.includes('\\')) {
+    throw new Error('Nom de fichier invalide.')
+  }
+  const lower = file.name.toLowerCase()
+  const allowed = UPLOAD_EXTENSIONS_BY_TYPE[file.type] ?? []
+  if (!allowed.some(ext => lower.endsWith(ext))) {
+    throw new Error('Extension de fichier incompatible avec le type déclaré.')
+  }
+}
+
+async function assertUploadSignature(file: File) {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
+  if (head.length === 0) throw new Error('Fichier vide.')
+  if (file.type === 'application/pdf') {
+    const pdf = [0x25, 0x50, 0x44, 0x46, 0x2d]
+    if (!pdf.every((byte, i) => head[i] === byte)) throw new Error('Fichier PDF invalide.')
+  } else if (file.type === 'image/jpeg') {
+    if (head[0] !== 0xff || head[1] !== 0xd8) throw new Error('Image JPEG invalide.')
+  } else if (file.type === 'image/png') {
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    if (!png.every((byte, i) => head[i] === byte)) throw new Error('Image PNG invalide.')
+  }
+}
 
 export async function uploadRuntimeDocument(sessionId: string, file: File): Promise<Document> {
   if (!UPLOAD_ALLOWED_TYPES.has(file.type)) {
     throw new Error('Type non autorisé. PDF, JPG ou PNG uniquement.')
   }
+  assertUploadFilename(file)
   if (file.size > UPLOAD_MAX_BYTES) {
     throw new Error('Fichier trop volumineux (maximum 10 Mo).')
   }
+  await assertUploadSignature(file)
 
   const content_b64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -382,10 +451,69 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
   })
 }
 
+export async function saveRuntimeFactOverrides(
+  sessionId: string,
+  overrides: { surface_pi2?: number | null; zone?: string; date_reference?: string }
+): Promise<void> {
+  await runtimeJson<{ ok: boolean }>('/app/facts', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...overrides }),
+  })
+}
+
 export async function saveRuntimeComparables(sessionId: string, comparables: import('@/types').Comparable[]): Promise<void> {
   await runtimeJson<{ ok: boolean; count: number }>('/app/comparables', {
     method: 'POST',
     body: JSON.stringify({ session_id: sessionId, comparables }),
+  })
+}
+
+// ── S5 — Checkpoint 1 review ─────────────────────────────────────────────────
+
+export interface IntakeField {
+  key: string
+  label: string
+  value: string | null
+  missing: boolean
+  required: boolean
+}
+
+export interface IntakeFacts {
+  session_id: string
+  dossier_id: string
+  fields: IntakeField[]
+  total: number
+  missing_count: number
+  required_missing: string[]
+  ready_to_confirm: boolean
+}
+
+export function fetchCheckpointFacts(sessionId: string): Promise<IntakeFacts> {
+  return runtimeJson<IntakeFacts>(`/app/facts?session_id=${encodeURIComponent(sessionId)}`)
+}
+
+export async function confirmCheckpoint(
+  sessionId: string,
+  checkpoint: number,
+  evaluatorId?: string,
+): Promise<void> {
+  await runtimeJson<unknown>('/app/checkpoint/confirm', {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: sessionId,
+      checkpoint,
+      ...(evaluatorId ? { _evaluator_id: evaluatorId } : {}),
+    }),
+  })
+}
+
+export async function resumeCheckpoint(
+  sessionId: string,
+  checkpoint: number,
+): Promise<void> {
+  await runtimeJson<unknown>('/app/checkpoint/resume', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, checkpoint }),
   })
 }
 
@@ -417,4 +545,133 @@ export async function exportRapport(
   }
 
   return { filename: result.filename, blob }
+}
+
+export interface ValuationApproachTrace {
+  approach: string
+  label: string
+  method: string
+  value: number | null
+  input_count: number
+  base_value: number | null
+  adjustment_total: number | null
+  weights: number[]
+  policy: string[]
+  selected_comparables: Array<{
+    comparable_id: string
+    prix_vente: number | null
+    score: number | null
+    date_vente: string
+    source_id: string
+  }>
+}
+
+export interface ValuationTrace {
+  session_id: string
+  approaches: ValuationApproachTrace[]
+  hypotheses: Array<{ hypothese?: string; [key: string]: unknown }>
+}
+
+export async function fetchValuationTrace(sessionId: string): Promise<ValuationTrace | null> {
+  try {
+    return await runtimeJson<ValuationTrace>(`/app/trace?session_id=${encodeURIComponent(sessionId)}`)
+  } catch {
+    return null
+  }
+}
+
+// ── S6 — Checkpoint 2 — Import JLR + sélection comparables ──────────────────
+
+export interface ComparableCandidate {
+  id: string
+  adresse: string
+  prix_vente: number
+  date_vente: string
+  surface_habitable: number | null
+  surface_terrain: number | null
+  nb_chambres: number | null
+  nb_pieces: number | null
+  type_bien: string | null
+  source_id: string
+  distance_km: number | null
+  score: number
+  score_details: {
+    components: Record<string, number>
+    rationale: string[]
+    score: number
+  }
+}
+
+export interface ComparableCandidatesResult {
+  session_id: string
+  candidates: ComparableCandidate[]
+  total: number
+  subject_address: string | null
+}
+
+export function fetchComparableCandidates(sessionId: string): Promise<ComparableCandidatesResult> {
+  return runtimeJson<ComparableCandidatesResult>(
+    `/app/comparables/candidates?session_id=${encodeURIComponent(sessionId)}`
+  )
+}
+
+export async function uploadJlrCsv(sessionId: string, file: File): Promise<ComparableCandidatesResult> {
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    throw new Error('Format non supporté. Fichier CSV uniquement.')
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Fichier trop volumineux (maximum 5 Mo).')
+  }
+
+  const content_b64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1])
+    }
+    reader.onerror = () => reject(new Error('Lecture du fichier échouée.'))
+    reader.readAsDataURL(file)
+  })
+
+  return runtimeJson<ComparableCandidatesResult>('/app/jlr/upload', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, filename: file.name, content_b64 }),
+  })
+}
+
+export async function confirmComparables(
+  sessionId: string,
+  selectedIds: string[],
+  checkpoint: number,
+): Promise<void> {
+  await runtimeJson<{ ok: boolean }>('/app/checkpoint/comparables', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, selected_ids: selectedIds }),
+  })
+}
+
+// ── S7 — Lettre de mandat ─────────────────────────────────────────────────────
+
+export async function downloadLettreMandat(sessionId: string): Promise<void> {
+  const result = await runtimeJson<{
+    dossier_id: string
+    format: string
+    content_b64?: string
+    filename: string
+  }>('/app/mandat/lettre', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, format: 'pdf' }),
+  })
+
+  if (!result.content_b64) throw new Error('PDF non généré')
+  const bytes = Uint8Array.from(atob(result.content_b64), c => c.charCodeAt(0))
+  const blob = new Blob([bytes], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = result.filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }

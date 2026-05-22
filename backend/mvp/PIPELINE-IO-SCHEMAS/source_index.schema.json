@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/source_index.schema.json",
+  "title": "source_index.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "sources"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "type": "string" },
+    "artifact": { "const": "source_index.json" },
+    "source_fixture": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id"],
+        "properties": {
+          "source_id": { "type": "string" }
+        }
+      }
+    }
+  }
+}

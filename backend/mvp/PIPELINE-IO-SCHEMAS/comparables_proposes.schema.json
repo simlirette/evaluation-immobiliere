@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/comparables_proposes.schema.json",
+  "title": "comparables_proposes.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "comparables"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "comps-market" },
+    "artifact": { "const": "comparables_proposes.json" },
+    "source_fixture": { "type": "string" },
+    "date_reference": { "type": ["string", "null"] },
+    "comparables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["comparable_id", "prix_vente", "source_id", "score", "date_vente"],
+        "properties": {
+          "comparable_id": { "type": "string" },
+          "prix_vente": { "type": "number", "minimum": 0 },
+          "source_id": { "type": "string" },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "date_vente": { "type": "string" },
+          "score_details": { "type": "object" }
+        }
+      }
+    },
+    "marche_locatif": { "type": "object" }
+  }
+}

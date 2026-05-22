@@ -28,6 +28,14 @@ SOURCE_QUALITY = {
     "photo_non_geolocalisee": 0.45,
 }
 
+# Pondération S6 — scoring comparable JLR (plan 2026-05-20)
+JLR_SCORING_WEIGHTS = {
+    "surface_similarity": 0.40,
+    "recency":            0.30,
+    "distance":           0.20,
+    "type_match":         0.10,
+}
+
 
 @dataclass
 class Comparable:
@@ -47,15 +55,19 @@ def search_comparables(
     date_reference: str | None = None,
 ) -> list[Comparable]:
     """Filtre les comparables sources et les classe par score metier explicable."""
-    scored = [(c, score_comparable(c, subject=subject, date_reference=date_reference)) for c in pool if c.get("source_id")]
-    scored.sort(key=lambda item: (float(item[1]["score"]), _to_float(item[0].get("prix_vente"))), reverse=True)
+    scored = [
+        (c, score_comparable(c, subject=subject, date_reference=date_reference))
+        for c in pool
+        if is_usable_comparable(c)
+    ]
+    scored.sort(key=lambda item: (float(item[1]["score"]), _comparable_price(item[0])), reverse=True)
     return [
         Comparable(
-            comparable_id=str(c.get("comparable_id", "")),
-            prix_vente=_to_float(c.get("prix_vente")),
-            source_id=str(c.get("source_id", "")),
+            comparable_id=str(c.get("comparable_id") or c.get("id") or c.get("source_id") or ""),
+            prix_vente=_comparable_price(c),
+            source_id=_source_id(c),
             score=round(float(details["score"]), 4),
-            date_vente=str(c.get("date_vente", "")),
+            date_vente=_sale_date_text(c),
             score_details=details,
         )
         for c, details in scored[:max_items]
@@ -109,6 +121,7 @@ def score_comparable(
         "surface_similarity": _surface_similarity_score(item, subject),
         "confidence": _bounded(_to_float(item.get("confidence", 0.65))),
         "source_quality": _source_quality_score(item),
+        "type_match": _type_match_score(item, subject),
     }
     weighted_score = sum(components[key] * active_weights.get(key, 0.0) for key in components)
     penalties = _score_penalties(item, subject=subject, date_reference=date_reference)
@@ -128,10 +141,22 @@ def _comparable_score(item: dict) -> float:
     return float(score_comparable(item)["score"])
 
 
+def is_usable_comparable(item: dict) -> bool:
+    """Comparable usable for value calculations, not just display."""
+    return (
+        _source_id(item) != ""
+        and _comparable_price(item) > 0
+        and _parse_iso_date(_sale_date_text(item)) is not None
+    )
+
+
 def _distance_score(item: dict, limits: dict[str, float]) -> float:
-    distance = _to_float(item.get("distance_km"))
-    if distance <= 0:
+    raw = item.get("distance_km")
+    distance = _to_float(raw)
+    if raw is None:          # distance inconnue → neutre
         return 0.5
+    if distance <= 0:        # distance nulle = même secteur → parfait
+        return 1.0
     max_distance = max(_to_float(limits.get("max_distance_km")), 1.0)
     return _bounded(1 - min(distance / max_distance, 1.0))
 
@@ -159,6 +184,62 @@ def _surface_similarity_score(item: dict, subject: dict | None) -> float:
     return _bounded(min(subject_value, comp_value) / max(subject_value, comp_value))
 
 
+def _type_match_score(item: dict, subject: dict | None) -> float:
+    """Score 0..1 selon la correspondance type_bien sujet/comparable."""
+    if not subject:
+        return 0.5
+    subj_type = str(subject.get("type_bien") or "").lower().strip()
+    comp_type = str(item.get("type_bien") or "").lower().strip()
+    if not subj_type or not comp_type:
+        return 0.5
+    if subj_type == comp_type:
+        return 1.0
+    # Correspondances partielles (familles de biens)
+    _FAMILIES = [
+        {"unifamiliale", "maison", "cottage", "jumelé", "jumelé détaché"},
+        {"condo", "appartement", "copropriété"},
+        {"duplex", "triplex", "plex", "immeuble_revenus"},
+        {"commercial", "bureau", "commercial mixte"},
+        {"terrain", "lot"},
+    ]
+    for family in _FAMILIES:
+        if any(t in subj_type for t in family) and any(t in comp_type for t in family):
+            return 0.7
+    return 0.2
+
+
+def score_justification_fr(score_details: dict) -> str:
+    """Résume le score en une phrase française pour l'interface UI CHECKPOINT 2."""
+    score = float(score_details.get("score") or score_details.get("weighted_score") or 0)
+    components = score_details.get("components") or {}
+    rationale = score_details.get("rationale") or []
+
+    if score >= 0.75:
+        qualif = "Très pertinent"
+    elif score >= 0.55:
+        qualif = "Pertinent"
+    elif score >= 0.35:
+        qualif = "Acceptable"
+    else:
+        qualif = "Faible pertinence"
+
+    # Composante dominante
+    if components:
+        strongest = max(components, key=lambda k: components.get(k) or 0)
+        label_map = {
+            "surface_similarity": "surface similaire",
+            "recency":            "vente récente",
+            "distance":           "proximité géographique",
+            "type_match":         "même type de bien",
+            "confidence":         "données de confiance",
+            "source_quality":     "source fiable",
+        }
+        dominant = label_map.get(strongest, strongest)
+        return f"{qualif} — {dominant} ({score:.0%})"
+
+    return f"{qualif} ({score:.0%})"
+
+
 def _source_quality_score(item: dict) -> float:
     source_type = str(item.get("source_type") or item.get("source_quality") or "").strip().lower()
     if source_type in SOURCE_QUALITY:
@@ -175,9 +256,13 @@ def _source_quality_score(item: dict) -> float:
 
 def _score_penalties(item: dict, *, subject: dict | None, date_reference: str | None) -> dict[str, float]:
     penalties: dict[str, float] = {}
-    if not item.get("source_id"):
+    if not _source_id(item):
         penalties["missing_source"] = 0.40
-    sale_date = _parse_iso_date(item.get("date_vente"))
+    if _comparable_price(item) <= 0:
+        penalties["missing_price"] = 0.45
+    sale_date = _parse_iso_date(_sale_date_text(item))
+    if sale_date is None:
+        penalties["missing_sale_date"] = 0.20
     reference = _parse_iso_date(date_reference)
     if sale_date is not None and reference is not None and sale_date > reference:
         penalties["future_sale"] = 0.35
@@ -207,6 +292,18 @@ def _parse_iso_date(value: object) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _source_id(item: dict) -> str:
+    return str(item.get("source_id") or item.get("meta") or "").strip()
+
+
+def _sale_date_text(item: dict) -> str:
+    return str(item.get("date_vente") or item.get("sale_date") or "").strip()
+
+
+def _comparable_price(item: dict) -> float:
+    return _to_float(item.get("prix_vente") if "prix_vente" in item else item.get("sale_price"))
 
 
 def _has_field(payload: dict, field: str) -> bool:

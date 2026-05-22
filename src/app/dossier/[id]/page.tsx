@@ -153,16 +153,19 @@ function DossierShellInner() {
           }}
         >
           <div className="absolute inset-0 flex">
-            {activeTab === 'dossier'  && <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => {
-              setReportReady(true)
-              setSidebarRefreshKey(k => k + 1)
-              setToast('Analyse terminée — rapport disponible')
-              if (dossierId) {
-                fetchRuntimeEnrichment(dossierId).then(e => {
-                  setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)
-                }).catch(() => undefined)
-              }
-            }} />}
+            {/* DossierPanel always mounted — keeps pipeline polling alive across tab switches */}
+            <div className={activeTab === 'dossier' ? 'absolute inset-0 flex' : 'hidden'}>
+              <DossierPanel isNew={isNew} dossierId={dossierId} onPipelineComplete={() => {
+                setReportReady(true)
+                setSidebarRefreshKey(k => k + 1)
+                setToast('Analyse terminée — rapport disponible')
+                if (dossierId) {
+                  fetchRuntimeEnrichment(dossierId).then(e => {
+                    setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)
+                  }).catch(() => undefined)
+                }
+              }} />
+            </div>
             {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} address={currentDossierName} />}
             {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} address={currentDossierName} />}
             {activeTab === 'synthese' && <SynthesePanel dossierId={dossierId} address={currentDossierName} onCritiqueFound={setSyntheseCritiques} />}

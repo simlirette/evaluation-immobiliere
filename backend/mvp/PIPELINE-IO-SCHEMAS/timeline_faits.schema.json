@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/timeline_faits.schema.json",
+  "title": "timeline_faits.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "events"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "data-facts" },
+    "artifact": { "const": "timeline_faits.json" },
+    "source_fixture": { "type": "string" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "date": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

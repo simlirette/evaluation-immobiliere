@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/fiche_bien.schema.json",
+  "title": "fiche_bien.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "date_reference", "surface", "confidence", "source_ids"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "data-facts" },
+    "artifact": { "const": "fiche_bien.json" },
+    "source_fixture": { "type": "string" },
+    "date_reference": { "type": ["string", "null"] },
+    "surface": { "type": ["object", "number", "string", "null"] },
+    "type_bien": { "type": ["string", "null"] },
+    "zone": { "type": ["string", "null"] },
+    "adresse_anonymisee": { "type": "string" },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "source_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "status", "severity", "message", "stage", "cached", "timestamp_utc"],
+        "properties": {
+          "source": { "type": "string" },
+          "status": { "type": "string" },
+          "severity": { "type": "string" },
+          "message": { "type": "string" },
+          "stage": { "type": "string" },
+          "cached": { "type": "boolean" },
+          "timestamp_utc": { "type": "string" },
+          "details": { "type": "object" }
+        }
+      }
+    },
+    "source_coverage": { "type": "object" }
+  }
+}

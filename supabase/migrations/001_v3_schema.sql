@@ -1,5 +1,5 @@
 -- ─── dossiers ────────────────────────────────────────────────────────────────
-create table dossiers (
+create table if not exists dossiers (
   id             uuid primary key default gen_random_uuid(),
   slug           text unique not null,
   address        text not null,
@@ -19,18 +19,22 @@ create table dossiers (
 
 alter table dossiers enable row level security;
 
+drop policy if exists "users see own dossiers" on dossiers;
 create policy "users see own dossiers"
   on dossiers for select
   using (created_by = auth.uid());
 
+drop policy if exists "users insert own dossiers" on dossiers;
 create policy "users insert own dossiers"
   on dossiers for insert
   with check (created_by = auth.uid());
 
+drop policy if exists "users update own dossiers" on dossiers;
 create policy "users update own dossiers"
   on dossiers for update
   using (created_by = auth.uid());
 
+drop policy if exists "users delete own dossiers" on dossiers;
 create policy "users delete own dossiers"
   on dossiers for delete
   using (created_by = auth.uid());
@@ -40,12 +44,13 @@ returns trigger language plpgsql as $$
 begin new.updated_at = now(); return new; end;
 $$;
 
+drop trigger if exists dossiers_updated_at on dossiers;
 create trigger dossiers_updated_at
   before update on dossiers
   for each row execute function touch_updated_at();
 
 -- ─── user_dossier_pins ───────────────────────────────────────────────────────
-create table user_dossier_pins (
+create table if not exists user_dossier_pins (
   user_id    uuid references auth.users on delete cascade,
   dossier_id uuid references dossiers(id) on delete cascade,
   primary key (user_id, dossier_id)
@@ -53,13 +58,14 @@ create table user_dossier_pins (
 
 alter table user_dossier_pins enable row level security;
 
+drop policy if exists "users manage own pins" on user_dossier_pins;
 create policy "users manage own pins"
   on user_dossier_pins for all
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
 -- ─── property_facts ──────────────────────────────────────────────────────────
-create table property_facts (
+create table if not exists property_facts (
   id          uuid primary key default gen_random_uuid(),
   dossier_id  uuid references dossiers(id) on delete cascade not null,
   label       text not null,
@@ -69,6 +75,7 @@ create table property_facts (
 
 alter table property_facts enable row level security;
 
+drop policy if exists "users see facts of own dossiers" on property_facts;
 create policy "users see facts of own dossiers"
   on property_facts for all
   using (exists (
@@ -78,7 +85,7 @@ create policy "users see facts of own dossiers"
   ));
 
 -- ─── documents ───────────────────────────────────────────────────────────────
-create table documents (
+create table if not exists documents (
   id           uuid primary key default gen_random_uuid(),
   dossier_id   uuid references dossiers(id) on delete cascade not null,
   display_name text not null,
@@ -90,6 +97,7 @@ create table documents (
 
 alter table documents enable row level security;
 
+drop policy if exists "users manage docs of own dossiers" on documents;
 create policy "users manage docs of own dossiers"
   on documents for all
   using (exists (
@@ -99,7 +107,7 @@ create policy "users manage docs of own dossiers"
   ));
 
 -- ─── comparables ─────────────────────────────────────────────────────────────
-create table comparables (
+create table if not exists comparables (
   id             uuid primary key default gen_random_uuid(),
   dossier_id     uuid references dossiers(id) on delete cascade not null,
   rank           text not null,
@@ -116,6 +124,7 @@ create table comparables (
 
 alter table comparables enable row level security;
 
+drop policy if exists "users manage comps of own dossiers" on comparables;
 create policy "users manage comps of own dossiers"
   on comparables for all
   using (exists (
@@ -125,7 +134,7 @@ create policy "users manage comps of own dossiers"
   ));
 
 -- ─── adjustments ─────────────────────────────────────────────────────────────
-create table adjustments (
+create table if not exists adjustments (
   id             uuid primary key default gen_random_uuid(),
   dossier_id     uuid references dossiers(id) on delete cascade not null,
   comparable_id  uuid references comparables(id) on delete cascade not null,
@@ -137,6 +146,7 @@ create table adjustments (
 
 alter table adjustments enable row level security;
 
+drop policy if exists "users manage adjustments of own dossiers" on adjustments;
 create policy "users manage adjustments of own dossiers"
   on adjustments for all
   using (exists (
@@ -147,8 +157,10 @@ create policy "users manage adjustments of own dossiers"
 
 -- ─── Storage bucket ──────────────────────────────────────────────────────────
 insert into storage.buckets (id, name, public)
-values ('dossier-documents', 'dossier-documents', false);
+values ('dossier-documents', 'dossier-documents', false)
+on conflict (id) do update set public = false;
 
+drop policy if exists "users upload own docs" on storage.objects;
 create policy "users upload own docs"
   on storage.objects for insert
   with check (
@@ -156,6 +168,7 @@ create policy "users upload own docs"
     and auth.uid() is not null
   );
 
+drop policy if exists "users read own docs" on storage.objects;
 create policy "users read own docs"
   on storage.objects for select
   using (

@@ -8,11 +8,15 @@ import os
 import re
 import time
 import ast
+import uuid
 
 from engine.audit import append_audit_log
+from engine.compliance import run_compliance
+from engine.llm_routing import get_llm_model, estimate_llm_cost
+from engine.schema_contracts import validate_artifact_schema
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
 from engine.tools import search_comparables, validate_schema
-from engine.valuation import calculate_valuation_trace
+from engine.valuation import calculate_valuation_trace, approaches_for_case
 
 
 @dataclass
@@ -33,8 +37,8 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "statut_sortie.json": ["dossier_id", "step", "artifact", "source_fixture", "status", "blocking_failures", "warnings"],
     "comparables_proposes.json": ["dossier_id", "step", "artifact", "source_fixture", "comparables"],
     "calculs_approche_comparative.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
-    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
-    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
+    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
+    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
     "umpp_conclusion.json": ["dossier_id", "step", "artifact", "source_fixture", "umpp"],
     "conflit_interets.json": ["dossier_id", "step", "artifact", "source_fixture", "conflit_detecte"],
 }
@@ -424,55 +428,28 @@ class RuntimeEngine:
         return payload
 
     def _compute_qa(self, case: dict) -> tuple[str, list[str], list[str]]:
-        blocking: list[str] = []
-        warnings: list[str] = []
+        # Délègue à engine/compliance.py (B001-B007 + W001-W003 déterministes)
+        sensitive_amount_min = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "ajustement_sensible_montant_min"), 25000)
+        )
+        max_distance_warning = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "max_comparable_distance_km_warning"), 30)
+        )
+        confidence_min = float(
+            _contract_value(("contracts", "rapport_conformite", "constraints", "confidence_min_warning"), 0.60)
+        )
+        report = run_compliance(
+            case,
+            sensitive_amount_min=sensitive_amount_min,
+            max_distance_warning_km=max_distance_warning,
+            confidence_min=confidence_min,
+        )
 
-        if not case.get("dossier_id"):
-            blocking.append("B001: dossier_id manquant")
-        if not case.get("date_reference"):
-            blocking.append("B001: date_reference manquante")
-
-        reference_date = _parse_iso_date(case.get("date_reference"))
-
-        for c in case.get("comparables", []):
-            if "source_id" not in c:
-                blocking.append("B002: comparable sans source_id")
-            sale_date = _parse_iso_date(c.get("date_vente"))
-            if reference_date and sale_date and sale_date > reference_date:
-                blocking.append("B003: vente comparable future vs date_reference")
-            max_distance_warning = float(
-                _contract_value(("contracts", "rapport_conformite", "constraints", "max_comparable_distance_km_warning"), 30)
-            )
-            if c.get("distance_km", 0) and float(c.get("distance_km", 0)) > max_distance_warning:
-                warnings.append("W002: comparable eloigne")
-
-        for a in case.get("ajustements", []):
-            if "source_id" not in a:
-                blocking.append("B002: ajustement sans source_id")
-            sensitive_amount_min = float(
-                _contract_value(("contracts", "rapport_conformite", "constraints", "ajustement_sensible_montant_min"), 25000)
-            )
-            if a.get("montant", 0) >= sensitive_amount_min and not a.get("validation_humaine", False):
-                blocking.append("B005: ajustement sensible sans validation_humaine")
+        blocking = report.blocking_strings()
+        warnings = list(report.warnings)
 
         if self.strict_mode and case.get("comparables") and not all("source_id" in c for c in case.get("comparables", [])):
             blocking.append("STRICT: sortie refusee, comparable sans source")
-
-        subject_unit = case.get("surface", {}).get("unit")
-        comp_units = {c.get("surface", {}).get("unit") for c in case.get("comparables", []) if isinstance(c.get("surface"), dict)}
-        if subject_unit and comp_units and any(u and u != subject_unit for u in comp_units):
-            blocking.append("B004: unite incoherente sujet/comparables")
-
-        confidence_min_warning = float(
-            _contract_value(("contracts", "rapport_conformite", "constraints", "confidence_min_warning"), 0.60)
-        )
-        if case.get("confidence", 1) < confidence_min_warning:
-            warnings.append("W001: confiance faible")
-
-        for h in case.get("hypotheses", []):
-            source_ids = h.get("source_ids", [])
-            if len(source_ids) < 2:
-                warnings.append("W003: hypothese non corroboree par une deuxieme source")
 
         blocking = _unique(blocking)
         warnings = _unique(warnings)
@@ -508,6 +485,10 @@ class RuntimeEngine:
             # Inject enrichment data when available
             if case.get("annee_construction"):
                 fb["annee_construction"] = case["annee_construction"]
+            if case.get("source_diagnostics"):
+                fb["source_diagnostics"] = case.get("source_diagnostics")
+            if case.get("source_coverage"):
+                fb["source_coverage"] = case.get("source_coverage")
             if case.get("role_municipal"):
                 role = case["role_municipal"]
                 fb["role_municipal"] = {
@@ -1619,6 +1600,34 @@ class RuntimeEngine:
 
         if step == "comps-market" and artifact == "comparables_proposes.json":
             payload["date_reference"] = case.get("date_reference")
+
+            # Auto-alimenter le pool si aucun comparable n'a été chargé (CSV JLR absent)
+            if not case.get("comparables"):
+                try:
+                    from engine.comparables_builder import build_comparable_pool
+                    from engine.data_enrichment import get_data_cache_dir
+                    from engine.source_diagnostics import attach_source_coverage, ensure_source_diagnostics
+                    address = str(case.get("adresse_complete") or "")
+                    if address:
+                        diagnostics = ensure_source_diagnostics(case)
+                        auto_pool = build_comparable_pool(
+                            subject_address=address,
+                            subject_surface_m2=float(case.get("surface_habitable") or 0),
+                            subject_type_bien=str(case.get("type_bien") or ""),
+                            subject_annee_construction=int(case.get("annee_construction") or 0),
+                            cache_dir=get_data_cache_dir(),
+                            diagnostics=diagnostics,
+                        )
+                        attach_source_coverage(case)
+                        if auto_pool:
+                            case["comparables"] = auto_pool
+                            logger.info(
+                                "Pool auto-alimenté Infolot+MAMH: %d candidats pour '%s'",
+                                len(auto_pool), address,
+                            )
+                except Exception as exc:
+                    logger.warning("build_comparable_pool failed (non-bloquant): %s", exc)
+
             payload["comparables"] = [
                 c.__dict__
                 for c in search_comparables(
@@ -1652,7 +1661,17 @@ class RuntimeEngine:
                 "calculs_approche_cout.json": "approche_cout",
                 "calculs_approche_revenu.json": "approche_revenu",
             }
-            payload.update(calculate_valuation_trace(case, approach_by_artifact[artifact]))
+            approach_id = approach_by_artifact[artifact]
+            if approach_id in ("approche_cout", "approche_revenu") and approach_id not in approaches_for_case(case):
+                payload.update({
+                    "approach": approach_id,
+                    "applicable": False,
+                    "value": None,
+                    "input_count": 0,
+                    "calculation_status": "NOT_APPLICABLE",
+                })
+            else:
+                payload.update(calculate_valuation_trace(case, approach_id))
 
         if step == "valuation-draft" and artifact == "hypotheses_explicites.json":
             payload["hypotheses"] = case.get("hypotheses", [])
@@ -1714,7 +1733,15 @@ class RuntimeEngine:
         case_stem: str | None = None,
         case_subdir: bool = False,
         on_step_done=None,
+        steps_filter: list[str] | None = None,
     ) -> dict:
+        """Execute pipeline steps.
+
+        Args:
+            steps_filter: If provided, only run steps whose name is in this list.
+                          Used by run_pipeline_until() to execute one checkpoint segment.
+                          None = run all steps (legacy / one-shot mode).
+        """
         started_at = time.perf_counter()
         events: list[dict] = []
         dossier_id = str(case.get("dossier_id") or "unknown")
@@ -1730,6 +1757,8 @@ class RuntimeEngine:
             self._record_event(events, audit_log_path, {"event": "warning_detected", "dossier_id": dossier_id, "warning": warning})
 
         for step in self.steps:
+            if steps_filter is not None and step.name not in steps_filter:
+                continue  # skip steps not in this checkpoint segment
             step_start_event = {"event": "step_start", "step": step.name, "dossier_id": dossier_id}
             if step.skills:
                 step_start_event["skills_allowed"] = step.skills
@@ -1783,6 +1812,24 @@ class RuntimeEngine:
                     )
                     if step.name == "compliance-qa":
                         payload.setdefault("blocking_failures", []).extend(contract_failures)
+
+                schema_failures = validate_artifact_schema(artifact, payload)
+                if schema_failures:
+                    formatted_failures = [f"JSON_SCHEMA: {failure}" for failure in schema_failures]
+                    blocking = _unique([*blocking, *formatted_failures])
+                    status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
+                    self._record_event(
+                        events,
+                        audit_log_path,
+                        {
+                            "event": "json_schema_invalid",
+                            "step": step.name,
+                            "artifact": artifact,
+                            "failures": schema_failures,
+                        },
+                    )
+                    if step.name == "compliance-qa":
+                        payload.setdefault("blocking_failures", []).extend(formatted_failures)
 
                 write_artifact_payload(artifact_path, payload)
                 self._record_event(
@@ -2092,6 +2139,35 @@ _RAPPORT_SYSTEM_PROMPT_COMPLET = (
 )
 
 
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+
+# Mapping type_bien → fichier template rapport
+_RAPPORT_TEMPLATE_MAP: dict[str, str] = {
+    "residentiel_unifamilial": "rapport_residentiel_unifamilial.md",
+    "condo":                   "rapport_residentiel_unifamilial.md",  # même structure
+    "duplex":                  "rapport_residentiel_unifamilial.md",
+    "triplex":                 "rapport_residentiel_unifamilial.md",
+    "quadruplex":              "rapport_residentiel_unifamilial.md",
+    "immeuble_revenus":        "rapport_immeuble_revenus.md",
+    "commercial":              "rapport_commercial.md",
+    "terrain":                 "rapport_residentiel_unifamilial.md",  # même structure de base
+}
+
+
+def _load_rapport_template(type_bien: str) -> str | None:
+    """Charge le template de rapport selon le type de bien. Retourne None si absent."""
+    filename = _RAPPORT_TEMPLATE_MAP.get(str(type_bien or "").lower())
+    if not filename:
+        filename = "rapport_residentiel_unifamilial.md"
+    path = _TEMPLATES_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
 def _fmt_cad(value: float) -> str:
     """Formate un montant en dollars canadiens."""
     return f"{round(value):,}".replace(",", "\u00a0") + " $"
@@ -2171,11 +2247,26 @@ def _build_rapport_prompt_v2(
         lines += ["", f"HYPOTHÈSES ({len(hypotheses)}):"]
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
+
+    # Inject template structure as guidance if available
+    template_txt = _load_rapport_template(case.get("type_bien", ""))
+    if template_txt:
+        lines += [
+            "",
+            "STRUCTURE DU RAPPORT (respecter cet ordre de sections) :",
+            "---",
+            template_txt[:3000],  # cap at 3000 chars to stay within context
+            "---",
+        ]
     return "\n".join(lines)
 
 
-def _generate_rapport_llm(prompt: str, format: str = "abrege") -> str | None:
-    """Appelle OpenAI pour générer le rapport. Retourne None si indisponible."""
+def _generate_rapport_llm(prompt: str, format: str = "abrege") -> dict | None:
+    """Appelle OpenAI pour générer le rapport.
+
+    Retourne None si indisponible, sinon dict avec:
+        {"text": str, "model": str, "tokens_in": int, "tokens_out": int, "cost_usd": float}
+    """
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         return None
@@ -2185,15 +2276,27 @@ def _generate_rapport_llm(prompt: str, format: str = "abrege") -> str | None:
         system_prompt = (
             _RAPPORT_SYSTEM_PROMPT_COMPLET if format == "complet" else _RAPPORT_SYSTEM_PROMPT_ABREGE
         )
+        model = get_llm_model("redaction_rapport")
         resp = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=model,
             max_tokens=_RAPPORT_MAX_TOKENS,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
         )
-        return resp.choices[0].message.content or None
+        text = resp.choices[0].message.content or None
+        if not text:
+            return None
+        tokens_in = getattr(resp.usage, "prompt_tokens", 0) or 0
+        tokens_out = getattr(resp.usage, "completion_tokens", 0) or 0
+        return {
+            "text": text,
+            "model": model,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "cost_usd": estimate_llm_cost(model, tokens_in, tokens_out),
+        }
     except Exception:
         return None
 
@@ -2241,6 +2344,17 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
         items = "\n".join(f"- {w}" for w in warnings)
         warnings_section = f"\n**Avertissements ({len(warnings)}) :**\n{items}\n"
 
+    if len(valuation_values) > 1:
+        valuation_sentence = (
+            "Cette valeur est etablie principalement par l'approche comparative, "
+            "avec indications secondaires calculees selon les intrants disponibles."
+        )
+    else:
+        valuation_sentence = (
+            "Cette valeur est etablie principalement par l'approche comparative; "
+            "les autres approches doivent etre documentees ou justifiees par l'evaluateur si applicables."
+        )
+
     return f"""\
 # BROUILLON DE RAPPORT D'ÉVALUATION
 
@@ -2266,9 +2380,8 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
 
 **Valeur estimée : {val_str}**
 
-Cette valeur est établie principalement par l'approche comparative, corroborée par les approches
-par le coût et par le revenu. Elle n'est pas certifiée et ne constitue pas une opinion formelle
-d'un évaluateur agréé.
+{valuation_sentence} Elle n'est pas certifiee et ne constitue pas une opinion formelle
+d'un evaluateur agree.
 
 ---
 
@@ -2292,8 +2405,8 @@ d'un évaluateur agréé.
 
 - L'analyse est basée exclusivement sur les données et sources référencées dans ce dossier.
 - Aucune inspection physique du bien n'a été effectuée par le système IA.
-- Les valeurs des approches par le coût et par le revenu sont des proxys V0 et ne remplacent
-  pas un calcul de coût ou de capitalisation complet par un évaluateur agréé.
+- Les valeurs des approches par le cout et par le revenu sont des indications calculees
+  a partir des intrants disponibles et doivent etre validees par un evaluateur agree.
 - Toute donnée manquante ou incomplète est signalée dans la section conformité ci-dessous.
 {blocking_section}{warnings_section}
 ---
@@ -2315,25 +2428,57 @@ def generate_brouillon_rapport(
     warnings: list,
     format: str = "abrege",
 ) -> str:
-    """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe."""
+    """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe.
+
+    Retourne toujours un str. Métadonnées LLM (modèle, coût) disponibles via _generate_rapport_llm().
+    """
     prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings)
-    llm_text = _generate_rapport_llm(prompt, format)
-    if llm_text:
+    llm_result = _generate_rapport_llm(prompt, format)
+    if llm_result and llm_result.get("text"):
         disclaimer = (
             "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
             "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
         )
-        return disclaimer + llm_text
+        return disclaimer + llm_result["text"]
     return _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
 
 
 def write_artifact_payload(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    def _replace_tmp() -> None:
+        last_error: PermissionError | None = None
+        for _ in range(5):
+            try:
+                os.replace(tmp_path, path)
+                last_error = None
+                break
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.02)
+        if last_error is not None:
+            raise last_error
+
     if path.suffix == ".md":
         raw = payload.get("_raw_md")
-        path.write_text(raw if isinstance(raw, str) else render_markdown_payload(payload), encoding="utf-8")
+        text = raw if isinstance(raw, str) else render_markdown_payload(payload)
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _replace_tmp()
+        finally:
+            tmp_path.unlink(missing_ok=True)
         return
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, indent=2))
+            handle.flush()
+            os.fsync(handle.fileno())
+        _replace_tmp()
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def render_markdown_payload(payload: dict) -> str:

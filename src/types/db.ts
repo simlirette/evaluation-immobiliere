@@ -32,7 +32,21 @@ export interface DbDocument {
   display_name: string
   storage_path: string
   size_bytes: number | null
+  uploaded_by: string | null
   uploaded_at: string
+}
+
+export interface DbRapportVersion {
+  id: string
+  session_id: string
+  dossier_id: string
+  content: string
+  format: 'abrege' | 'complet' | 'markdown' | 'html'
+  label: string
+  is_initial: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface DbComparable {

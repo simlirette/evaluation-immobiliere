@@ -16,25 +16,33 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import threading
+import time
 import uuid
 
 from engine.runtime import RuntimeEngine, PipelineConflitError, load_steps_from_pipeline_yaml, safe_path_id
+from engine.checkpoints import (
+    CHECKPOINT_LABELS,
+    CHECKPOINT_STEPS,
+    CheckpointRequiredError,
+    assert_checkpoint_confirmed,
+    confirm_checkpoint,
+    is_checkpoint_confirmed,
+    read_checkpoint_log,
+    checkpoint_log_path,
+)
 from engine.orchestrator import PlanOrchestrator, classify_dossier, load_plan_for_mandat
 from engine.skills import DEFAULT_SKILLS_BY_AGENT
 
 
 ROOT = Path(__file__).resolve().parent
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
+TEMPLATES_DIR = ROOT / "templates"
 PIPELINE_PATH = ROOT / "integration" / "PIPELINE-RUNTIME-ASTON-V0.yaml"
 # SESSIONS_DIR can be overridden via env var for persistent volume mounts (e.g. Railway volume)
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "")) if os.environ.get("SESSIONS_DIR") else ROOT / "runtime_sessions"
 ATELIER_DIR = ROOT / "atelier"
 RUNTIME_DIR = ROOT / "tests" / "runtime"
-UI_PATH = ROOT / "ui" / "pilote_api.html"
-PRODUCT_UI_PATH = ROOT / "ui" / "product_cockpit.html"
-OPS_UI_PATH = ROOT / "ui" / "ops_cockpit.html"
-EVALUATOR_UI_PATH = ROOT / "ui" / "evaluateur_review.html"
-AUTH_CLIENT_PATH = ROOT / "ui" / "auth_client.js"
 OPS_RUNTIME_DIR = ROOT / "runtime_pilotes_reels"
 KNOWLEDGE_CONTRACT_PATH = ROOT / "mvp" / "KNOWLEDGE-SCHEMA-IMMOBILIER-V0.yaml"
 KNOWLEDGE_API_SCHEMA_PATH = ROOT / "schemas" / "knowledge_immobilier_session_v1.schema.json"
@@ -68,6 +76,292 @@ ROLE_PERMISSIONS = {
     "ops": {"runtime_read", "ops_read", "ops_write"},
     "supervisor": {"runtime_read", "runtime_write", "review_write", "ops_read", "ops_write"},
 }
+
+_SESSION_LOCKS_GUARD = threading.Lock()
+_SESSION_LOCKS: dict[str, threading.RLock] = {}
+
+
+def _lock_key_for_path(path: Path) -> str:
+    try:
+        relative = path.resolve().relative_to(SESSIONS_DIR.resolve())
+        return relative.parts[0] if relative.parts else path.resolve().as_posix()
+    except Exception:
+        return path.resolve().as_posix()
+
+
+def _session_lock_for_path(path: Path) -> threading.RLock:
+    key = _lock_key_for_path(path)
+    with _SESSION_LOCKS_GUARD:
+        lock = _SESSION_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _SESSION_LOCKS[key] = lock
+        return lock
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    lock = _session_lock_for_path(path)
+    with lock:
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            last_error: PermissionError | None = None
+            for _ in range(5):
+                try:
+                    os.replace(tmp_path, path)
+                    last_error = None
+                    break
+                except PermissionError as exc:
+                    last_error = exc
+                    time.sleep(0.02)
+            if last_error is not None:
+                raise last_error
+        finally:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def runtime_is_production() -> bool:
+    markers = (
+        os.environ.get("APP_ENV", ""),
+        os.environ.get("ENVIRONMENT", ""),
+        os.environ.get("RAILWAY_ENVIRONMENT", ""),
+        os.environ.get("RAILWAY_ENVIRONMENT_NAME", ""),
+    )
+    return any(str(value).strip().lower() in {"prod", "production"} for value in markers)
+
+
+def _readiness_check(
+    name: str,
+    status: str,
+    message: str,
+    details: dict[str, object] | None = None,
+) -> dict[str, object]:
+    check: dict[str, object] = {"name": name, "status": status, "message": message}
+    if details:
+        check["details"] = details
+    return check
+
+
+def _configured_env(name: str) -> bool:
+    return bool(os.environ.get(name, "").strip())
+
+
+def _deploy_status_for_required_secret(name: str, production: bool) -> dict[str, object]:
+    if _configured_env(name):
+        return _readiness_check(name, "ok", f"{name} configuree")
+    status = "critical" if production else "warning"
+    return _readiness_check(name, status, f"{name} absente")
+
+
+def _origin_is_local(origin: str) -> bool:
+    try:
+        parsed = urlparse(origin)
+    except Exception:
+        return False
+    hostname = (parsed.hostname or "").strip("[]").lower()
+    return hostname in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
+def _deploy_status_for_cors_origin(production: bool) -> dict[str, object]:
+    origin = os.environ.get("EVAL_RUNTIME_ALLOWED_ORIGIN", "*").strip() or "*"
+    critical = "critical" if production else "warning"
+    details = {"configured": origin != "*"}
+
+    if origin == "*":
+        return _readiness_check(
+            "EVAL_RUNTIME_ALLOWED_ORIGIN",
+            critical,
+            "Origine CORS wildcard; configurez l'URL Vercel exacte en production",
+            details,
+        )
+    if "," in origin:
+        return _readiness_check(
+            "EVAL_RUNTIME_ALLOWED_ORIGIN",
+            critical,
+            "Origine CORS multiple non supportee; utiliser une seule origine exacte",
+            details,
+        )
+
+    parsed = urlparse(origin)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.path not in {"", "/"}:
+        return _readiness_check(
+            "EVAL_RUNTIME_ALLOWED_ORIGIN",
+            critical,
+            "Origine CORS invalide; utiliser une origine HTTPS sans chemin",
+            details,
+        )
+    if _origin_is_local(origin):
+        return _readiness_check(
+            "EVAL_RUNTIME_ALLOWED_ORIGIN",
+            critical,
+            "Origine CORS locale interdite en production",
+            details,
+        )
+    return _readiness_check("EVAL_RUNTIME_ALLOWED_ORIGIN", "ok", "Origine CORS production configuree")
+
+
+def _deploy_status_for_writable_dir(
+    name: str,
+    path: Path,
+    *,
+    production: bool,
+    require_env: bool,
+    probe_filesystem: bool,
+) -> dict[str, object]:
+    configured = _configured_env(name)
+    details = {"path": str(path), "configured": configured}
+    if production and require_env and not configured:
+        return _readiness_check(
+            name,
+            "critical",
+            f"{name} doit pointer vers un volume persistant en production",
+            details,
+        )
+
+    try:
+        if probe_filesystem:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / f".readiness-{uuid.uuid4().hex}.tmp"
+            try:
+                probe.write_text("ok", encoding="utf-8")
+            finally:
+                probe.unlink(missing_ok=True)
+        elif not path.exists():
+            status = "critical" if production else "warning"
+            return _readiness_check(name, status, f"{name} n'existe pas", details)
+        elif not path.is_dir():
+            status = "critical" if production else "warning"
+            return _readiness_check(name, status, f"{name} n'est pas un repertoire", details)
+    except Exception as exc:
+        status = "critical" if production else "warning"
+        details["error"] = f"{type(exc).__name__}: {exc}"
+        return _readiness_check(name, status, f"{name} non accessible en ecriture", details)
+
+    message = f"{name} accessible en ecriture" if probe_filesystem else f"{name} existe"
+    return _readiness_check(name, "ok", message, details)
+
+
+def _resolve_data_cache_dir() -> Path:
+    configured = os.environ.get("DATA_CACHE_DIR", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return ROOT / "data_cache"
+
+
+def _deploy_status_for_pymupdf(production: bool) -> dict[str, object]:
+    try:
+        import fitz as _fitz  # type: ignore  # noqa: F401
+    except ImportError as exc:
+        status = "critical" if production else "warning"
+        return _readiness_check("pymupdf", status, "PyMuPDF indisponible; ingestion PDF bloquee", {"error": str(exc)})
+    return _readiness_check("pymupdf", "ok", "PyMuPDF disponible")
+
+
+def _deploy_status_for_mamh_cache(cache_dir: Path) -> dict[str, object]:
+    details = {"path": str(cache_dir)}
+    if not cache_dir.exists():
+        return _readiness_check(
+            "MAMH_CACHE",
+            "warning",
+            "Cache MAMH absent; enrichissement roles municipaux degrade",
+            details,
+        )
+    try:
+        has_cache = (cache_dir / "role_mtl.csv").exists() or any(cache_dir.glob("role_*_index.json"))
+    except OSError as exc:
+        details["error"] = f"{type(exc).__name__}: {exc}"
+        return _readiness_check(
+            "MAMH_CACHE",
+            "warning",
+            "Cache MAMH non lisible; enrichissement roles municipaux degrade",
+            details,
+        )
+    if not has_cache:
+        return _readiness_check(
+            "MAMH_CACHE",
+            "warning",
+            "Cache MAMH vide; executer scripts/provision_mamh_cache.py avant usage reel",
+            details,
+        )
+    return _readiness_check("MAMH_CACHE", "ok", "Cache MAMH disponible", details)
+
+
+def _deploy_status_for_sirf_credentials() -> dict[str, object]:
+    username = _configured_env("SIRF_USERNAME")
+    password = _configured_env("SIRF_PASSWORD")
+    details = {"username_configured": username, "password_configured": password}
+    if username and password:
+        return _readiness_check("SIRF_CREDENTIALS", "ok", "Identifiants SIRF configures", details)
+    if username != password:
+        return _readiness_check(
+            "SIRF_CREDENTIALS",
+            "warning",
+            "Identifiants SIRF incomplets; prix de transaction indisponibles",
+            details,
+        )
+    return _readiness_check(
+        "SIRF_CREDENTIALS",
+        "warning",
+        "Identifiants SIRF absents; prix de transaction indisponibles",
+        details,
+    )
+
+
+def deploy_readiness_status(probe_filesystem: bool = True) -> dict[str, object]:
+    production = runtime_is_production()
+    data_cache_dir = _resolve_data_cache_dir()
+    checks = [
+        _deploy_status_for_required_secret("EVAL_RUNTIME_API_TOKEN", production),
+        _deploy_status_for_cors_origin(production),
+        _deploy_status_for_writable_dir(
+            "SESSIONS_DIR",
+            SESSIONS_DIR,
+            production=production,
+            require_env=True,
+            probe_filesystem=probe_filesystem,
+        ),
+        _deploy_status_for_writable_dir(
+            "DATA_CACHE_DIR",
+            data_cache_dir,
+            production=production,
+            require_env=True,
+            probe_filesystem=probe_filesystem,
+        ),
+        _deploy_status_for_required_secret("OPENAI_API_KEY", production),
+        _deploy_status_for_pymupdf(production),
+        _deploy_status_for_mamh_cache(data_cache_dir),
+        _deploy_status_for_sirf_credentials(),
+    ]
+    critical = [check for check in checks if check["status"] == "critical"]
+    warnings = [check for check in checks if check["status"] == "warning"]
+    return {
+        "schema_version": "runtime_deploy_readiness_v1",
+        "status": "ready" if not critical else "blocked",
+        "ok": not critical,
+        "production": production,
+        "sessions_dir": str(SESSIONS_DIR),
+        "data_cache_dir": str(data_cache_dir),
+        "summary": {"critical": len(critical), "warnings": len(warnings), "checks": len(checks)},
+        "checks": checks,
+    }
+
+
+def validate_runtime_config() -> None:
+    if not runtime_is_production():
+        return
+    readiness = deploy_readiness_status(probe_filesystem=True)
+    critical = [str(check["name"]) for check in readiness["checks"] if check["status"] == "critical"]
+    if critical:
+        raise RuntimeError("Configuration runtime production incomplete: " + ", ".join(critical))
+
+
 ASSISTANT_MESSAGES_FILENAME = "assistant_messages.jsonl"
 ASSISTANT_MAX_MESSAGE_CHARS = 4000
 APP_DEFAULT_FIXTURE = "case_pilote_residentiel_standard.json"
@@ -105,7 +399,7 @@ ASSISTANT_AGENT_PROFILES = {
 }
 
 
-def create_session(strict_mode: bool = True) -> dict:
+def create_session(strict_mode: bool = True, owner_evaluator_id: str = "") -> dict:
     session_id = uuid.uuid4().hex[:12]
     run_id = f"run_{utc_now_compact()}_{session_id}"
     session_dir = SESSIONS_DIR / session_id
@@ -123,15 +417,102 @@ def create_session(strict_mode: bool = True) -> dict:
         "status_url": f"/status?session_id={session_id}",
         "artifacts_url": f"/artifacts?session_id={session_id}",
     }
+    owner_evaluator_id = str(owner_evaluator_id or "").strip()
+    if owner_evaluator_id:
+        session["owner_evaluator_id"] = owner_evaluator_id
     write_json(session_dir / "session.json", session)
     return session
 
 
+def _find_session_for_dossier(dossier_id: str) -> str | None:
+    """Return the session_id (hex12) of the latest non-archived session for dossier_id."""
+    if not SESSIONS_DIR.exists():
+        return None
+    candidates: list[tuple[str, str]] = []
+    for path in SESSIONS_DIR.glob("*/session.json"):
+        try:
+            data = read_json_dict(path)
+            if not data:
+                continue
+            if str(data.get("dossier_id") or "") != dossier_id:
+                continue
+            if data.get("app_archived") or data.get("archived"):
+                continue
+            updated = str(data.get("updated_at_utc") or data.get("created_at_utc") or "")
+            session_hex = str(data.get("session_id") or "")
+            if session_hex and safe_path_id(session_hex) == path.parent.name:
+                candidates.append((updated, session_hex))
+        except Exception:
+            pass
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
+def _archive_stale_sessions() -> int:
+    """Archive file-based sessions older than 30 days that have not been validated."""
+    if not SESSIONS_DIR.exists():
+        return 0
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    count = 0
+    for path in SESSIONS_DIR.glob("*/session.json"):
+        try:
+            session = read_json_dict(path)
+            if not session:
+                continue
+            if session.get("app_archived") or session.get("archived"):
+                continue
+            if str(session.get("status") or "").upper() in {"RUNNING", "IN_PROGRESS", "PROCESSING"}:
+                continue
+            progress = read_json_dict(path.parent / "pipeline_progress.json")
+            if progress.get("running"):
+                continue
+            review = str(session.get("review_decision") or session.get("app_review_decision") or "")
+            if review == "VALIDE":
+                continue
+            created_str = str(session.get("created_at_utc") or "")
+            if not created_str:
+                continue
+            created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+            if created < cutoff:
+                session["app_archived"] = True
+                session["updated_at_utc"] = utc_now_iso()
+                write_json(path, session)
+                count += 1
+        except Exception:
+            pass
+    return count
+
+
+def _normalize_session_id(raw_id: str) -> str:
+    """Résout un raw_id qui peut être un dossier_id (D-...) ou un session_id (hex12).
+
+    Utilisé dans les handlers qui reçoivent 'session_id' du frontend alors que
+    depuis S1 le slug = dossier_id.
+    """
+    if raw_id and "-" in raw_id:
+        resolved = _find_session_for_dossier(raw_id)
+        if resolved:
+            return resolved
+    return raw_id
+
+
 def load_session(session_id: str) -> dict | None:
     session_path = SESSIONS_DIR / safe_path_id(session_id) / "session.json"
-    if not session_path.exists():
-        return None
-    return json.loads(session_path.read_text(encoding="utf-8"))
+    if session_path.exists():
+        session = read_json_dict(session_path)
+        return session or None
+    # Fallback: session_id might actually be a dossier_id (D-USR-... or D-...)
+    if "-" in session_id:
+        real = _find_session_for_dossier(session_id)
+        if real:
+            session_path = SESSIONS_DIR / real / "session.json"
+            if session_path.exists():
+                session = read_json_dict(session_path)
+                return session or None
+    return None
 
 
 def save_session(session: dict) -> None:
@@ -231,14 +612,24 @@ def list_fixtures() -> list[dict[str, object]]:
 def read_json_dict(path: Path) -> dict:
     if not path.exists() or not path.is_file():
         return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    lock = _session_lock_for_path(path)
+    with lock:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return {}
     return payload if isinstance(payload, dict) else {}
 
 
 def read_json_list(path: Path) -> list:
     if not path.exists():
         return []
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    lock = _session_lock_for_path(path)
+    with lock:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return []
     return payload if isinstance(payload, list) else []
 
 
@@ -250,22 +641,45 @@ def bounded_limit(value: str, default: int = 50, maximum: int = 100) -> int:
     return min(max(limit, 0), maximum)
 
 
-def recent_sessions(limit: int = 8) -> list[dict]:
-    return list_session_records(limit=limit)
+def recent_sessions(limit: int = 8, evaluator_id: str = "") -> list[dict]:
+    return list_session_records(limit=limit, evaluator_id=evaluator_id)
 
 
-def list_session_records(limit: int = 50) -> list[dict]:
+def session_owner_id(session: dict) -> str:
+    return str(
+        session.get("owner_evaluator_id")
+        or session.get("created_by")
+        or session.get("evaluator_id")
+        or ""
+    ).strip()
+
+
+def session_access_allowed(session: dict, evaluator_id: str) -> bool:
+    evaluator_id = str(evaluator_id or "").strip()
+    if not evaluator_id:
+        return False
+    owner = session_owner_id(session)
+    if owner:
+        return owner == evaluator_id
+    return os.environ.get("EVAL_RUNTIME_ALLOW_LEGACY_UNOWNED_SESSIONS", "") == "1"
+
+
+def list_session_records(limit: int = 50, evaluator_id: str = "") -> list[dict]:
     if not SESSIONS_DIR.exists():
         return []
     sessions: list[dict] = []
     for path in sorted(SESSIONS_DIR.glob("*/session.json")):
         try:
-            session = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            session = read_json_dict(path)
+        except OSError:
             continue
         if not isinstance(session, dict):
             continue
+        if not session:
+            continue
         if session.get("archived"):
+            continue
+        if evaluator_id and not session_access_allowed(session, evaluator_id):
             continue
         sessions.append(session_workbench_record(session))
     sessions.sort(key=lambda item: str(item.get("updated_at_utc") or ""), reverse=True)
@@ -346,8 +760,8 @@ def review_next_action(*, has_result: bool, integrity_ok: bool, blocking_failure
     return "POURSUIVRE_REVUE"
 
 
-def review_workbench_summary(limit: int = 50) -> dict:
-    sessions = list_session_records(limit=limit)
+def review_workbench_summary(limit: int = 50, evaluator_id: str = "") -> dict:
+    sessions = list_session_records(limit=limit, evaluator_id=evaluator_id)
     decision_counts: dict[str, int] = {}
     for item in sessions:
         decision = str(item.get("review_decision") or "A_SAISIR")
@@ -382,8 +796,8 @@ def review_workbench_summary(limit: int = 50) -> dict:
     }
 
 
-def review_campaign_summary(limit: int = 100) -> dict:
-    sessions = list_session_records(limit=limit)
+def review_campaign_summary(limit: int = 100, evaluator_id: str = "") -> dict:
+    sessions = list_session_records(limit=limit, evaluator_id=evaluator_id)
     decision_counts: dict[str, int] = {}
     rows: list[dict] = []
     for item in sessions:
@@ -446,7 +860,7 @@ def review_campaign_summary(limit: int = 100) -> dict:
     }
 
 
-def product_summary() -> dict:
+def product_summary(evaluator_id: str = "") -> dict:
     status_report = read_json_dict(ATELIER_DIR / "STATUT-PHASES-PROJET-V1.json")
     release_report = read_json_dict(RUNTIME_DIR / "release_candidate_report.json")
     homologation_report = read_json_dict(RUNTIME_DIR / "homologation_metier_report.json")
@@ -463,8 +877,8 @@ def product_summary() -> dict:
     handoff_manifest = read_json_dict(ATELIER_DIR / "HANDOFF-REVUE-EVALUATEUR-V1.json")
     ops = ops_summary()
     ops_snapshot = ops_observability_snapshot()
-    review_campaign = review_campaign_summary(limit=25)
-    session_packages = latest_session_packages_summary(limit=25)
+    review_campaign = review_campaign_summary(limit=25, evaluator_id=evaluator_id)
+    session_packages = latest_session_packages_summary(limit=25, evaluator_id=evaluator_id)
     decision = str(status_report.get("decision") or "UNKNOWN")
     return {
         "schema_version": "product_cockpit_summary_v1",
@@ -487,7 +901,7 @@ def product_summary() -> dict:
             "items": fixtures,
         },
         "sessions": {
-            "recent": recent_sessions(),
+            "recent": recent_sessions(evaluator_id=evaluator_id),
         },
         "review_campaign": review_campaign,
         "session_packages": session_packages,
@@ -547,6 +961,24 @@ def app_money(value: object) -> str:
     return f"{amount:,.0f} $".replace(",", " ")
 
 
+def app_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def app_is_iso_date(value: object) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    try:
+        datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
+
+
 def app_date_label(value: object) -> str:
     text = str(value or "").strip()
     if not text:
@@ -599,11 +1031,13 @@ def app_status_label(record: dict) -> str:
 
 def app_dossier_card_from_record(record: dict) -> dict:
     session_id = str(record.get("session_id") or "")
-    title = str(record.get("app_display_name") or f"Dossier {record.get('dossier_id') or session_id}")
+    dossier_id = str(record.get("dossier_id") or session_id)
+    title = str(record.get("app_display_name") or f"Dossier {dossier_id}")
     return {
-        "id": session_id,
-        "slug": session_id,
+        "id": dossier_id,
+        "slug": dossier_id,
         "session_id": session_id,
+        "dossier_id": dossier_id,
         "address": title,
         "property_type": str(record.get("app_property_type") or "Runtime immobilier"),
         "neighborhood": str(record.get("app_neighborhood") or record.get("status") or "Session"),
@@ -615,6 +1049,26 @@ def app_dossier_card_from_record(record: dict) -> dict:
         "package_status": record.get("package_status", "ABSENT"),
         "next_action": record.get("next_action", ""),
     }
+
+
+def app_save_fact_overrides(body: dict) -> dict:
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    overrides: dict = {}
+    if body.get("surface_pi2") is not None:
+        try:
+            overrides["surface_pi2"] = float(body["surface_pi2"])
+        except (TypeError, ValueError):
+            pass
+    if body.get("zone"):
+        overrides["zone"] = str(body["zone"]).strip()
+    if body.get("date_reference"):
+        overrides["date_reference"] = str(body["date_reference"]).strip()
+    session = require_session(session_id)
+    session["app_fact_overrides"] = overrides
+    save_session(session)
+    return {"ok": True, "overrides": overrides}
 
 
 def app_pin_dossier(body: dict) -> dict:
@@ -645,14 +1099,44 @@ def app_create_dossier(body: dict) -> dict:
     type_bien = str(body.get("type_bien") or body.get("property_type") or "").strip() or "residentiel_unifamilial"
     neighbourhood = str(body.get("neighbourhood") or body.get("neighborhood") or "").strip()
     mandat_type = str(body.get("mandat_type") or "residentiel_standard").strip()
+    date_reference = str(body.get("date_reference") or "").strip() or _datetime.date.today().isoformat()
     superficie_habitable = body.get("superficie_habitable")
     superficie_terrain = body.get("superficie_terrain")
     annee_construction = body.get("annee_construction")
     nb_chambres = body.get("nb_chambres")
     commanditaire = body.get("commanditaire") if isinstance(body.get("commanditaire"), dict) else None
     comparables_raw = body.get("comparables") if isinstance(body.get("comparables"), list) else []
+    # S7 — lettre de mandat fields
+    honoraires = str(body.get("honoraires") or "").strip()
+    date_livraison = str(body.get("date_livraison") or "").strip()
+    nom_evaluateur = str(body.get("nom_evaluateur") or "").strip()
 
-    session = create_session(strict_mode=False)
+    # Valider les conversions numériques AVANT create_session pour éviter les sessions orphelines
+    if superficie_habitable:
+        try:
+            float(superficie_habitable)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_habitable invalide : {superficie_habitable!r}") from exc
+    if superficie_terrain:
+        try:
+            float(superficie_terrain)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_terrain invalide : {superficie_terrain!r}") from exc
+    if annee_construction:
+        try:
+            int(annee_construction)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"annee_construction invalide : {annee_construction!r}") from exc
+    if nb_chambres:
+        try:
+            int(nb_chambres)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"nb_chambres invalide : {nb_chambres!r}") from exc
+
+    session = create_session(
+        strict_mode=False,
+        owner_evaluator_id=str(body.get("_evaluator_id") or "").strip(),
+    )
     session_id = session["session_id"]
     dossier_id = f"D-USR-{uuid.uuid4().hex[:8].upper()}"
     session["app_display_name"] = address
@@ -660,24 +1144,47 @@ def app_create_dossier(body: dict) -> dict:
     session["app_neighborhood"] = neighbourhood
     session["app_mandat_type"] = mandat_type
     session["dossier_id"] = dossier_id
-    save_session(session)
-
-    # Build case dict from form data — pipeline uses this directly
+    if commanditaire:
+        session["app_commanditaire"] = {
+            "nom": str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
+            "organisation": str(commanditaire.get("organisation") or ""),
+            "fin_evaluation": str(commanditaire.get("fin_evaluation") or "non_specifie"),
+        }
+    if honoraires:
+        session["app_honoraires"] = honoraires
+    if date_livraison:
+        session["app_date_livraison"] = date_livraison
+    if nom_evaluateur:
+        session["app_nom_evaluateur"] = nom_evaluateur
+    # Build case dict BEFORE save_session — si une conversion échoue (float/int),
+    # on ne sauvegarde pas une session orpheline sans données.
     case: dict = {
         "dossier_id": dossier_id,
         "type_bien": type_bien,
         "adresse": address,
         "zone": neighbourhood or "SECTEUR-NON-SPECIFIE",
-        "date_reference": _datetime.date.today().isoformat(),
+        "date_reference": date_reference,
     }
     if superficie_habitable:
-        case["surface"] = {"value": float(superficie_habitable), "unit": "pi2"}
+        try:
+            case["surface"] = {"value": float(superficie_habitable), "unit": "pi2"}
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_habitable invalide : {superficie_habitable!r}") from exc
     if superficie_terrain:
-        case["surface_terrain"] = {"value": float(superficie_terrain), "unit": "pi2"}
+        try:
+            case["surface_terrain"] = {"value": float(superficie_terrain), "unit": "pi2"}
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"superficie_terrain invalide : {superficie_terrain!r}") from exc
     if annee_construction:
-        case["annee_construction"] = int(annee_construction)
+        try:
+            case["annee_construction"] = int(annee_construction)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"annee_construction invalide : {annee_construction!r}") from exc
     if nb_chambres:
-        case["nb_chambres"] = int(nb_chambres)
+        try:
+            case["nb_chambres"] = int(nb_chambres)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"nb_chambres invalide : {nb_chambres!r}") from exc
     if commanditaire:
         case["commanditaire"] = {
             "nom": str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
@@ -689,15 +1196,35 @@ def app_create_dossier(body: dict) -> dict:
             _map_comparable_input(r) for r in comparables_raw if isinstance(r, dict)
         ]
 
+    # Case dict valide — sauvegarder la session maintenant
+    save_session(session)
+
     def _run_pipeline() -> None:
         try:
-            start_runtime({"session_id": session_id, "case": case, "source_fixture": "inline"})
-        except Exception:
-            pass
+            # S3 : pipeline gated — run segment 1 only (steps mandat-intake + data-facts)
+            # Évaluateur confirme CHECKPOINT 1 (faits_bien_sujet) avant de continuer
+            _session = load_session(session_id)
+            if _session:
+                _run_pipeline_segment(_session, case, checkpoint=1)
+        except Exception as _exc:
+            import logging as _log
+            _log.getLogger(__name__).error(
+                "Pipeline échoué pour session %s : %s", session_id, _exc, exc_info=True
+            )
+            # Persiste l'erreur dans session.json pour que app_state puisse la remonter
+            try:
+                _sdir = Path(SESSIONS_DIR) / safe_path_id(session_id)
+                _sj = _sdir / "session.json"
+                if _sj.exists():
+                    _sd = read_json_dict(_sj)
+                    _sd["pipeline_error"] = f"{type(_exc).__name__}: {_exc}"
+                    write_json(_sj, _sd)
+            except Exception:
+                pass
 
     _threading.Thread(target=_run_pipeline, daemon=True).start()
 
-    state = app_state(session_id)
+    state = app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip())
     return {"schema_version": "evaluateur_ai_app_create_v1", "session_id": session_id, "dossier_id": dossier_id, "state": state}
 
 
@@ -753,12 +1280,99 @@ def app_source_documents(knowledge: dict, session: dict | None = None) -> list[d
             "name": str(doc.get("name", "Document")),
             "filename": str(doc.get("filename", "")),
             "sizeLabel": size_label,
+            "extractionStatus": doc.get("extraction_status"),
+            "extractionError": doc.get("extraction_error"),
         })
     return documents
 
 
 _ALLOWED_UPLOAD_MIME = {"application/pdf", "image/jpeg", "image/png"}
+_UPLOAD_EXTENSIONS_BY_MIME = {
+    "application/pdf": {".pdf"},
+    "image/jpeg": {".jpg", ".jpeg"},
+    "image/png": {".png"},
+}
 _UPLOAD_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+_UPLOAD_MAX_PDF_PAGES = 75
+_UPLOAD_MAX_EXTRACTED_TEXT_CHARS = 250_000
+
+
+def _safe_upload_filename(filename: str, mime_type: str) -> tuple[str, str]:
+    """Return (stored_filename, display_name) after rejecting path-bearing names."""
+    raw = str(filename or "").strip().replace("\x00", "")
+    if not raw:
+        raise ValueError("Nom de fichier requis.")
+    if "/" in raw or "\\" in raw:
+        raise ValueError("Nom de fichier invalide: les chemins ne sont pas acceptes.")
+
+    display_name = Path(raw).name.strip()
+    suffix = Path(display_name).suffix.lower()
+    allowed = _UPLOAD_EXTENSIONS_BY_MIME.get(mime_type, set())
+    if suffix not in allowed:
+        raise ValueError("Extension de fichier incompatible avec le type declare.")
+
+    stem = safe_path_id(Path(display_name).stem)[:80] or "document"
+    return f"{stem}{suffix}", display_name
+
+
+def _assert_upload_signature(mime_type: str, file_bytes: bytes) -> None:
+    if not file_bytes:
+        raise ValueError("Fichier vide.")
+    if mime_type == "application/pdf":
+        if not file_bytes.startswith(b"%PDF-"):
+            raise ValueError("Fichier PDF invalide: signature PDF absente.")
+        _assert_pdf_upload_readable(file_bytes)
+        return
+    if mime_type == "image/jpeg":
+        if len(file_bytes) < 2 or file_bytes[:2] != b"\xff\xd8":
+            raise ValueError("Image JPEG invalide: signature absente.")
+        return
+    if mime_type == "image/png":
+        if not file_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("Image PNG invalide: signature absente.")
+
+
+def _assert_pdf_upload_readable(file_bytes: bytes) -> None:
+    try:
+        import fitz  # type: ignore  # PyMuPDF
+    except ImportError:
+        return
+
+    doc = None
+    try:
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        if getattr(doc, "is_encrypted", False) is True:
+            raise ValueError("PDF protege par mot de passe non supporte.")
+        page_count = len(doc)
+        if page_count <= 0:
+            raise ValueError("PDF vide.")
+        if page_count > _UPLOAD_MAX_PDF_PAGES:
+            raise ValueError(f"PDF trop long (maximum {_UPLOAD_MAX_PDF_PAGES} pages).")
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("PDF invalide ou illisible.") from exc
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
+
+
+def _next_upload_target(uploads_dir: Path, stored_filename: str) -> Path:
+    uploads_root = uploads_dir.resolve()
+    stem = Path(stored_filename).stem
+    ext = Path(stored_filename).suffix.lower()
+    target = uploads_dir / stored_filename
+    counter = 0
+    while target.exists():
+        counter += 1
+        target = uploads_dir / f"{stem}_{counter}{ext}"
+    resolved = target.resolve()
+    if not resolved.is_relative_to(uploads_root):
+        raise ValueError("Chemin de fichier invalide.")
+    return target
 
 
 def _extract_pdf_text(pdf_path: Path, txt_path: Path) -> int:
@@ -767,19 +1381,36 @@ def _extract_pdf_text(pdf_path: Path, txt_path: Path) -> int:
         import fitz  # type: ignore  # PyMuPDF
     except ImportError:
         return 0
+    doc = None
     try:
         doc = fitz.open(str(pdf_path))
+        if getattr(doc, "is_encrypted", False) is True:
+            return 0
         pages: list[str] = []
-        for page in doc:
+        total_chars = 0
+        for index, page in enumerate(doc):
+            if index >= _UPLOAD_MAX_PDF_PAGES:
+                break
             text = page.get_text()
             if text.strip():
+                remaining = _UPLOAD_MAX_EXTRACTED_TEXT_CHARS - total_chars
+                if remaining <= 0:
+                    break
+                if len(text) > remaining:
+                    text = text[:remaining]
                 pages.append(f"--- Page {page.number + 1} ---\n{text}")
-        doc.close()
+                total_chars += len(text)
         if pages:
-            txt_path.write_text("\n\n".join(pages), encoding="utf-8")
+            _atomic_write_text(txt_path, "\n\n".join(pages))
         return len(pages)
     except Exception:
         return 0
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
 
 def _append_upload_to_source_index(session: dict, doc_id: str, filename: str, txt_path: Path, pages: int) -> None:
@@ -802,7 +1433,7 @@ def _append_upload_to_source_index(session: dict, doc_id: str, filename: str, tx
             "pages": pages,
         })
         index["sources"] = sources
-        index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_json(index_path, index)
     except Exception:
         pass  # never block upload on index update failure
 
@@ -817,14 +1448,17 @@ def app_upload_document(body: dict) -> dict:
         raise ValueError("Type de fichier non autorisé. PDF, JPG ou PNG uniquement.")
 
     try:
-        file_bytes = base64.b64decode(content_b64)
+        file_bytes = base64.b64decode(content_b64, validate=True)
     except Exception as exc:
         raise ValueError(f"Contenu base64 invalide: {exc}") from exc
 
     if len(file_bytes) > _UPLOAD_MAX_BYTES:
         raise ValueError("Fichier trop volumineux (maximum 10 Mo).")
 
-    session = load_session(safe_path_id(session_id))
+    stored_filename, display_name = _safe_upload_filename(filename, mime_type)
+    _assert_upload_signature(mime_type, file_bytes)
+
+    session = load_session(session_id)
     if not session:
         raise FileNotFoundError(f"Session introuvable: {session_id}")
 
@@ -832,13 +1466,7 @@ def app_upload_document(body: dict) -> dict:
     uploads_dir = session_dir / "uploads"
     uploads_dir.mkdir(exist_ok=True)
 
-    stem = safe_path_id(Path(filename).stem) or "document"
-    ext = Path(filename).suffix.lower() or ".bin"
-    target = uploads_dir / f"{stem}{ext}"
-    counter = 0
-    while target.exists():
-        counter += 1
-        target = uploads_dir / f"{stem}_{counter}{ext}"
+    target = _next_upload_target(uploads_dir, stored_filename)
 
     target.write_bytes(file_bytes)
 
@@ -846,11 +1474,14 @@ def app_upload_document(body: dict) -> dict:
     size_bytes = len(file_bytes)
     doc_meta: dict = {
         "id": doc_id,
-        "name": filename,
+        "name": display_name,
+        "original_filename": display_name,
         "filename": target.name,
         "size_bytes": size_bytes,
         "mime_type": mime_type,
         "uploaded_at": utc_now_iso(),
+        "uploaded_by": str(body.get("_evaluator_id") or "").strip() or None,
+        "extraction_status": "pending",
     }
 
     # PDF text extraction → makes content available to LLM via fetch_artifact + source_index
@@ -861,16 +1492,29 @@ def app_upload_document(body: dict) -> dict:
             doc_meta["text_extracted"] = True
             doc_meta["pages"] = pages_extracted
             doc_meta["text_path"] = txt_path.name
-            _append_upload_to_source_index(session, doc_id, filename, txt_path, pages_extracted)
+            doc_meta["extraction_status"] = "extracted"
+            _append_upload_to_source_index(session, doc_id, display_name, txt_path, pages_extracted)
+        else:
+            doc_meta["text_extracted"] = False
+            doc_meta["extraction_status"] = "no_text"
+            doc_meta["extraction_error"] = (
+                "Extraction PDF incomplete - aucun texte detecte. "
+                "Le document sera analyse par Vision si une cle OpenAI est disponible."
+            )
+    elif mime_type in ("image/jpeg", "image/png"):
+        doc_meta["text_extracted"] = False
+        doc_meta["extraction_status"] = "vision_required"
 
     session.setdefault("uploaded_documents", []).append(doc_meta)
     save_session(session)
 
     return {
         "id": doc_id,
-        "name": filename,
+        "name": display_name,
         "filename": target.name,
         "sizeLabel": f"{max(1, size_bytes // 1024)} Ko",
+        "extractionStatus": doc_meta.get("extraction_status"),
+        "extractionError": doc_meta.get("extraction_error"),
     }
 
 
@@ -889,13 +1533,14 @@ def app_save_rapport(body: dict) -> dict:
     _, artifact_path = resolve_session_artifact(
         session, event_id=str(artifact.get("event_id") or "")
     )
-    artifact_path.write_text(content, encoding="utf-8")
+    _atomic_write_text(artifact_path, content)
     return {"ok": True, "session_id": session_id}
 
 
 def app_generate_rapport(body: dict) -> dict:
     """Régénère brouillon_rapport.md via LLM (ou fallback déterministe), sauvegarde et retourne le contenu."""
-    from engine.runtime import generate_brouillon_rapport
+    from engine.runtime import generate_brouillon_rapport, _generate_rapport_llm, _build_rapport_prompt_v2
+    from engine.llm_routing import get_llm_model, estimate_llm_cost
     session_id = str(body.get("session_id", "")).strip()
     format_param = str(body.get("format", "abrege")).strip()
     if not session_id:
@@ -909,22 +1554,50 @@ def app_generate_rapport(body: dict) -> dict:
     case_input_path = session_dir / f"{dossier_id}.input.json"
     if not case_input_path.exists():
         raise FileNotFoundError(f"case input introuvable: {case_input_path.name}")
-    case = json.loads(case_input_path.read_text(encoding="utf-8"))
+    case = read_json_dict(case_input_path)
+    if not case:
+        raise ValueError(f"case input invalide: {case_input_path.name}")
     valuation_values = dossier.get("valuation", {}).get("values", {}) or {}
     compliance = dossier.get("compliance", {}) or {}
     status = str(compliance.get("status", "BROUILLON") or "BROUILLON")
     blocking = list(compliance.get("blocking_failures", []) or [])
     warnings = list(compliance.get("warnings", []) or [])
-    rapport_md = generate_brouillon_rapport(
-        case, valuation_values, status, blocking, warnings, format=format_param
-    )
+
+    # Run LLM directly here to capture cost metadata
+    prompt = _build_rapport_prompt_v2(case, format_param, valuation_values, status, blocking, warnings)
+    llm_result = _generate_rapport_llm(prompt, format_param)
+    if llm_result and llm_result.get("text"):
+        disclaimer = (
+            "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
+            "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
+        )
+        rapport_md = disclaimer + llm_result["text"]
+        llm_meta = {
+            "model": llm_result["model"],
+            "tokens_in": llm_result["tokens_in"],
+            "tokens_out": llm_result["tokens_out"],
+            "cost_usd": llm_result["cost_usd"],
+        }
+    else:
+        from engine.runtime import _generate_rapport_deterministic
+        rapport_md = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+        llm_meta = {"model": "deterministic", "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0}
+
     artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
     if artifact:
         _, artifact_path = resolve_session_artifact(
             session, event_id=str(artifact.get("event_id") or "")
         )
-        artifact_path.write_text(rapport_md, encoding="utf-8")
-    return {"ok": True, "content": rapport_md, "session_id": session_id, "format": format_param}
+        _atomic_write_text(artifact_path, rapport_md)
+    gate = certifiability_gate(session, require_review=False, require_report=bool(artifact))
+    return {
+        "ok": True,
+        "content": rapport_md,
+        "session_id": session_id,
+        "format": format_param,
+        "llm": llm_meta,
+        "certifiability_gate": gate,
+    }
 
 
 def app_export_rapport(body: dict) -> dict:
@@ -940,6 +1613,10 @@ def app_export_rapport(body: dict) -> dict:
         raise ValueError("format doit être 'docx', 'html' ou 'pdf'")
 
     session = require_session(session_id)
+    gate = certifiability_gate(session, require_review=True, require_report=True)
+    if not gate["ok"]:
+        detail = "; ".join(gate.get("blocking_messages", [])[:5])
+        raise ValueError(f"export rapport refuse: {detail}")
     artifact = find_artifact_record(session, "redaction", "brouillon_rapport.md")
     if not artifact:
         raise FileNotFoundError("brouillon_rapport.md introuvable dans la session")
@@ -956,6 +1633,7 @@ def app_export_rapport(body: dict) -> dict:
             "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "filename": f"rapport-{dossier_id}.docx",
             "data": base64.b64encode(data).decode("ascii"),
+            "certifiability_gate": gate,
         }
     if format_param == "html":
         html = _generate_html(md_text, dossier_id)
@@ -964,6 +1642,7 @@ def app_export_rapport(body: dict) -> dict:
             "content_type": "text/html; charset=utf-8",
             "filename": f"rapport-{dossier_id}.html",
             "data": html,
+            "certifiability_gate": gate,
         }
     # format == "pdf"
     data = _generate_pdf(md_text, dossier_id)
@@ -972,18 +1651,25 @@ def app_export_rapport(body: dict) -> dict:
         "content_type": "application/pdf",
         "filename": f"rapport-{dossier_id}.pdf",
         "data": base64.b64encode(data).decode("ascii"),
+        "certifiability_gate": gate,
     }
 
 
-def app_fact_chips(knowledge: dict, dossier: dict) -> list[dict]:
+def app_fact_chips(knowledge: dict, dossier: dict, overrides: dict | None = None) -> list[dict]:
     subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
     mandate = knowledge.get("mandate", {}) if isinstance(knowledge.get("mandate"), dict) else {}
     facts = dossier.get("facts", {}) if isinstance(dossier.get("facts"), dict) else {}
+    ov = overrides or {}
+    surface_raw = subject.get("surface") or facts.get("surface")
+    if ov.get("surface_pi2"):
+        surface_raw = {"value": float(ov["surface_pi2"]), "unit": "pi2"}
+    zone = ov.get("zone") or subject.get("zone") or "A confirmer"
+    date_ref = ov.get("date_reference") or mandate.get("date_reference") or facts.get("date_reference") or "-"
     chips = [
         {"label": f"Type: {app_property_type_label(subject.get('type_bien'))}", "highlight": True},
-        {"label": f"Surface: {app_surface_label(subject.get('surface') or facts.get('surface'))}", "highlight": True},
-        {"label": f"Zone: {subject.get('zone') or 'A confirmer'}", "highlight": True},
-        {"label": f"Date: {mandate.get('date_reference') or facts.get('date_reference') or '-'}", "highlight": True},
+        {"label": f"Surface: {app_surface_label(surface_raw)}", "highlight": True},
+        {"label": f"Zone: {zone}", "highlight": True},
+        {"label": f"Date: {date_ref}", "highlight": True},
         {"label": f"Confiance: {subject.get('confidence') or facts.get('confidence') or '-'}", "highlight": False},
         {"label": f"Sources: {len(subject.get('source_ids', [])) if isinstance(subject.get('source_ids'), list) else facts.get('source_ids_count', 0)}", "highlight": False},
     ]
@@ -996,7 +1682,7 @@ def app_comparable_rows(knowledge: dict, session_id: str = "") -> list[dict]:
         manual_path = SESSIONS_DIR / safe_path_id(session_id) / "comparables.json"
         if manual_path.exists():
             try:
-                data = json.loads(manual_path.read_text(encoding="utf-8"))
+                data = read_json_dict(manual_path)
                 if data.get("manual") and isinstance(data.get("comparables"), list) and data["comparables"]:
                     return data["comparables"]
             except Exception:
@@ -1041,15 +1727,16 @@ def app_save_comparables(body: dict) -> dict:
     rows_raw = body.get("comparables")
     if not isinstance(rows_raw, list):
         raise ValueError("comparables doit être une liste")
-    session_dir = SESSIONS_DIR / safe_path_id(session_id)
-    if not (session_dir / "session.json").exists():
+    session = load_session(session_id)
+    if not session:
         raise ValueError(f"Session introuvable: {session_id}")
+    session_dir = Path(str(session["session_dir"]))
     rows = []
     for i, r in enumerate(rows_raw, 1):
         if not isinstance(r, dict):
             continue
-        price = float(r.get("sale_price") or r.get("prix_vente") or 0)
-        source_id = str(r.get("source_id") or "")
+        price = app_float(r.get("sale_price") or r.get("prix_vente") or 0)
+        source_id = str(r.get("source_id") or r.get("meta") or "").strip()
         address = str(r.get("address") or r.get("adresse") or f"Comparable {i}")
         sale_date = str(r.get("sale_date") or r.get("date_vente") or "")
         rows.append({
@@ -1088,7 +1775,7 @@ def app_adjustment_rows(knowledge: dict, dossier: dict, session_id: str = "") ->
         manual_path = SESSIONS_DIR / safe_path_id(session_id) / "adjustments.json"
         if manual_path.exists():
             try:
-                data = json.loads(manual_path.read_text(encoding="utf-8"))
+                data = read_json_dict(manual_path)
                 if data.get("manual") and isinstance(data.get("adjustments"), list) and data["adjustments"]:
                     return data["adjustments"]
             except Exception:
@@ -1098,7 +1785,7 @@ def app_adjustment_rows(knowledge: dict, dossier: dict, session_id: str = "") ->
     fixture_adjustments = app_fixture_adjustments(str(dossier.get("source_fixture") or ""))
     source_ids = {str(row.get("source_id") or "") for row in comparables}
     global_amount = sum(
-        float(item.get("montant") or 0)
+        app_float(item.get("montant") or 0)
         for item in fixture_adjustments
         if str(item.get("source_id") or "") not in source_ids and item.get("validation_humaine") is True
     )
@@ -1107,11 +1794,11 @@ def app_adjustment_rows(knowledge: dict, dossier: dict, session_id: str = "") ->
     for row in comparables:
         source_id = str(row.get("source_id") or "")
         direct = sum(
-            float(item.get("montant") or 0)
+            app_float(item.get("montant") or 0)
             for item in fixture_adjustments
             if str(item.get("source_id") or "") == source_id and item.get("validation_humaine") is True
         )
-        sale_price = float(row.get("sale_price") or 0)
+        sale_price = app_float(row.get("sale_price") or 0)
         adjusted = sale_price + direct + global_share
         rows.append(
             {
@@ -1145,12 +1832,12 @@ def app_save_adjustments(body: dict) -> dict:
     for r in rows:
         if not isinstance(r, dict):
             continue
-        sp = float(r.get("salePrice") or 0)
-        sa = float(r.get("surface_adj") or 0)
-        ya = float(r.get("year_adj") or 0)
-        ca = float(r.get("condition_adj") or 0)
-        ga = float(r.get("garage_adj") or 0)
-        clean.append({
+        sp = app_float(r.get("salePrice") or 0)
+        sa = app_float(r.get("surface_adj") or 0)
+        ya = app_float(r.get("year_adj") or 0)
+        ca = app_float(r.get("condition_adj") or 0)
+        ga = app_float(r.get("garage_adj") or 0)
+        row = {
             "id": str(r.get("id", "")),
             "comparable_id": str(r.get("comparable_id", "")),
             "comparableLabel": str(r.get("comparableLabel", "")),
@@ -1160,25 +1847,39 @@ def app_save_adjustments(body: dict) -> dict:
             "condition_adj": ca,
             "garage_adj": ga,
             "adjusted": round(sp + sa + ya + ca + ga, 2),
-        })
+        }
+        if r.get("source_id") is not None:
+            row["source_id"] = str(r.get("source_id") or "").strip()
+        if r.get("basis") is not None:
+            row["basis"] = str(r.get("basis") or "")
+        clean.append(row)
     adj_path = SESSIONS_DIR / safe_path_id(session_id) / "adjustments.json"
     write_json(adj_path, {"manual": True, "adjustments": clean})
     return {"ok": True, "count": len(clean)}
 
 
-def app_workflow(summary: dict, dossier: dict, package: dict, assistant: dict) -> dict:
+def app_workflow(
+    summary: dict,
+    dossier: dict,
+    package: dict,
+    assistant: dict,
+    certifiability: dict | None = None,
+) -> dict:
     result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
     review = summary.get("review", {}) if isinstance(summary.get("review"), dict) else {}
-    integrity = summary.get("integrity", {}) if isinstance(summary.get("integrity"), dict) else {}
     blocking = result.get("blocking_failures", []) if isinstance(result.get("blocking_failures"), list) else []
     review_decision = str(review.get("decision") or "A_SAISIR")
     package_status = str(package.get("status") or "ABSENT")
+    certifiability = certifiability if isinstance(certifiability, dict) else {}
+    package_gate = package.get("gate", {}) if isinstance(package.get("gate"), dict) else {}
+    can_validate_review = bool(certifiability.get("ok"))
+    can_generate_package = review_decision == "VALIDE" and bool(package_gate.get("ok"))
     steps = [
         {
             "id": "runtime",
             "label": "Lancer dossier",
             "status": result.get("status", "UNKNOWN"),
-            "complete": bool(result) and bool(integrity.get("ok")) and not blocking,
+            "complete": bool(result) and can_validate_review and not blocking,
         },
         {
             "id": "inspect",
@@ -1203,8 +1904,11 @@ def app_workflow(summary: dict, dossier: dict, package: dict, assistant: dict) -
         "status": assistant.get("status", "ASSISTANCE_DOSSIER_ACTIVE"),
         "steps": steps,
         "next_actions": assistant.get("next_actions", []),
-        "can_validate_review": bool(integrity.get("ok")) and not blocking,
-        "can_generate_package": review_decision == "VALIDE",
+        "can_validate_review": can_validate_review,
+        "can_generate_package": can_generate_package,
+        "certifiability_gate": certifiability,
+        "blocking_messages": certifiability.get("blocking_messages", []),
+        "package_gate": package_gate,
         "limits": {
             "certification_automatic": False,
             "external_evaluator_responses_included": False,
@@ -1217,6 +1921,14 @@ def _build_enrichment_view(fb: dict) -> dict:
     """Extract B30-B44 computed enrichment fields from fiche_bien.json for frontend display."""
     if not fb or not isinstance(fb, dict):
         return {}
+    source_diagnostics = fb.get("source_diagnostics") if isinstance(fb.get("source_diagnostics"), list) else []
+    source_coverage = fb.get("source_coverage") if isinstance(fb.get("source_coverage"), dict) else None
+    if source_diagnostics and not source_coverage:
+        try:
+            from engine.source_diagnostics import build_source_coverage
+            source_coverage = build_source_coverage(source_diagnostics)
+        except Exception:
+            source_coverage = None
     sg = fb.get("score_global") or {}
     alrt = fb.get("alertes") or {}
     inv = fb.get("score_investissement") or {}
@@ -1291,6 +2003,8 @@ def _build_enrichment_view(fb: dict) -> dict:
         "marche": _build_marche_view(fb),
         "financier": _build_financier_view(fb),
         "localisation": _build_localisation_view(fb),
+        "source_diagnostics": source_diagnostics,
+        "source_coverage": source_coverage,
     }
 
 
@@ -1423,14 +2137,17 @@ def app_session_view(session_id: str) -> dict:
     assistant = assistant_workbench(session_id)
     package = session_package_summary(session_id)
     session = summary.get("session", {}) if isinstance(summary.get("session"), dict) else {}
+    cert_gate = certifiability_gate(session, require_review=False, require_report=True) if session else {}
     subject = knowledge.get("subject_property", {}) if isinstance(knowledge.get("subject_property"), dict) else {}
     reconciliation = knowledge.get("reconciliation", {}) if isinstance(knowledge.get("reconciliation"), dict) else {}
     conclusion = reconciliation.get("conclusion_proposee", {}) if isinstance(reconciliation.get("conclusion_proposee"), dict) else {}
     title = app_title_from_session(session_id, dossier, knowledge)
+    dossier_slug = str(session.get("dossier_id") or session_id)
     card = {
-        "id": session_id,
-        "slug": session_id,
+        "id": dossier_slug,
+        "slug": dossier_slug,
         "session_id": session_id,
+        "dossier_id": dossier_slug,
         "address": str(session.get("app_display_name") or title),
         "property_type": str(session.get("app_property_type") or app_property_type_label(subject.get("type_bien"))),
         "neighborhood": str(session.get("app_neighborhood") or subject.get("zone") or "Zone anonymisee"),
@@ -1450,7 +2167,7 @@ def app_session_view(session_id: str) -> dict:
         "session": session,
         "dossier": card,
         "documents": app_source_documents(knowledge, session),
-        "fact_chips": app_fact_chips(knowledge, dossier),
+        "fact_chips": app_fact_chips(knowledge, dossier, overrides=session.get("app_fact_overrides") or {}),
         "comparables": app_comparable_rows(knowledge, session_id=session_id),
         "adjustments": app_adjustment_rows(knowledge, dossier, session_id=session_id),
         "valuation": {
@@ -1465,12 +2182,16 @@ def app_session_view(session_id: str) -> dict:
             "preview": dossier.get("report", {}).get("preview", "") if isinstance(dossier.get("report"), dict) else "",
             "title": "Brouillon de rapport",
             "subtitle": "Non certifie - validation evaluateur agree requise",
+            "certifiability_gate": cert_gate,
         },
         "knowledge": knowledge,
         "assistant": assistant,
         "package": package,
-        "workflow": app_workflow(summary, dossier, package, assistant),
+        "workflow": app_workflow(summary, dossier, package, assistant, cert_gate),
         "pipeline_progress": read_json_dict(SESSIONS_DIR / safe_path_id(session_id) / "pipeline_progress.json") or None,
+        "pipeline_error": session.get("pipeline_error"),
+        "ingestion_error": session.get("ingestion_error"),
+        "commanditaire": session.get("app_commanditaire") or None,
         "mandat": {
             "mandat_type": session.get("mandat_type"),
             "format_rapport": session.get("format_rapport"),
@@ -1489,18 +2210,95 @@ def app_session_view(session_id: str) -> dict:
     }
 
 
-def app_state(session_id: str = "") -> dict:
-    product = product_summary()
-    session_records = list_session_records(limit=50)
+def app_valuation_trace(session_id: str) -> dict:
+    """Full deterministic trace for the 3 valuation approaches + hypotheses."""
+    session = require_session(session_id)
+    artifact_index = session_artifacts(session_id)
+    approach_files = [
+        ("approche_comparative", "calculs_approche_comparative.json"),
+        ("approche_cout",        "calculs_approche_cout.json"),
+        ("approche_revenu",      "calculs_approche_revenu.json"),
+    ]
+    approaches = []
+    for approach_id, filename in approach_files:
+        payload = read_artifact_json_from_index(session, artifact_index, "valuation-draft", filename)
+        if not payload:
+            continue
+        trace = payload.get("trace", {}) if isinstance(payload.get("trace"), dict) else {}
+        entry: dict = {
+            "approach": approach_id,
+            "label": {
+                "approche_comparative": "Approche comparative",
+                "approche_cout": "Approche coût",
+                "approche_revenu": "Approche revenu",
+            }.get(approach_id, approach_id),
+            "method": payload.get("method", ""),
+            "value": payload.get("value"),
+            "applicable": payload.get("applicable", True),
+            "input_count": payload.get("input_count", 0),
+            "base_value": trace.get("base_value"),
+            "adjustment_total": trace.get("adjustment_total_validated"),
+            "weights": trace.get("weights_used", []),
+            "policy": trace.get("calculation_policy", []),
+            "selected_comparables": [
+                {
+                    "comparable_id": c.get("comparable_id", ""),
+                    "prix_vente": c.get("prix_vente"),
+                    "score": c.get("score"),
+                    "date_vente": c.get("date_vente", ""),
+                    "source_id": c.get("source_id", ""),
+                }
+                for c in (trace.get("selected_comparables") or [])
+                if isinstance(c, dict)
+            ],
+        }
+        if payload.get("AVERTISSEMENT"):
+            entry["AVERTISSEMENT"] = payload["AVERTISSEMENT"]
+        approaches.append(entry)
+    hyp_payload = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "hypotheses_explicites.json")
+    hypotheses = hyp_payload.get("hypotheses", []) if isinstance(hyp_payload.get("hypotheses"), list) else []
+    return {
+        "session_id": session_id,
+        "approaches": approaches,
+        "hypotheses": hypotheses,
+    }
+
+
+def app_state(session_id: str = "", evaluator_id: str = "") -> dict:
+    product = product_summary(evaluator_id=evaluator_id)
+    session_records = list_session_records(limit=50, evaluator_id=evaluator_id)
+    # Resolve dossier_id (D-USR-... / D-...) to actual session_id (hex12)
+    if session_id and "-" in session_id:
+        resolved = _find_session_for_dossier(session_id)
+        if resolved:
+            session_id = resolved
     active_session_id = safe_path_id(session_id) if session_id else ""
     if not active_session_id and session_records:
         active_session_id = str(session_records[0].get("session_id") or "")
-    active = app_session_view(active_session_id) if active_session_id else None
-    dossiers = [app_dossier_card_from_record(record) for record in session_records]
+    active = None
+    if active_session_id:
+        active_session = load_session(active_session_id)
+        if active_session is None:
+            active_session_id = ""
+        elif evaluator_id and not session_access_allowed(active_session, evaluator_id):
+            active_session_id = ""
+        else:
+            active = app_session_view(active_session_id)
+    all_cards = [app_dossier_card_from_record(record) for record in session_records]
+    # Deduplicate by dossier_id — keep most recent session (list already sorted desc by updated_at)
+    seen_dossier_ids: set[str] = set()
+    dossiers: list[dict] = []
+    for item in all_cards:
+        did = str(item.get("id") or item.get("dossier_id") or "")
+        if did in seen_dossier_ids:
+            continue
+        seen_dossier_ids.add(did)
+        dossiers.append(item)
     if active and isinstance(active, dict):
         active_card = active.get("dossier", {})
+        active_dossier_id = str(active_card.get("id") or active_card.get("dossier_id") or "")
         for index, item in enumerate(dossiers):
-            if item.get("session_id") == active_session_id:
+            if str(item.get("id") or "") == active_dossier_id:
                 dossiers[index] = {**item, **active_card}
                 break
     return {
@@ -1538,6 +2336,8 @@ def app_start_demo(body: dict) -> dict:
         runtime_body["comparables"] = body["comparables"]
     if body.get("force_conflit_continue"):
         runtime_body["force_conflit_continue"] = True
+    if body.get("_evaluator_id"):
+        runtime_body["_evaluator_id"] = str(body.get("_evaluator_id") or "").strip()
     started = start_runtime(runtime_body)
     session_id = str(started.get("session", {}).get("session_id") or "")
     if session_id and any(body.get(key) for key in ("display_name", "property_type", "neighborhood")):
@@ -1546,33 +2346,612 @@ def app_start_demo(body: dict) -> dict:
         session["app_property_type"] = str(body.get("property_type") or "").strip()
         session["app_neighborhood"] = str(body.get("neighborhood") or "").strip()
         save_session(session)
-    state = app_state(session_id)
+    state = app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip())
     return {"schema_version": "evaluateur_ai_app_demo_v1", "started": started, "state": state}
 
 
 def app_validate_review(body: dict) -> dict:
     session_id = str(body.get("session_id") or "")
-    # Gate: no blocking compliance failures may exist before internal review
-    summary = session_summary(session_id)
-    result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
-    integrity = summary.get("integrity", {}) if isinstance(summary.get("integrity"), dict) else {}
-    blocking = result.get("blocking_failures", []) if isinstance(result.get("blocking_failures"), list) else []
-    if blocking or not integrity.get("ok"):
-        count = len(blocking)
-        sample = "; ".join(str(b) for b in blocking[:3])
-        detail = f": {sample}" if sample else ""
-        raise ValueError(
-            f"Revue bloquee par {count} echec(s) de conformite{detail}. "
-            "Corriger les blocages avant de valider."
-        )
-    reviewer = str(body.get("reviewer") or "Revue interne locale")
+    session = require_session(session_id)
+    gate = certifiability_gate(session, require_review=False, require_report=True)
+    if not gate["ok"]:
+        detail = "; ".join(gate.get("blocking_messages", [])[:5])
+        raise ValueError(f"Revue bloquee: {detail}")
+    # confirmed_by = Supabase user ID injected by BFF (X-Evaluator-Id header)
+    confirmed_by = str(body.get("_evaluator_id") or "").strip()
+    reviewer = str(body.get("reviewer") or confirmed_by or "Revue interne locale")
     notes = str(
         body.get("notes")
         or "Validation interne locale pour generer le paquet V1. "
         "Valeur non certifiee; signature d'un evaluateur agree hors systeme requise."
     )
-    review = save_review({"session_id": session_id, "decision": "VALIDE", "reviewer": reviewer, "notes": notes})
-    return {"schema_version": "evaluateur_ai_app_review_v1", "review": review, "state": app_state(session_id)}
+    review = save_review({
+        "session_id": session_id,
+        "decision": "VALIDE",
+        "reviewer": reviewer,
+        "confirmed_by": confirmed_by,
+        "notes": notes,
+    })
+    return {
+        "schema_version": "evaluateur_ai_app_review_v1",
+        "review": review,
+        "state": app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip()),
+    }
+
+
+# ── S3 — Checkpoint gates ─────────────────────────────────────────────────────
+
+def _run_pipeline_segment(session: dict, case: dict, checkpoint: int) -> dict:
+    """Run the pipeline steps for a given checkpoint segment and persist results."""
+    session_dir = Path(str(session["session_dir"]))
+    session_id = str(session["session_id"])
+    source_fixture = str(session.get("source_fixture") or "inline")
+    case_key = safe_path_id(str(case.get("dossier_id") or session_id))
+
+    step_names = CHECKPOINT_STEPS.get(checkpoint, [])
+    steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
+    engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
+
+    all_step_names = [s.name for s in steps]
+    progress_path = session_dir / "pipeline_progress.json"
+    # Read existing completed steps (prior segments)
+    existing_progress = read_json_dict(progress_path)
+    completed_steps: list[str] = list(existing_progress.get("completed") or [])
+
+    def _on_step_done(step_name: str) -> None:
+        if step_name not in completed_steps:
+            completed_steps.append(step_name)
+        remaining = [s for s in all_step_names if s not in completed_steps]
+        next_step = remaining[0] if remaining else None
+        write_json(progress_path, {
+            "steps": all_step_names,
+            "completed": list(completed_steps),
+            "running": next_step,
+            "waiting_checkpoint": checkpoint if next_step else None,
+        })
+
+    # Initialise progress if first segment
+    if not existing_progress:
+        write_json(progress_path, {
+            "steps": all_step_names,
+            "completed": [],
+            "running": step_names[0] if step_names else None,
+            "waiting_checkpoint": None,
+        })
+
+    try:
+        result = engine.run_case_data(
+            case,
+            session_dir / "artifacts",
+            source_fixture=source_fixture,
+            case_stem=case_key,
+            case_subdir=True,
+            on_step_done=_on_step_done,
+            steps_filter=step_names,
+        )
+    except PipelineConflitError as exc:
+        result = {
+            "dossier_id": case.get("dossier_id", ""),
+            "status": "CONFLIT_DETECTE",
+            "blocking_failures": [f"CONFLIT: {exc}"],
+            "warnings": [],
+            "events": [],
+            "artifact_dir": str(session_dir / "artifacts"),
+        }
+
+    # Mark segment as waiting for checkpoint (not pipeline-blocking)
+    _remaining = [s for s in all_step_names if s not in completed_steps]
+    write_json(progress_path, {
+        "steps": all_step_names,
+        "completed": list(completed_steps),
+        "running": None,
+        "waiting_checkpoint": checkpoint,
+    })
+
+    result_path = session_dir / "result.json"
+    events_path = session_dir / "events.jsonl"
+    artifact_index_path = session_dir / "artifact_index.json"
+    knowledge_snapshot_path = session_dir / "knowledge_snapshot.json"
+
+    enriched_events = enrich_events(result["events"], session)
+    result["events"] = enriched_events
+    artifact_index = build_artifact_index(enriched_events)
+    knowledge_snapshot = build_knowledge_snapshot(session, result, artifact_index)
+
+    write_json(result_path, result)
+    _atomic_write_text(events_path, "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in enriched_events))
+    write_json(artifact_index_path, artifact_index)
+    write_json(knowledge_snapshot_path, knowledge_snapshot)
+
+    session.update({
+        "status": result["status"],
+        "dossier_id": result["dossier_id"],
+        "result_path": str(result_path),
+        "events_path": str(events_path),
+        "artifact_dir": result["artifact_dir"],
+        "artifact_index_path": str(artifact_index_path),
+        "knowledge_snapshot_path": str(knowledge_snapshot_path),
+        "current_checkpoint": checkpoint,
+    })
+    save_session(session)
+    return result
+
+
+def app_confirm_checkpoint(body: dict) -> dict:
+    """POST /app/checkpoint/confirm — évaluateur confirme un checkpoint.
+
+    Body: { session_id, checkpoint (1-4), confirmed_by (Supabase uid) }
+    """
+    session_id = _normalize_session_id(str(body.get("session_id") or ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    checkpoint = int(body.get("checkpoint") or 0)
+    if checkpoint not in CHECKPOINT_LABELS:
+        raise ValueError(f"checkpoint invalide : {checkpoint}. Valeurs : 1-4.")
+    confirmed_by = str(body.get("_evaluator_id") or body.get("confirmed_by") or "")
+
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    entry = confirm_checkpoint(session_dir, checkpoint, confirmed_by)
+    return {
+        "schema_version": "evaluateur_ai_checkpoint_confirm_v1",
+        "checkpoint": checkpoint,
+        "label": CHECKPOINT_LABELS[checkpoint],
+        "entry": entry,
+        "state": app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip()),
+    }
+
+
+def app_resume_checkpoint(body: dict) -> dict:
+    """POST /app/checkpoint/resume — déclenche le segment suivant après confirmation.
+
+    Gate bloquant : lève CheckpointRequiredError (→ HTTP 409) si CP précédent non confirmé.
+    Body: { session_id, checkpoint (segment à exécuter : 2, 3 ou 4) }
+    """
+    session_id = _normalize_session_id(str(body.get("session_id") or ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    checkpoint = int(body.get("checkpoint") or 0)
+    if checkpoint not in CHECKPOINT_STEPS or checkpoint < 2:
+        raise ValueError(f"checkpoint invalide pour resume : {checkpoint}. Valeurs : 2, 3, 4.")
+
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+
+    # ── Gate bloquant ──────────────────────────────────────────────────────────
+    required_previous = checkpoint - 1
+    assert_checkpoint_confirmed(session_dir, required_previous)
+
+    # Load case from session artifacts / inputs
+    case_key = safe_path_id(str(session.get("dossier_id") or session_id))
+    input_path = session_dir / f"{case_key}.input.json"
+    if not input_path.exists():
+        raise ValueError(f"Données d'entrée introuvables pour la session {session_id}")
+    case = read_json_dict(input_path)
+    if not case:
+        raise ValueError(f"Données d'entrée invalides pour la session {session_id}")
+
+    import threading as _threading
+    result_holder: list[dict] = []
+    error_holder: list[Exception] = []
+
+    def _run() -> None:
+        try:
+            result_holder.append(_run_pipeline_segment(session, case, checkpoint))
+        except Exception as exc:
+            error_holder.append(exc)
+
+    _threading.Thread(target=_run, daemon=True).start()
+
+    return {
+        "schema_version": "evaluateur_ai_checkpoint_resume_v1",
+        "checkpoint": checkpoint,
+        "label": CHECKPOINT_LABELS[checkpoint],
+        "status": "running",
+        "state": app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip()),
+    }
+
+
+def app_get_facts(session_id: str) -> dict:
+    """GET /app/facts — champs d'intake extraits pour UI CHECKPOINT 1.
+
+    Lit le fichier .input.json de la session et retourne la revue des champs
+    extraits (présents vs manquants) pour affichage dans le tableau CP1.
+    """
+    from engine.ingestion import get_intake_review
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    dossier_id = str(session.get("dossier_id") or session_id)
+    case_key = safe_path_id(dossier_id)
+    input_path = session_dir / f"{case_key}.input.json"
+    case: dict = {}
+    if input_path.exists():
+        case = read_json_dict(input_path)
+    rows = get_intake_review(case)
+    missing_count = sum(1 for r in rows if r["missing"])
+    required_missing = [r["label"] for r in rows if r["missing"] and r["required"]]
+    return {
+        "session_id": session_id,
+        "dossier_id": dossier_id,
+        "fields": rows,
+        "total": len(rows),
+        "missing_count": missing_count,
+        "required_missing": required_missing,
+        "ready_to_confirm": len(required_missing) == 0,
+    }
+
+
+def app_upload_jlr_csv(body: dict) -> dict:
+    """POST /app/jlr/upload — Importe un export CSV JLR et retourne les comparables scorés.
+
+    body: {session_id, filename, content_b64}
+    Returns: {ok, candidates, total, session_id}
+    """
+    from engine.ingestion import parse_jlr_csv
+    from engine.tools import score_comparable, JLR_SCORING_WEIGHTS
+
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable : {session_id}")
+
+    filename = str(body.get("filename") or "jlr_export.csv")
+    content_b64 = str(body.get("content_b64") or "")
+    if not content_b64:
+        raise ValueError("content_b64 requis")
+
+    _CSV_MAX_BYTES = 5 * 1024 * 1024  # 5 MB — un export JLR typique est < 500 KB
+    import base64 as _b64
+    try:
+        csv_bytes = _b64.b64decode(content_b64)
+    except Exception as exc:
+        raise ValueError(f"content_b64 invalide : {exc}") from exc
+
+    if len(csv_bytes) > _CSV_MAX_BYTES:
+        raise ValueError(
+            f"Fichier CSV trop volumineux ({len(csv_bytes) // 1024} KB). "
+            f"Maximum : {_CSV_MAX_BYTES // 1024} KB. Exporter un sous-ensemble de transactions JLR."
+        )
+
+    session_dir = Path(str(session["session_dir"]))
+    uploads_dir = session_dir / "uploads"
+    uploads_dir.mkdir(exist_ok=True)
+
+    # Sanitize filename
+    safe_name = "".join(c for c in Path(filename).name if c.isalnum() or c in "._- ")[:80]
+    if not safe_name.endswith(".csv"):
+        safe_name = "jlr_export.csv"
+    csv_path = uploads_dir / safe_name
+
+    csv_path.write_bytes(csv_bytes)
+
+    # Parse CSV
+    pool = parse_jlr_csv(csv_path)
+
+    # Charger le cas sujet (pour scoring contextuel)
+    dossier_id = str(session.get("dossier_id") or session_id)
+    case_key = safe_path_id(dossier_id)
+    input_path = session_dir / f"{case_key}.input.json"
+    subject: dict = {}
+    if input_path.exists():
+        subject = read_json_dict(input_path)
+
+    # Date de référence = aujourd'hui si non disponible dans le cas
+    date_ref = str(subject.get("date_achat") or subject.get("date_reference") or utc_now_iso()[:10])
+
+    # Prépare le sujet pour scoring surface
+    subj_surface = subject.get("surface_habitable")
+    subject_for_score: dict = {}
+    if subj_surface:
+        subject_for_score = {
+            "surface": {"value": float(subj_surface), "unit": "pi2"},
+            "type_bien": str(subject.get("type_bien") or ""),
+        }
+
+    # Score chaque comparable avec les poids JLR
+    candidates = []
+    for comp in pool:
+        details = score_comparable(
+            comp,
+            subject=subject_for_score or None,
+            date_reference=date_ref,
+            weights=JLR_SCORING_WEIGHTS,
+        )
+        candidates.append({
+            "id":               str(comp.get("comparable_id") or comp.get("source_id")),
+            "adresse":          str(comp.get("adresse") or ""),
+            "prix_vente":       float(comp.get("prix_vente") or 0),
+            "date_vente":       str(comp.get("date_vente") or ""),
+            "surface_habitable": comp.get("surface_habitable"),
+            "surface_terrain":  comp.get("surface_terrain"),
+            "nb_chambres":      comp.get("nb_chambres"),
+            "nb_pieces":        comp.get("nb_pieces"),
+            "type_bien":        comp.get("type_bien"),
+            "source_id":        str(comp.get("source_id") or ""),
+            "distance_km":      comp.get("distance_km"),
+            "score":            float(details["score"]),
+            "score_details":    details,
+        })
+
+    # Trier par score décroissant, retenir top 8
+    candidates.sort(key=lambda c: c["score"], reverse=True)
+    top_candidates = candidates[:8]
+
+    # Persister pour GET ultérieur
+    write_json(session_dir / "jlr_candidates.json", {
+        "schema_version": "jlr_candidates_v1",
+        "session_id": session_id,
+        "csv_filename": safe_name,
+        "total_parsed": len(pool),
+        "candidates": top_candidates,
+    })
+
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "total_parsed": len(pool),
+        "candidates": top_candidates,
+        "total": len(top_candidates),
+    }
+
+
+def app_get_comparable_candidates(session_id: str) -> dict:
+    """GET /app/comparables/candidates — Retourne les comparables JLR scorés d'une session."""
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    candidates_path = session_dir / "jlr_candidates.json"
+
+    dossier_id = str(session.get("dossier_id") or session_id)
+    case_key = safe_path_id(dossier_id)
+    input_path = session_dir / f"{case_key}.input.json"
+    subject_address: str | None = None
+    if input_path.exists():
+        case = read_json_dict(input_path)
+        subject_address = str(case.get("adresse_complete") or "")
+
+    if not candidates_path.exists():
+        return {
+            "session_id": session_id,
+            "candidates": [],
+            "total": 0,
+            "subject_address": subject_address,
+        }
+
+    data = read_json_dict(candidates_path)
+    candidates = data.get("candidates") or []
+    return {
+        "session_id": session_id,
+        "candidates": candidates,
+        "total": len(candidates),
+        "subject_address": subject_address,
+    }
+
+
+def app_confirm_comparables(body: dict) -> dict:
+    """POST /app/checkpoint/comparables — Confirme les comparables sélectionnés et le CHECKPOINT 2.
+
+    body: {session_id, selected_ids: list[str]}
+    - Valide qu'au moins 3 comparables sont sélectionnés (règle B007)
+    - Sauvegarde les comparables sélectionnés dans comparables.json
+    - Enregistre le checkpoint 2 dans checkpoint_log.jsonl
+    """
+    session_id = str(body.get("session_id") or "")
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable : {session_id}")
+
+    selected_ids = body.get("selected_ids")
+    if not isinstance(selected_ids, list):
+        raise ValueError("selected_ids doit être une liste")
+    selected_ids = [str(s) for s in selected_ids if s]
+
+    if len(selected_ids) < 3:
+        raise ValueError(
+            f"Au moins 3 comparables requis par la règle B007 — "
+            f"{len(selected_ids)} sélectionné(s)."
+        )
+
+    session_dir = Path(str(session["session_dir"]))
+
+    # Retrouver les données complètes depuis jlr_candidates.json
+    candidates_path = session_dir / "jlr_candidates.json"
+    all_candidates: list[dict] = []
+    if candidates_path.exists():
+        data = read_json_dict(candidates_path)
+        all_candidates = data.get("candidates") or []
+
+    selected_map = {c["id"]: c for c in all_candidates}
+
+    # Rejeter tout ID qui ne correspond pas à un candidat scoré connu
+    unknown_ids = [sid for sid in selected_ids if sid not in selected_map]
+    if unknown_ids:
+        raise ValueError(
+            f"Comparables inconnus (non présents dans les candidats JLR scorés) : "
+            f"{', '.join(unknown_ids[:5])}. Importer le CSV JLR avant de confirmer."
+        )
+
+    rows = []
+    invalid: list[str] = []
+    for i, sid in enumerate(selected_ids, 1):
+        cand = selected_map[sid]
+        price = app_float(cand.get("prix_vente") or 0)
+        sale_date = str(cand.get("date_vente") or "")
+        source_id = str(cand.get("source_id") or "").strip()
+        errors: list[str] = []
+        if price <= 0:
+            errors.append("prix_vente <= 0")
+        if not source_id:
+            errors.append("source_id absent")
+        if not app_is_iso_date(sale_date):
+            errors.append("date_vente ISO absente")
+        if errors:
+            invalid.append(f"{sid} ({', '.join(errors)})")
+            continue
+        rows.append({
+            "id":            cand["id"],
+            "rank":          f"C{i}",
+            "address":       str(cand.get("adresse") or f"Comparable {i}"),
+            "hab_m2":        cand.get("surface_habitable"),
+            "terrain_m2":    cand.get("surface_terrain"),
+            "year_built":    cand.get("annee_construction"),
+            "renovated_year": None,
+            "garage_type":   None,
+            "sale_price":    price,
+            "sale_date":     sale_date,
+            "meta":          cand.get("source_id", ""),
+            "price":         app_money(price),
+            "date":          app_date_label(sale_date),
+            "score":         cand.get("score"),
+            "source_id":     source_id,
+        })
+
+    if invalid:
+        raise ValueError(
+            "Comparables non exploitables pour l'approche comparative : "
+            f"{'; '.join(invalid[:5])}. Chaque comparable retenu doit avoir un prix positif, "
+            "une date_vente ISO et un source_id."
+        )
+
+    # Sauvegarder comparables.json
+    comp_path = session_dir / "comparables.json"
+    write_json(comp_path, {"manual": True, "comparables": rows})
+
+    # Confirmer checkpoint 2
+    confirmed_by = str(body.get("_evaluator_id") or "")
+    entry = confirm_checkpoint(session_dir, 2, confirmed_by)
+
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "count": len(rows),
+        "checkpoint_entry": entry,
+    }
+
+
+def app_generate_lettre_mandat(body: dict) -> dict:
+    """POST /app/mandat/lettre — génère la lettre de mandat §6.3 OEAQ en PDF (base64).
+
+    Body: { session_id, [format: "pdf"|"html"|"md"] }
+    Retourne: { session_id, dossier_id, format, content_b64 | content, filename }
+    """
+    import base64
+    import datetime as _datetime
+    from pathlib import Path as _Path
+    try:
+        from jinja2 import Template as _JinjaTemplate  # type: ignore
+    except ImportError:
+        raise RuntimeError("jinja2 non installé — pip install jinja2")
+    from engine.report_export import _generate_pdf, _generate_html
+
+    session_id = _normalize_session_id(str(body.get("session_id") or ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    fmt = str(body.get("format") or "pdf").strip().lower()
+    if fmt not in {"pdf", "html", "md"}:
+        raise ValueError("format doit être 'pdf', 'html' ou 'md'")
+
+    session = require_session(session_id)
+    dossier_id = str(session.get("dossier_id") or session_id)
+    commanditaire = session.get("app_commanditaire") or {}
+
+    # Résolution objet évaluation
+    fin_eval_map = {
+        "hypothecaire": "Évaluation aux fins de financement hypothécaire",
+        "succession": "Évaluation aux fins de succession ou liquidation",
+        "litige": "Évaluation aux fins de litige judiciaire",
+        "assurance": "Évaluation aux fins de valeur assurable",
+        "commercial": "Évaluation aux fins d'investissement commercial",
+        "expropriation": "Évaluation aux fins d'expropriation",
+        "vente": "Évaluation aux fins de mise en vente",
+        "financement": "Évaluation aux fins de financement hypothécaire",
+    }
+    fin_eval_raw = str(commanditaire.get("fin_evaluation") or "").lower()
+    objet = fin_eval_map.get(fin_eval_raw, str(commanditaire.get("fin_evaluation") or "Non spécifié"))
+
+    type_bien_map = {
+        "residentiel_unifamilial": "Résidentiel unifamilial",
+        "condo": "Condo / appartement",
+        "duplex": "Duplex",
+        "triplex": "Triplex",
+        "quadruplex": "Quadruplex",
+        "commercial": "Commercial",
+        "terrain": "Terrain nu",
+    }
+    type_bien_raw = str(session.get("app_property_type") or "").lower()
+    type_bien_label = type_bien_map.get(type_bien_raw, str(session.get("app_property_type") or "Résidentiel"))
+
+    template_path = TEMPLATES_DIR / "lettre_mandat_residentiels.md"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template introuvable : {template_path}")
+
+    template_src = template_path.read_text(encoding="utf-8")
+    tmpl = _JinjaTemplate(template_src)
+
+    md_content = tmpl.render(
+        date_emission=_datetime.date.today().strftime("%d %B %Y"),
+        nom_commanditaire=str(commanditaire.get("nom") or "[COMMANDITAIRE]"),
+        organisation_commanditaire=str(commanditaire.get("organisation") or ""),
+        adresse_propriete=str(session.get("app_display_name") or "[ADRESSE]"),
+        type_bien=type_bien_label,
+        objet_evaluation=objet,
+        date_reference=str(session.get("app_date_reference") or _datetime.date.today().isoformat()),
+        date_livraison=str(session.get("app_date_livraison") or "[DATE LIVRAISON]"),
+        honoraires=str(session.get("app_honoraires") or "[HONORAIRES]"),
+        nom_evaluateur=str(session.get("app_nom_evaluateur") or "[ÉVALUATEUR AGRÉÉ]"),
+        bureau_nom="",
+        bureau_adresse="",
+        bureau_telephone="",
+        bureau_email="",
+    )
+
+    filename_base = f"lettre-mandat-{safe_path_id(dossier_id)}"
+
+    if fmt == "md":
+        return {
+            "session_id": session_id,
+            "dossier_id": dossier_id,
+            "format": "md",
+            "content": md_content,
+            "filename": f"{filename_base}.md",
+        }
+
+    if fmt == "html":
+        html = _generate_html(md_content, dossier_id)
+        return {
+            "session_id": session_id,
+            "dossier_id": dossier_id,
+            "format": "html",
+            "content": html,
+            "filename": f"{filename_base}.html",
+        }
+
+    # PDF
+    pdf_bytes = _generate_pdf(md_content, dossier_id)
+    return {
+        "session_id": session_id,
+        "dossier_id": dossier_id,
+        "format": "pdf",
+        "content_b64": base64.b64encode(pdf_bytes).decode("ascii"),
+        "filename": f"{filename_base}.pdf",
+    }
+
+
+def app_get_checkpoint_log(session_id: str) -> dict:
+    """GET /app/checkpoint/log — log des checkpoints confirmés pour une session."""
+    session = require_session(session_id)
+    session_dir = Path(str(session["session_dir"]))
+    entries = read_checkpoint_log(session_dir)
+    return {
+        "schema_version": "evaluateur_ai_checkpoint_log_v1",
+        "session_id": session_id,
+        "dossier_id": str(session.get("dossier_id") or ""),
+        "entries": entries,
+        "confirmed_checkpoints": [e["checkpoint"] for e in entries if e.get("confirmed_at")],
+    }
 
 
 def app_generate_package(body: dict) -> dict:
@@ -1586,7 +2965,11 @@ def app_generate_package(body: dict) -> dict:
             "Valider la revue interne d'abord."
         )
     package = generate_v1_package_for_session(session_id)
-    return {"schema_version": "evaluateur_ai_app_package_v1", "package": package, "state": app_state(session_id)}
+    return {
+        "schema_version": "evaluateur_ai_app_package_v1",
+        "package": package,
+        "state": app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip()),
+    }
 
 
 def app_send_message(body: dict) -> dict:
@@ -1594,7 +2977,10 @@ def app_send_message(body: dict) -> dict:
     return {
         "schema_version": "evaluateur_ai_app_message_v1",
         "message": response,
-        "state": app_state(str(body.get("session_id") or "")),
+        "state": app_state(
+            str(body.get("session_id") or ""),
+            evaluator_id=str(body.get("_evaluator_id") or "").strip(),
+        ),
     }
 
 
@@ -1777,7 +3163,10 @@ def start_runtime(body: dict) -> dict:
         if session is None:
             raise ValueError(f"session introuvable: {body['session_id']}")
     else:
-        session = create_session(strict_mode=bool(body.get("strict_mode", True)))
+        session = create_session(
+            strict_mode=bool(body.get("strict_mode", True)),
+            owner_evaluator_id=str(body.get("_evaluator_id") or "").strip(),
+        )
 
     case, source_fixture = load_case_from_body(body)
     # Enrichissement non-bloquant : injecter mandat_type / format_rapport / methodes_requises
@@ -1802,6 +3191,7 @@ def start_runtime(body: dict) -> dict:
         try:
             from engine.ingestion import ingest_uploaded_documents as _ingest
             _fields = _ingest(session, os.environ.get("OPENAI_API_KEY"))
+            session.pop("ingestion_error", None)
             for k, v in _fields.items():
                 if v is not None and not case.get(k):
                     case[k] = v
@@ -1814,17 +3204,42 @@ def start_runtime(body: dict) -> dict:
                 for d in session.get("uploaded_documents", [])
                 if d.get("extracted_text")
             ]
-        except Exception:
-            pass  # ingestion is optional — never block pipeline
+        except Exception as exc:
+            session["ingestion_error"] = f"{type(exc).__name__}: {exc}"
+            session["pipeline_error"] = session["ingestion_error"]
+            save_session(session)
 
     # ── Enrichissement sources données externes (non-bloquant) ───────────────
     try:
-        from engine.data_enrichment import enrich_case as _enrich
-        _cache_dir = ROOT / "data_cache"
+        from engine.data_enrichment import enrich_case as _enrich, get_data_cache_dir as _data_cache_dir
+        _cache_dir = _data_cache_dir(ROOT / "data_cache")
         _display_name = str(session.get("app_display_name") or "")
         _enrich(case, display_name=_display_name, cache_dir=_cache_dir)
-    except Exception:
-        pass  # data enrichment is optional — never block pipeline
+        write_json(case_input_path, case)
+    except Exception as exc:
+        try:
+            from engine.source_diagnostics import (
+                append_source_diagnostic as _append_diag,
+                attach_source_coverage as _attach_coverage,
+                ensure_source_diagnostics as _ensure_diags,
+                make_source_diagnostic as _make_diag,
+            )
+            _diags = _ensure_diags(case)
+            _append_diag(
+                _diags,
+                _make_diag(
+                    "mamh",
+                    "failed",
+                    "Enrichissement externe interrompu",
+                    stage="enrich_case",
+                    severity="warning",
+                    details={"error": f"{type(exc).__name__}: {exc}"},
+                ),
+            )
+            _attach_coverage(case)
+            write_json(case_input_path, case)
+        except Exception:
+            pass  # data enrichment is optional — never block pipeline
 
     steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
     engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
@@ -1859,6 +3274,7 @@ def start_runtime(body: dict) -> dict:
             "artifact_dir": str(session_dir / "artifacts"),
         }
 
+    write_json(case_input_path, case)
     result_path = session_dir / "result.json"
     events_path = session_dir / "events.jsonl"
     artifact_index_path = session_dir / "artifact_index.json"
@@ -1870,7 +3286,7 @@ def start_runtime(body: dict) -> dict:
     knowledge_snapshot = build_knowledge_snapshot(session, result, artifact_index)
 
     write_json(result_path, result)
-    events_path.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in enriched_events), encoding="utf-8")
+    _atomic_write_text(events_path, "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in enriched_events))
     write_json(artifact_index_path, artifact_index)
     write_json(knowledge_snapshot_path, knowledge_snapshot)
 
@@ -1981,7 +3397,7 @@ def build_knowledge_snapshot(session: dict, result: dict, artifact_index: dict) 
             "api_schema": "schemas/knowledge_immobilier_session_v1.schema.json",
         },
         "session_id": session["session_id"],
-        "run_id": session["run_id"],
+        "run_id": session.get("run_id", ""),
         "dossier_id": result.get("dossier_id", ""),
         "status": result.get("status", "UNKNOWN"),
         "mandate": {
@@ -2219,12 +3635,12 @@ def session_artifacts(session_id: str) -> dict:
         session_dir = session.get("session_dir", "")
         fallback = Path(str(session_dir)) / "artifact_index.json" if session_dir else None
         if fallback and fallback.exists():
-            return json.loads(fallback.read_text(encoding="utf-8"))
+            return read_json_dict(fallback) or {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
         return {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
     path = Path(str(artifact_index_path))
     if not path.exists():
         return {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json_dict(path) or {"schema_version": "artifact_index_v1", "artifacts_count": 0, "artifacts": []}
 
 
 def session_summary(session_id: str) -> dict:
@@ -2447,48 +3863,200 @@ def session_review_payload(session: dict) -> dict:
     return read_json_dict(review_path)
 
 
-def validate_v1_package_source(session: dict) -> dict:
+_CERTIFIABILITY_BLOCKING_STATUS = {"A_REVOIR", "BLOCKED", "BLOQUE", "REFUSE", "REJECTED"}
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value:
+        text = str(value).strip()
+        return [text] if text else []
+    return []
+
+
+def _float_or_none(value: object) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_or_zero(value: object) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _gate_message(code: str, context: dict) -> str:
+    if code == "runtime_result_missing":
+        return "Resultat runtime introuvable."
+    if code == "internal_review_valide_required":
+        return "Revue interne VALIDE requise avant ce livrable."
+    if code == "session_integrity_invalid":
+        errors = _string_list(context.get("integrity_errors"))
+        suffix = f": {'; '.join(errors[:3])}" if errors else ""
+        return f"Integrite de session invalide{suffix}."
+    if code == "runtime_blocking_failures_present":
+        blocking = _string_list(context.get("runtime_blocking_failures"))
+        suffix = f": {'; '.join(blocking[:3])}" if blocking else ""
+        return f"Blocages runtime encore presents{suffix}."
+    if code == "compliance_artifact_missing":
+        return "Artefact de conformite statut_sortie.json introuvable."
+    if code == "compliance_status_blocked":
+        return f"Statut de conformite bloquant: {context.get('compliance_status') or 'inconnu'}."
+    if code == "compliance_blocking_failures_present":
+        blocking = _string_list(context.get("compliance_blocking_failures"))
+        suffix = f": {'; '.join(blocking[:3])}" if blocking else ""
+        return f"Regles B bloquantes encore presentes{suffix}."
+    if code == "comparative_valuation_missing":
+        return "Calcul comparatif introuvable."
+    if code == "comparative_valuation_insufficient":
+        return (
+            "Approche comparative insuffisante: "
+            f"{context.get('comparative_input_count', 0)} comparable(s) exploitable(s)."
+        )
+    if code == "comparative_valuation_invalid":
+        return "Valeur comparative absente ou non positive."
+    if code == "report_draft_missing":
+        return "Brouillon de rapport introuvable ou vide."
+    if code == "artifact_dir_missing":
+        return "Repertoire d'artefacts runtime introuvable."
+    if code == "artifact_dir_outside_session":
+        return "Repertoire d'artefacts runtime hors session refuse."
+    return code
+
+
+def certifiability_gate(
+    session: dict,
+    *,
+    require_review: bool = False,
+    require_report: bool = True,
+    require_artifact_dir: bool = True,
+) -> dict:
     result = read_json_dict(Path(str(session.get("result_path") or "")))
     review = session_review_payload(session)
-    integrity = validate_session_integrity(session)
+    try:
+        integrity = validate_session_integrity(session)
+    except Exception as exc:
+        integrity = {"ok": False, "errors": [f"integrity_unreadable:{type(exc).__name__}"]}
+
+    artifact_index = session_artifacts(str(session["session_id"]))
+    compliance = read_artifact_json_from_index(
+        session,
+        artifact_index,
+        "compliance-qa",
+        "statut_sortie.json",
+    )
+    comparative = read_artifact_json_from_index(
+        session,
+        artifact_index,
+        "valuation-draft",
+        "calculs_approche_comparative.json",
+    )
+    report_preview = read_artifact_text_from_index(
+        session,
+        artifact_index,
+        "redaction",
+        "brouillon_rapport.md",
+        limit=1024,
+    )
+
+    runtime_blocking = _string_list(result.get("blocking_failures"))
+    compliance_blocking = _string_list(compliance.get("blocking_failures"))
+    compliance_status = str(compliance.get("status") or "").strip()
+    comparative_input_count = _int_or_zero(comparative.get("input_count"))
+    comparative_value = _float_or_none(comparative.get("value"))
+    comparative_status = str(comparative.get("calculation_status") or "").strip()
+
+    artifact_dir_raw = str(result.get("artifact_dir") or "").strip()
+    artifact_dir = Path(artifact_dir_raw)
     errors: list[str] = []
 
     if not result:
         errors.append("runtime_result_missing")
-    if review.get("decision") != "VALIDE":
+    if require_review and review.get("decision") != "VALIDE":
         errors.append("internal_review_valide_required")
     if not integrity.get("ok"):
         errors.append("session_integrity_invalid")
+    if runtime_blocking:
+        errors.append("runtime_blocking_failures_present")
 
+    if not compliance:
+        errors.append("compliance_artifact_missing")
+    elif compliance_status.upper() in _CERTIFIABILITY_BLOCKING_STATUS:
+        errors.append("compliance_status_blocked")
+    if compliance_blocking:
+        errors.append("compliance_blocking_failures_present")
+
+    if not comparative:
+        errors.append("comparative_valuation_missing")
+    else:
+        if comparative_input_count < 3 or comparative_status.upper() == "INSUFFICIENT_COMPARABLES":
+            errors.append("comparative_valuation_insufficient")
+        if comparative_value is None or comparative_value <= 0:
+            errors.append("comparative_valuation_invalid")
+
+    if require_report and not report_preview.strip():
+        errors.append("report_draft_missing")
+
+    if require_artifact_dir:
+        if not artifact_dir_raw or not artifact_dir.exists() or not artifact_dir.is_dir():
+            errors.append("artifact_dir_missing")
+        else:
+            session_dir = Path(str(session.get("session_dir") or "")).resolve()
+            try:
+                artifact_dir.resolve().relative_to(session_dir)
+            except (OSError, ValueError):
+                errors.append("artifact_dir_outside_session")
+
+    errors = list(dict.fromkeys(errors))
+    context = {
+        "runtime_blocking_failures": runtime_blocking,
+        "compliance_blocking_failures": compliance_blocking,
+        "compliance_status": compliance_status,
+        "comparative_input_count": comparative_input_count,
+        "integrity_errors": integrity.get("errors", []),
+    }
+    return {
+        "schema_version": "certifiability_gate_v1",
+        "ok": not errors,
+        "status": "READY" if not errors else "BLOCKED",
+        "session_id": session.get("session_id", ""),
+        "run_id": session.get("run_id", ""),
+        "requires_human_validation": True,
+        "certification_automatic": False,
+        "external_evaluator_responses_included": False,
+        "required_review_decision": "VALIDE" if require_review else "",
+        "actual_review_decision": review.get("decision", "A_SAISIR"),
+        "integrity_ok": bool(integrity.get("ok")),
+        "integrity_errors": _string_list(integrity.get("errors")),
+        "runtime_blocking_failures_count": len(runtime_blocking),
+        "compliance_status": compliance_status or "ABSENT",
+        "compliance_blocking_failures_count": len(compliance_blocking),
+        "comparative_input_count": comparative_input_count,
+        "comparative_value": comparative_value,
+        "comparative_calculation_status": comparative_status,
+        "report_available": bool(report_preview.strip()),
+        "artifact_dir": artifact_dir_raw,
+        "blocking_errors_count": len(errors),
+        "blocking_errors": errors,
+        "blocking_messages": [_gate_message(code, context) for code in errors],
+    }
+
+
+def validate_v1_package_source(session: dict) -> dict:
+    gate = certifiability_gate(session, require_review=True, require_report=True)
+    result = read_json_dict(Path(str(session.get("result_path") or "")))
     blocking_failures = result.get("blocking_failures", [])
     if not isinstance(blocking_failures, list):
         blocking_failures = ["blocking_failures_invalid"]
-    if blocking_failures:
-        errors.append("runtime_blocking_failures_present")
-
-    artifact_dir = Path(str(result.get("artifact_dir") or ""))
-    if not artifact_dir.exists() or not artifact_dir.is_dir():
-        errors.append("artifact_dir_missing")
-    else:
-        session_dir = Path(str(session.get("session_dir") or "")).resolve()
-        try:
-            artifact_dir.resolve().relative_to(session_dir)
-        except (OSError, ValueError):
-            errors.append("artifact_dir_outside_session")
-
     return {
+        **gate,
         "schema_version": "v1_package_source_gate_v1",
-        "ok": not errors,
-        "session_id": session.get("session_id", ""),
-        "run_id": session.get("run_id", ""),
         "required_review_decision": "VALIDE",
-        "actual_review_decision": review.get("decision", "A_SAISIR"),
-        "integrity_ok": bool(integrity.get("ok")),
         "blocking_failures_count": len(blocking_failures),
-        "artifact_dir": str(artifact_dir) if str(artifact_dir) != "." else "",
-        "blocking_errors_count": len(errors),
-        "blocking_errors": errors,
-        "external_evaluator_responses_included": False,
     }
 
 
@@ -2501,8 +4069,8 @@ def session_package_summary(session_id: str) -> dict:
     if isinstance(package_files, dict):
         files = {
             key: {
-                "path": str(package_dir / str(filename)),
-                "exists": (package_dir / str(filename)).exists(),
+                "path": str(package_dir / str(key if isinstance(filename, (int, float)) else filename)),
+                "exists": (package_dir / str(key if isinstance(filename, (int, float)) else filename)).exists(),
             }
             for key, filename in package_files.items()
         }
@@ -2521,7 +4089,7 @@ def session_package_summary(session_id: str) -> dict:
     }
 
 
-def latest_session_packages_summary(limit: int = 25) -> dict:
+def latest_session_packages_summary(limit: int = 25, evaluator_id: str = "") -> dict:
     rows = [
         {
             "session_id": item.get("session_id", ""),
@@ -2529,7 +4097,7 @@ def latest_session_packages_summary(limit: int = 25) -> dict:
             "package_status": item.get("package_status", "ABSENT"),
             "package_url": item.get("package_url", ""),
         }
-        for item in list_session_records(limit=limit)
+        for item in list_session_records(limit=limit, evaluator_id=evaluator_id)
         if item.get("package_generated")
     ]
     return {
@@ -2559,6 +4127,9 @@ def generate_v1_package_for_session(session_id: str) -> dict:
         review=review,
         integrity=integrity,
         package_origin="validated_runtime_session",
+        certifiability_gate=gate,
+        require_report_md=True,
+        require_report_pdf=True,
     )
     manifest_path = out_dir / PACKAGE_FILES["manifest"]
     manifest = read_json_dict(manifest_path)
@@ -3040,7 +4611,7 @@ def _load_session_artifact_json(session_id: str, step: str, artifact: str) -> di
         session_path = SESSIONS_DIR / session_id / "session.json"
         if session_path.exists():
             try:
-                sess = json.loads(session_path.read_text(encoding="utf-8"))
+                sess = read_json_dict(session_path)
                 dossier_id = sess.get("dossier_id", "")
                 if dossier_id:
                     path = SESSIONS_DIR / session_id / "artifacts" / dossier_id / f"{step}.{artifact}"
@@ -3056,7 +4627,7 @@ def _load_session_artifact_text(session_id: str, step: str, artifact: str) -> st
         session_path = SESSIONS_DIR / session_id / "session.json"
         if session_path.exists():
             try:
-                sess = json.loads(session_path.read_text(encoding="utf-8"))
+                sess = read_json_dict(session_path)
                 dossier_id = sess.get("dossier_id", "")
                 if dossier_id:
                     path = SESSIONS_DIR / session_id / "artifacts" / dossier_id / f"{step}.{artifact}"
@@ -3274,7 +4845,8 @@ def llm_assistant_answer(
     context_block = _build_llm_context_block(agent, context)
     system_prompt = base_prompt + "\n\n" + context_block + _AGENT_SYSTEM_LIMITS
 
-    model = os.environ.get("OPENAI_MODEL", _OPENAI_MODEL_DEFAULT)
+    from engine.llm_routing import get_llm_model as _get_llm_model
+    model = _get_llm_model("assistant_qa")
     # Inject prior turns between system prompt and latest user message
     prior: list[dict] = [
         {"role": str(h.get("role", "user")), "content": str(h.get("content", ""))}
@@ -3587,13 +5159,10 @@ def validate_review_payload(session: dict, body: dict) -> dict:
         raise ValueError(f"notes requises pour decision {decision}")
 
     if decision == "VALIDE":
-        integrity = validate_session_integrity(session)
-        result = read_json_dict(Path(str(session.get("result_path") or "")))
-        blocking_failures = result.get("blocking_failures", [])
-        if not integrity["ok"]:
-            raise ValueError("validation refusee: integrite session invalide")
-        if blocking_failures:
-            raise ValueError("validation refusee: blocages runtime presents")
+        gate = certifiability_gate(session, require_review=False, require_report=True)
+        if not gate["ok"]:
+            detail = "; ".join(gate.get("blocking_messages", [])[:5])
+            raise ValueError(f"validation refusee: {detail}")
 
     return {"decision": decision, "reviewer": reviewer, "notes": notes}
 
@@ -3601,12 +5170,14 @@ def validate_review_payload(session: dict, body: dict) -> dict:
 def save_review(body: dict) -> dict:
     session = require_session(str(body.get("session_id", "")))
     validated = validate_review_payload(session, body)
+    confirmed_by = str(body.get("confirmed_by") or "").strip()
     review = {
         "schema_version": "session_review_v1",
         "session_id": session["session_id"],
         "run_id": session["run_id"],
         "decision": validated["decision"],
         "reviewer": validated["reviewer"],
+        "confirmed_by": confirmed_by,   # Supabase user ID (vide si non authentifié)
         "notes": validated["notes"],
         "created_at_utc": utc_now_iso(),
     }
@@ -3694,9 +5265,18 @@ def load_jsonl(path: Path) -> list[dict]:
     if not path.exists() or not path.is_file():
         return []
     items: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    lock = _session_lock_for_path(path)
+    with lock:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            return []
+    for line in lines:
         if line.strip():
-            items.append(json.loads(line))
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
     return items
 
 
@@ -3717,13 +5297,16 @@ def append_access_audit(entry: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     record = dict(entry)
     record["timestamp_utc"] = utc_now_iso()
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    lock = _session_lock_for_path(path)
+    with lock:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
 
 
 def write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 class RuntimeApiHandler(BaseHTTPRequestHandler):
@@ -3741,33 +5324,79 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
     def _handle_get(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/":
-            self._send_file(PRODUCT_UI_PATH, "text/html; charset=utf-8")
+        if parsed.path in {"/", "/product", "/product/ui", "/app"}:
+            self._send_runtime_index()
             return
-        if parsed.path in {"/product", "/product/ui", "/app"}:
-            self._send_file(PRODUCT_UI_PATH, "text/html; charset=utf-8")
-            return
-        if parsed.path == "/ui":
-            self._send_file(UI_PATH, "text/html; charset=utf-8")
+        if parsed.path in {
+            "/ui",
+            "/ops/ui",
+            "/ops/cockpit",
+            "/review/ui",
+            "/evaluateur",
+            "/evaluateur/revue",
+            "/auth/client.js",
+        }:
+            self._send_legacy_ui_removed(parsed.path)
             return
         if parsed.path == "/product/summary":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, product_summary())
+            evaluator_id = str(self._auth_context().get("evaluator_id") or "")
+            self._send_json(200, product_summary(evaluator_id=evaluator_id))
             return
         if parsed.path == "/app/state":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, app_state(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if session_id and not self._require_session_access(session_id):
+                return
+            evaluator_id = str(self._auth_context().get("evaluator_id") or "")
+            self._send_json(200, app_state(session_id, evaluator_id=evaluator_id))
             return
-        if parsed.path in {"/ops/ui", "/ops/cockpit"}:
-            self._send_file(OPS_UI_PATH, "text/html; charset=utf-8")
+        if parsed.path == "/app/checkpoint/log":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            if not self._require_session_access(resolved):
+                return
+            try:
+                self._send_json(200, app_get_checkpoint_log(resolved))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
             return
-        if parsed.path in {"/review/ui", "/evaluateur", "/evaluateur/revue"}:
-            self._send_file(EVALUATOR_UI_PATH, "text/html; charset=utf-8")
+        if parsed.path == "/app/facts":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            if not self._require_session_access(resolved):
+                return
+            try:
+                self._send_json(200, app_get_facts(resolved))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
             return
-        if parsed.path == "/auth/client.js":
-            self._send_file(AUTH_CLIENT_PATH, "text/javascript; charset=utf-8")
+        if parsed.path == "/app/comparables/candidates":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            if not self._require_session_access(resolved):
+                return
+            try:
+                self._send_json(200, app_get_comparable_candidates(resolved))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
             return
         if parsed.path == "/auth/status":
             context = self._auth_context()
@@ -3793,20 +5422,29 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 pymupdf_ok = True
             except ImportError:
                 pass
+            readiness = deploy_readiness_status(probe_filesystem=False)
             self._send_json(200, {
                 "status": "ok",
                 "version": "2.0",
                 "openai": openai_ok,
                 "pymupdf": pymupdf_ok,
                 "sessions_dir": str(SESSIONS_DIR),
+                "data_cache_dir": str(_resolve_data_cache_dir()),
+                "readiness": readiness,
             })
+            return
+        if parsed.path == "/readiness":
+            readiness = deploy_readiness_status(probe_filesystem=True)
+            self._send_json(200 if readiness["ok"] else 503, readiness)
             return
         if parsed.path == "/app/transcript":
             if not self._require_permission("runtime_read"):
                 return
             session_id = parse_qs(parsed.query).get("session_id", [""])[0]
             agent_filter = parse_qs(parsed.query).get("agent", [""])[0]
-            session = load_session(safe_path_id(session_id)) if session_id else None
+            if not self._require_session_access(session_id):
+                return
+            session = load_session(session_id) if session_id else None
             if not session:
                 self._send_json(404, {"error": "session introuvable"})
                 return
@@ -3837,33 +5475,48 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             limit = bounded_limit(parse_qs(parsed.query).get("limit", ["50"])[0])
-            sessions = list_session_records(limit=limit)
+            evaluator_id = str(self._auth_context().get("evaluator_id") or "")
+            sessions = list_session_records(limit=limit, evaluator_id=evaluator_id)
             self._send_json(200, {"schema_version": "runtime_sessions_v1", "sessions_count": len(sessions), "sessions": sessions})
             return
         if parsed.path == "/session":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, require_session(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, require_session(session_id))
             return
         if parsed.path == "/session/summary":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, session_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, session_summary(session_id))
             return
         if parsed.path == "/status":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, session_status(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, session_status(session_id))
             return
         if parsed.path == "/artifacts":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, session_artifacts(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, session_artifacts(session_id))
             return
         if parsed.path == "/artifact":
             if not self._require_permission("runtime_read"):
                 return
             query = parse_qs(parsed.query)
+            if not self._require_session_access(query.get("session_id", [""])[0]):
+                return
             self._send_json(
                 200,
                 session_artifact_content(
@@ -3876,32 +5529,56 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/review/dossier":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, dossier_review_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, dossier_review_summary(session_id))
             return
         if parsed.path == "/review/workbench":
             if not self._require_permission("runtime_read"):
                 return
             limit = bounded_limit(parse_qs(parsed.query).get("limit", ["50"])[0])
-            self._send_json(200, review_workbench_summary(limit=limit))
+            evaluator_id = str(self._auth_context().get("evaluator_id") or "")
+            self._send_json(200, review_workbench_summary(limit=limit, evaluator_id=evaluator_id))
             return
         if parsed.path == "/review/campaign":
             if not self._require_permission("runtime_read"):
                 return
             limit = bounded_limit(parse_qs(parsed.query).get("limit", ["100"])[0], default=100, maximum=250)
-            self._send_json(200, review_campaign_summary(limit=limit))
+            evaluator_id = str(self._auth_context().get("evaluator_id") or "")
+            self._send_json(200, review_campaign_summary(limit=limit, evaluator_id=evaluator_id))
             return
         if parsed.path == "/review/package":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, session_package_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, session_package_summary(session_id))
+            return
+        if parsed.path == "/app/trace":
+            if not self._require_permission("runtime_read"):
+                return
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not session_id:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            if not self._require_session_access(session_id):
+                return
+            try:
+                self._send_json(200, app_valuation_trace(session_id))
+            except ValueError as exc:
+                self._send_json(404, {"error": str(exc)})
             return
         if parsed.path == "/app/package/download":
             if not self._require_permission("runtime_read"):
                 return
             session_id = parse_qs(parsed.query).get("session_id", [""])[0]
-            session = load_session(safe_path_id(session_id)) if session_id else None
+            session = load_session(session_id) if session_id else None
             if not session:
                 self._send_json(404, {"error": "session introuvable"})
+                return
+            if not self._require_session_access(session_id):
                 return
             pkg_dir = session_package_dir(session)
             from engine.package import PACKAGE_FILES as _PKG_FILES
@@ -3922,12 +5599,18 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/knowledge/immobilier":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, knowledge_immobilier_summary(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, knowledge_immobilier_summary(session_id))
             return
         if parsed.path == "/assistant/workbench":
             if not self._require_permission("runtime_read"):
                 return
-            self._send_json(200, assistant_workbench(parse_qs(parsed.query).get("session_id", [""])[0]))
+            session_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            if not self._require_session_access(session_id):
+                return
+            self._send_json(200, assistant_workbench(session_id))
             return
         if parsed.path == "/ops":
             if not self._require_permission("ops_read"):
@@ -3947,7 +5630,10 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/stream":
             if not self._require_permission("runtime_read"):
                 return
-            self._stream_events(parse_qs(parsed.query).get("session_id", [None])[0])
+            session_id = parse_qs(parsed.query).get("session_id", [None])[0]
+            if session_id and not self._require_session_access(session_id):
+                return
+            self._stream_events(session_id)
             return
         self._send_json(404, {"error": "route introuvable"})
 
@@ -3955,21 +5641,30 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self._send_cors_headers()
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Runtime-Role")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Evaluator-Id")
         self.end_headers()
         self._write_access_audit(204)
 
     def do_POST(self) -> None:
         try:
             body = self._read_json_body()
+            # Inject authenticated user ID from BFF header for audit logging
+            evaluator_id = str(self.headers.get("X-Evaluator-Id", "") or "").strip()
+            if evaluator_id:
+                body.setdefault("_evaluator_id", evaluator_id)
             if self.path == "/session":
                 if not self._require_permission("runtime_write"):
                     return
-                session = create_session(strict_mode=bool(body.get("strict_mode", True)))
+                session = create_session(
+                    strict_mode=bool(body.get("strict_mode", True)),
+                    owner_evaluator_id=str(body.get("_evaluator_id") or "").strip(),
+                )
                 self._send_json(201, session)
                 return
             if self.path == "/start":
                 if not self._require_permission("runtime_write"):
+                    return
+                if body.get("session_id") and not self._require_body_session_access(body):
                     return
                 self._send_json(200, start_runtime(body))
                 return
@@ -3977,7 +5672,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_permission("runtime_write"):
                     return
                 fixture = str(body.get("fixture") or "case_nominal.json")
-                self._send_json(200, start_runtime({"fixture": fixture, "strict_mode": True}))
+                self._send_json(200, start_runtime({
+                    "fixture": fixture,
+                    "strict_mode": True,
+                    "_evaluator_id": body.get("_evaluator_id", ""),
+                }))
                 return
             if self.path == "/app/demo":
                 if not self._require_permission("runtime_write"):
@@ -3987,45 +5686,84 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if self.path == "/resume":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, resume_session(str(body.get("session_id", ""))))
                 return
             if self.path == "/review":
                 if not self._require_permission("review_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, save_review(body))
                 return
             if self.path == "/review/package":
                 if not self._require_permission("review_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, generate_v1_package_for_session(str(body.get("session_id", ""))))
+                return
+            if self.path == "/app/mandat/lettre":
+                if not self._require_permission("runtime_read"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_generate_lettre_mandat(body))
+                return
+            if self.path == "/app/checkpoint/confirm":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_confirm_checkpoint(body))
+                return
+            if self.path == "/app/checkpoint/resume":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_resume_checkpoint(body))
                 return
             if self.path == "/app/review/validate":
                 if not self._require_permission("review_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_validate_review(body))
                 return
             if self.path == "/app/package":
                 if not self._require_permission("review_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_generate_package(body))
                 return
             if self.path == "/assistant/message":
                 if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, assistant_message(body))
                 return
             if self.path == "/app/message":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_send_message(body))
                 return
             if self.path == "/app/message/stream":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._stream_assistant_message(body)
                 return
             if self.path == "/app/upload":
                 if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_upload_document(body))
                 return
@@ -4037,25 +5775,35 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if self.path == "/app/report":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_save_rapport(body))
                 return
             if self.path == "/app/report/generate":
                 if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_generate_rapport(body))
                 return
             if self.path == "/app/report/export":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_export_rapport(body))
                 return
             if self.path == "/app/pin":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_pin_dossier(body))
                 return
             if self.path == "/app/archive":
                 if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_archive_dossier(body))
                 return
@@ -4067,19 +5815,53 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if self.path == "/app/rename":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_rename_dossier(body))
                 return
             if self.path == "/app/adjustments":
                 if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_save_adjustments(body))
                 return
             if self.path == "/app/comparables":
                 if not self._require_permission("runtime_write"):
                     return
+                if not self._require_body_session_access(body):
+                    return
                 self._send_json(200, app_save_comparables(body))
                 return
+            if self.path == "/app/facts":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_save_fact_overrides(body))
+                return
+            if self.path == "/app/jlr/upload":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_upload_jlr_csv(body))
+                return
+            if self.path == "/app/checkpoint/comparables":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_confirm_comparables(body))
+                return
             self._send_json(404, {"error": "route introuvable"})
+        except CheckpointRequiredError as exc:
+            self._send_json(409, {
+                "error": str(exc),
+                "code": "CHECKPOINT_REQUIRED",
+                "required_checkpoint": exc.required_checkpoint,
+                "label": CHECKPOINT_LABELS.get(exc.required_checkpoint, ""),
+            })
         except FileNotFoundError as exc:
             self._send_json(404, {"error": str(exc)})
         except ValueError as exc:
@@ -4098,6 +5880,34 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             return {}
         raw = self.rfile.read(length).decode("utf-8")
         return json.loads(raw)
+
+    def _send_runtime_index(self) -> None:
+        self._send_json(
+            200,
+            {
+                "schema_version": "runtime_api_index_v1",
+                "service": "eval-immo runtime API",
+                "ui": "Next.js frontend",
+                "endpoints": {
+                    "health": "/health",
+                    "readiness": "/readiness",
+                    "auth_status": "/auth/status",
+                    "product_summary": "/product/summary",
+                    "state": "/app/state",
+                    "events": "/app/events",
+                },
+            },
+        )
+
+    def _send_legacy_ui_removed(self, path: str) -> None:
+        self._send_json(
+            410,
+            {
+                "error": "Interface HTML runtime retiree; utilisez le frontend Next.js.",
+                "code": "LEGACY_UI_REMOVED",
+                "path": path,
+            },
+        )
 
     def _send_json(self, status: int, payload: dict) -> None:
         encoded = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -4128,9 +5938,16 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
     def _auth_context(self) -> dict[str, object]:
         expected = os.environ.get("EVAL_RUNTIME_API_TOKEN", "")
-        role = self.headers.get("X-Runtime-Role", "local_dev").strip() or "local_dev"
+        ops_expected = os.environ.get("EVAL_RUNTIME_OPS_TOKEN", "")
+        evaluator_id = str(self.headers.get("X-Evaluator-Id", "") or "").strip()
         if not expected:
-            return {"enabled": False, "authorized": True, "role": "local_dev", "reason": "auth_disabled"}
+            return {
+                "enabled": False,
+                "authorized": True,
+                "role": "local_dev",
+                "reason": "auth_disabled",
+                "evaluator_id": evaluator_id,
+            }
 
         auth_header = self.headers.get("Authorization", "")
         token = self.headers.get("X-API-Key", "")
@@ -4138,12 +5955,14 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             token = auth_header.removeprefix("Bearer ").strip()
 
         if not token:
-            return {"enabled": True, "authorized": False, "role": role, "reason": "token_missing"}
+            return {"enabled": True, "authorized": False, "role": "evaluator", "reason": "token_missing", "evaluator_id": evaluator_id}
+        if ops_expected and ops_expected != expected and token == ops_expected:
+            return {"enabled": True, "authorized": True, "role": "supervisor", "reason": "ok", "evaluator_id": evaluator_id}
         if token != expected:
-            return {"enabled": True, "authorized": False, "role": role, "reason": "token_invalid"}
-        if role not in ROLE_PERMISSIONS:
-            return {"enabled": True, "authorized": False, "role": role, "reason": "role_invalid"}
-        return {"enabled": True, "authorized": True, "role": role, "reason": "ok"}
+            return {"enabled": True, "authorized": False, "role": "evaluator", "reason": "token_invalid", "evaluator_id": evaluator_id}
+        if not evaluator_id:
+            return {"enabled": True, "authorized": False, "role": "evaluator", "reason": "evaluator_missing", "evaluator_id": evaluator_id}
+        return {"enabled": True, "authorized": True, "role": "evaluator", "reason": "ok", "evaluator_id": evaluator_id}
 
     def _require_permission(self, permission: str) -> bool:
         context = self._auth_context()
@@ -4158,6 +5977,27 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             self._send_json(403, {"error": "permission refusee", "code": "RBAC_FORBIDDEN", "role": role, "permission": permission})
             return False
         return True
+
+    def _require_session_access(self, session_id: str) -> bool:
+        context = self._auth_context()
+        if not context["enabled"]:
+            return True
+        resolved = _normalize_session_id(str(session_id or ""))
+        if not resolved:
+            self._send_json(400, {"error": "session_id requis"})
+            return False
+        session = load_session(resolved)
+        if not session:
+            self._send_json(404, {"error": "session introuvable"})
+            return False
+        evaluator_id = str(context.get("evaluator_id") or "")
+        if not session_access_allowed(session, evaluator_id):
+            self._send_json(403, {"error": "acces dossier refuse", "code": "SESSION_FORBIDDEN"})
+            return False
+        return True
+
+    def _require_body_session_access(self, body: dict) -> bool:
+        return self._require_session_access(str(body.get("session_id") or ""))
 
     def _write_access_audit(self, status: int) -> None:
         context = self._auth_context()
@@ -4264,7 +6104,10 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        state = app_state(str(body.get("session_id") or ""))
+        state = app_state(
+            str(body.get("session_id") or ""),
+            evaluator_id=str(body.get("_evaluator_id") or "").strip(),
+        )
         emit({"done": True, "message": response, "state": state})
 
     def _stream_events(self, session_id: str | None) -> None:
@@ -4291,7 +6134,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
 
 
 def run_server(host: str = "0.0.0.0", port: int = int(os.environ.get("PORT", "8796"))) -> None:
+    validate_runtime_config()
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    archived = _archive_stale_sessions()
+    if archived:
+        print(f"[startup] {archived} session(s) archivée(s) (>30 jours sans validation)")
     server = ThreadingHTTPServer((host, port), RuntimeApiHandler)
     print(f"Runtime API v0: http://{host}:{port}")
     server.serve_forever()

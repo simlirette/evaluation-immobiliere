@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/hypotheses_explicites.schema.json",
+  "title": "hypotheses_explicites.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "hypotheses"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "valuation-draft" },
+    "artifact": { "const": "hypotheses_explicites.json" },
+    "source_fixture": { "type": "string" },
+    "hypotheses": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "analyse_hypotheses": { "type": "string" }
+  }
+}

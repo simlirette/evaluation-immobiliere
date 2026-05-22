@@ -85,6 +85,32 @@ export interface EnrichmentFinancier {
   taux_epargne_pct: number | null
 }
 
+export interface SourceDiagnostic {
+  source: string
+  status: 'ok' | 'partial' | 'empty' | 'skipped' | 'failed' | 'missing'
+  severity: 'info' | 'warning' | 'error'
+  message: string
+  stage: string
+  cached: boolean
+  timestamp_utc: string
+  details?: Record<string, unknown>
+}
+
+export interface SourceCoverage {
+  status: 'ok' | 'partial' | 'degraded' | 'unavailable' | 'unknown'
+  expected_sources: string[]
+  source_statuses: Record<string, SourceDiagnostic['status']>
+  available_count: number
+  ok_count: number
+  partial_count: number
+  empty_count: number
+  skipped_count: number
+  failed_count: number
+  missing_count: number
+  last_updated_utc: string | null
+  diagnostics: SourceDiagnostic[]
+}
+
 export interface Enrichment {
   score_global: { score: number; grade: string; recommandation: string } | null
   alertes: { liste: EnrichmentAlerte[]; nb_critiques: number; nb_attention: number; nb_info: number } | null
@@ -101,6 +127,8 @@ export interface Enrichment {
   marche: EnrichmentMarche | null
   financier: EnrichmentFinancier | null
   localisation: EnrichmentLocalisation | null
+  source_diagnostics?: SourceDiagnostic[]
+  source_coverage?: SourceCoverage | null
 }
 
 export interface Tab {
@@ -126,6 +154,8 @@ export interface Document {
   name: string         // display_name
   filename: string     // last segment of storage_path
   sizeLabel: string    // formatted from size_bytes
+  extractionStatus?: string | null
+  extractionError?: string | null
 }
 
 export interface FactChip {

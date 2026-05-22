@@ -13,6 +13,26 @@ interface Props {
 export default function PipelineProgress({ steps, workflowStatus, error, onRetry }: Props) {
   const allDone = steps.length > 0 && steps.every(s => s.complete)
 
+  if (error) {
+    return (
+      <div className="rounded-[10px] px-4 py-3 bg-red-50/80 border border-red-200/60 mb-3">
+        <div className="text-[12px] font-medium text-red-700 mb-1">
+          {workflowStatus === 'TIMEOUT' ? 'Expiration du pipeline' : 'Extraction PDF incomplete'}
+        </div>
+        <div className="text-[11px] text-red-600">{error}</div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-2 text-[11px] bg-red-700 text-white rounded-full px-3 py-1 hover:bg-red-800 transition-colors"
+          >
+            Reessayer
+          </button>
+        )}
+      </div>
+    )
+  }
+
   // Pipeline terminé normalement — composant invisible
   if ((PIPELINE_TERMINAL_STATUSES.has(workflowStatus) && workflowStatus !== 'FAILED') || allDone) {
     return null

@@ -9,7 +9,7 @@ function recentDate(monthsAgo: number): string {
 }
 
 function mkComp(id: string, monthsAgo: number, price: number): Comparable {
-  return { id, rank: id, address: `Addr ${id}`, hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: price, sale_date: recentDate(monthsAgo), meta: '', price: '', date: '' }
+  return { id, rank: id, address: `Addr ${id}`, hab_m2: null, terrain_m2: null, year_built: null, renovated_year: null, garage_type: null, sale_price: price, sale_date: recentDate(monthsAgo), meta: '', price: '', date: '', source_id: `SRC-${id}` }
 }
 
 function mkAdj(id: string, comp_id: string, adjusted: number, surface_adj = 0): Adjustment {
@@ -75,5 +75,17 @@ describe('computeValuationConclusion', () => {
     const r = computeValuationConclusion(adjs3, [])!
     expect(r.hasTimeAdjustment).toBe(false)
     expect(r.annualTimeRatePct).toBeNull()
+  })
+
+  it('ignores unusable adjustments in value and average', () => {
+    const adjs = [
+      mkAdj('a1', 'a', 400000),
+      { ...mkAdj('b1', 'b', 100000), salePrice: 0 },
+      { ...mkAdj('c1', 'c', 0), adjusted: 0 },
+    ]
+    const r = computeValuationConclusion(adjs, comps3)!
+    expect(r.reconciledValue).toBe(400000)
+    expect(r.averageValue).toBe(400000)
+    expect(r.oeaqWarnings).toBeGreaterThan(0)
   })
 })

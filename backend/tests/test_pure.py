@@ -3,6 +3,24 @@ import sys
 import pytest
 from pathlib import Path
 
+
+@pytest.fixture(autouse=True)
+def _block_unmocked_network(monkeypatch):
+    """Keep this legacy pure-unit file deterministic when enrichment tests forget a mock."""
+
+    def blocked_network(*_args, **_kwargs):
+        raise OSError("network access is disabled in backend/tests/test_pure.py")
+
+    monkeypatch.setattr("urllib.request.urlopen", blocked_network)
+
+    try:
+        import httpx  # type: ignore
+    except ImportError:
+        return
+
+    monkeypatch.setattr(httpx, "get", blocked_network)
+    monkeypatch.setattr(httpx, "stream", blocked_network)
+
 # Allow importing api.py directly without the full package installed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -1326,13 +1344,33 @@ class TestExportRapport_DocxEndpoint:
         session_dir.mkdir()
         artifacts_dir = session_dir / "artifacts" / "D-EXPORT"
         artifacts_dir.mkdir(parents=True)
+        run_id = "run-export-docx"
         rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
         rapport_path.write_text("## Rapport\n\nContenu test.", encoding="utf-8")
-        artifact_index = {"artifacts": [{"step": "redaction", "artifact": "brouillon_rapport.md",
-                                          "event_id": "evt_001", "path": str(rapport_path)}]}
-        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        compliance_path = artifacts_dir / "compliance-qa.statut_sortie.json"
+        compliance_path.write_text(json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}), encoding="utf-8")
+        comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
+        comparative_path.write_text(json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}), encoding="utf-8")
+        result_path = session_dir / "result.json"
+        result_path.write_text(json.dumps({"dossier_id": "D-EXPORT", "status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": [], "artifact_dir": str(artifacts_dir)}), encoding="utf-8")
+        review_path = session_dir / "review.json"
+        review_path.write_text(json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}), encoding="utf-8")
+        events_path = session_dir / "events.jsonl"
+        events = [
+            ("evt_001", "redaction", "brouillon_rapport.md", rapport_path),
+            ("evt_002", "compliance-qa", "statut_sortie.json", compliance_path),
+            ("evt_003", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
+        ]
+        events_path.write_text("\n".join(json.dumps({"event_id": event_id, "session_id": session_id, "run_id": run_id, "sequence": index, "event": "artifact_written", "step": step, "artifact": artifact, "path": str(path), "artifact_path": str(path)}) for index, (event_id, step, artifact, path) in enumerate(events, start=1)) + "\n", encoding="utf-8")
+        artifact_index = {"artifacts": [
+            {"step": "redaction", "artifact": "brouillon_rapport.md", "event_id": "evt_001", "path": str(rapport_path), "exists": True},
+            {"step": "compliance-qa", "artifact": "statut_sortie.json", "event_id": "evt_002", "path": str(compliance_path), "exists": True},
+            {"step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "event_id": "evt_003", "path": str(comparative_path), "exists": True},
+        ]}
+        artifact_index_path = session_dir / "artifact_index.json"
+        artifact_index_path.write_text(json.dumps(artifact_index), encoding="utf-8")
         (session_dir / "session.json").write_text(
-            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": "D-EXPORT"}),
+            json.dumps({"session_id": session_id, "run_id": run_id, "session_dir": str(session_dir), "dossier_id": "D-EXPORT", "result_path": str(result_path), "review_path": str(review_path), "events_path": str(events_path), "artifact_index_path": str(artifact_index_path)}),
             encoding="utf-8")
 
         result = api_module.app_export_rapport({"session_id": session_id, "format": "docx"})
@@ -1356,13 +1394,33 @@ class TestExportRapport_HtmlEndpoint:
         session_dir.mkdir()
         artifacts_dir = session_dir / "artifacts" / "D-HTML"
         artifacts_dir.mkdir(parents=True)
+        run_id = "run-export-html"
         rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
         rapport_path.write_text("## Test\n\nContenu.", encoding="utf-8")
-        artifact_index = {"artifacts": [{"step": "redaction", "artifact": "brouillon_rapport.md",
-                                          "event_id": "evt_001", "path": str(rapport_path)}]}
-        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        compliance_path = artifacts_dir / "compliance-qa.statut_sortie.json"
+        compliance_path.write_text(json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}), encoding="utf-8")
+        comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
+        comparative_path.write_text(json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}), encoding="utf-8")
+        result_path = session_dir / "result.json"
+        result_path.write_text(json.dumps({"dossier_id": "D-HTML", "status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": [], "artifact_dir": str(artifacts_dir)}), encoding="utf-8")
+        review_path = session_dir / "review.json"
+        review_path.write_text(json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}), encoding="utf-8")
+        events_path = session_dir / "events.jsonl"
+        events = [
+            ("evt_001", "redaction", "brouillon_rapport.md", rapport_path),
+            ("evt_002", "compliance-qa", "statut_sortie.json", compliance_path),
+            ("evt_003", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
+        ]
+        events_path.write_text("\n".join(json.dumps({"event_id": event_id, "session_id": session_id, "run_id": run_id, "sequence": index, "event": "artifact_written", "step": step, "artifact": artifact, "path": str(path), "artifact_path": str(path)}) for index, (event_id, step, artifact, path) in enumerate(events, start=1)) + "\n", encoding="utf-8")
+        artifact_index = {"artifacts": [
+            {"step": "redaction", "artifact": "brouillon_rapport.md", "event_id": "evt_001", "path": str(rapport_path), "exists": True},
+            {"step": "compliance-qa", "artifact": "statut_sortie.json", "event_id": "evt_002", "path": str(compliance_path), "exists": True},
+            {"step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "event_id": "evt_003", "path": str(comparative_path), "exists": True},
+        ]}
+        artifact_index_path = session_dir / "artifact_index.json"
+        artifact_index_path.write_text(json.dumps(artifact_index), encoding="utf-8")
         (session_dir / "session.json").write_text(
-            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": "D-HTML"}),
+            json.dumps({"session_id": session_id, "run_id": run_id, "session_dir": str(session_dir), "dossier_id": "D-HTML", "result_path": str(result_path), "review_path": str(review_path), "events_path": str(events_path), "artifact_index_path": str(artifact_index_path)}),
             encoding="utf-8")
 
         result = api_module.app_export_rapport({"session_id": session_id, "format": "html"})
@@ -1387,7 +1445,7 @@ class TestExportRapport_InvalidFormat:
             encoding="utf-8")
 
         with pytest.raises(ValueError, match="format"):
-            api_module.app_export_rapport({"session_id": session_id, "format": "pdf"})
+            api_module.app_export_rapport({"session_id": session_id, "format": "invalid"})
 
 
 # ── TestDataEnrichment ────────────────────────────────────────────────────────

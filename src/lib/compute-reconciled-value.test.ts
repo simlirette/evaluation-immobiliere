@@ -78,4 +78,22 @@ describe('computeReconciledValue', () => {
     computeReconciledValue(adjs)
     expect(adjs[0]).toEqual(copy[0])
   })
+
+  it('ignores adjustments with non-positive sale or adjusted values', () => {
+    const adjs = [
+      mkAdj('a', 400000),
+      { ...mkAdj('b', 420000), salePrice: 0 },
+      { ...mkAdj('c', 0), adjusted: 0 },
+    ]
+    const result = computeReconciledValue(adjs)!
+    expect(result.value).toBe(400000)
+    expect(Object.keys(result.weights)).toEqual(['a'])
+  })
+
+  it('returns null when all adjustments are unusable', () => {
+    expect(computeReconciledValue([
+      { ...mkAdj('a', 400000), salePrice: 0 },
+      { ...mkAdj('b', 0), adjusted: 0 },
+    ])).toBeNull()
+  })
 })

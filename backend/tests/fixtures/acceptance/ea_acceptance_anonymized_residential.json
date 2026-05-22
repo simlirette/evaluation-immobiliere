@@ -1,0 +1,107 @@
+{
+  "dossier_id": "D-EA-ACCEPT-001",
+  "mandat_type": "residentiel_standard",
+  "format_rapport": "abrege",
+  "type_bien": "unifamiliale",
+  "date_reference": "2026-04-30",
+  "zone": "SECTEUR-ANON-A",
+  "adresse_anonymisee": "Adresse anonymisee - secteur residentiel A",
+  "surface": { "value": 136, "unit": "m2" },
+  "surface_habitable": 136,
+  "surface_terrain": 520,
+  "annee_construction": 1998,
+  "confidence": 0.9,
+  "commanditaire": {
+    "nom": "Commanditaire ANON-ACCEPT-001",
+    "organisation": "Bureau pilote anonymise",
+    "fin_evaluation": "financement"
+  },
+  "comparables": [
+    {
+      "comparable_id": "SIRF-ACCEPT-001",
+      "source_id": "SIRF-ACCEPT-001",
+      "adresse": "Comparable ANON-001",
+      "prix_vente": 612000,
+      "date_vente": "2025-10-15",
+      "distance_km": 0.9,
+      "surface": { "value": 132, "unit": "m2" },
+      "surface_terrain": 500,
+      "type_bien": "unifamiliale",
+      "confidence": 0.93
+    },
+    {
+      "comparable_id": "SIRF-ACCEPT-002",
+      "source_id": "SIRF-ACCEPT-002",
+      "adresse": "Comparable ANON-002",
+      "prix_vente": 628000,
+      "date_vente": "2025-11-20",
+      "distance_km": 1.5,
+      "surface": { "value": 140, "unit": "m2" },
+      "surface_terrain": 540,
+      "type_bien": "unifamiliale",
+      "confidence": 0.91
+    },
+    {
+      "comparable_id": "SIRF-ACCEPT-003",
+      "source_id": "SIRF-ACCEPT-003",
+      "adresse": "Comparable ANON-003",
+      "prix_vente": 598000,
+      "date_vente": "2025-12-08",
+      "distance_km": 2.2,
+      "surface": { "value": 130, "unit": "m2" },
+      "surface_terrain": 515,
+      "type_bien": "unifamiliale",
+      "confidence": 0.89
+    },
+    {
+      "comparable_id": "SIRF-ACCEPT-004",
+      "source_id": "SIRF-ACCEPT-004",
+      "adresse": "Comparable ANON-004",
+      "prix_vente": 640000,
+      "date_vente": "2026-01-18",
+      "distance_km": 2.7,
+      "surface": { "value": 145, "unit": "m2" },
+      "surface_terrain": 560,
+      "type_bien": "unifamiliale",
+      "confidence": 0.87
+    }
+  ],
+  "ajustements": [
+    {
+      "ajustement_id": "AJ-ACCEPT-001",
+      "montant": 9000,
+      "source_id": "SRC-INSPECTION-ANON-001",
+      "validation_humaine": true
+    },
+    {
+      "ajustement_id": "AJ-ACCEPT-002",
+      "montant": -6500,
+      "source_id": "SRC-COMPARABLES-ANON-001",
+      "validation_humaine": true
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothese_id": "H-ACCEPT-001",
+      "texte": "Etat general presume comparable a la moyenne observee lors de la visite anonymisee.",
+      "source_ids": ["SRC-INSPECTION-ANON-001", "SRC-PHOTOS-ANON-001"]
+    },
+    {
+      "hypothese_id": "H-ACCEPT-002",
+      "texte": "Aucune condition de vente non typique retenue dans le panel anonymise.",
+      "source_ids": ["SRC-COMPARABLES-ANON-001"]
+    }
+  ],
+  "timeline": [
+    {
+      "type": "inspection_anonymisee",
+      "date": "2026-04-18",
+      "source_id": "SRC-INSPECTION-ANON-001"
+    },
+    {
+      "type": "collecte_documents_anonymisee",
+      "date": "2026-04-19",
+      "source_id": "SRC-DOCS-ANON-001"
+    }
+  ]
+}

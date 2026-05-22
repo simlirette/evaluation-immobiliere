@@ -89,6 +89,22 @@ describe('uploadRuntimeDocument — client-side validation', () => {
     await expect(uploadRuntimeDocument('session-1', file)).rejects.toThrow('trop volumineux')
   })
 
+  it('rejects extension mismatch before calling the BFF', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const file = new File(['%PDF-1'], 'doc.txt', { type: 'application/pdf' })
+    await expect(uploadRuntimeDocument('session-1', file)).rejects.toThrow('Extension')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects fake pdf bytes before calling the BFF', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const file = new File(['not a pdf'], 'doc.pdf', { type: 'application/pdf' })
+    await expect(uploadRuntimeDocument('session-1', file)).rejects.toThrow('PDF invalide')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('accepts jpeg mime type (proceeds past type check)', async () => {
     const file = new File([new Uint8Array([0xff, 0xd8])], 'photo.jpg', { type: 'image/jpeg' })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -119,6 +135,20 @@ describe('fetchRuntimeEnrichment', () => {
       taxes_municipales: null,
       ratio_prix_loyer: null,
       vetuste_batiment: null,
+      source_coverage: {
+        status: 'degraded',
+        expected_sources: ['geocoding', 'infolot', 'mamh', 'sirf'],
+        source_statuses: { geocoding: 'ok', infolot: 'failed', mamh: 'missing', sirf: 'missing' },
+        available_count: 1,
+        ok_count: 1,
+        partial_count: 0,
+        empty_count: 0,
+        skipped_count: 0,
+        failed_count: 1,
+        missing_count: 2,
+        last_updated_utc: '2026-05-21T00:00:00Z',
+        diagnostics: [],
+      },
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -128,6 +158,7 @@ describe('fetchRuntimeEnrichment', () => {
     expect(result).not.toBeNull()
     expect(result?.score_global?.grade).toBe('B')
     expect(result?.score_global?.score).toBe(7.5)
+    expect(result?.source_coverage?.status).toBe('degraded')
   })
 
   it('returns null when active is null', async () => {

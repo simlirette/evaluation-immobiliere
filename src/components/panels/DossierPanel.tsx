@@ -11,11 +11,13 @@ import ChatInput from '@/components/shared/ChatInput'
 import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PipelineProgress from '@/components/shared/PipelineProgress'
+import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
+import CheckpointComparablePanel from '@/components/panels/CheckpointComparablePanel'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
-import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
-import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
+import type { Document, EnrichmentLocalisation, FactChip, ComparableInput, SourceCoverage } from '@/types'
 
 interface Props {
   isNew: boolean
@@ -58,6 +60,16 @@ const FIN_EVAL_OPTIONS = [
   { value: 'autre', label: 'Autre' },
 ]
 
+const MANDAT_TYPE_OPTIONS = [
+  { value: 'residentiel_standard', label: 'Résidentiel standard' },
+  { value: 'residentiel_rural', label: 'Résidentiel rural' },
+  { value: 'commercial', label: 'Commercial' },
+  { value: 'multilogement', label: 'Multilogement' },
+  { value: 'terrain', label: 'Terrain' },
+  { value: 'industriel', label: 'Industriel' },
+  { value: 'special', label: 'Propriété spéciale' },
+]
+
 function NewDossierForm() {
   const router = useRouter()
   const [formStep, setFormStep] = useState<1 | 2 | 3>(1)
@@ -71,6 +83,11 @@ function NewDossierForm() {
   const [cmdNom, setCmdNom] = useState('')
   const [cmdOrg, setCmdOrg] = useState('')
   const [cmdFin, setCmdFin] = useState('hypothecaire')
+  const [mandatType, setMandatType] = useState('residentiel_standard')
+  const [dateReference, setDateReference] = useState(() => new Date().toISOString().split('T')[0])
+  const [honoraires, setHonoraires] = useState('')
+  const [dateLivraison, setDateLivraison] = useState('')
+  const [nomEvaluateur, setNomEvaluateur] = useState('')
   const [loading, setLoading] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
@@ -131,6 +148,8 @@ function NewDossierForm() {
         address: address.trim(),
         property_type: typeBien,
         neighborhood: neighborhood.trim(),
+        mandat_type: mandatType,
+        date_reference: dateReference,
         superficie_habitable: superficieHab ? parseFloat(superficieHab) : null,
         superficie_terrain: superficieTerrain ? parseFloat(superficieTerrain) : null,
         annee_construction: anneeConstruction ? parseInt(anneeConstruction) : null,
@@ -141,6 +160,9 @@ function NewDossierForm() {
           fin_evaluation: cmdFin,
         },
         comparables: comparables.length > 0 ? comparables : undefined,
+        honoraires: honoraires.trim() || undefined,
+        date_livraison: dateLivraison || undefined,
+        nom_evaluateur: nomEvaluateur.trim() || undefined,
       })
       router.push(`/dossier/${dossier.id}?tab=dossier`)
     } catch (err) {
@@ -329,7 +351,7 @@ function NewDossierForm() {
           </button>
         </div>
       ) : formStep === 2 ? (
-        <form onSubmit={e => { e.preventDefault(); if (cmdNom.trim()) { setError(''); setFormStep(3) } }} className="flex flex-col gap-4">
+        <form onSubmit={e => { e.preventDefault(); if (cmdNom.trim() && honoraires.trim() && dateLivraison && nomEvaluateur.trim()) { setError(''); setFormStep(3) } }} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[12px] text-[#8a8780] font-medium">Nom du commanditaire <span className="text-red-500">*</span></label>
             <input
@@ -355,18 +377,85 @@ function NewDossierForm() {
             />
           </div>
 
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Fin d&apos;évaluation</label>
+              <select
+                value={cmdFin}
+                onChange={e => setCmdFin(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={selectStyle}
+              >
+                {FIN_EVAL_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Type de mandat</label>
+              <select
+                value={mandatType}
+                onChange={e => setMandatType(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={selectStyle}
+              >
+                {MANDAT_TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Date de référence</label>
+              <input
+                type="date"
+                value={dateReference}
+                onChange={e => setDateReference(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Honoraires <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                required
+                placeholder="ex. 1 200 $"
+                value={honoraires}
+                onChange={e => setHonoraires(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-[12px] text-[#8a8780] font-medium">Date de livraison <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                required
+                value={dateLivraison}
+                onChange={e => setDateLivraison(e.target.value)}
+                className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] text-[#8a8780] font-medium">Fin d&apos;évaluation</label>
-            <select
-              value={cmdFin}
-              onChange={e => setCmdFin(e.target.value)}
-              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none"
-              style={selectStyle}
-            >
-              {FIN_EVAL_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <label className="text-[12px] text-[#8a8780] font-medium">Évaluateur signataire <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              required
+              placeholder="ex. Marie Tremblay, É.A."
+              value={nomEvaluateur}
+              onChange={e => setNomEvaluateur(e.target.value)}
+              className="w-full rounded-[10px] px-4 py-2.5 text-[14px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+              style={inputStyle}
+            />
           </div>
 
           <div className="flex gap-2 mt-1">
@@ -628,6 +717,37 @@ function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
   )
 }
 
+function SourceCoverageSummary({ coverage }: { coverage: SourceCoverage }) {
+  const problemItems = coverage.diagnostics
+    .filter(d => ['failed', 'empty', 'skipped', 'partial'].includes(d.status))
+    .slice(-4)
+
+  if (coverage.status === 'unknown' || coverage.diagnostics.length === 0) return null
+
+  const tone = coverage.failed_count > 0
+    ? 'text-amber-700 bg-amber-50/80 border-amber-200/70 dark:text-amber-300 dark:bg-amber-950/20 dark:border-amber-800/50'
+    : 'text-[#5a5854] bg-black/[.03] border-black/[.06] dark:text-[#c8c4bc] dark:bg-white/[.04] dark:border-white/[.08]'
+
+  return (
+    <div className={`mt-3 rounded-[8px] border px-3 py-2 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] uppercase tracking-widest text-[#8a8780]">Sources publiques</span>
+        <span className="text-[11px] font-medium">{coverage.available_count}/{coverage.expected_sources.length}</span>
+      </div>
+      {problemItems.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {problemItems.map((d, i) => (
+            <div key={`${d.source}-${d.stage}-${i}`} className="text-[12px] leading-snug">
+              <span className="font-medium uppercase">{d.source}</span>
+              <span className="opacity-80"> - {d.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: Props) {
   const [chips, setChips] = useState<FactChip[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
@@ -647,14 +767,26 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   type ConflitData = { detecte: boolean; motif: string } | null
   const [conflit, setConflitData] = useState<ConflitData>(null)
   const [localisation, setLocalisation] = useState<EnrichmentLocalisation | null>(null)
+  const [sourceCoverage, setSourceCoverage] = useState<SourceCoverage | null>(null)
+
+  type CommanditaireData = { nom: string; organisation: string; fin_evaluation: string } | null
+  const [commanditaire, setCommanditaire] = useState<CommanditaireData>(null)
+
+  const [editFacts, setEditFacts] = useState(false)
+  const [draftSurface, setDraftSurface] = useState('')
+  const [draftZone, setDraftZone] = useState('')
+  const [draftDate, setDraftDate] = useState('')
+  const [factsSaving, setFactsSaving] = useState(false)
 
   const [isRunning, setIsRunning] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [mandatDownloading, setMandatDownloading] = useState(false)
 
   const {
     steps: pipelineSteps,
     workflowStatus: liveStatus,
     error: pipelineError,
+    waitingCheckpoint,
   } = usePipelinePolling(dossierId, isRunning)
 
   useEffect(() => {
@@ -669,7 +801,9 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
       setChips(appState.active?.fact_chips ?? [])
       setMandat(appState.active?.mandat ?? null)
       setConflitData(appState.active?.conflit ?? null)
+      setCommanditaire(appState.active?.commanditaire ?? null)
       setLocalisation(enrichment?.localisation ?? null)
+      setSourceCoverage(enrichment?.source_coverage ?? null)
       setLoading(false)
       // Démarrer le polling uniquement si le pipeline tourne encore
       if (!isNew) {
@@ -686,13 +820,18 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   useEffect(() => {
     if (!isRunning) return
+    // Segment terminé → attente checkpoint (polling déjà arrêté par usePipelinePolling)
+    if (waitingCheckpoint !== null) {
+      setIsRunning(false)
+      return
+    }
     const allDone = pipelineSteps.length > 0 && pipelineSteps.every(s => s.complete)
     if (PIPELINE_TERMINAL_STATUSES.has(liveStatus) || allDone) {
       setIsRunning(false)
       onPipelineComplete?.()
       setRefreshKey(k => k + 1)
     }
-  }, [liveStatus, pipelineSteps, isRunning, onPipelineComplete])
+  }, [liveStatus, pipelineSteps, isRunning, waitingCheckpoint, onPipelineComplete])
 
   async function handleDrop(files: FileList) {
     if (!dossierId) return
@@ -735,6 +874,30 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
     )
   }
 
+  // Checkpoint gate — segment completed, waiting for human confirmation
+  if (waitingCheckpoint !== null && dossierId) {
+    const onConfirmed = () => {
+      setRefreshKey(k => k + 1)
+      setIsRunning(true)  // restart polling for next segment
+    }
+    return (
+      <div className="flex flex-col flex-1 overflow-y-auto">
+        {waitingCheckpoint === 2
+          ? <CheckpointComparablePanel
+              dossierId={dossierId}
+              checkpoint={waitingCheckpoint}
+              onConfirmed={onConfirmed}
+            />
+          : <CheckpointReviewPanel
+              dossierId={dossierId}
+              checkpoint={waitingCheckpoint}
+              onConfirmed={onConfirmed}
+            />
+        }
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
       <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
@@ -759,19 +922,118 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {chips.map((c, i) => <Chip key={i} label={c.label} highlight={c.highlight} />)}
             </div>
+            {!editFacts && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftSurface('')
+                  setDraftZone('')
+                  setDraftDate('')
+                  setEditFacts(true)
+                }}
+                className="mt-2 rounded-full px-3 py-1 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+              >
+                ✏ Corriger les faits
+              </button>
+            )}
+            {editFacts && dossierId && (
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-[#8a8780]">Surface (pi²)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="ex. 1450"
+                      value={draftSurface}
+                      onChange={e => setDraftSurface(e.target.value)}
+                      className="rounded-[8px] px-2.5 py-1.5 text-[12px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                      style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-[#8a8780]">Zone</label>
+                    <input
+                      type="text"
+                      placeholder="ex. Rosemont"
+                      value={draftZone}
+                      onChange={e => setDraftZone(e.target.value)}
+                      className="rounded-[8px] px-2.5 py-1.5 text-[12px] text-[#1a1916] outline-none placeholder:text-[#b5b2ac]"
+                      style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] text-[#8a8780]">Date de référence</label>
+                  <input
+                    type="date"
+                    value={draftDate}
+                    onChange={e => setDraftDate(e.target.value)}
+                    className="rounded-[8px] px-2.5 py-1.5 text-[12px] text-[#1a1916] outline-none"
+                    style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={factsSaving}
+                    onClick={async () => {
+                      setFactsSaving(true)
+                      try {
+                        await saveRuntimeFactOverrides(dossierId, {
+                          surface_pi2: draftSurface ? parseFloat(draftSurface) : null,
+                          zone: draftZone || undefined,
+                          date_reference: draftDate || undefined,
+                        })
+                        const appState = await fetchAppState(dossierId)
+                        setChips(appState.active?.fact_chips ?? [])
+                        setEditFacts(false)
+                      } finally {
+                        setFactsSaving(false)
+                      }
+                    }}
+                    className="rounded-full px-3 py-1.5 text-[11px] bg-[#334155] text-white disabled:opacity-40"
+                  >
+                    {factsSaving ? 'Sauvegarde…' : 'Sauvegarder'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFacts(false)}
+                    className="rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+            {sourceCoverage && <SourceCoverageSummary coverage={sourceCoverage} />}
             {localisation && <LocalisationContexte loc={localisation} />}
           </AgentMessage>
         )}
-        {mandat && (
+        {chips.length === 0 && sourceCoverage && (
+          <AgentMessage agentName="Agent Dossier">
+            <SourceCoverageSummary coverage={sourceCoverage} />
+          </AgentMessage>
+        )}
+        {(mandat || commanditaire) && (
           <AgentMessage agentName="Agent Mandat">
             {'Plan de mandat'}
-            <div className="flex flex-wrap gap-1.5 mt-2.5">
-              <Chip label={`Mandat\u00a0: ${mandat.mandat_type.replace(/_/g, '\u00a0')}`} highlight />
-              <Chip label={`Format\u00a0: ${mandat.format_rapport.replace(/_/g, '\u00a0')}`} highlight />
-              {mandat.methodes_requises.map((m, i) => (
-                <Chip key={i} label={m.replace(/_/g, '\u00a0')} />
-              ))}
-            </div>
+            {mandat && (
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                <Chip label={`Mandat\u00a0: ${mandat.mandat_type.replace(/_/g, '\u00a0')}`} highlight />
+                <Chip label={`Format\u00a0: ${mandat.format_rapport.replace(/_/g, '\u00a0')}`} highlight />
+                {mandat.methodes_requises.map((m, i) => (
+                  <Chip key={i} label={m.replace(/_/g, '\u00a0')} />
+                ))}
+              </div>
+            )}
+            {commanditaire && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <Chip label={`Commanditaire\u00a0: ${commanditaire.nom}`} highlight />
+                {commanditaire.organisation && <Chip label={commanditaire.organisation} />}
+                <Chip label={`Fin\u00a0: ${commanditaire.fin_evaluation.replace(/_/g, '\u00a0')}`} />
+              </div>
+            )}
           </AgentMessage>
         )}
         {documents.length > 0 && <UserMessage>{'Sources rattach\u00e9es au dossier'}</UserMessage>}
@@ -790,6 +1052,18 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           >
             + Ajouter un fichier local
           </button>
+          {dossierId && (
+            <button
+              onClick={async () => {
+                setMandatDownloading(true)
+                try { await downloadLettreMandat(dossierId) } finally { setMandatDownloading(false) }
+              }}
+              disabled={mandatDownloading}
+              className="mt-1 text-[12px] text-[#8a8780] hover:text-[#1a1916] underline underline-offset-2 bg-transparent border-none cursor-pointer font-sans disabled:opacity-40"
+            >
+              {mandatDownloading ? 'Génération…' : '↓ Lettre de mandat (PDF)'}
+            </button>
+          )}
         </AgentMessage>
         {uploads.map((u, i) => (
           u.state === 'uploading' ? (

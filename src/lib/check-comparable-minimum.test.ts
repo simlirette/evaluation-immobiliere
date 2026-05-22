@@ -9,18 +9,19 @@ function mkComp(id: string): Comparable {
     renovated_year: null, garage_type: null,
     sale_price: 400000, sale_date: '2024-01-01',
     meta: '', price: '400 000 $', date: '1 janv. 2024',
+    source_id: `SRC-${id}`,
   }
 }
 
 describe('checkComparableMinimum', () => {
-  it('0 comparables → fails with "Aucun" message', () => {
+  it('0 comparables fails with "Aucun" message', () => {
     const result = checkComparableMinimum([])
     expect(result.pass).toBe(false)
     expect(result.count).toBe(0)
     expect(result.warning).toContain('Aucun')
   })
 
-  it('1 comparable → fails, mentions count and minimum', () => {
+  it('1 comparable fails, mentions count and minimum', () => {
     const result = checkComparableMinimum([mkComp('a')])
     expect(result.pass).toBe(false)
     expect(result.count).toBe(1)
@@ -28,20 +29,20 @@ describe('checkComparableMinimum', () => {
     expect(result.warning).toContain('3')
   })
 
-  it('2 comparables → fails', () => {
+  it('2 comparables fails', () => {
     const result = checkComparableMinimum([mkComp('a'), mkComp('b')])
     expect(result.pass).toBe(false)
     expect(result.count).toBe(2)
   })
 
-  it('3 comparables → passes, no warning', () => {
+  it('3 usable comparables passes, no warning', () => {
     const result = checkComparableMinimum([mkComp('a'), mkComp('b'), mkComp('c')])
     expect(result.pass).toBe(true)
     expect(result.warning).toBeNull()
     expect(result.count).toBe(3)
   })
 
-  it('5 comparables → passes', () => {
+  it('5 comparables passes', () => {
     const comps = ['a','b','c','d','e'].map(mkComp)
     const result = checkComparableMinimum(comps)
     expect(result.pass).toBe(true)
@@ -53,8 +54,22 @@ describe('checkComparableMinimum', () => {
     expect(result.warning).toContain('OEAQ')
   })
 
-  it('pass=true → warning is null', () => {
+  it('pass=true means warning is null', () => {
     const comps = ['a','b','c'].map(mkComp)
     expect(checkComparableMinimum(comps).warning).toBeNull()
+  })
+
+  it('counts only comparables with positive price, date and source', () => {
+    const comps = [
+      mkComp('a'),
+      { ...mkComp('b'), sale_price: 0 },
+      { ...mkComp('c'), source_id: '' },
+      { ...mkComp('d'), sale_date: '' },
+      mkComp('e'),
+    ]
+    const result = checkComparableMinimum(comps)
+    expect(result.pass).toBe(false)
+    expect(result.count).toBe(2)
+    expect(result.warning).toContain('exploitable')
   })
 })

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/justifications_comparables.schema.json",
+  "title": "justifications_comparables.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "justifications"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "comps-market" },
+    "artifact": { "const": "justifications_comparables.json" },
+    "source_fixture": { "type": "string" },
+    "justifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["comparable_id", "decision", "raison"],
+        "properties": {
+          "comparable_id": { "type": ["string", "null"] },
+          "source_id": { "type": ["string", "null"] },
+          "decision": { "type": "string" },
+          "raison": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ import RapportDoc from '@/components/shared/RapportDoc'
 import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
+import Toast from '@/components/shared/Toast'
 import {
   fetchAppState,
   generateRuntimePackage,
@@ -35,6 +36,7 @@ interface RapportState {
   packageStatus: string
   steps: Array<{ id: string; label: string; status: string; complete: boolean }>
   blockingFailures: string[]
+  gateMessages: string[]
   warnings: string[]
   comparables: Comparable[]
   adjustments: Adjustment[]
@@ -62,11 +64,13 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   async function reload() {
     if (!dossierId) return
     const app = await fetchAppState(dossierId)
     const compliance = app.active?.compliance as { blocking_failures?: string[]; warnings?: string[]; status?: string } | null
+    const workflowGateMessages = app.active?.workflow.blocking_messages ?? app.active?.workflow.certifiability_gate?.blocking_messages ?? []
     setState({
       conclusion: app.active?.valuation.conclusion_label ?? null,
       workflowStatus: app.active?.workflow.status ?? 'ASSISTANCE_DOSSIER_ACTIVE',
@@ -75,6 +79,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       packageStatus: app.active?.package.status ?? 'ABSENT',
       steps: app.active?.workflow.steps ?? [],
       blockingFailures: compliance?.blocking_failures ?? [],
+      gateMessages: workflowGateMessages,
       warnings: compliance?.warnings ?? [],
       comparables: app.active?.comparables ?? [],
       adjustments: app.active?.adjustments ?? [],
@@ -164,7 +169,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     try {
       await downloadRuntimePackage(dossierId, state.realDossierId || dossierId)
     } catch (e) {
-      alert((e as Error).message)
+      setToast((e as Error).message)
     } finally {
       setBusy('')
     }
@@ -184,7 +189,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   async function handleSaveVersion(markdown: string) {
     if (!dossierId || !state) return
     if (state.versionCount >= 6) {
-      alert('Quota atteint : 5 versions manuelles + 1 initiale maximum. Aucune nouvelle version sauvegardée.')
+      setToast('Quota atteint — 5 versions manuelles maximum.')
       return
     }
     const now = new Date()
@@ -193,7 +198,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       await saveVersion(dossierId, state.realDossierId, markdown, 'abrege', label, false)
       setState(prev => prev ? { ...prev, versionCount: prev.versionCount + 1 } : prev)
     } catch {
-      alert('Version non sauvegardée — vérifier la connexion Supabase.')
+      setToast('Version non sauvegardée — vérifier la connexion Supabase.')
     }
   }
 
@@ -221,7 +226,8 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   if (error) return <PanelError onRetry={() => { setError(false); setLoading(true); reload().catch(() => { setError(true); setLoading(false) }) }} />
 
   return (
-    <div className={`flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
+    <div className={`relative flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <div
         className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}
         style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0 } : undefined}
@@ -230,14 +236,34 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
           <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
             {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-              {state.steps.map(step => (
-                <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
-                  <div className="text-[#1a1916]">{step.label}</div>
-                  <div className="text-[11px] text-[#8a8780]">{step.status}</div>
+            {state.conclusion && (
+              <div className="mt-3 rounded-[10px] px-4 py-3" style={{ background: 'rgba(31,122,92,.07)', border: '1px solid rgba(31,122,92,.18)' }}>
+                <div className="text-[10px] uppercase tracking-[.07em] font-medium mb-1" style={{ color: '#1f7a5c' }}>
+                  {'Conclusion de valeur propos\u00e9e'}
                 </div>
-              ))}
-            </div>
+                <div className="text-[22px] font-semibold leading-tight" style={{ fontFamily: 'var(--font-serif)', color: '#0f3d2e' }}>
+                  {state.conclusion}
+                </div>
+                {state.complianceStatus && (
+                  <div className="text-[11px] mt-1" style={{ color: '#1f7a5c' }}>{state.complianceStatus}</div>
+                )}
+              </div>
+            )}
+            {state.steps.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                {state.steps.map(step => (
+                  <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
+                    <div className="text-[#1a1916]">{step.label}</div>
+                    <div className="text-[11px] text-[#8a8780]">{step.status}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-[10px] px-4 py-4 text-center" style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}>
+                <div className="text-[13px] text-[#8a8780] mb-1">Pipeline non démarré</div>
+                <div className="text-[12px] text-[#b5b2ac]">Créez un dossier et lancez l&apos;analyse depuis l&apos;onglet Dossier pour générer le rapport.</div>
+              </div>
+            )}
             {state.blockingFailures.length > 0 && (
               <div className="mt-3 rounded-[9px] bg-red-50/80 border border-red-200/60 px-3 py-2">
                 <div className="text-[11px] font-medium text-red-700 mb-1">
@@ -245,6 +271,16 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 </div>
                 <ul className="text-[11px] text-red-600 list-disc list-inside space-y-0.5">
                   {state.blockingFailures.slice(0, 5).map((f, i) => <li key={i}>{f}</li>)}
+                </ul>
+              </div>
+            )}
+            {state.gateMessages.length > 0 && (
+              <div className="mt-3 rounded-[9px] bg-amber-50/80 border border-amber-200/70 px-3 py-2">
+                <div className="text-[11px] font-medium text-amber-800 mb-1">
+                  {state.gateMessages.length} condition{state.gateMessages.length > 1 ? 's' : ''} restante{state.gateMessages.length > 1 ? 's' : ''} avant export/revue
+                </div>
+                <ul className="text-[11px] text-amber-700 list-disc list-inside space-y-0.5">
+                  {state.gateMessages.slice(0, 5).map((message, i) => <li key={i}>{message}</li>)}
                 </ul>
               </div>
             )}
