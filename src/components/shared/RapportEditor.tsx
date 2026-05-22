@@ -142,6 +142,9 @@ export default function RapportEditor({ initialMarkdown, sessionId, dossierId, a
           document.body.removeChild(a)
           URL.revokeObjectURL(url)
         }
+      } catch (e) {
+        setToast((e as Error).message)
+        setTimeout(() => setToast(''), 5000)
       } finally {
         setIsExporting(false)
       }

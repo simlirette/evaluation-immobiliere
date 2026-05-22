@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/umpp_conclusion.schema.json",
+  "title": "umpp_conclusion.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "umpp"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "amu-analyst" },
+    "artifact": { "const": "umpp_conclusion.json" },
+    "source_fixture": { "type": "string" },
+    "umpp": {
+      "type": "object",
+      "required": ["usage_retenu", "criteres", "conclusion"],
+      "properties": {
+        "usage_retenu": { "type": "string" },
+        "usage_actuel": { "type": "string" },
+        "criteres": { "type": "object" },
+        "conclusion": { "type": "string" },
+        "umpp_differe_usage_actuel": { "type": "boolean" }
+      }
+    },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+  }
+}

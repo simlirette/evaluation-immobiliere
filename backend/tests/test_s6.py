@@ -110,6 +110,23 @@ class TestJlrScoring:
         assert 0.0 <= details["score"] <= 1.0
         assert "type_match" in details["components"]
 
+    def test_score_penalizes_missing_price_and_sale_date(self):
+        from engine.tools import score_comparable
+        details = score_comparable({"source_id": "JLR-001", "prix_vente": 0})
+        assert "missing_price" in details["penalties"]
+        assert "missing_sale_date" in details["penalties"]
+
+    def test_search_excludes_non_usable_comparables(self):
+        from engine.tools import search_comparables
+        pool = [
+            {"comparable_id": "bad-price", "source_id": "JLR-001", "prix_vente": 0, "date_vente": "2025-01-01"},
+            {"comparable_id": "bad-date", "source_id": "JLR-002", "prix_vente": 400000, "date_vente": ""},
+            {"comparable_id": "bad-source", "source_id": "", "prix_vente": 410000, "date_vente": "2025-01-01"},
+            {"comparable_id": "ok", "source_id": "JLR-003", "prix_vente": 420000, "date_vente": "2025-01-01"},
+        ]
+        results = search_comparables(pool)
+        assert [c.comparable_id for c in results] == ["ok"]
+
     def test_score_justification_fr(self):
         from engine.tools import score_justification_fr
         details = {
@@ -244,6 +261,21 @@ class TestAppConfirmComparables:
                 _api.app_confirm_comparables({
                     "session_id": session_id,
                     "selected_ids": ["JLR-001", "JLR-002"],
+                })
+        finally:
+            _api.SESSIONS_DIR = original
+
+    def test_raises_if_selected_candidate_not_usable(self, tmp_path):
+        import api as _api
+        original, session_id, session_dir = self._make_session_with_candidates(tmp_path)
+        try:
+            data = json.loads((session_dir / "jlr_candidates.json").read_text(encoding="utf-8"))
+            data["candidates"][0]["prix_vente"] = 0
+            (session_dir / "jlr_candidates.json").write_text(json.dumps(data), encoding="utf-8")
+            with pytest.raises(ValueError, match="non exploitables"):
+                _api.app_confirm_comparables({
+                    "session_id": session_id,
+                    "selected_ids": ["JLR-001", "JLR-002", "JLR-003"],
                 })
         finally:
             _api.SESSIONS_DIR = original

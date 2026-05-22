@@ -36,6 +36,7 @@ interface RapportState {
   packageStatus: string
   steps: Array<{ id: string; label: string; status: string; complete: boolean }>
   blockingFailures: string[]
+  gateMessages: string[]
   warnings: string[]
   comparables: Comparable[]
   adjustments: Adjustment[]
@@ -69,6 +70,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     if (!dossierId) return
     const app = await fetchAppState(dossierId)
     const compliance = app.active?.compliance as { blocking_failures?: string[]; warnings?: string[]; status?: string } | null
+    const workflowGateMessages = app.active?.workflow.blocking_messages ?? app.active?.workflow.certifiability_gate?.blocking_messages ?? []
     setState({
       conclusion: app.active?.valuation.conclusion_label ?? null,
       workflowStatus: app.active?.workflow.status ?? 'ASSISTANCE_DOSSIER_ACTIVE',
@@ -77,6 +79,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
       packageStatus: app.active?.package.status ?? 'ABSENT',
       steps: app.active?.workflow.steps ?? [],
       blockingFailures: compliance?.blocking_failures ?? [],
+      gateMessages: workflowGateMessages,
       warnings: compliance?.warnings ?? [],
       comparables: app.active?.comparables ?? [],
       adjustments: app.active?.adjustments ?? [],
@@ -268,6 +271,16 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 </div>
                 <ul className="text-[11px] text-red-600 list-disc list-inside space-y-0.5">
                   {state.blockingFailures.slice(0, 5).map((f, i) => <li key={i}>{f}</li>)}
+                </ul>
+              </div>
+            )}
+            {state.gateMessages.length > 0 && (
+              <div className="mt-3 rounded-[9px] bg-amber-50/80 border border-amber-200/70 px-3 py-2">
+                <div className="text-[11px] font-medium text-amber-800 mb-1">
+                  {state.gateMessages.length} condition{state.gateMessages.length > 1 ? 's' : ''} restante{state.gateMessages.length > 1 ? 's' : ''} avant export/revue
+                </div>
+                <ul className="text-[11px] text-amber-700 list-disc list-inside space-y-0.5">
+                  {state.gateMessages.slice(0, 5).map((message, i) => <li key={i}>{message}</li>)}
                 </ul>
               </div>
             )}

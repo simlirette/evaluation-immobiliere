@@ -15,17 +15,57 @@ import csv
 import json
 import logging
 import math
+import os
 import time
 import unicodedata
 from pathlib import Path
 from typing import Any
 
+from engine.source_diagnostics import (
+    append_source_diagnostic,
+    attach_source_coverage,
+    ensure_source_diagnostics,
+    make_source_diagnostic,
+)
+
 logger = logging.getLogger("data_enrichment")
+
+
+def _record_source(
+    diagnostics: list[dict] | None,
+    source: str,
+    status: str,
+    message: str,
+    *,
+    stage: str,
+    severity: str = "info",
+    details: dict | None = None,
+) -> None:
+    append_source_diagnostic(
+        diagnostics,
+        make_source_diagnostic(
+            source,
+            status,
+            message,
+            stage=stage,
+            severity=severity,
+            details=details,
+        ),
+    )
+
 
 _CACHE_TTL = 86_400  # 24 h
 _HTTP_TIMEOUT = 8.0
 _WDS_BASE = "https://www150.statcan.gc.ca/t1/wds/rest/"
 _SCHL_TABLE = 3410013301  # CANSIM 34-10-0133-01 : loyers moyens CMHC
+
+
+def get_data_cache_dir(default: Path | None = None) -> Path:
+    """Resolve the shared external-data cache directory."""
+    configured = os.environ.get("DATA_CACHE_DIR", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return default or Path(__file__).resolve().parent.parent / "data_cache"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -4691,8 +4731,9 @@ def enrich_case(
     Never raises — all failures logged at DEBUG level.
     """
     if cache_dir is None:
-        cache_dir = Path(__file__).resolve().parent.parent / "data_cache"
+        cache_dir = get_data_cache_dir()
 
+    diagnostics = ensure_source_diagnostics(case)
     zone = str(case.get("zone", ""))
     city_code = detect_city(display_name, zone)
 
@@ -4854,15 +4895,38 @@ def enrich_case(
     if not case.get("role_municipal"):
         matricule = str(case.get("matricule") or "").strip() or None
         role: dict = {}
+        role_source_seen = False
+        role_error_recorded = False
 
         if city_code == "montreal":
             # Montréal: CSV lookup
             csv_path = cache_dir / "role_mtl.csv"
             if csv_path.exists():
+                role_source_seen = True
                 try:
                     role = lookup_role_mtl(csv_path, matricule=matricule, display_name=display_name)
                 except Exception as exc:
+                    role_error_recorded = True
+                    _record_source(
+                        diagnostics,
+                        "mamh",
+                        "failed",
+                        "Lecture du role municipal Montreal echouee",
+                        stage="role_municipal",
+                        severity="warning",
+                        details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+                    )
                     logger.debug("role_municipal (mtl csv) skip: %s", exc)
+            else:
+                role_error_recorded = True
+                _record_source(
+                    diagnostics,
+                    "mamh",
+                    "skipped",
+                    "CSV du role municipal Montreal absent",
+                    stage="role_municipal",
+                    details={"city_code": city_code, "csv_path": str(csv_path)},
+                )
         elif city_code in _ROLE_XML_CITIES:
             # Autres villes: XML JSON index lookup
             index_path = cache_dir / f"role_{city_code}_index.json"
@@ -4873,14 +4937,63 @@ def enrich_case(
                     try:
                         build_role_xml_index(xml_path, index_path, city_code)
                     except Exception as exc:
+                        role_error_recorded = True
+                        _record_source(
+                            diagnostics,
+                            "mamh",
+                            "failed",
+                            "Index MAMH XML illisible ou non constructible",
+                            stage="role_municipal",
+                            severity="warning",
+                            details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+                        )
                         logger.debug("role XML index build skip: %s", exc)
+                else:
+                    role_error_recorded = True
+                    _record_source(
+                        diagnostics,
+                        "mamh",
+                        "skipped",
+                        "Index et XML MAMH absents pour la ville",
+                        stage="role_municipal",
+                        details={"city_code": city_code, "index_path": str(index_path), "xml_path": str(xml_path)},
+                    )
             if index_path.exists():
+                role_source_seen = True
                 try:
                     role = lookup_role_xml(index_path, matricule=matricule, display_name=display_name)
                 except Exception as exc:
+                    role_error_recorded = True
+                    _record_source(
+                        diagnostics,
+                        "mamh",
+                        "failed",
+                        "Recherche dans l'index MAMH XML echouee",
+                        stage="role_municipal",
+                        severity="warning",
+                        details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+                    )
                     logger.debug("role_municipal (xml) skip: %s", exc)
+        else:
+            role_error_recorded = True
+            _record_source(
+                diagnostics,
+                "mamh",
+                "skipped",
+                "Ville non supportee par le role municipal local",
+                stage="role_municipal",
+                details={"city_code": city_code},
+            )
 
         if role:
+            _record_source(
+                diagnostics,
+                "mamh",
+                "ok",
+                "Role municipal MAMH associe au dossier",
+                stage="role_municipal",
+                details={"city_code": city_code, "mode": "csv" if city_code == "montreal" else "xml"},
+            )
             case["role_municipal"] = role
             if not case.get("annee_construction") and role.get("annee_construction"):
                 case["annee_construction"] = role["annee_construction"]
@@ -4892,6 +5005,16 @@ def enrich_case(
             logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
 
     # ── Geocode (shared by zonage + CPTAQ + patrimoine + inondable) ─────────
+        elif role_source_seen and not role_error_recorded:
+            _record_source(
+                diagnostics,
+                "mamh",
+                "empty",
+                "Aucune entree MAMH ne correspond au dossier",
+                stage="role_municipal",
+                details={"city_code": city_code},
+            )
+
     _coords: tuple[float, float] | None = None
     if display_name and (
         not case.get("zonage_urbanisme")
@@ -4903,7 +5026,24 @@ def enrich_case(
     ):
         try:
             _coords = geocode_address(display_name, cache_dir)
+            _record_source(
+                diagnostics,
+                "geocoding",
+                "ok" if _coords else "empty",
+                "Adresse geocodee pour les enrichissements spatiaux" if _coords else "Aucune coordonnee geocodee pour les enrichissements spatiaux",
+                stage="spatial_enrichment",
+                details={"city_code": city_code},
+            )
         except Exception as exc:
+            _record_source(
+                diagnostics,
+                "geocoding",
+                "failed",
+                "Geocodage spatial echoue",
+                stage="spatial_enrichment",
+                severity="warning",
+                details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+            )
             logger.debug("geocode skip: %s", exc)
 
     # ── Distance au CBD (Haversine) ───────────────────────────────────────────
@@ -5208,3 +5348,5 @@ def enrich_case(
                              alrt.get("nb_alertes_attention", 0))
         except Exception as exc:
             logger.debug("alertes skip: %s", exc)
+
+    attach_source_coverage(case)

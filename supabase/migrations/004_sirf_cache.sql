@@ -22,6 +22,7 @@ create index if not exists sirf_cache_no_lot_expires
 -- Service-role only — les évaluateurs ne lisent/écrivent pas directement
 alter table sirf_cache enable row level security;
 
+drop policy if exists "service role full access" on sirf_cache;
 create policy "service role full access"
   on sirf_cache for all
   using (auth.role() = 'service_role')

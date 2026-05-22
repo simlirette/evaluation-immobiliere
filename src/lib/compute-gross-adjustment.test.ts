@@ -53,4 +53,10 @@ describe('computeGrossAdjustment', () => {
     expect(r.grossPct).toBe(0)
     expect(r.gross).toBe(5000)
   })
+
+  it('negative salePrice has zero grossPct', () => {
+    const r = computeGrossAdjustment(mkAdj({ salePrice: -400000, surface_adj: 5000 }))
+    expect(r.grossPct).toBe(0)
+    expect(r.gross).toBe(5000)
+  })
 })

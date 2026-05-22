@@ -17,7 +17,7 @@ import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipel
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
 import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
 import { useAgentChat } from '@/hooks/useAgentChat'
-import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
+import type { Document, EnrichmentLocalisation, FactChip, ComparableInput, SourceCoverage } from '@/types'
 
 interface Props {
   isNew: boolean
@@ -717,6 +717,37 @@ function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
   )
 }
 
+function SourceCoverageSummary({ coverage }: { coverage: SourceCoverage }) {
+  const problemItems = coverage.diagnostics
+    .filter(d => ['failed', 'empty', 'skipped', 'partial'].includes(d.status))
+    .slice(-4)
+
+  if (coverage.status === 'unknown' || coverage.diagnostics.length === 0) return null
+
+  const tone = coverage.failed_count > 0
+    ? 'text-amber-700 bg-amber-50/80 border-amber-200/70 dark:text-amber-300 dark:bg-amber-950/20 dark:border-amber-800/50'
+    : 'text-[#5a5854] bg-black/[.03] border-black/[.06] dark:text-[#c8c4bc] dark:bg-white/[.04] dark:border-white/[.08]'
+
+  return (
+    <div className={`mt-3 rounded-[8px] border px-3 py-2 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] uppercase tracking-widest text-[#8a8780]">Sources publiques</span>
+        <span className="text-[11px] font-medium">{coverage.available_count}/{coverage.expected_sources.length}</span>
+      </div>
+      {problemItems.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {problemItems.map((d, i) => (
+            <div key={`${d.source}-${d.stage}-${i}`} className="text-[12px] leading-snug">
+              <span className="font-medium uppercase">{d.source}</span>
+              <span className="opacity-80"> - {d.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: Props) {
   const [chips, setChips] = useState<FactChip[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
@@ -736,6 +767,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   type ConflitData = { detecte: boolean; motif: string } | null
   const [conflit, setConflitData] = useState<ConflitData>(null)
   const [localisation, setLocalisation] = useState<EnrichmentLocalisation | null>(null)
+  const [sourceCoverage, setSourceCoverage] = useState<SourceCoverage | null>(null)
 
   type CommanditaireData = { nom: string; organisation: string; fin_evaluation: string } | null
   const [commanditaire, setCommanditaire] = useState<CommanditaireData>(null)
@@ -771,6 +803,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
       setConflitData(appState.active?.conflit ?? null)
       setCommanditaire(appState.active?.commanditaire ?? null)
       setLocalisation(enrichment?.localisation ?? null)
+      setSourceCoverage(enrichment?.source_coverage ?? null)
       setLoading(false)
       // Démarrer le polling uniquement si le pipeline tourne encore
       if (!isNew) {
@@ -973,7 +1006,13 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
                 </div>
               </div>
             )}
+            {sourceCoverage && <SourceCoverageSummary coverage={sourceCoverage} />}
             {localisation && <LocalisationContexte loc={localisation} />}
+          </AgentMessage>
+        )}
+        {chips.length === 0 && sourceCoverage && (
+          <AgentMessage agentName="Agent Dossier">
+            <SourceCoverageSummary coverage={sourceCoverage} />
           </AgentMessage>
         )}
         {(mandat || commanditaire) && (

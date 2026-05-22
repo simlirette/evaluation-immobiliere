@@ -9,7 +9,7 @@ alter table dossiers
     check (statut_global in ('brouillon', 'en-cours', 'complet'));
 
 -- ─── Table sessions ──────────────────────────────────────────────────────────
-create table sessions (
+create table if not exists sessions (
   id              uuid    primary key default gen_random_uuid(),
   dossier_id      uuid    not null references dossiers(id) on delete cascade,
   session_uuid    text    not null unique,          -- clé filesystem (hex12)
@@ -22,6 +22,7 @@ create table sessions (
 
 alter table sessions enable row level security;
 
+drop policy if exists "users see own sessions" on sessions;
 create policy "users see own sessions"
   on sessions for select
   using (exists (
@@ -30,6 +31,7 @@ create policy "users see own sessions"
       and d.created_by = auth.uid()
   ));
 
+drop policy if exists "users insert own sessions" on sessions;
 create policy "users insert own sessions"
   on sessions for insert
   with check (exists (
@@ -38,6 +40,7 @@ create policy "users insert own sessions"
       and d.created_by = auth.uid()
   ));
 
+drop policy if exists "users update own sessions" on sessions;
 create policy "users update own sessions"
   on sessions for update
   using (exists (
@@ -47,7 +50,7 @@ create policy "users update own sessions"
   ));
 
 -- Index pour la politique d'archivage (sessions > 30 jours non-validées)
-create index sessions_archive_idx
+create index if not exists sessions_archive_idx
   on sessions (statut_pipeline, created_at)
   where statut_pipeline not in ('valide', 'archive');
 

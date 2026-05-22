@@ -1,13 +1,14 @@
 # State — eval-immo
 
-_Updated: 2026-05-21 | HEAD: Infolot+MAMH pipeline ✅_
+_Updated: 2026-05-21 | HEAD: d459c6d_
 
 ## Current Goal
 
-S12 COMPLÈTE ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md)
-Infolot+MAMH pipeline ✅ — Auto-comparables WFS cadastre + rôle municipal (plan 2026-05-21 mergé master)
-PLAN COMPLET S1–S12 ✅ — 253 tests verts. Prêt pour démo bureau.
-Prochaine priorité : valider endpoint WFS live + SIRF prix_vente (Phase 2)
+SIRF Bloc 2 ✅ COMPLET (commits: 35224b9, 915dc73, 83954f7, d459c6d).
+HTML parsing (BeautifulSoup) — prix_vente dans colonne Remarques de l'index SIRF.
+Constants validées live. 26 tests verts. Restant: migration 004 sur Supabase prod.
+
+Previous: S12, Infolot+MAMH all done, 253 tests verts.
 
 ## Plan Status
 
@@ -63,6 +64,6 @@ S12 ✅ — Roadmap bureau É.A. (docs/ROADMAP-BUREAU-EA.md) — tarif, chrono, 
 
 ## Open Issues
 
-- Migrations 002+003 à appliquer sur Supabase prod (après provisioning Railway+Vercel)
-- A1 : avocat Loi 25 + §6.5 OEAQ (avant S2 prod)
-- A2 : CSV JLR export format réel à valider avec l'É.A. (parse_jlr_csv implémenté, aliases configurables)
+- Migrations 002+003+004 à appliquer sur Supabase prod (après provisioning Railway+Vercel)
+- ~~A1 : avocat Loi 25 + §6.5 OEAQ~~ ✅ — É.A. = décideur humain + révision systématique, conforme (2026-05-21)
+- ~~A2 : valider format CSV JLR~~ ✅ — JLR remplacé par pipeline Infolot+MAMH+SIRF (sources publiques)

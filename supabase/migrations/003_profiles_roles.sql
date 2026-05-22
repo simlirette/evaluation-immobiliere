@@ -2,7 +2,7 @@
 -- Rôles : bureau_admin (gère les comptes É.A.) / evaluateur (traite les dossiers)
 
 -- ─── Table profiles ──────────────────────────────────────────────────────────
-create table profiles (
+create table if not exists profiles (
   id           uuid primary key references auth.users on delete cascade,
   role         text not null default 'evaluateur'
                  check (role in ('bureau_admin', 'evaluateur')),
@@ -13,11 +13,13 @@ create table profiles (
 alter table profiles enable row level security;
 
 -- Chaque utilisateur lit uniquement son profil
+drop policy if exists "users read own profile" on profiles;
 create policy "users read own profile"
   on profiles for select
   using (id = auth.uid());
 
 -- bureau_admin lit tous les profils (pour la gestion des comptes)
+drop policy if exists "bureau_admin reads all profiles" on profiles;
 create policy "bureau_admin reads all profiles"
   on profiles for select
   using (
@@ -28,6 +30,7 @@ create policy "bureau_admin reads all profiles"
     )
   );
 
+drop policy if exists "users update own profile" on profiles;
 create policy "users update own profile"
   on profiles for update
   using (id = auth.uid());
@@ -45,6 +48,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();

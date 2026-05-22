@@ -1,0 +1,55 @@
+{
+  "id": "T02",
+  "description": "Missing comparable source_id blocks traceability.",
+  "expected": {
+    "status": "A_REVOIR",
+    "blocking_prefixes": ["B002"],
+    "required_artifacts": [
+      "mandat-intake.conflit_interets.json",
+      "data-facts.fiche_bien.json",
+      "compliance-qa.statut_sortie.json"
+    ]
+  },
+  "case": {
+    "dossier_id": "D-RUNTIME-T02",
+    "mandat_type": "residentiel_standard",
+    "format_rapport": "abrege",
+    "type_bien": "unifamiliale",
+    "date_reference": "2026-01-15",
+    "zone": "R1",
+    "adresse_anonymisee": "124 rue Pilote",
+    "surface": { "value": 120, "unit": "m2" },
+    "confidence": 0.88,
+    "comparables": [
+      {
+        "comparable_id": "NO-SOURCE",
+        "adresse": "201 rue A",
+        "prix_vente": 410000,
+        "date_vente": "2025-06-01",
+        "distance_km": 1.1,
+        "surface": { "value": 118, "unit": "m2" },
+        "type_bien": "unifamiliale"
+      },
+      {
+        "comparable_id": "SIRF-T02-002",
+        "source_id": "SIRF-T02-002",
+        "prix_vente": 425000,
+        "date_vente": "2025-07-15",
+        "distance_km": 2.0,
+        "surface": { "value": 124, "unit": "m2" },
+        "type_bien": "unifamiliale"
+      },
+      {
+        "comparable_id": "SIRF-T02-003",
+        "source_id": "SIRF-T02-003",
+        "prix_vente": 399000,
+        "date_vente": "2025-08-20",
+        "distance_km": 2.8,
+        "surface": { "value": 116, "unit": "m2" },
+        "type_bien": "unifamiliale"
+      }
+    ],
+    "ajustements": [],
+    "hypotheses": []
+  }
+}

@@ -9,6 +9,7 @@ function mkComp(id: string, saleDate = '2025-01-01'): Comparable {
     renovated_year: null, garage_type: null,
     sale_price: 400000, sale_date: saleDate,
     meta: '', price: '400 000 $', date: '1 janv. 2025',
+    source_id: `SRC-${id}`,
   }
 }
 
@@ -27,25 +28,38 @@ function mkAdj(id: string, net = 0): Adjustment {
 }
 
 const TODAY = new Date('2026-05-17')
-const STALE_DATE = '2022-01-01'   // > 36 months from TODAY
+const STALE_DATE = '2022-01-01'
 
 describe('buildOEAQChecklist', () => {
   it('all pass when 3+ fresh comps, small adjustments', () => {
     const comps = ['a', 'b', 'c'].map(id => mkComp(id))
-    const adjs  = ['a', 'b', 'c'].map(id => mkAdj(id, 10000))
+    const adjs = ['a', 'b', 'c'].map(id => mkAdj(id, 10000))
     const checks = buildOEAQChecklist(comps, adjs, TODAY)
     expect(checks.every(c => c.pass)).toBe(true)
     expect(checks.every(c => c.message === null)).toBe(true)
   })
 
-  it('min-comparables fails when < 3 comps', () => {
+  it('min-comparables fails when fewer than 3 usable comps', () => {
     const checks = buildOEAQChecklist([mkComp('a'), mkComp('b')], [], TODAY)
     const check = checks.find(c => c.id === 'min-comparables')!
     expect(check.pass).toBe(false)
     expect(check.message).toBeTruthy()
   })
 
-  it('stale-dates fails when any comp > 36 months', () => {
+  it('comparable-inputs fails for missing price, date or source', () => {
+    const comps = [
+      mkComp('a'),
+      { ...mkComp('b'), sale_price: 0 },
+      { ...mkComp('c'), source_id: '' },
+      { ...mkComp('d'), sale_date: '' },
+    ]
+    const checks = buildOEAQChecklist(comps, [], TODAY)
+    const check = checks.find(c => c.id === 'comparable-inputs')!
+    expect(check.pass).toBe(false)
+    expect(check.message).toContain('3')
+  })
+
+  it('stale-dates fails when any valid comp is older than 36 months', () => {
     const comps = [mkComp('a'), mkComp('b', STALE_DATE), mkComp('c')]
     const checks = buildOEAQChecklist(comps, [], TODAY)
     const check = checks.find(c => c.id === 'stale-dates')!
@@ -69,9 +83,20 @@ describe('buildOEAQChecklist', () => {
     expect(check.message).toBeNull()
   })
 
+  it('adjustment-inputs fails for zero sale price or adjusted value', () => {
+    const adjs = [
+      mkAdj('a', 1000),
+      { ...mkAdj('b', 1000), salePrice: 0 },
+      { ...mkAdj('c', 1000), adjusted: 0 },
+    ]
+    const checks = buildOEAQChecklist(['a', 'b', 'c'].map(id => mkComp(id)), adjs, TODAY)
+    const check = checks.find(c => c.id === 'adjustment-inputs')!
+    expect(check.pass).toBe(false)
+    expect(check.message).toContain('2')
+  })
+
   it('adjustment-magnitude fails when absPct > 25', () => {
     const comps = ['a', 'b', 'c'].map(id => mkComp(id))
-    // net = 120000 on 400000 = 30% > 25
     const adjs = [mkAdj('a', 120000), mkAdj('b', 5000), mkAdj('c', 0)]
     const checks = buildOEAQChecklist(comps, adjs, TODAY)
     const check = checks.find(c => c.id === 'adjustment-magnitude')!
@@ -79,7 +104,7 @@ describe('buildOEAQChecklist', () => {
     expect(check.message).toContain('1')
   })
 
-  it('adjustment-magnitude passes when all absPct ≤ 25', () => {
+  it('adjustment-magnitude passes when all absPct <= 25', () => {
     const comps = ['a', 'b', 'c'].map(id => mkComp(id))
     const adjs = [mkAdj('a', 10000), mkAdj('b', 5000), mkAdj('c', 0)]
     const checks = buildOEAQChecklist(comps, adjs, TODAY)
@@ -88,15 +113,21 @@ describe('buildOEAQChecklist', () => {
     expect(check.message).toBeNull()
   })
 
-  it('returns exactly 4 checks with correct ids', () => {
+  it('returns expected checks with correct ids', () => {
     const checks = buildOEAQChecklist([], [], TODAY)
-    expect(checks).toHaveLength(4)
-    expect(checks.map(c => c.id)).toEqual(['min-comparables', 'stale-dates', 'adjustment-magnitude', 'gross-adjustment'])
+    expect(checks).toHaveLength(6)
+    expect(checks.map(c => c.id)).toEqual([
+      'min-comparables',
+      'comparable-inputs',
+      'stale-dates',
+      'adjustment-inputs',
+      'adjustment-magnitude',
+      'gross-adjustment',
+    ])
   })
 
   it('gross-adjustment fails when grossPct > 40', () => {
     const comps = ['a', 'b', 'c'].map(id => mkComp(id))
-    // gross = |160000| + |10000| = 170000 on 400000 = 42.5% > 40
     const adjs = [
       { ...mkAdj('a', 0), surface_adj: 160000, year_adj: 10000 },
       mkAdj('b', 5000),
@@ -108,7 +139,7 @@ describe('buildOEAQChecklist', () => {
     expect(check.message).toContain('1')
   })
 
-  it('gross-adjustment passes when all grossPct ≤ 40', () => {
+  it('gross-adjustment passes when all grossPct <= 40', () => {
     const comps = ['a', 'b', 'c'].map(id => mkComp(id))
     const adjs = ['a', 'b', 'c'].map(id => mkAdj(id, 10000))
     const checks = buildOEAQChecklist(comps, adjs, TODAY)

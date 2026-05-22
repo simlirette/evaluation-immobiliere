@@ -8,13 +8,15 @@ import os
 import re
 import time
 import ast
+import uuid
 
 from engine.audit import append_audit_log
 from engine.compliance import run_compliance
 from engine.llm_routing import get_llm_model, estimate_llm_cost
+from engine.schema_contracts import validate_artifact_schema
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
 from engine.tools import search_comparables, validate_schema
-from engine.valuation import calculate_valuation_trace, applicable_approaches
+from engine.valuation import calculate_valuation_trace, approaches_for_case
 
 
 @dataclass
@@ -35,8 +37,8 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "statut_sortie.json": ["dossier_id", "step", "artifact", "source_fixture", "status", "blocking_failures", "warnings"],
     "comparables_proposes.json": ["dossier_id", "step", "artifact", "source_fixture", "comparables"],
     "calculs_approche_comparative.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
-    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
-    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
+    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
+    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
     "umpp_conclusion.json": ["dossier_id", "step", "artifact", "source_fixture", "umpp"],
     "conflit_interets.json": ["dossier_id", "step", "artifact", "source_fixture", "conflit_detecte"],
 }
@@ -483,6 +485,10 @@ class RuntimeEngine:
             # Inject enrichment data when available
             if case.get("annee_construction"):
                 fb["annee_construction"] = case["annee_construction"]
+            if case.get("source_diagnostics"):
+                fb["source_diagnostics"] = case.get("source_diagnostics")
+            if case.get("source_coverage"):
+                fb["source_coverage"] = case.get("source_coverage")
             if case.get("role_municipal"):
                 role = case["role_municipal"]
                 fb["role_municipal"] = {
@@ -1599,15 +1605,20 @@ class RuntimeEngine:
             if not case.get("comparables"):
                 try:
                     from engine.comparables_builder import build_comparable_pool
+                    from engine.data_enrichment import get_data_cache_dir
+                    from engine.source_diagnostics import attach_source_coverage, ensure_source_diagnostics
                     address = str(case.get("adresse_complete") or "")
                     if address:
+                        diagnostics = ensure_source_diagnostics(case)
                         auto_pool = build_comparable_pool(
                             subject_address=address,
                             subject_surface_m2=float(case.get("surface_habitable") or 0),
                             subject_type_bien=str(case.get("type_bien") or ""),
                             subject_annee_construction=int(case.get("annee_construction") or 0),
-                            cache_dir=Path("data_cache"),
+                            cache_dir=get_data_cache_dir(),
+                            diagnostics=diagnostics,
                         )
+                        attach_source_coverage(case)
                         if auto_pool:
                             case["comparables"] = auto_pool
                             logger.info(
@@ -1651,9 +1662,14 @@ class RuntimeEngine:
                 "calculs_approche_revenu.json": "approche_revenu",
             }
             approach_id = approach_by_artifact[artifact]
-            type_bien = str(case.get("type_bien") or "")
-            if approach_id in ("approche_cout", "approche_revenu") and approach_id not in applicable_approaches(type_bien):
-                payload.update({"approach": approach_id, "applicable": False, "value": None, "input_count": 0})
+            if approach_id in ("approche_cout", "approche_revenu") and approach_id not in approaches_for_case(case):
+                payload.update({
+                    "approach": approach_id,
+                    "applicable": False,
+                    "value": None,
+                    "input_count": 0,
+                    "calculation_status": "NOT_APPLICABLE",
+                })
             else:
                 payload.update(calculate_valuation_trace(case, approach_id))
 
@@ -1796,6 +1812,24 @@ class RuntimeEngine:
                     )
                     if step.name == "compliance-qa":
                         payload.setdefault("blocking_failures", []).extend(contract_failures)
+
+                schema_failures = validate_artifact_schema(artifact, payload)
+                if schema_failures:
+                    formatted_failures = [f"JSON_SCHEMA: {failure}" for failure in schema_failures]
+                    blocking = _unique([*blocking, *formatted_failures])
+                    status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
+                    self._record_event(
+                        events,
+                        audit_log_path,
+                        {
+                            "event": "json_schema_invalid",
+                            "step": step.name,
+                            "artifact": artifact,
+                            "failures": schema_failures,
+                        },
+                    )
+                    if step.name == "compliance-qa":
+                        payload.setdefault("blocking_failures", []).extend(formatted_failures)
 
                 write_artifact_payload(artifact_path, payload)
                 self._record_event(
@@ -2310,6 +2344,17 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
         items = "\n".join(f"- {w}" for w in warnings)
         warnings_section = f"\n**Avertissements ({len(warnings)}) :**\n{items}\n"
 
+    if len(valuation_values) > 1:
+        valuation_sentence = (
+            "Cette valeur est etablie principalement par l'approche comparative, "
+            "avec indications secondaires calculees selon les intrants disponibles."
+        )
+    else:
+        valuation_sentence = (
+            "Cette valeur est etablie principalement par l'approche comparative; "
+            "les autres approches doivent etre documentees ou justifiees par l'evaluateur si applicables."
+        )
+
     return f"""\
 # BROUILLON DE RAPPORT D'ÉVALUATION
 
@@ -2335,9 +2380,8 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
 
 **Valeur estimée : {val_str}**
 
-Cette valeur est établie principalement par l'approche comparative, corroborée par les approches
-par le coût et par le revenu. Elle n'est pas certifiée et ne constitue pas une opinion formelle
-d'un évaluateur agréé.
+{valuation_sentence} Elle n'est pas certifiee et ne constitue pas une opinion formelle
+d'un evaluateur agree.
 
 ---
 
@@ -2361,8 +2405,8 @@ d'un évaluateur agréé.
 
 - L'analyse est basée exclusivement sur les données et sources référencées dans ce dossier.
 - Aucune inspection physique du bien n'a été effectuée par le système IA.
-- Les valeurs des approches par le coût et par le revenu sont des proxys V0 et ne remplacent
-  pas un calcul de coût ou de capitalisation complet par un évaluateur agréé.
+- Les valeurs des approches par le cout et par le revenu sont des indications calculees
+  a partir des intrants disponibles et doivent etre validees par un evaluateur agree.
 - Toute donnée manquante ou incomplète est signalée dans la section conformité ci-dessous.
 {blocking_section}{warnings_section}
 ---
@@ -2401,11 +2445,40 @@ def generate_brouillon_rapport(
 
 def write_artifact_payload(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    def _replace_tmp() -> None:
+        last_error: PermissionError | None = None
+        for _ in range(5):
+            try:
+                os.replace(tmp_path, path)
+                last_error = None
+                break
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.02)
+        if last_error is not None:
+            raise last_error
+
     if path.suffix == ".md":
         raw = payload.get("_raw_md")
-        path.write_text(raw if isinstance(raw, str) else render_markdown_payload(payload), encoding="utf-8")
+        text = raw if isinstance(raw, str) else render_markdown_payload(payload)
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _replace_tmp()
+        finally:
+            tmp_path.unlink(missing_ok=True)
         return
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, indent=2))
+            handle.flush()
+            os.fsync(handle.fileno())
+        _replace_tmp()
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def render_markdown_payload(payload: dict) -> str:

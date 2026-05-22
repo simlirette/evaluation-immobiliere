@@ -22,6 +22,7 @@ from engine.compliance import (
     check_B005,
     check_B006,
     check_B007,
+    check_B008,
     run_compliance,
 )
 
@@ -38,6 +39,8 @@ def _base_case(**kwargs) -> dict:
              "surface": {"value": 100, "unit": "m2"}},
             {"source_id": "JLR-002", "date_vente": "2025-09-01", "distance_km": 8, "prix_vente": 420_000,
              "surface": {"value": 105, "unit": "m2"}},
+            {"source_id": "JLR-003", "date_vente": "2025-10-01", "distance_km": 7, "prix_vente": 410_000,
+             "surface": {"value": 101, "unit": "m2"}},
         ],
         "ajustements": [],
         "surface": {"value": 102, "unit": "m2"},
@@ -97,6 +100,13 @@ class TestB002:
         result = check_B002(case)
         assert result.violated
         assert "ajustement" in result.explanation_fr
+
+    def test_violated_when_source_id_blank(self):
+        case = _base_case()
+        case["comparables"][0]["source_id"] = " "
+        result = check_B002(case)
+        assert result.violated
+        assert "comparable #1" in result.explanation_fr
 
     def test_explanation_is_actionnable(self):
         """Message doit contenir une instruction concrète (JLR ou Centris)."""
@@ -166,6 +176,7 @@ class TestB004:
         case = _base_case()
         case["comparables"][0]["surface"] = {"value": 1000, "unit": "pi2"}
         case["comparables"][1]["surface"] = {"value": 1050, "unit": "pi2"}
+        case["comparables"][2]["surface"] = {"value": 1025, "unit": "pi2"}
         case["surface"] = {"value": 1020, "unit": "pi2"}
         assert not check_B004(case).violated
 
@@ -264,6 +275,34 @@ class TestB007:
         case["comparables"][0]["distance_km"] = 25
         result = check_B007(case, max_distance_blocking_km=20)
         assert result.violated
+
+    def test_invalid_distance_does_not_crash(self):
+        case = _base_case()
+        case["comparables"][0]["distance_km"] = "n/a"
+        result = check_B007(case)
+        assert not result.violated
+
+
+# ── B008 — minimum comparables exploitables ───────────────────────────────────
+
+class TestB008:
+    def test_ok_when_three_usable_comparables(self):
+        assert not check_B008(_base_case()).violated
+
+    def test_violated_when_fewer_than_three_usable_comparables(self):
+        case = _base_case()
+        case["comparables"][0]["prix_vente"] = 0
+        result = check_B008(case)
+        assert result.violated
+        assert result.rule == "B008"
+        assert "2" in result.explanation_fr
+
+    def test_violated_when_sale_date_missing(self):
+        case = _base_case()
+        case["comparables"][1]["date_vente"] = ""
+        result = check_B008(case)
+        assert result.violated
+        assert "date_vente" in result.explanation_fr
 
 
 # ── run_compliance — intégration ──────────────────────────────────────────────

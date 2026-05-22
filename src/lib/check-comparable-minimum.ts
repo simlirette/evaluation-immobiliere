@@ -1,4 +1,5 @@
 import type { Comparable } from '@/types'
+import { isUsableComparable } from './comparable-validity'
 
 const OEAQ_MINIMUM = 3
 
@@ -13,7 +14,7 @@ export interface ComparableMinimumCheck {
  * for the comparative approach (typically 3 comparable sales).
  */
 export function checkComparableMinimum(comps: Comparable[]): ComparableMinimumCheck {
-  const count = comps.length
+  const count = comps.filter(isUsableComparable).length
   const pass = count >= OEAQ_MINIMUM
   return {
     pass,
@@ -21,7 +22,7 @@ export function checkComparableMinimum(comps: Comparable[]): ComparableMinimumCh
     warning: pass
       ? null
       : count === 0
-        ? `Aucun comparable retenu. L\u2019approche comparative exige au minimum ${OEAQ_MINIMUM} ventes (OEAQ).`
-        : `${count} comparable${count > 1 ? 's' : ''} retenu${count > 1 ? 's' : ''} — minimum ${OEAQ_MINIMUM} requis par l\u2019OEAQ pour l\u2019approche comparative.`,
+        ? `Aucun comparable exploitable. L'approche comparative exige au minimum ${OEAQ_MINIMUM} ventes avec prix, date et source (OEAQ).`
+        : `${count} comparable${count > 1 ? 's' : ''} exploitable${count > 1 ? 's' : ''} - minimum ${OEAQ_MINIMUM} requis par l'OEAQ pour l'approche comparative.`,
   }
 }

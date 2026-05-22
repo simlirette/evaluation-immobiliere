@@ -8,7 +8,9 @@ Couvre :
 from __future__ import annotations
 
 import json
+import os
 import sys
+from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,7 +31,7 @@ _VALIDATED_PAYLOAD = {
 }
 
 
-def _make_session_file(tmp_path: Path, session_id: str) -> Path:
+def _make_session_file(tmp_path: Path, session_id: str, owner_evaluator_id: str = "") -> Path:
     session_dir = tmp_path / session_id
     session_dir.mkdir(parents=True)
     session = {
@@ -41,6 +43,8 @@ def _make_session_file(tmp_path: Path, session_id: str) -> Path:
         "updated_at_utc": "2026-05-20T10:00:00+00:00",
         "session_dir": str(session_dir),
     }
+    if owner_evaluator_id:
+        session["owner_evaluator_id"] = owner_evaluator_id
     (session_dir / "session.json").write_text(json.dumps(session), encoding="utf-8")
     return session_dir
 
@@ -55,12 +59,7 @@ class TestValidateReviewConfirmedBy:
         body = {"session_id": session_id, **body_extra}
 
         with patch.object(api, "SESSIONS_DIR", tmp_path):
-            with patch("api.session_summary", return_value={
-                "session": {},
-                "result": {"blocking_failures": [], "warnings": []},
-                "integrity": {"ok": True},
-                "review": {},
-            }):
+            with patch("api.certifiability_gate", return_value={"ok": True, "blocking_messages": []}):
                 with patch("api.validate_review_payload", return_value=_VALIDATED_PAYLOAD):
                     with patch("api.app_state", return_value={}):
                         return app_validate_review(body)
@@ -81,10 +80,7 @@ class TestValidateReviewConfirmedBy:
             return {"decision": "VALIDE", "reviewer": reviewer, "notes": "ok"}
 
         with patch.object(api, "SESSIONS_DIR", tmp_path):
-            with patch("api.session_summary", return_value={
-                "session": {}, "result": {"blocking_failures": []},
-                "integrity": {"ok": True}, "review": {},
-            }):
+            with patch("api.certifiability_gate", return_value={"ok": True, "blocking_messages": []}):
                 with patch("api.validate_review_payload", side_effect=fake_validate):
                     with patch("api.app_state", return_value={}):
                         result = app_validate_review(body)
@@ -168,3 +164,89 @@ class TestDoPostEvaluatorIdInjection:
     def test_existing_value_not_overwritten(self):
         body = self._inject({"session_id": "abc", "_evaluator_id": "original"}, "new-value")
         assert body["_evaluator_id"] == "original"
+
+
+class TestRuntimeAuthContext:
+    def _handler(self, headers: dict[str, str]):
+        handler = api.RuntimeApiHandler.__new__(api.RuntimeApiHandler)
+        message = Message()
+        for key, value in headers.items():
+            message[key] = value
+        handler.headers = message
+        return handler
+
+    def test_runtime_token_maps_to_evaluator_role_and_ignores_header_role(self):
+        handler = self._handler({
+            "Authorization": "Bearer runtime-token",
+            "X-Runtime-Role": "supervisor",
+            "X-Evaluator-Id": "uid-1",
+        })
+        with patch.dict(os.environ, {"EVAL_RUNTIME_API_TOKEN": "runtime-token"}, clear=True):
+            context = handler._auth_context()
+
+        assert context["authorized"] is True
+        assert context["role"] == "evaluator"
+        assert context["evaluator_id"] == "uid-1"
+
+    def test_runtime_token_requires_evaluator_id(self):
+        handler = self._handler({"Authorization": "Bearer runtime-token"})
+        with patch.dict(os.environ, {"EVAL_RUNTIME_API_TOKEN": "runtime-token"}, clear=True):
+            context = handler._auth_context()
+
+        assert context["authorized"] is False
+        assert context["reason"] == "evaluator_missing"
+
+    def test_ops_token_must_be_distinct_from_runtime_token(self):
+        handler = self._handler({
+            "Authorization": "Bearer shared-token",
+            "X-Evaluator-Id": "uid-1",
+        })
+        with patch.dict(os.environ, {
+            "EVAL_RUNTIME_API_TOKEN": "shared-token",
+            "EVAL_RUNTIME_OPS_TOKEN": "shared-token",
+        }, clear=True):
+            context = handler._auth_context()
+
+        assert context["authorized"] is True
+        assert context["role"] == "evaluator"
+
+
+class TestSessionOwnership:
+    def test_session_access_requires_matching_owner(self):
+        session = {"owner_evaluator_id": "uid-1"}
+        assert api.session_access_allowed(session, "uid-1") is True
+        assert api.session_access_allowed(session, "uid-2") is False
+
+    def test_unowned_sessions_are_denied_by_default_when_auth_filters(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert api.session_access_allowed({}, "uid-1") is False
+
+    def test_list_session_records_filters_by_owner(self, tmp_path):
+        _make_session_file(tmp_path, "owned01", owner_evaluator_id="uid-1")
+        _make_session_file(tmp_path, "owned02", owner_evaluator_id="uid-2")
+        _make_session_file(tmp_path, "legacy01")
+
+        with patch.object(api, "SESSIONS_DIR", tmp_path):
+            records = api.list_session_records(limit=50, evaluator_id="uid-1")
+
+        assert [record["session_id"] for record in records] == ["owned01"]
+
+
+class TestRuntimeProductionConfig:
+    def test_production_requires_runtime_token_and_cors_origin(self):
+        with patch.dict(os.environ, {"APP_ENV": "production"}, clear=True):
+            with pytest.raises(RuntimeError, match="EVAL_RUNTIME_API_TOKEN"):
+                api.validate_runtime_config()
+
+    def test_production_config_accepts_required_runtime_values(self, tmp_path):
+        sessions_dir = tmp_path / "sessions"
+        data_cache_dir = tmp_path / "data_cache"
+        with patch.dict(os.environ, {
+            "APP_ENV": "production",
+            "EVAL_RUNTIME_API_TOKEN": "token",
+            "EVAL_RUNTIME_ALLOWED_ORIGIN": "https://app.example.test",
+            "OPENAI_API_KEY": "sk-test",
+            "SESSIONS_DIR": str(sessions_dir),
+            "DATA_CACHE_DIR": str(data_cache_dir),
+        }, clear=True), patch.object(api, "SESSIONS_DIR", sessions_dir):
+            api.validate_runtime_config()

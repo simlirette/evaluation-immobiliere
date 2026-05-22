@@ -61,12 +61,18 @@ export async function createDossier(input: CreateDossierInput): Promise<Dossier>
 
   // 2. Persist in Supabase so the dossier appears in the list across devices/sessions
   const supabase = createClient()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    console.warn('[createDossier] Supabase user unavailable; runtime dossier created only.')
+    return dossier
+  }
   const { error } = await supabase.from('dossiers').insert({
     slug: dossier.slug,
     address: dossier.address,
     property_type: dossier.property_type,
     neighborhood: dossier.neighborhood,
     status: 'en-cours',
+    created_by: user.id,
   })
 
   if (error) {

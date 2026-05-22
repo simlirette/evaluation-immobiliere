@@ -11,16 +11,52 @@ const TIMEOUT_MS = 30_000
 const TIMEOUT_PIPELINE_MS = 120_000
 const PIPELINE_PATHS = new Set(['/app/demo', '/app/create', '/app/state', '/app/package', '/app/review/validate'])
 const IS_PROD = process.env.NODE_ENV === 'production'
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+const AUTH_ENABLED =
+  Boolean(SUPABASE_URL) &&
+  !SUPABASE_URL.includes('<project-ref>') &&
+  Boolean(SUPABASE_ANON_KEY) &&
+  !SUPABASE_ANON_KEY.includes('<anon-key>')
+
+function runtimeUrl(): URL {
+  try {
+    return new URL(RUNTIME_URL)
+  } catch {
+    throw new Error('[BFF] RUNTIME_API_URL invalide en production - configurer URL Railway absolue.')
+  }
+}
+
+function isLocalRuntimeUrl(url: URL): boolean {
+  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(host)
+}
 
 // Catch misconfigured deployments before they silently fail
-if (IS_PROD && RUNTIME_URL.includes('127.0.0.1')) {
-  console.error('[BFF] RUNTIME_API_URL pointe vers localhost en production — configurer la variable Railway.')
-}
-if (IS_PROD && !RUNTIME_TOKEN) {
-  console.warn('[BFF] RUNTIME_API_TOKEN absent en production — les requêtes runtime ne seront pas authentifiées.')
+if (IS_PROD) {
+  const parsedRuntimeUrl = runtimeUrl()
+  if (parsedRuntimeUrl.protocol !== 'https:') {
+    throw new Error('[BFF] RUNTIME_API_URL doit etre HTTPS en production - configurer URL Railway publique.')
+  }
+  if (isLocalRuntimeUrl(parsedRuntimeUrl)) {
+    throw new Error('[BFF] RUNTIME_API_URL pointe vers localhost en production - configurer la variable Railway.')
+  }
+  if (!RUNTIME_TOKEN) {
+    throw new Error('[BFF] RUNTIME_API_TOKEN absent en production - requetes runtime refusees.')
+  }
+  if (!AUTH_ENABLED) {
+    throw new Error('[BFF] Supabase auth absent en production - configurer NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+  }
 }
 
 type Ctx = { params: Promise<{ path: string[] }> }
+
+async function authenticatedUserId(): Promise<string | null> {
+  if (!AUTH_ENABLED) return null
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.id ?? null
+}
 
 async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promise<Response> {
   const { path } = await ctx.params
@@ -30,13 +66,17 @@ async function proxy(req: NextRequest, ctx: Ctx, method: 'GET' | 'POST'): Promis
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (RUNTIME_TOKEN) headers['Authorization'] = `Bearer ${RUNTIME_TOKEN}`
 
-  // Forward authenticated user identity to runtime for audit logging
+  // Forward authenticated user identity to runtime for audit and ownership checks.
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) headers['X-Evaluator-Id'] = user.id
+    const userId = await authenticatedUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'authentification requise' }, { status: 401 })
+    }
+    if (userId) headers['X-Evaluator-Id'] = userId
   } catch {
-    // Supabase not configured — local dev, skip
+    if (AUTH_ENABLED) {
+      return NextResponse.json({ error: 'authentification requise' }, { status: 401 })
+    }
   }
 
   const timeout = PIPELINE_PATHS.has(forwardPath) ? TIMEOUT_PIPELINE_MS : TIMEOUT_MS

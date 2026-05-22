@@ -2,6 +2,21 @@ import type { Adjustment, Comparable, Document, Dossier, Enrichment, FactChip } 
 
 const BFF_BASE = '/api/runtime'
 
+export interface CertifiabilityGate {
+  ok: boolean
+  status?: string
+  blocking_errors?: string[]
+  blocking_messages?: string[]
+  blocking_errors_count?: number
+  actual_review_decision?: string
+  integrity_ok?: boolean
+  compliance_status?: string
+  compliance_blocking_failures_count?: number
+  comparative_input_count?: number
+  comparative_value?: number | null
+  report_available?: boolean
+}
+
 export interface AppState {
   schema_version: string
   status: string
@@ -44,12 +59,16 @@ export interface AppState {
       preview: string
       title: string
       subtitle: string
+      certifiability_gate?: CertifiabilityGate
     }
     workflow: {
       status: string
       can_validate_review: boolean
       can_generate_package: boolean
       steps: Array<{ id: string; label: string; status: string; complete: boolean }>
+      certifiability_gate?: CertifiabilityGate
+      package_gate?: CertifiabilityGate
+      blocking_messages?: string[]
     }
     pipeline_progress: {
       steps: string[]
@@ -57,6 +76,8 @@ export interface AppState {
       running: string | null
       waiting_checkpoint: number | null
     } | null
+    pipeline_error?: string | null
+    ingestion_error?: string | null
     assistant: {
       agents?: Array<{ agent: string; label: string; status: string; focus: string }>
       transcript?: { messages_count?: number; latest_agent_label?: string }
@@ -65,6 +86,7 @@ export interface AppState {
       status: string
       manifest?: Record<string, unknown>
       files?: string[]
+      gate?: CertifiabilityGate
     }
     enrichment: Enrichment | null
   }
@@ -196,14 +218,46 @@ export async function fetchRuntimeDocuments(sessionId: string): Promise<Document
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const UPLOAD_ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+const UPLOAD_EXTENSIONS_BY_TYPE: Record<string, string[]> = {
+  'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+}
+
+function assertUploadFilename(file: File) {
+  if (file.name.includes('/') || file.name.includes('\\')) {
+    throw new Error('Nom de fichier invalide.')
+  }
+  const lower = file.name.toLowerCase()
+  const allowed = UPLOAD_EXTENSIONS_BY_TYPE[file.type] ?? []
+  if (!allowed.some(ext => lower.endsWith(ext))) {
+    throw new Error('Extension de fichier incompatible avec le type déclaré.')
+  }
+}
+
+async function assertUploadSignature(file: File) {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
+  if (head.length === 0) throw new Error('Fichier vide.')
+  if (file.type === 'application/pdf') {
+    const pdf = [0x25, 0x50, 0x44, 0x46, 0x2d]
+    if (!pdf.every((byte, i) => head[i] === byte)) throw new Error('Fichier PDF invalide.')
+  } else if (file.type === 'image/jpeg') {
+    if (head[0] !== 0xff || head[1] !== 0xd8) throw new Error('Image JPEG invalide.')
+  } else if (file.type === 'image/png') {
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    if (!png.every((byte, i) => head[i] === byte)) throw new Error('Image PNG invalide.')
+  }
+}
 
 export async function uploadRuntimeDocument(sessionId: string, file: File): Promise<Document> {
   if (!UPLOAD_ALLOWED_TYPES.has(file.type)) {
     throw new Error('Type non autorisé. PDF, JPG ou PNG uniquement.')
   }
+  assertUploadFilename(file)
   if (file.size > UPLOAD_MAX_BYTES) {
     throw new Error('Fichier trop volumineux (maximum 10 Mo).')
   }
+  await assertUploadSignature(file)
 
   const content_b64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()

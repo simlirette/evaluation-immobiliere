@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/statut_sortie.schema.json",
+  "title": "statut_sortie.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "status", "blocking_failures", "warnings"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "compliance-qa" },
+    "artifact": { "const": "statut_sortie.json" },
+    "source_fixture": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["BROUILLON", "A_REVOIR", "PRET_REVISION_FINALE"]
+    },
+    "blocking_failures": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "valuation_values": { "type": "object" }
+  }
+}

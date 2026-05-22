@@ -55,15 +55,19 @@ def search_comparables(
     date_reference: str | None = None,
 ) -> list[Comparable]:
     """Filtre les comparables sources et les classe par score metier explicable."""
-    scored = [(c, score_comparable(c, subject=subject, date_reference=date_reference)) for c in pool if c.get("source_id")]
-    scored.sort(key=lambda item: (float(item[1]["score"]), _to_float(item[0].get("prix_vente"))), reverse=True)
+    scored = [
+        (c, score_comparable(c, subject=subject, date_reference=date_reference))
+        for c in pool
+        if is_usable_comparable(c)
+    ]
+    scored.sort(key=lambda item: (float(item[1]["score"]), _comparable_price(item[0])), reverse=True)
     return [
         Comparable(
-            comparable_id=str(c.get("comparable_id", "")),
-            prix_vente=_to_float(c.get("prix_vente")),
-            source_id=str(c.get("source_id", "")),
+            comparable_id=str(c.get("comparable_id") or c.get("id") or c.get("source_id") or ""),
+            prix_vente=_comparable_price(c),
+            source_id=_source_id(c),
             score=round(float(details["score"]), 4),
-            date_vente=str(c.get("date_vente", "")),
+            date_vente=_sale_date_text(c),
             score_details=details,
         )
         for c, details in scored[:max_items]
@@ -135,6 +139,15 @@ def score_comparable(
 
 def _comparable_score(item: dict) -> float:
     return float(score_comparable(item)["score"])
+
+
+def is_usable_comparable(item: dict) -> bool:
+    """Comparable usable for value calculations, not just display."""
+    return (
+        _source_id(item) != ""
+        and _comparable_price(item) > 0
+        and _parse_iso_date(_sale_date_text(item)) is not None
+    )
 
 
 def _distance_score(item: dict, limits: dict[str, float]) -> float:
@@ -243,9 +256,13 @@ def _source_quality_score(item: dict) -> float:
 
 def _score_penalties(item: dict, *, subject: dict | None, date_reference: str | None) -> dict[str, float]:
     penalties: dict[str, float] = {}
-    if not item.get("source_id"):
+    if not _source_id(item):
         penalties["missing_source"] = 0.40
-    sale_date = _parse_iso_date(item.get("date_vente"))
+    if _comparable_price(item) <= 0:
+        penalties["missing_price"] = 0.45
+    sale_date = _parse_iso_date(_sale_date_text(item))
+    if sale_date is None:
+        penalties["missing_sale_date"] = 0.20
     reference = _parse_iso_date(date_reference)
     if sale_date is not None and reference is not None and sale_date > reference:
         penalties["future_sale"] = 0.35
@@ -275,6 +292,18 @@ def _parse_iso_date(value: object) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _source_id(item: dict) -> str:
+    return str(item.get("source_id") or item.get("meta") or "").strip()
+
+
+def _sale_date_text(item: dict) -> str:
+    return str(item.get("date_vente") or item.get("sale_date") or "").strip()
+
+
+def _comparable_price(item: dict) -> float:
+    return _to_float(item.get("prix_vente") if "prix_vente" in item else item.get("sale_price"))
 
 
 def _has_field(payload: dict, field: str) -> bool:

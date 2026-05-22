@@ -92,14 +92,14 @@ class TestDemoFixtureInput:
         assert surf.get("unit") == "pi2"
         assert surf.get("value", 0) > 0
 
-    def test_unifamiliale_comparative_approach_only(self):
-        """unifamiliale → applicable_approaches retourne seulement approche_comparative."""
+    def test_unifamiliale_includes_cost_cross_check(self):
+        """unifamiliale → comparative + cout selon le plan residentiel_standard."""
         from engine.valuation import applicable_approaches
         case = self._case()
         approaches = applicable_approaches(case["type_bien"])
-        assert approaches == ["approche_comparative"]
+        assert approaches == ["approche_comparative", "approche_cout"]
         assert "approche_revenu" not in approaches
-        assert "approche_cout" not in approaches
+        assert "approche_cout" in approaches
 
 
 # ── Fixture JLR CSV — parsing ─────────────────────────────────────────────────
