@@ -9,17 +9,29 @@ except ImportError:
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Callable
 from urllib.parse import parse_qs, urlparse
 import base64
 import csv
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 import uuid
 
+from engine.acceptance import validate_anonymized_case
+from engine.claude.model_client import (
+    ModelProviderConfigurationError,
+    build_model_client,
+    build_model_provider_config,
+    build_model_provider_diagnostics,
+    summarize_model_provider_config,
+)
+from engine.claude.settings import load_claude_settings
+from engine.claude_agent import load_agent_runner, load_pipeline_runner
 from engine.runtime import RuntimeEngine, PipelineConflitError, load_steps_from_pipeline_yaml, safe_path_id
 from engine.checkpoints import (
     CHECKPOINT_LABELS,
@@ -365,6 +377,55 @@ def validate_runtime_config() -> None:
 ASSISTANT_MESSAGES_FILENAME = "assistant_messages.jsonl"
 ASSISTANT_MAX_MESSAGE_CHARS = 4000
 APP_DEFAULT_FIXTURE = "case_pilote_residentiel_standard.json"
+RUNTIME_MODE_PIPELINE_V0 = "pipeline_v0"
+RUNTIME_MODE_CLAUDE_PIPELINE_V0 = "claude_pipeline_v0"
+RUNTIME_MODE_CLAUDE_LIVE_PIPELINE_V0 = "claude_live_pipeline_v0"
+RUNTIME_MODE_CLAUDE_DATA_FACTS_V0 = "claude_data_facts_v0"
+RUNTIME_MODE_CLAUDE_COMPS_MARKET_V0 = "claude_comps_market_v0"
+RUNTIME_MODE_CLAUDE_VALUATION_DRAFT_V0 = "claude_valuation_draft_v0"
+RUNTIME_MODE_CLAUDE_COMPLIANCE_QA_V0 = "claude_compliance_qa_v0"
+RUNTIME_MODE_CLAUDE_REDACTION_V0 = "claude_redaction_v0"
+RUNTIME_MODE_CLAUDE_LIVE_DATA_FACTS_V0 = "claude_live_data_facts_v0"
+RUNTIME_MODE_CLAUDE_LIVE_COMPS_MARKET_V0 = "claude_live_comps_market_v0"
+RUNTIME_MODE_CLAUDE_LIVE_VALUATION_DRAFT_V0 = "claude_live_valuation_draft_v0"
+RUNTIME_MODE_CLAUDE_LIVE_COMPLIANCE_QA_V0 = "claude_live_compliance_qa_v0"
+RUNTIME_MODE_CLAUDE_LIVE_REDACTION_V0 = "claude_live_redaction_v0"
+CLAUDE_SINGLE_AGENT_RUNTIME_MODES = {
+    RUNTIME_MODE_CLAUDE_DATA_FACTS_V0: "AGENTCONFIG-DATA-FACTS-V0.yaml",
+    RUNTIME_MODE_CLAUDE_COMPS_MARKET_V0: "AGENTCONFIG-COMPS-MARKET-V0.yaml",
+    RUNTIME_MODE_CLAUDE_VALUATION_DRAFT_V0: "AGENTCONFIG-VALUATION-DRAFT-V0.yaml",
+    RUNTIME_MODE_CLAUDE_COMPLIANCE_QA_V0: "AGENTCONFIG-COMPLIANCE-QA-V0.yaml",
+    RUNTIME_MODE_CLAUDE_REDACTION_V0: "AGENTCONFIG-REDACTION-V0.yaml",
+}
+CLAUDE_LIVE_AGENT_RUNTIME_MODES = {
+    RUNTIME_MODE_CLAUDE_LIVE_DATA_FACTS_V0: {"agent_config": "AGENTCONFIG-DATA-FACTS-V0.yaml", "agent_type": "data-facts"},
+    RUNTIME_MODE_CLAUDE_LIVE_COMPS_MARKET_V0: {"agent_config": "AGENTCONFIG-COMPS-MARKET-V0.yaml", "agent_type": "comps-market"},
+    RUNTIME_MODE_CLAUDE_LIVE_VALUATION_DRAFT_V0: {"agent_config": "AGENTCONFIG-VALUATION-DRAFT-V0.yaml", "agent_type": "valuation-draft"},
+    RUNTIME_MODE_CLAUDE_LIVE_COMPLIANCE_QA_V0: {"agent_config": "AGENTCONFIG-COMPLIANCE-QA-V0.yaml", "agent_type": "compliance-qa"},
+    RUNTIME_MODE_CLAUDE_LIVE_REDACTION_V0: {"agent_config": "AGENTCONFIG-REDACTION-V0.yaml", "agent_type": "redaction"},
+}
+SUPPORTED_RUNTIME_MODES = {
+    RUNTIME_MODE_PIPELINE_V0,
+    RUNTIME_MODE_CLAUDE_PIPELINE_V0,
+    RUNTIME_MODE_CLAUDE_LIVE_PIPELINE_V0,
+    *CLAUDE_SINGLE_AGENT_RUNTIME_MODES,
+    *CLAUDE_LIVE_AGENT_RUNTIME_MODES,
+}
+ANTHROPIC_SDK_RUNTIME_ENV_FLAG = "EVAL_IMMO_ALLOW_ANTHROPIC_SDK_RUNTIME"
+ANTHROPIC_SDK_FACTORY_OVERRIDE: Callable[..., object] | None = None
+BETA_TERMS_VERSION = "beta_ea_terms_v1"
+BETA_DEFAULT_RETENTION_DAYS = 14
+BETA_MAX_RETENTION_DAYS = 30
+BETA_ACCEPTANCE_FIXTURE = FIXTURES_DIR / "acceptance" / "ea_acceptance_anonymized_residential.json"
+BETA_SENSITIVE_TEXT_PATTERNS = {
+    "email": re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
+    "phone": re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
+    "postal_code": re.compile(r"\b[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][ -]?\d[ABCEGHJ-NPRSTV-Z]\d\b", re.IGNORECASE),
+    "precise_address": re.compile(r"\b\d{1,6}\s+(rue|avenue|av\.|boulevard|boul\.|chemin|ch\.|route|rang)\b", re.IGNORECASE),
+}
+BETA_SENSITIVE_KEY_TOKENS = {"adresse", "client", "courriel", "email", "nom", "owner", "phone", "proprietaire", "telephone"}
+BETA_SAFE_KEY_TOKENS = {"anonym", "id", "source", "fixture", "zone"}
+BETA_RAW_DOCUMENT_KEYS = {"base64", "binary", "content", "file_bytes", "pdf_base64", "raw_text"}
 ASSISTANT_AGENT_PROFILES = {
     "superviseur-evaluateur-ai": {
         "label": "Superviseur evaluateur AI",
@@ -587,6 +648,150 @@ def load_case_from_body(body: dict) -> tuple[dict, str]:
     return case, source_fixture
 
 
+def truthy_query(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "oui", "on"}
+
+
+def runtime_mode_from_body(body: dict, session: dict) -> str:
+    runtime_mode = str(body.get("runtime_mode") or session.get("runtime_mode") or RUNTIME_MODE_PIPELINE_V0)
+    if runtime_mode not in SUPPORTED_RUNTIME_MODES:
+        raise ValueError(f"runtime_mode invalide: {runtime_mode}")
+    return runtime_mode
+
+
+def is_claude_runtime_mode(runtime_mode: str) -> bool:
+    return (
+        runtime_mode == RUNTIME_MODE_CLAUDE_PIPELINE_V0
+        or runtime_mode == RUNTIME_MODE_CLAUDE_LIVE_PIPELINE_V0
+        or runtime_mode in CLAUDE_SINGLE_AGENT_RUNTIME_MODES
+        or runtime_mode in CLAUDE_LIVE_AGENT_RUNTIME_MODES
+    )
+
+
+def claude_settings_from_body(body: dict) -> dict[str, object]:
+    session_settings = body.get("claude_settings")
+    if not isinstance(session_settings, dict):
+        session_settings = body.get("settings")
+    return load_claude_settings(
+        project_root=ROOT,
+        session_settings=session_settings if isinstance(session_settings, dict) else None,
+    )
+
+
+def claude_model_provider_options_from_body(body: dict) -> dict[str, object] | None:
+    for key in ("claude_model_provider", "model_provider", "model_provider_options"):
+        value = body.get(key)
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def run_claude_case_runtime_mode(
+    runtime_mode: str,
+    case: dict,
+    session_dir: Path,
+    *,
+    source_fixture: str,
+    case_key: str,
+    settings_context: dict[str, object] | None = None,
+    model_provider_options: dict[str, object] | None = None,
+) -> dict:
+    if runtime_mode == RUNTIME_MODE_CLAUDE_PIPELINE_V0:
+        result = load_pipeline_runner(project_root=ROOT, settings_context=settings_context).run_case_data(
+            case,
+            session_dir / "artifacts",
+            source_fixture=source_fixture,
+            case_stem=case_key,
+            case_subdir=True,
+        )
+        result["runtime_mode"] = runtime_mode
+        result["pipeline_scope"] = "multi_agent:claude"
+        return result
+
+    if runtime_mode == RUNTIME_MODE_CLAUDE_LIVE_PIPELINE_V0 or runtime_mode in CLAUDE_LIVE_AGENT_RUNTIME_MODES:
+        provider_config = build_model_provider_config(
+            model_provider_options,
+            env=os.environ,
+            sdk_available=True if ANTHROPIC_SDK_FACTORY_OVERRIDE is not None else None,
+        )
+        allow_sdk_runtime = truthy_query(os.environ.get(ANTHROPIC_SDK_RUNTIME_ENV_FLAG))
+        use_sdk_runtime = provider_config.provider == "anthropic" and allow_sdk_runtime
+        provider_summary = summarize_model_provider_config(
+            provider_config,
+            require_executable=not use_sdk_runtime,
+            require_network_for_non_fake=True,
+            require_sdk_for_network=use_sdk_runtime,
+        )
+        if not provider_summary["ok"]:
+            errors = provider_summary.get("errors", [])
+            raise ValueError(f"claude_model_provider invalide: {', '.join(str(error) for error in errors)}")
+        try:
+            model_client = build_model_client(
+                provider_config,
+                enable_experimental_adapters=use_sdk_runtime,
+                enable_sdk_execution=use_sdk_runtime,
+                sdk_factory=ANTHROPIC_SDK_FACTORY_OVERRIDE,
+                env=os.environ,
+            )
+        except ModelProviderConfigurationError as exc:
+            raise ValueError(f"claude_model_provider invalide: {exc}") from exc
+
+        if runtime_mode == RUNTIME_MODE_CLAUDE_LIVE_PIPELINE_V0:
+            result = load_pipeline_runner(
+                project_root=ROOT,
+                settings_context=settings_context,
+                model_client=model_client,
+                runtime_mode=runtime_mode,
+            ).run_case_data(case, session_dir / "artifacts", source_fixture=source_fixture, case_stem=case_key, case_subdir=True)
+            agent_type = "claude-pipeline"
+            pipeline_scope = "multi_agent_live:claude"
+        else:
+            live_agent_config = CLAUDE_LIVE_AGENT_RUNTIME_MODES[runtime_mode]
+            agent_type = str(live_agent_config["agent_type"])
+            result = load_agent_runner(
+                str(live_agent_config["agent_config"]),
+                project_root=ROOT,
+                settings_context=settings_context,
+                model_client=model_client,
+                runtime_mode=runtime_mode,
+            ).run_case_data(case, session_dir / "artifacts", source_fixture=source_fixture, case_stem=case_key, case_subdir=True)
+            pipeline_scope = f"single_agent_live:{agent_type}"
+        result["runtime_mode"] = runtime_mode
+        result["pipeline_scope"] = pipeline_scope
+        result["live_adapter"] = {
+            "schema_version": "claude_live_adapter_v0",
+            "enabled": True,
+            "agent_type": agent_type,
+            "provider": result.get("model_client", {}).get("provider", "fake") if isinstance(result.get("model_client"), dict) else "fake",
+            "provider_config": provider_summary,
+            "provider_diagnostics": build_model_provider_diagnostics(
+                model_provider_options,
+                env=os.environ,
+                sdk_available=True if ANTHROPIC_SDK_FACTORY_OVERRIDE is not None else None,
+            ),
+            "model_client": result.get("model_client", {}),
+            "model_client_by_agent": result.get("model_client_by_agent", {}),
+            "ok": bool(result.get("model_client", {}).get("ok", False)) if isinstance(result.get("model_client"), dict) else False,
+        }
+        return result
+
+    agent_config_name = CLAUDE_SINGLE_AGENT_RUNTIME_MODES.get(runtime_mode)
+    if agent_config_name:
+        runner = load_agent_runner(agent_config_name, project_root=ROOT, settings_context=settings_context)
+        result = runner.run_case_data(
+            case,
+            session_dir / "artifacts",
+            source_fixture=source_fixture,
+            case_stem=case_key,
+            case_subdir=True,
+        )
+        result["runtime_mode"] = runtime_mode
+        result["pipeline_scope"] = f"single_agent:{result['agent_type']}"
+        return result
+
+    raise ValueError(f"runtime_mode invalide: {runtime_mode}")
+
+
 def list_fixtures() -> list[dict[str, object]]:
     fixtures = []
     for path in sorted(FIXTURES_DIR.glob("*.json")):
@@ -664,6 +869,381 @@ def session_access_allowed(session: dict, evaluator_id: str) -> bool:
     return os.environ.get("EVAL_RUNTIME_ALLOW_LEGACY_UNOWNED_SESSIONS", "") == "1"
 
 
+def beta_retention_days() -> int:
+    raw = os.environ.get("EVAL_IMMO_BETA_RETENTION_DAYS", "")
+    try:
+        days = int(raw) if raw else BETA_DEFAULT_RETENTION_DAYS
+    except (TypeError, ValueError):
+        days = BETA_DEFAULT_RETENTION_DAYS
+    return min(max(days, 1), BETA_MAX_RETENTION_DAYS)
+
+
+def beta_delete_after_utc(retention_days: int) -> str:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    return (now + timedelta(days=retention_days)).isoformat()
+
+
+def beta_terms() -> dict:
+    return {
+        "schema_version": "beta_terms_v1",
+        "terms_version": BETA_TERMS_VERSION,
+        "audience": "evaluateur_agree_beta_fermee",
+        "requires_anonymized_inputs": True,
+        "requires_human_validation": True,
+        "certification_automatic": False,
+        "external_evaluator_responses_included": False,
+        "retention_days": beta_retention_days(),
+        "accepted_input_modes": ["fixture_synthetique", "dossier_json_anonymise"],
+        "raw_document_storage": "refuse_par_defaut_avant_contrat",
+    }
+
+
+def beta_check(label: str, ok: bool, severity: str, detail: str, action: str = "") -> dict:
+    return {
+        "label": label,
+        "status": "OK" if ok else severity,
+        "ok": ok,
+        "severity": "info" if ok else severity,
+        "detail": detail,
+        "action": action,
+    }
+
+
+def beta_acceptance_anonymization_report() -> dict:
+    if not BETA_ACCEPTANCE_FIXTURE.exists():
+        return {
+            "schema_version": "ea_acceptance_anonymization_v1",
+            "ok": False,
+            "status": "ABSENT",
+            "errors": ["acceptance_fixture_missing"],
+            "warnings": [],
+            "path": str(BETA_ACCEPTANCE_FIXTURE),
+        }
+    case = read_json_dict(BETA_ACCEPTANCE_FIXTURE)
+    report = validate_anonymized_case(case)
+    report["path"] = str(BETA_ACCEPTANCE_FIXTURE)
+    return report
+
+
+def beta_hosted_url_is_valid(value: str) -> bool:
+    if not value.startswith("https://"):
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme == "https" and bool(parsed.netloc) and not _origin_is_local(value)
+
+
+def beta_allowed_origin_is_valid(value: str) -> bool:
+    if not value or value == "*" or "," in value:
+        return False
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.path not in {"", "/"}:
+        return False
+    return not _origin_is_local(value)
+
+
+def beta_ea_readiness() -> dict:
+    hosted_url = os.environ.get("EVAL_IMMO_BETA_HOSTED_URL", "").strip()
+    allowed_origin = os.environ.get("EVAL_RUNTIME_ALLOWED_ORIGIN", "*").strip() or "*"
+    token_auth_enabled = bool(os.environ.get("EVAL_RUNTIME_API_TOKEN", "").strip())
+    openai_configured = bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    live_provider_env = truthy_query(os.environ.get(ANTHROPIC_SDK_RUNTIME_ENV_FLAG))
+    live_operator_enabled = truthy_query(os.environ.get("EVAL_IMMO_RUN_LIVE_SMOKE"))
+    live_policy_ok = not live_provider_env and not live_operator_enabled
+    deploy = deploy_readiness_status(probe_filesystem=False)
+    deploy_required_ok = bool(deploy.get("ok")) if runtime_is_production() else True
+    anonymization = beta_acceptance_anonymization_report()
+    anonymization_ok = bool(anonymization.get("ok"))
+
+    checks = [
+        beta_check(
+            "hosted_url_configured",
+            beta_hosted_url_is_valid(hosted_url),
+            "BLOCANT",
+            hosted_url or "EVAL_IMMO_BETA_HOSTED_URL absent",
+            "deployer le backend beta derriere HTTPS et definir EVAL_IMMO_BETA_HOSTED_URL",
+        ),
+        beta_check(
+            "token_auth_enabled",
+            token_auth_enabled,
+            "BLOCANT",
+            "EVAL_RUNTIME_API_TOKEN actif" if token_auth_enabled else "EVAL_RUNTIME_API_TOKEN absent",
+            "definir un token par environnement avant de partager le lien",
+        ),
+        beta_check(
+            "allowed_origin_configured",
+            beta_allowed_origin_is_valid(allowed_origin),
+            "BLOCANT",
+            allowed_origin,
+            "definir EVAL_RUNTIME_ALLOWED_ORIGIN avec l'origine HTTPS exacte du frontend",
+        ),
+        beta_check(
+            "openai_configured",
+            openai_configured,
+            "BLOCANT",
+            "OPENAI_API_KEY configuree" if openai_configured else "OPENAI_API_KEY absente",
+            "configurer le fournisseur IA requis pour utiliser le produit a son plein potentiel",
+        ),
+        beta_check(
+            "deploy_readiness_gate",
+            deploy_required_ok,
+            "BLOCANT",
+            str(deploy.get("status") or "unknown"),
+            "corriger les controles critiques /readiness avant tout lien externe",
+        ),
+        beta_check(
+            "anonymized_acceptance_fixture",
+            anonymization_ok,
+            "BLOCANT",
+            str(anonymization.get("status") or "ABSENT"),
+            "conserver une fixture d'acceptation anonymisee valide pour le beta ferme",
+        ),
+        beta_check(
+            "live_ai_provider_policy",
+            live_policy_ok,
+            "BLOCANT",
+            "runtime live Anthropic desactive par defaut"
+            if live_policy_ok
+            else "runtime live Anthropic active dans l'environnement",
+            "laisser le runtime live desactive pour la beta sans contrat ou documenter le mode operateur",
+        ),
+    ]
+    blocking = [item for item in checks if item["status"] == "BLOCANT"]
+    warnings = [item for item in checks if item["status"] not in {"OK", "BLOCANT"}]
+    return {
+        "schema_version": "beta_ea_readiness_v1",
+        "status": "PRET_LIEN_EA" if not blocking else "BETA_LIEN_BLOQUE",
+        "ready_for_external_ea_link": not blocking,
+        "ready_for_local_anonymized_beta": anonymization_ok and live_policy_ok,
+        "generated_at_utc": utc_now_iso(),
+        "hosted_url": hosted_url,
+        "terms": beta_terms(),
+        "checks": checks,
+        "blocking_count": len(blocking),
+        "warning_count": len(warnings),
+        "blocking_checks": [item["label"] for item in blocking],
+        "warning_checks": [item["label"] for item in warnings],
+        "evidence": {
+            "deploy_status": deploy.get("status", "UNKNOWN"),
+            "deploy_production": bool(deploy.get("production")),
+            "deploy_summary": deploy.get("summary", {}),
+            "anonymization_status": anonymization.get("status", "ABSENT"),
+            "anonymization_errors": anonymization.get("errors", []),
+            "live_provider_env": live_provider_env,
+            "live_operator_enabled": live_operator_enabled,
+        },
+        "routes": {
+            "readiness": "/beta/readiness",
+            "terms": "/beta/terms",
+            "intake": "/beta/intake",
+            "product": "/product",
+            "app": "/app/state",
+        },
+    }
+
+
+def beta_redact(value: str) -> str:
+    if len(value) <= 4:
+        return "*" * len(value)
+    return value[:2] + "***" + value[-2:]
+
+
+def beta_path_is_safe_key(path: str) -> bool:
+    lower = path.lower()
+    return any(token in lower for token in BETA_SAFE_KEY_TOKENS)
+
+
+def beta_path_is_sensitive_key(path: str) -> bool:
+    lower = path.lower()
+    return any(token in lower for token in BETA_SENSITIVE_KEY_TOKENS) and not beta_path_is_safe_key(path)
+
+
+def beta_value_is_anonymized_placeholder(value: str) -> bool:
+    lowered = value.strip().lower()
+    return any(marker in lowered for marker in ("anon", "anonym", "[", "redacted", "masque", "pilote", "exemple"))
+
+
+def beta_scan_anonymization(value: object, path: str = "$") -> list[dict]:
+    findings: list[dict] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            key_text = str(key)
+            if key_text.lower() in BETA_RAW_DOCUMENT_KEYS and item not in (None, "", [], {}):
+                findings.append(
+                    {
+                        "path": child_path,
+                        "type": "raw_document_payload",
+                        "severity": "blocker",
+                        "excerpt": "[contenu brut refuse]",
+                    }
+                )
+            if beta_path_is_sensitive_key(child_path) and item not in (None, "", [], {}):
+                item_text = str(item)
+                if not beta_value_is_anonymized_placeholder(item_text):
+                    findings.append(
+                        {
+                            "path": child_path,
+                            "type": "sensitive_field_name",
+                            "severity": "blocker",
+                            "excerpt": beta_redact(item_text),
+                        }
+                    )
+            findings.extend(beta_scan_anonymization(item, child_path))
+        return findings
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            findings.extend(beta_scan_anonymization(item, f"{path}[{index}]"))
+        return findings
+    if isinstance(value, str) and value.strip():
+        if beta_path_is_safe_key(path) or beta_value_is_anonymized_placeholder(value):
+            return findings
+        for name, pattern in BETA_SENSITIVE_TEXT_PATTERNS.items():
+            for match in pattern.finditer(value):
+                findings.append(
+                    {
+                        "path": path,
+                        "type": name,
+                        "severity": "blocker",
+                        "excerpt": beta_redact(match.group(0)),
+                    }
+                )
+    return findings
+
+
+def beta_anonymization_audit_payload(payload: dict) -> dict:
+    findings = beta_scan_anonymization(payload)
+    blocking = [item for item in findings if item.get("severity") == "blocker"]
+    return {
+        "schema_version": "beta_anonymization_audit_v1",
+        "status": "OK" if not blocking else "REFUS_DONNEES_IDENTIFIANTES",
+        "findings_count": len(findings),
+        "blocking_findings_count": len(blocking),
+        "findings": findings[:50],
+    }
+
+
+def beta_document_manifest_summary(documents: list) -> list[dict]:
+    summary = []
+    for index, item in enumerate(documents[:25], start=1):
+        if isinstance(item, dict):
+            summary.append(
+                {
+                    "index": index,
+                    "document_id": str(item.get("document_id") or item.get("id") or f"document_{index}"),
+                    "type": str(item.get("type") or item.get("kind") or ""),
+                    "anonymized": bool(item.get("anonymized") or item.get("anonymise")),
+                    "filename": str(item.get("filename") or item.get("name") or ""),
+                }
+            )
+        else:
+            summary.append({"index": index, "document_id": f"document_{index}", "type": str(item), "anonymized": False})
+    return summary
+
+
+def beta_intake_summary_from_session(session: dict) -> dict:
+    summary = session.get("beta_intake_summary", {})
+    return summary if isinstance(summary, dict) else {}
+
+
+def beta_start_dossier(body: dict) -> dict:
+    accepted_terms = bool(body.get("accepted_beta_terms") or body.get("terms_accepted"))
+    anonymization_attestation = bool(body.get("anonymization_attestation") or body.get("documents_anonymized"))
+    operator = str(body.get("operator") or body.get("reviewer") or body.get("_evaluator_id") or "").strip()
+    case, source_fixture = load_case_from_body(body)
+    document_manifest = body.get("documents", [])
+    if not isinstance(document_manifest, list):
+        document_manifest = []
+
+    validation = validate_anonymized_case(case)
+    audit = beta_anonymization_audit_payload({"case": case, "documents": document_manifest})
+    errors = []
+    if not accepted_terms:
+        errors.append("accepted_beta_terms_required")
+    if not anonymization_attestation:
+        errors.append("anonymization_attestation_required")
+    if not validation.get("ok"):
+        errors.append("anonymized_case_validation_failed")
+    if audit["blocking_findings_count"]:
+        errors.append("anonymization_blocking_findings")
+    if errors:
+        return {
+            "schema_version": "beta_intake_v1",
+            "accepted": False,
+            "status": "REFUSE",
+            "errors": errors,
+            "validation": validation,
+            "audit": audit,
+            "terms": beta_terms(),
+        }
+
+    started = start_runtime(
+        {
+            "case": case,
+            "source_fixture": f"beta:{source_fixture}",
+            "strict_mode": True,
+            "runtime_mode": body.get("runtime_mode") or RUNTIME_MODE_PIPELINE_V0,
+            "_evaluator_id": str(body.get("_evaluator_id") or "").strip(),
+        }
+    )
+    session_id = str(started.get("session", {}).get("session_id") or "")
+    session = require_session(session_id)
+    retention_days = beta_retention_days()
+    beta_intake = {
+        "schema_version": "beta_intake_v1",
+        "accepted": True,
+        "status": "ACCEPTE",
+        "session_id": session_id,
+        "run_id": session.get("run_id", ""),
+        "created_at_utc": utc_now_iso(),
+        "operator": operator,
+        "terms_version": BETA_TERMS_VERSION,
+        "accepted_beta_terms": accepted_terms,
+        "anonymization_attestation": anonymization_attestation,
+        "retention_days": retention_days,
+        "delete_after_utc": beta_delete_after_utc(retention_days),
+        "source_fixture": source_fixture,
+        "documents_count": len(document_manifest),
+        "document_manifest": beta_document_manifest_summary(document_manifest),
+        "validation": validation,
+        "audit": audit,
+        "limits": {
+            "certification_automatic": False,
+            "external_evaluator_responses_included": False,
+            "requires_human_validation": True,
+            "raw_document_storage": "refuse_par_defaut_avant_contrat",
+        },
+    }
+    intake_path = Path(str(session["session_dir"])) / "beta_intake.json"
+    write_json(intake_path, beta_intake)
+    session["beta_intake_path"] = str(intake_path)
+    session["beta_intake_summary"] = {
+        "status": beta_intake["status"],
+        "terms_version": BETA_TERMS_VERSION,
+        "retention_days": retention_days,
+        "delete_after_utc": beta_intake["delete_after_utc"],
+        "documents_count": len(document_manifest),
+        "anonymization_status": audit["status"],
+        "validation_status": validation.get("status", ""),
+    }
+    if body.get("display_name") or case.get("dossier_id"):
+        session["app_display_name"] = str(body.get("display_name") or case.get("dossier_id") or "").strip()
+    if body.get("property_type") or case.get("type_bien"):
+        session["app_property_type"] = str(body.get("property_type") or case.get("type_bien") or "").strip()
+    if body.get("neighborhood") or case.get("zone"):
+        session["app_neighborhood"] = str(body.get("neighborhood") or case.get("zone") or "").strip()
+    save_session(session)
+    started["session"] = session
+    return {
+        "schema_version": "beta_intake_v1",
+        "accepted": True,
+        "status": "ACCEPTE",
+        "session": session,
+        "started": started,
+        "intake": beta_intake,
+        "state": app_state(session_id, evaluator_id=str(body.get("_evaluator_id") or "").strip()),
+    }
+
+
 def list_session_records(limit: int = 50, evaluator_id: str = "") -> list[dict]:
     if not SESSIONS_DIR.exists():
         return []
@@ -704,6 +1284,7 @@ def session_workbench_record(session: dict) -> dict:
     if not isinstance(warnings, list):
         warnings = []
     review_decision = str(review.get("decision") or session.get("review_decision") or "A_SAISIR")
+    beta_intake = beta_intake_summary_from_session(session)
     next_action = review_next_action(
         has_result=bool(result),
         integrity_ok=bool(integrity.get("ok")),
@@ -732,6 +1313,9 @@ def session_workbench_record(session: dict) -> dict:
         "package_origin": package.get("package_origin", ""),
         "package_generated": bool(package),
         "package_url": f"/review/package?session_id={session_id}",
+        "beta_intake_status": beta_intake.get("status", ""),
+        "beta_delete_after_utc": beta_intake.get("delete_after_utc", ""),
+        "beta_terms_version": beta_intake.get("terms_version", ""),
         "app_display_name": session.get("app_display_name", ""),
         "app_property_type": session.get("app_property_type", ""),
         "app_neighborhood": session.get("app_neighborhood", ""),
@@ -1048,6 +1632,9 @@ def app_dossier_card_from_record(record: dict) -> dict:
         "review_decision": record.get("review_decision", "A_SAISIR"),
         "package_status": record.get("package_status", "ABSENT"),
         "next_action": record.get("next_action", ""),
+        "beta_intake_status": record.get("beta_intake_status", ""),
+        "beta_delete_after_utc": record.get("beta_delete_after_utc", ""),
+        "beta_terms_version": record.get("beta_terms_version", ""),
     }
 
 
@@ -2188,6 +2775,7 @@ def app_session_view(session_id: str) -> dict:
         "assistant": assistant,
         "package": package,
         "workflow": app_workflow(summary, dossier, package, assistant, cert_gate),
+        "beta_intake": beta_intake_summary_from_session(session),
         "pipeline_progress": read_json_dict(SESSIONS_DIR / safe_path_id(session_id) / "pipeline_progress.json") or None,
         "pipeline_error": session.get("pipeline_error"),
         "ingestion_error": session.get("ingestion_error"),
@@ -2315,11 +2903,16 @@ def app_state(session_id: str = "", evaluator_id: str = "") -> dict:
             "message": "/app/message",
             "validate_review": "/app/review/validate",
             "package": "/app/package",
+            "beta_readiness": "/beta/readiness",
+            "beta_terms": "/beta/terms",
+            "beta_intake": "/beta/intake",
         },
         "limits": {
             "certification_automatic": False,
             "external_evaluator_responses_included": False,
             "requires_human_validation": True,
+            "beta_terms_version": BETA_TERMS_VERSION,
+            "beta_retention_days": beta_retention_days(),
         },
     }
 
@@ -3180,6 +3773,12 @@ def start_runtime(body: dict) -> dict:
     for _field in ("mandat_type", "format_rapport", "methodes_requises", "methode_preponderante"):
         if case.get(_field) is not None:
             session[_field] = case[_field]
+    runtime_mode = runtime_mode_from_body(body, session)
+    session["runtime_mode"] = runtime_mode
+    settings_context: dict[str, object] = {}
+    if is_claude_runtime_mode(runtime_mode):
+        settings_context = claude_settings_from_body(body)
+        session["settings_context"] = settings_context
     write_json(Path(session["session_dir"]) / "session.json", session)
     session_dir = Path(session["session_dir"])
     case_key = safe_path_id(str(case.get("dossier_id") or source_fixture.replace(".json", "")))
@@ -3241,38 +3840,49 @@ def start_runtime(body: dict) -> dict:
         except Exception:
             pass  # data enrichment is optional — never block pipeline
 
-    steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
-    engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
-
-    # Write pipeline progress after each step so polling can show real-time progress
-    _all_step_names = [s.name for s in steps]
-    _completed_steps: list[str] = []
-    _progress_path = session_dir / "pipeline_progress.json"
-    write_json(_progress_path, {"steps": _all_step_names, "completed": [], "running": _all_step_names[0] if _all_step_names else None})
-
-    def _on_step_done(step_name: str) -> None:
-        _completed_steps.append(step_name)
-        _next = next((s for s in _all_step_names if s not in _completed_steps), None)
-        write_json(_progress_path, {"steps": _all_step_names, "completed": list(_completed_steps), "running": _next})
-
-    try:
-        result = engine.run_case_data(
+    if is_claude_runtime_mode(runtime_mode):
+        result = run_claude_case_runtime_mode(
+            runtime_mode,
             case,
-            session_dir / "artifacts",
+            session_dir,
             source_fixture=source_fixture,
-            case_stem=case_key,
-            case_subdir=True,
-            on_step_done=_on_step_done,
+            case_key=case_key,
+            settings_context=settings_context,
+            model_provider_options=claude_model_provider_options_from_body(body),
         )
-    except PipelineConflitError as _e:
-        result = {
-            "dossier_id": case.get("dossier_id", ""),
-            "status": "CONFLIT_DETECTE",
-            "blocking_failures": [f"CONFLIT: {_e}"],
-            "warnings": [],
-            "events": [],
-            "artifact_dir": str(session_dir / "artifacts"),
-        }
+    else:
+        steps = load_steps_from_pipeline_yaml(PIPELINE_PATH)
+        engine = RuntimeEngine(steps=steps, strict_mode=bool(session.get("strict_mode", True)))
+
+        # Write pipeline progress after each step so polling can show real-time progress
+        _all_step_names = [s.name for s in steps]
+        _completed_steps: list[str] = []
+        _progress_path = session_dir / "pipeline_progress.json"
+        write_json(_progress_path, {"steps": _all_step_names, "completed": [], "running": _all_step_names[0] if _all_step_names else None})
+
+        def _on_step_done(step_name: str) -> None:
+            _completed_steps.append(step_name)
+            _next = next((s for s in _all_step_names if s not in _completed_steps), None)
+            write_json(_progress_path, {"steps": _all_step_names, "completed": list(_completed_steps), "running": _next})
+
+        try:
+            result = engine.run_case_data(
+                case,
+                session_dir / "artifacts",
+                source_fixture=source_fixture,
+                case_stem=case_key,
+                case_subdir=True,
+                on_step_done=_on_step_done,
+            )
+        except PipelineConflitError as _e:
+            result = {
+                "dossier_id": case.get("dossier_id", ""),
+                "status": "CONFLIT_DETECTE",
+                "blocking_failures": [f"CONFLIT: {_e}"],
+                "warnings": [],
+                "events": [],
+                "artifact_dir": str(session_dir / "artifacts"),
+            }
 
     write_json(case_input_path, case)
     result_path = session_dir / "result.json"
@@ -3299,8 +3909,34 @@ def start_runtime(body: dict) -> dict:
             "artifact_dir": result["artifact_dir"],
             "artifact_index_path": str(artifact_index_path),
             "knowledge_snapshot_path": str(knowledge_snapshot_path),
+            "runtime_mode": runtime_mode,
         }
     )
+    for key in (
+        "settings_context",
+        "model_client",
+        "model_client_by_agent",
+        "live_adapter",
+        "skill_context",
+        "skill_context_by_agent",
+        "command_context",
+        "command_context_by_agent",
+        "transcript_summary",
+        "transcript_summary_by_agent",
+        "transcript_path",
+        "permission_state_summary",
+        "permission_summary",
+        "permission_summary_by_agent",
+        "task_summary",
+        "handoff_summary",
+        "hook_summary",
+        "artifact_lineage",
+        "usage_accounting",
+        "token_budget",
+        "tool_registry_summary",
+    ):
+        if key in result:
+            session[key] = result[key]
     save_session(session)
     return {"session": session, "result": result}
 
@@ -3662,6 +4298,15 @@ def session_summary(session_id: str) -> dict:
         },
         "knowledge": knowledge,
         "review": review,
+        "beta_intake": beta_intake_summary_from_session(session),
+        "claude_runtime": {
+            "runtime_mode": session.get("runtime_mode", RUNTIME_MODE_PIPELINE_V0),
+            "settings_context": session.get("settings_context", {}),
+            "model_client": session.get("model_client", {}),
+            "live_adapter": session.get("live_adapter", {}),
+            "skill_context": session.get("skill_context", {}),
+            "command_context": session.get("command_context", {}),
+        },
         "integrity": integrity,
         "artifacts": artifacts,
     }
@@ -5327,6 +5972,12 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         if parsed.path in {"/", "/product", "/product/ui", "/app"}:
             self._send_runtime_index()
             return
+        if parsed.path == "/beta/readiness":
+            self._send_json(200, beta_ea_readiness())
+            return
+        if parsed.path == "/beta/terms":
+            self._send_json(200, beta_terms())
+            return
         if parsed.path in {
             "/ui",
             "/ops/ui",
@@ -5683,6 +6334,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(200, app_start_demo(body))
                 return
+            if self.path == "/beta/intake":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(200, beta_start_dossier(body))
+                return
             if self.path == "/resume":
                 if not self._require_permission("runtime_write"):
                     return
@@ -5895,6 +6551,9 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                     "product_summary": "/product/summary",
                     "state": "/app/state",
                     "events": "/app/events",
+                    "beta_readiness": "/beta/readiness",
+                    "beta_terms": "/beta/terms",
+                    "beta_intake": "/beta/intake",
                 },
             },
         )
