@@ -241,6 +241,23 @@
 
     .toolbar button { flex: 1 1 auto; }
 
+    .checkline {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .checkline input {
+      width: auto;
+      min-height: auto;
+      margin-top: 2px;
+      flex: 0 0 auto;
+    }
+
     label {
       display: block;
       color: var(--muted);
@@ -470,6 +487,14 @@
       background: #f0f7f5;
     }
 
+    .action-row {
+      cursor: pointer;
+    }
+
+    .action-row:hover {
+      background: #f0f7f5;
+    }
+
     .empty {
       border: 1px dashed var(--line);
       border-radius: 7px;
@@ -523,6 +548,11 @@
       grid-template-columns: 180px minmax(0, 1fr) auto;
       gap: 8px;
       align-items: end;
+    }
+
+    .assistant-input + .assistant-input,
+    .assistant-input + .toolbar {
+      margin-top: 8px;
     }
 
     .hidden { display: none !important; }
@@ -587,6 +617,30 @@
           </div>
           <div class="toolbar" style="margin-top:8px">
             <button id="generatePackage" disabled>Generer paquet V1</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div>
+          <div class="section-title">Beta E.A.</div>
+          <div class="tile">
+            <h3>Invitation</h3>
+            <div class="metric" id="betaSidebarStatus">-</div>
+            <div class="sub" id="betaSidebarSub">-</div>
+          </div>
+          <label class="checkline" for="betaTerms">
+            <input id="betaTerms" type="checkbox">
+            <span>Conditions beta acceptees: dossier anonymise, validation humaine, aucune certification automatique.</span>
+          </label>
+          <label class="checkline" for="betaAnonymized">
+            <input id="betaAnonymized" type="checkbox">
+            <span>J'atteste que le dossier transmis ne contient pas de donnees identifiantes.</span>
+          </label>
+          <label for="betaCaseJson">Dossier JSON anonymise optionnel</label>
+          <textarea id="betaCaseJson" placeholder='Laisser vide pour utiliser la fixture selectionnee, ou coller un dossier JSON anonymise.'></textarea>
+          <div class="toolbar" style="margin-top:8px">
+            <button class="primary" id="betaLaunch">Lancer beta anonymisee</button>
           </div>
         </div>
 
@@ -677,11 +731,21 @@
             <div class="sub" id="reviewCampaignSub">-</div>
           </div>
 
+          <div class="tile span3">
+            <h3>Beta E.A.</h3>
+            <div class="metric" id="betaStatus">-</div>
+            <div class="sub" id="betaSub">-</div>
+          </div>
+
           <div class="tile span6">
             <h3>Campagne interne</h3>
             <table id="campaignTable"></table>
           </div>
-          <div class="tile span6">
+          <div class="tile span3">
+            <h3>Gate beta</h3>
+            <table id="betaChecks"></table>
+          </div>
+          <div class="tile span3">
             <h3>Observabilite ops</h3>
             <table id="opsSnapshot"></table>
           </div>
@@ -897,6 +961,86 @@
               <h3>Agents disponibles</h3>
               <table id="assistantAgents"></table>
             </div>
+            <div class="tile span4">
+              <h3>Controleur Claude</h3>
+              <table id="claudeController"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Runtime Claude</h3>
+              <table id="claudeRuntimeState"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Manifest agents Claude</h3>
+              <table id="claudeAgentManifest"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Prompts agents Claude</h3>
+              <table id="claudeAgentPrompts"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Skills Claude</h3>
+              <table id="claudeSkills"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Settings Claude</h3>
+              <table id="claudeSettings"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Handoffs Claude</h3>
+              <table id="claudeHandoffs"></table>
+            </div>
+            <div class="tile span4">
+              <h3>Historique commandes</h3>
+              <table id="claudeCommandHistory"></table>
+            </div>
+            <div class="tile span8">
+              <h3>Actions controleur</h3>
+              <table id="claudeActions"></table>
+            </div>
+            <div class="tile span5">
+              <h3>Lignee artefacts</h3>
+              <table id="claudeLineage"></table>
+            </div>
+            <div class="tile span7">
+              <h3>Handoffs artefacts</h3>
+              <table id="claudeLineageEdges"></table>
+            </div>
+            <div class="tile full">
+              <h3>Commandes controleur Claude</h3>
+              <div class="assistant-input">
+                <div>
+                  <label for="claudeCommand">Commande</label>
+                  <select id="claudeCommand"></select>
+                </div>
+                <div>
+                  <label for="claudeCommandArgs">Arguments</label>
+                  <input id="claudeCommandArgs" placeholder="Arguments optionnels">
+                </div>
+                <button class="primary" id="runClaudeCommand">Executer</button>
+              </div>
+              <div class="assistant-input">
+                <div>
+                  <label for="claudePermissionDestination">Permission</label>
+                  <select id="claudePermissionDestination">
+                    <option value="session">session</option>
+                    <option value="project">project</option>
+                    <option value="user">user</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="claudePermissionDirectories">Repertoires autorises</label>
+                  <input id="claudePermissionDirectories" value="C:\Users\simon\claude-code-project">
+                </div>
+                <button id="applyClaudePermission">Autoriser</button>
+              </div>
+              <div class="toolbar">
+                <button id="refreshClaudeController">Rafraichir controleur</button>
+              </div>
+            </div>
+            <div class="tile full">
+              <h3>Snapshot action Claude</h3>
+              <pre id="claudeActionSnapshot">Aucun snapshot charge.</pre>
+            </div>
             <div class="tile full">
               <h3>Question au dossier actif</h3>
               <div class="assistant-input">
@@ -948,11 +1092,14 @@
       opsSnapshot: null,
       activeSessionId: "",
       sessionSummary: null,
+      claudeBundle: null,
       dossierReview: null,
       packageSummary: null,
       knowledgeSnapshot: null,
       assistantWorkbench: null,
+      betaReadiness: null,
       assistantMessages: [],
+      claudeActionSnapshot: null,
       currentPanel: "overview"
     };
 
@@ -1030,7 +1177,7 @@
             ${chip(row.review_decision || row.status || "-")}
           </span>
           <span class="session-meta">${escapeHtml(row.session_id || "-")}</span>
-          <span class="session-meta">${escapeHtml(row.next_action || "-")} | paquet ${escapeHtml(row.package_status || "ABSENT")}</span>
+          <span class="session-meta">${escapeHtml(row.next_action || "-")} | paquet ${escapeHtml(row.package_status || "ABSENT")} | beta ${escapeHtml(row.beta_intake_status || "-")}</span>
         </button>
       `).join("") || '<div class="empty">Aucune session runtime.</div>';
       document.querySelectorAll(".session-item").forEach((button) => {
@@ -1087,6 +1234,7 @@
       const payload = state.summary || {};
       const campaign = state.campaign || payload.review_campaign || {};
       const opsSnapshot = state.opsSnapshot || payload.ops_snapshot || {};
+      const beta = state.betaReadiness || payload.beta || {};
       $("productStatusChip").textContent = pretty(payload.status || "charge");
       $("productStatusChip").className = `chip ${statusKind(payload.status)}`;
       setMetric("status", payload.status);
@@ -1104,6 +1252,10 @@
       $("terrainSub").textContent = `${payload.terrain?.active_cases_count ?? 0} dossier(s) actifs | ${payload.terrain?.mode || "-"}`;
       setMetric("reviewCampaign", `${campaign.validated_count ?? 0} / ${campaign.sessions_count ?? 0}`);
       $("reviewCampaignSub").textContent = `revues ${campaign.reviews_count ?? 0} | prets paquet ${campaign.ready_for_package_count ?? 0} | bloques ${campaign.blocked_count ?? 0}`;
+      setMetric("betaStatus", beta.status || "-");
+      $("betaSub").textContent = `${beta.blocking_count ?? 0} blocage(s) | local ${beta.ready_for_local_anonymized_beta === true ? "OK" : "A_VERIFIER"}`;
+      setMetric("betaSidebarStatus", beta.ready_for_external_ea_link ? "PRET_LIEN" : "BLOQUE");
+      $("betaSidebarSub").textContent = beta.hosted_url || `${beta.blocking_count ?? 0} controle(s) a fermer`;
       setMetric("package", payload.package?.status);
       $("packageSub").textContent = `${payload.package?.dossier_id || "-"} | ${payload.package?.artifacts_count || 0} artefacts | sessions ${payload.package?.session_generated_count || 0}`;
 
@@ -1125,11 +1277,32 @@
         lock: opsSnapshot.lock?.status || "-",
         next_action: opsSnapshot.next_action || "-"
       });
+      renderRows("betaChecks", ["Controle", "Statut"], (beta.checks || []).map((item) => [
+        `<strong>${escapeHtml(item.label || "-")}</strong><div class="muted">${escapeHtml(item.action || item.detail || "")}</div>`,
+        chip(item.status || "-")
+      ]));
       renderObjectTable("routes", payload.routes || {});
       renderObjectTable("contractSummary", {
         product_summary: "/product/summary",
         product_demo: "/product/demo",
         sessions: "/sessions",
+        session_claude: "/session/claude",
+        session_claude_action: "/session/claude/action",
+        session_claude_action_snapshot: "/session/claude/action/snapshot",
+        session_artifact_lineage: "/session/artifact-lineage",
+        session_runtime_state: "/session/runtime-state",
+        session_agents: "/session/agents",
+        session_agent_prompts: "/session/agent-prompts",
+        session_model_client: "/session/model-client",
+        session_live_replay: "/session/live-replay",
+        session_provider_diagnostics: "/session/provider-diagnostics",
+        beta_readiness: "/beta/readiness",
+        beta_terms: "/beta/terms",
+        beta_intake: "/beta/intake",
+        session_skills: "/session/skills",
+        session_settings: "/session/settings",
+        session_handoffs: "/session/handoffs",
+        session_command_history: "/session/command-history",
         session_summary: "/session/summary",
         review_dossier: "/review/dossier",
         review_save: "/review",
@@ -1338,6 +1511,189 @@
         return `<div class="message assistant"><div class="message-head"><span>${escapeHtml(item.agent_label || "Evaluateur AI")}</span><span>${escapeHtml(item.time || "")}</span></div>${escapeHtml(item.text)}</div>`;
       }).join("") || '<div class="empty">Posez une question sur les faits, les comparables, la valeur, les risques ou le rapport.</div>';
       $("assistantMessages").scrollTop = $("assistantMessages").scrollHeight;
+      renderClaudeController();
+    }
+
+    function renderClaudeController() {
+      const bundle = state.claudeBundle || {};
+      const actions = bundle.actions || {};
+      const lineage = bundle.artifact_lineage || {};
+      const runtime = bundle.runtime_state || {};
+      const runtimeSummary = runtime.summary || {};
+      const providerDiagnostics = bundle.provider_diagnostics || {};
+      const modelClient = bundle.model_client || {};
+      const liveReplay = bundle.live_replay || {};
+      const transcriptReplay = liveReplay.transcript_replay || {};
+      const liveLoop = modelClient.live_tool_loop || modelClient.model_client?.live_tool_loop || {};
+      const manifest = bundle.agent_manifest || {};
+      const agentPrompts = bundle.agent_prompts || {};
+      const skills = bundle.skills || {};
+      const settings = bundle.settings || {};
+      const handoffs = bundle.handoffs || {};
+      const commandHistory = bundle.command_history || commands.history || {};
+      const records = Array.isArray(actions.records) ? actions.records.slice(-10).reverse() : [];
+      renderClaudeActionControls(bundle);
+      renderObjectTable("claudeController", {
+        status: bundle.ok ? "OK" : "A_VERIFIER",
+        actions: actions.actions_count ?? 0,
+        mutations: actions.mutation_count ?? 0,
+        snapshots: actions.snapshots_count ?? 0,
+        lineage: `${lineage.artifacts_count ?? 0} / ${lineage.all_artifacts_count ?? 0}`,
+        terminal: Array.isArray(lineage.terminal_artifact_keys) ? lineage.terminal_artifact_keys.length : 0,
+        provider: providerDiagnostics.provider || "-",
+        provider_guardrails: Array.isArray(providerDiagnostics.missing_guardrails) ? providerDiagnostics.missing_guardrails.length : 0,
+        live_stop: liveLoop.stop_reason || "-",
+        live_turns: liveLoop.turns_count ?? 0,
+        live_tools: liveLoop.tool_calls_count ?? 0,
+        live_replay: liveReplay.ok ?? false,
+        live_retry_candidates: liveReplay.retry_candidates_count ?? 0,
+        live_permission_requests: liveReplay.permission_requests_count ?? 0,
+        transcript_tool_results: transcriptReplay.tool_result_count ?? 0,
+        latest: actions.latest?.action || "-",
+        integrity: bundle.integrity?.ok ?? false
+      });
+      renderObjectTable("claudeRuntimeState", {
+        agents: runtime.agents_count ?? 0,
+        messages: runtimeSummary.messages_count ?? 0,
+        tool_use: runtimeSummary.tool_use_count ?? 0,
+        estimated_tokens: runtimeSummary.estimated_tokens ?? 0,
+        compaction: runtimeSummary.needs_compaction_count ?? 0,
+        cost_usd: runtimeSummary.total_cost_usd ?? 0,
+        ok: runtime.ok ?? false
+      });
+      const manifestRows = (Array.isArray(manifest.agents) ? manifest.agents : []).map((item) => [
+        `<strong>${escapeHtml(item.agent_type || "-")}</strong><div class="muted">${escapeHtml(item.config_path || "-")}</div>`,
+        escapeHtml(item.model_profile?.canonical_model || item.model || "-"),
+        `${escapeHtml(item.tools_count ?? 0)} / ${escapeHtml(item.skills_count ?? 0)}`,
+        `${escapeHtml(item.commands_count ?? 0)}`
+      ]);
+      renderRows("claudeAgentManifest", ["Agent", "Modele", "Outils / skills", "Cmd"], manifestRows);
+      const promptRows = (Array.isArray(agentPrompts.prompts) ? agentPrompts.prompts : []).map((item) => [
+        `<strong>${escapeHtml(item.agent_type || "-")}</strong><div class="muted">${escapeHtml(item.config_path || "-")}</div>`,
+        `${escapeHtml(item.sections_count ?? 0)}`,
+        `${escapeHtml(item.rendered_chars ?? 0)}`,
+        chip(item.ok ? "OK" : "A_VERIFIER")
+      ]);
+      renderRows("claudeAgentPrompts", ["Agent", "Sections", "Chars", "Etat"], promptRows);
+      const skillRows = (Array.isArray(skills.skills) ? skills.skills : []).slice(0, 8).map((item) => [
+        `<strong>${escapeHtml(item.name || "-")}</strong><div class="muted">${escapeHtml(item.path || "-")}</div>`,
+        escapeHtml((item.agents || []).join(", ") || "-"),
+        escapeHtml(item.loaded_from || "-"),
+        `${escapeHtml((item.allowed_tools || []).length)}`
+      ]);
+      renderRows("claudeSkills", ["Skill", "Agents", "Source", "Outils"], skillRows);
+      const settingsRows = (Array.isArray(settings.sources) ? settings.sources : []).map((item) => [
+        `<strong>${escapeHtml(item.source || "-")}</strong><div class="muted">${escapeHtml(item.display_name || "")}</div>`,
+        escapeHtml(item.exists ? "oui" : "non"),
+        escapeHtml(item.editable ? "oui" : "non"),
+        `${escapeHtml(item.keys_count ?? 0)}`
+      ]);
+      renderRows("claudeSettings", ["Source", "Existe", "Editable", "Cles"], settingsRows);
+      const handoffRows = (Array.isArray(handoffs.handoffs) ? handoffs.handoffs : []).slice(0, 8).map((item) => [
+        `<strong>${escapeHtml(item.from_agent || "-")}</strong><div class="muted">${escapeHtml(item.direction || "-")}</div>`,
+        escapeHtml(item.to_agent || item.receiver_agent || "-"),
+        `${escapeHtml(item.artifacts_count ?? 0)}`,
+        chip(item.status || "-")
+      ]);
+      renderRows("claudeHandoffs", ["De", "Vers", "Artefacts", "Etat"], handoffRows);
+      const commandHistoryRows = (Array.isArray(commandHistory.records) ? commandHistory.records : []).slice(0, 8).map((item) => [
+        `<strong>${escapeHtml(item.command_display_name || item.command_name || "-")}</strong><div class="muted">${escapeHtml(item.command_type || "-")}</div>`,
+        chip(item.status || (item.ok ? "OK" : "ECHEC")),
+        escapeHtml(item.ok ? "oui" : "non"),
+        escapeHtml(item.created_at_utc || "-")
+      ]);
+      renderRows("claudeCommandHistory", ["Commande", "Statut", "OK", "Date"], commandHistoryRows);
+      const lineageRows = (Array.isArray(lineage.artifacts) ? lineage.artifacts : []).slice(0, 10).map((item) => [
+        `<strong>${escapeHtml(item.agent_type || "-")}</strong>`,
+        `${escapeHtml(item.artifact || "-")}<div class="muted">${escapeHtml(item.artifact_key || "-")}</div>`,
+        escapeHtml((item.consumed_by || []).join(", ") || "-"),
+        chip(item.terminal ? "terminal" : "handoff")
+      ]);
+      renderRows("claudeLineage", ["Agent", "Artefact", "Consomme par", "Etat"], lineageRows);
+      const edgeRows = (Array.isArray(lineage.handoff_edges) ? lineage.handoff_edges : []).map((edge) => [
+        escapeHtml(edge.from_agent || "-"),
+        escapeHtml(edge.to_agent || "-"),
+        `${escapeHtml(edge.artifacts_count ?? 0)}<div class="muted">${escapeHtml((edge.artifacts || []).map((artifact) => artifact.artifact || artifact.artifact_key || "").filter(Boolean).slice(0, 4).join(", ") || "-")}</div>`
+      ]);
+      renderRows("claudeLineageEdges", ["De", "Vers", "Artefacts"], edgeRows);
+      const rows = records.map((record) => {
+        const before = record.action_id === state.claudeActionSnapshot?.action_id
+          ? state.claudeActionSnapshot.snapshot?.before?.actions?.count
+          : "";
+        const after = record.action_id === state.claudeActionSnapshot?.action_id
+          ? state.claudeActionSnapshot.snapshot?.after?.actions?.count
+          : "";
+        return `
+          <tr class="action-row" data-action-id="${escapeHtml(record.action_id || "")}">
+            <td><strong>${escapeHtml(record.action || "-")}</strong><div class="muted">${escapeHtml(record.command_name || record.permission_latest_update_type || record.requested_action || "-")}</div></td>
+            <td>${chip(record.status || (record.ok ? "OK" : "ECHEC"))}</td>
+            <td>${escapeHtml(record.mutation_applied ? "oui" : "non")}</td>
+            <td>${escapeHtml(record.action_id || "-")}<div class="muted">${escapeHtml(record.snapshot_path ? "snapshot" : "-")}</div></td>
+            <td>${escapeHtml(before === undefined ? "" : before)}${after !== "" && after !== undefined ? " -> " + escapeHtml(after) : ""}</td>
+          </tr>
+        `;
+      }).join("");
+      $("claudeActions").innerHTML = `<thead><tr><th>Action</th><th>Statut</th><th>Mutation</th><th>ID</th><th>Avant/apres</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">Aucune action controleur.</td></tr>'}</tbody>`;
+      $("claudeActionSnapshot").textContent = state.claudeActionSnapshot
+        ? JSON.stringify({
+            action_id: state.claudeActionSnapshot.action_id,
+            action: state.claudeActionSnapshot.action,
+            path: state.claudeActionSnapshot.path,
+            validation: state.claudeActionSnapshot.validation,
+            before: state.claudeActionSnapshot.snapshot?.before?.actions || {},
+            after: state.claudeActionSnapshot.snapshot?.after?.actions || {},
+            action_result: state.claudeActionSnapshot.snapshot?.action_result || {}
+          }, null, 2)
+        : "Aucun snapshot charge.";
+      document.querySelectorAll(".action-row").forEach((row) => {
+        row.addEventListener("click", () => openClaudeActionSnapshot(row.dataset.actionId).catch(showError));
+      });
+    }
+
+    function renderClaudeActionControls(bundle) {
+      const commandsPayload = bundle.commands || {};
+      const commandItems = Array.isArray(commandsPayload.commands) ? commandsPayload.commands : [];
+      const names = commandItems.length
+        ? commandItems.filter((command) => command.executable !== false).map((command) => ({
+            name: command.name || command.command_name || "",
+            label: command.slash_name || command.name || command.command_name || ""
+          }))
+        : (commandsPayload.executable_command_names || commandsPayload.command_names || []).map((name) => ({
+            name,
+            label: `/${name}`
+          }));
+      const select = $("claudeCommand");
+      const selected = select.value;
+      select.innerHTML = names.map((item) =>
+        `<option value="${escapeHtml(item.name)}">${escapeHtml(item.label || item.name)}</option>`
+      ).join("") || '<option value="">Aucune commande</option>';
+      if (selected && names.some((item) => item.name === selected)) select.value = selected;
+      const hasSession = Boolean(state.activeSessionId);
+      $("runClaudeCommand").disabled = !hasSession || !select.value;
+      $("refreshClaudeController").disabled = !hasSession;
+      $("applyClaudePermission").disabled = !hasSession;
+    }
+
+    function normalizeClaudeActionSnapshot(payload) {
+      if (!payload || !payload.snapshot) return null;
+      return {
+        schema_version: "session_claude_action_snapshot_read_v1",
+        session_id: payload.session_id,
+        run_id: payload.run_id,
+        runtime_mode: payload.runtime_mode,
+        action_id: payload.action_id,
+        action: payload.action,
+        requested_action: payload.requested_action,
+        path: payload.snapshot.path,
+        record: payload.action_summary?.latest || {},
+        snapshot: payload.snapshot,
+        validation: {
+          schema_version: "session_claude_action_snapshot_read_validation_v1",
+          errors: [],
+          ok: true
+        },
+        ok: true
+      };
     }
 
     function selectedRecord() {
@@ -1347,9 +1703,11 @@
     function setActiveSession(sessionId) {
       if (state.activeSessionId !== sessionId) {
         state.activeSessionId = sessionId;
+        state.claudeBundle = null;
         state.knowledgeSnapshot = null;
         state.assistantWorkbench = null;
         state.assistantMessages = [];
+        state.claudeActionSnapshot = null;
       }
     }
 
@@ -1372,6 +1730,7 @@
         api("/ops/snapshot")
       ]);
       state.summary = summary;
+      state.betaReadiness = summary.beta || null;
       state.sessions = sessions.sessions || summary.sessions?.recent || [];
       state.campaign = campaign;
       state.opsSnapshot = opsSnapshot;
@@ -1396,19 +1755,21 @@
     async function loadSession(sessionId, options = {}) {
       if (!sessionId) return;
       setActiveSession(sessionId);
-      const [sessionSummary, dossierReview, packageSummary, knowledgeSnapshot, assistantWorkbench] = await Promise.all([
-        api(`/session/summary?session_id=${encodeURIComponent(sessionId)}`),
+      const [claudeBundle, dossierReview, packageSummary, knowledgeSnapshot, assistantWorkbench] = await Promise.all([
+        api(`/session/claude?session_id=${encodeURIComponent(sessionId)}&limit=10`),
         api(`/review/dossier?session_id=${encodeURIComponent(sessionId)}`),
         api(`/review/package?session_id=${encodeURIComponent(sessionId)}`),
         api(`/knowledge/immobilier?session_id=${encodeURIComponent(sessionId)}`),
         api(`/assistant/workbench?session_id=${encodeURIComponent(sessionId)}`)
       ]);
+      const sessionSummary = claudeBundle.summary || {};
+      state.claudeBundle = claudeBundle;
       state.sessionSummary = sessionSummary;
       state.dossierReview = dossierReview;
       state.packageSummary = packageSummary;
       state.knowledgeSnapshot = knowledgeSnapshot;
       state.assistantWorkbench = assistantWorkbench;
-      $("raw").textContent = JSON.stringify({ sessionSummary, dossierReview, packageSummary, knowledgeSnapshot, assistantWorkbench }, null, 2);
+      $("raw").textContent = JSON.stringify({ claudeBundle, sessionSummary, dossierReview, packageSummary, knowledgeSnapshot, assistantWorkbench }, null, 2);
       renderAll();
       if (!options.skipPanel) setActivePanel(state.currentPanel === "overview" ? "dossier" : state.currentPanel);
       if (!options.skipRefresh && state.summary) {
@@ -1426,6 +1787,37 @@
       });
       setActiveSession(payload.session.session_id);
       $("raw").textContent = JSON.stringify(payload, null, 2);
+      await refresh();
+      setActivePanel("dossier");
+    }
+
+    function buildBetaIntakeBody() {
+      const raw = $("betaCaseJson").value.trim();
+      const body = {
+        fixture: $("fixture").value || "case_nominal.json",
+        accepted_beta_terms: $("betaTerms").checked,
+        anonymization_attestation: $("betaAnonymized").checked,
+        operator: $("reviewer")?.value?.trim() || "beta_ui"
+      };
+      if (raw) {
+        body.case = JSON.parse(raw);
+        body.source_fixture = "beta_ui_json";
+        delete body.fixture;
+      }
+      return body;
+    }
+
+    async function launchBetaIntake() {
+      const payload = await api("/beta/intake", {
+        method: "POST",
+        body: JSON.stringify(buildBetaIntakeBody())
+      });
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      if (!payload.accepted) {
+        setActivePanel("raw");
+        return;
+      }
+      setActiveSession(payload.session.session_id);
       await refresh();
       setActivePanel("dossier");
     }
@@ -1479,6 +1871,65 @@
       $("raw").textContent = JSON.stringify(payload, null, 2);
     }
 
+    async function openClaudeActionSnapshot(actionId) {
+      if (!state.activeSessionId) throw new Error("aucune session active");
+      if (!actionId) throw new Error("action_id manquant");
+      const params = new URLSearchParams({ session_id: state.activeSessionId, action_id: actionId });
+      const payload = await api(`/session/claude/action/snapshot?${params.toString()}`);
+      state.claudeActionSnapshot = payload;
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      renderClaudeController();
+    }
+
+    async function postClaudeControllerAction(actionBody) {
+      if (!state.activeSessionId) throw new Error("aucune session active");
+      const payload = await api("/session/claude/action", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: state.activeSessionId,
+          limit: 10,
+          ...actionBody
+        })
+      });
+      state.claudeBundle = payload.bundle || state.claudeBundle;
+      state.sessionSummary = payload.bundle?.summary || state.sessionSummary;
+      state.claudeActionSnapshot = normalizeClaudeActionSnapshot(payload);
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      renderAll();
+      setActivePanel("assistant");
+      return payload;
+    }
+
+    async function runClaudeCommand() {
+      const command = $("claudeCommand").value;
+      if (!command) throw new Error("commande Claude requise");
+      await postClaudeControllerAction({
+        action: "execute_command",
+        command,
+        args: $("claudeCommandArgs").value.trim()
+      });
+    }
+
+    async function refreshClaudeController() {
+      await postClaudeControllerAction({ action: "refresh" });
+    }
+
+    async function applyClaudePermission() {
+      const directories = $("claudePermissionDirectories").value
+        .split(/[\n;,]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (!directories.length) throw new Error("repertoire a autoriser requis");
+      await postClaudeControllerAction({
+        action: "update_permissions",
+        update: {
+          type: "addDirectories",
+          destination: $("claudePermissionDestination").value || "session",
+          directories
+        }
+      });
+    }
+
     async function askAssistant() {
       if (!state.activeSessionId) throw new Error("aucune session active");
       const message = $("assistantInput").value.trim();
@@ -1518,10 +1969,14 @@
 
     $("refresh").addEventListener("click", () => refresh().catch(showError));
     $("demo").addEventListener("click", () => launchDemo().catch(showError));
+    $("betaLaunch").addEventListener("click", () => launchBetaIntake().catch(showError));
     $("resume").addEventListener("click", () => resumeSession().catch(showError));
     $("saveReview").addEventListener("click", () => saveReview().catch(showError));
     $("generatePackage").addEventListener("click", () => generatePackage().catch(showError));
     $("askAssistant").addEventListener("click", () => askAssistant().catch(showError));
+    $("runClaudeCommand").addEventListener("click", () => runClaudeCommand().catch(showError));
+    $("refreshClaudeController").addEventListener("click", () => refreshClaudeController().catch(showError));
+    $("applyClaudePermission").addEventListener("click", () => applyClaudePermission().catch(showError));
     $("openReview").addEventListener("click", openReview);
     $("openReviewSecondary").addEventListener("click", openReview);
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setActivePanel(tab.dataset.panel)));

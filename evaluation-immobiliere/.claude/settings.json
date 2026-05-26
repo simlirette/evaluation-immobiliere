@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "additionalDirectories": [
+      "C:\\Users\\simon\\claude-code-project"
+    ]
+  }
+}

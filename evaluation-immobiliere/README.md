@@ -96,6 +96,9 @@ http://127.0.0.1:8787/review/ui
 Endpoints:
 
 - `GET /product/summary`
+- `GET /beta/readiness`
+- `GET /beta/terms`
+- `POST /beta/intake`
 - `POST /product/demo`
 - `GET /auth/status`
 - `GET /ops/snapshot`
@@ -122,6 +125,17 @@ etat des agents, artefacts produits/manquants, transcript et prochaines actions.
 cockpit produit. Les reponses sont sourcees par les artefacts runtime et incluent
 des limites explicites: aucune certification automatique et aucune reponse
 d'evaluateur agree inventee.
+
+Le mode beta E.A. ferme est documente dans `atelier/BETA-EA-RUNBOOK-V1.md`.
+`/beta/readiness` indique si le lien peut etre partage a un evaluateur agree;
+`/beta/intake` lance un dossier seulement apres acceptation des limites beta et
+attestation d'anonymisation. Les documents bruts restent refuses par defaut
+avant contrat.
+
+Pour preparer un lien beta heberge, utiliser `.env.beta.example`, `Procfile`,
+`outils/verifier_beta_ea_readiness_v1.py` et
+`outils/smoke_beta_ea_link_v1.py`. Le smoke HTTP couvre auth, produit,
+readiness, intake anonymise et preuve `beta_intake` de session.
 
 Demo depuis un autre terminal:
 

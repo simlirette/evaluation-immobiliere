@@ -1,6 +1,6 @@
 # READINESS EVIDENCE INDEX
 
-_As-of date: 2026-05-04 (UTC)_
+_As-of date: 2026-05-26 (UTC)_
 
 ## Objectif
 
@@ -32,6 +32,7 @@ Indexer les preuves minimales de readiness client Aston-like et statuer
 | Conformite/securite | RBAC minimal defini | `atelier/PLAN-INFRA-PRO-ASTON-AVANT-REPONSES.md` | Partiel | A produire en terminal |
 | Conformite/securite | Secrets hors repo | `atelier/HANDOFF-TERMINAL-CHECKLIST.md` | Regle documentee | Deja pret |
 | Conformite/securite | Retention et journal acces | `schemas/ops/infra_contracts_report_v0.schema.json` | Partiel | A produire en terminal |
+| Conformite/securite | Beta E.A. lien ferme et dossier anonymise | `atelier/BETA-EA-RUNBOOK-V1.md`, `GET /beta/readiness`, `POST /beta/intake`, `outils/verifier_beta_ea_readiness_v1.py`, `outils/smoke_beta_ea_link_v1.py`, `runtime_sessions/*/beta_intake.json` | Gate implemente, URL/auth/smoke strict a executer en environnement | A produire au deploiement |
 | Exploitation ops | Runbook incident et rollback | `atelier/RUNBOOK-OPERATIONS-PRE-REPONSES.md` | Deja pret | Deja pret |
 | Exploitation ops | Contact hypercare defini | `atelier/HYPERCARE-OWNERS-V1.md` | Partiel | A produire en terminal |
 | Exploitation ops | Plan montee en charge progressive | `atelier/PLAN-DIRECTEUR-COMPLET-V1.md` | Partiel | A produire en terminal |
@@ -47,6 +48,7 @@ Indexer les preuves minimales de readiness client Aston-like et statuer
 - La propagation runtime des skills est verifiee sur audit logs, artefacts et resume par cas.
 - Les artefacts runtime produits par agent sont verifies par contrats metier conditionnels au statut du dossier.
 - L'homologation metier synthetique distingue la preparation runtime du go live: runtime pret, revues externes strictes exploitables, ecarts P1/P2 fermes ou acceptes formellement, preparation prod autorisee, release-candidate pret et go live soumis au controle staging.
+- La beta E.A. fermee possede maintenant un gate explicite: lien/URL, token, release candidate, anonymisation, workflow review/package et politique live-provider.
 
 ## Questions Ouvertes
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import os
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -14,8 +15,8 @@ from api import run_server
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Lance l'API runtime v0 evaluation-immobiliere.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8787)
+    parser.add_argument("--host", default=os.environ.get("EVAL_IMMO_API_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", os.environ.get("EVAL_IMMO_API_PORT", "8787"))))
     args = parser.parse_args()
     run_server(host=args.host, port=args.port)
 

@@ -9,6 +9,9 @@ python evaluation-immobiliere/outils/lancer_api_v0.py --host 127.0.0.1 --port 87
 ```
 
 Le serveur utilise uniquement la bibliotheque standard Python.
+Sans arguments, le launcher lit `EVAL_IMMO_API_HOST`, `EVAL_IMMO_API_PORT` ou
+`PORT`, ce qui permet un deploiement Procfile (`web: python
+outils/lancer_api_v0.py --host 0.0.0.0`).
 
 Interface locale:
 
@@ -25,6 +28,9 @@ Endpoints:
 - `GET /health`
 - `GET /auth/status`
 - `GET /product/summary`
+- `GET /beta/readiness`
+- `GET /beta/terms`
+- `POST /beta/intake`
 - `POST /product/demo`
 - `GET /ops/snapshot`
 - `POST /session`
@@ -154,6 +160,28 @@ envoye par l'UI. La reponse cite les routes de session, dossier et paquet V1,
 mais ne certifie pas la valeur et ne fabrique pas de reponses d'evaluateur
 agree.
 
+## Beta E.A. fermee
+
+```bash
+curl http://127.0.0.1:8787/beta/readiness
+
+curl -X POST http://127.0.0.1:8787/beta/intake ^
+  -H "Content-Type: application/json" ^
+  -d "{\"fixture\":\"case_pilote_residentiel_standard.json\",\"accepted_beta_terms\":true,\"anonymization_attestation\":true}"
+```
+
+`/beta/readiness` consolide les controles necessaires avant de partager un lien
+a un evaluateur agree: URL beta configuree, token actif, release candidate,
+audit anonymisation, workflow review/package et runtime live desactive par
+defaut.
+
+`/beta/intake` execute le runtime uniquement si les conditions beta sont
+acceptees et si le payload ne contient pas de motifs identifiants evidents. Il
+ecrit `beta_intake.json` dans la session avec les attestations, le delai de
+retention et le manifeste documentaire. Les champs de document brut comme
+`content`, `raw_text`, `base64` ou `pdf_base64` sont refuses par defaut avant
+contrat.
+
 ## Auth locale optionnelle
 
 Si `EVAL_RUNTIME_API_TOKEN` est defini, les routes de donnees/actions exigent
@@ -168,6 +196,17 @@ l'etat d'autorisation et les permissions vues par l'API.
 `runtime_pilotes_reels`: nombre de preuves presentes/manquantes, dernier run
 `pre_reponses_run.json`, lock actif et prochaine action (`EXECUTER_PRE_REPONSES`
 ou `AUCUNE`). Le cockpit produit l'utilise pour eviter un etat ops ambigu.
+
+## Gates beta automatises
+
+```bash
+python evaluation-immobiliere/outils/verifier_beta_ea_readiness_v1.py --strict-link
+python evaluation-immobiliere/outils/smoke_beta_ea_link_v1.py --base-url https://<domaine-beta> --token <token> --role supervisor --require-external-ready
+```
+
+Le premier gate ecrit `runtime_pilotes_reels/beta_ea_readiness_v1.json`.
+Le smoke HTTP ecrit `runtime_pilotes_reels/beta_ea_smoke_v1.json` sans
+persister le token.
 
 ## Persistance locale
 
