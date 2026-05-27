@@ -10,6 +10,7 @@ import DocItem from '@/components/shared/DocItem'
 import ChatInput from '@/components/shared/ChatInput'
 import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
+import PanelError from '@/components/shared/PanelError'
 import PipelineProgress from '@/components/shared/PipelineProgress'
 import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
 import CheckpointComparablePanel from '@/components/panels/CheckpointComparablePanel'
@@ -753,6 +754,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   const [documents, setDocuments] = useState<Document[]>([])
   const [showDropZone, setShowDropZone] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [uploads, setUploads] = useState<UploadStatus[]>([])
   const { replies, asking, ask } = useAgentChat(dossierId, 'data-facts')
 
@@ -792,6 +794,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
+    setFetchError(false)
     Promise.all([
       fetchRuntimeDocuments(dossierId),
       fetchAppState(dossierId),
@@ -814,6 +817,9 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           setIsRunning(true)
         }
       }
+    }).catch(() => {
+      setFetchError(true)
+      setLoading(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, refreshKey])
@@ -857,6 +863,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
 
   if (!isNew && (!dossierId || loading)) return <PanelLoader />
+  if (!isNew && fetchError) return <PanelError />
 
   if (isNew && !dossierId) {
     return (

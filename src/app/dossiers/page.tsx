@@ -108,6 +108,7 @@ export default function MesDossiersPage() {
   const [showFilter, setShowFilter] = useState(false)
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const dismissToast = useCallback(() => setToast(null), [])
   const filterRef = useRef<HTMLDivElement>(null)
@@ -115,8 +116,8 @@ export default function MesDossiersPage() {
 
   useEffect(() => {
     fetchRuntimeDossiers()
-      .then(data => setDossiers(data))
-      .finally(() => setLoading(false))
+      .then(data => { setDossiers(data); setLoading(false) })
+      .catch(() => { setError(true); setLoading(false) })
   }, [])
 
   // Close filter panel on outside click
@@ -307,7 +308,20 @@ export default function MesDossiersPage() {
           })()}
 
           {/* Grid */}
-          {loading ? (
+          {!loading && error ? (
+            <div className="flex flex-col items-center justify-center mt-20">
+              <EmptyState
+                title="Erreur de chargement"
+                subtitle="Impossible de récupérer les dossiers. Vérifiez votre connexion."
+              />
+              <button
+                onClick={() => { setError(false); setLoading(true); fetchRuntimeDossiers().then(data => { setDossiers(data); setLoading(false) }).catch(() => { setError(true); setLoading(false) }) }}
+                className="mt-5 rounded-full px-5 py-2.5 text-[13px] text-white bg-[#334155] hover:opacity-90 transition-opacity"
+              >
+                Réessayer
+              </button>
+            </div>
+          ) : loading ? (
             <div className="dossier-grid grid gap-4 grid-cols-1">
               {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
             </div>

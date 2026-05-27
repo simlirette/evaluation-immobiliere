@@ -30,13 +30,15 @@ export default function Sidebar({
   onNewDossier, onMesDossiers, onSignOut,
 }: Props) {
   const [dossiers, setDossiers] = useState<Dossier[]>([])
+  const [loadError, setLoadError] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const dismissToast = useCallback(() => setToast(null), [])
   const ctx = useContextMenu()
 
   useEffect(() => {
-    fetchRuntimeDossiers().then(setDossiers).catch(() => setDossiers([]))
+    setLoadError(false)
+    fetchRuntimeDossiers().then(d => { setDossiers(d); setLoadError(false) }).catch(() => setLoadError(true))
   }, [refreshKey])
 
   // Close drawer when viewport reaches desktop width
@@ -179,12 +181,24 @@ export default function Sidebar({
           onTabChange={tab => { onTabChange(tab); setMobileOpen(false) }}
         />
 
-        <SidebarRecent
-          dossiers={dossiers}
-          activeDossierId={activeDossierId}
-          onSelect={(id, name) => { onDossierSelect(id, name); setMobileOpen(false) }}
-          onContextMenu={(e, name, pinned) => ctx.open(e, name, pinned)}
-        />
+        {loadError ? (
+          <div className="px-4 py-3 flex flex-col gap-1.5">
+            <p className="text-[11px] text-[#b5b2ac]">Erreur de chargement</p>
+            <button
+              onClick={() => { setLoadError(false); fetchRuntimeDossiers().then(d => { setDossiers(d) }).catch(() => setLoadError(true)) }}
+              className="text-left text-[11px] text-[#334155] underline underline-offset-2 bg-transparent border-none cursor-pointer"
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : (
+          <SidebarRecent
+            dossiers={dossiers}
+            activeDossierId={activeDossierId}
+            onSelect={(id, name) => { onDossierSelect(id, name); setMobileOpen(false) }}
+            onContextMenu={(e, name, pinned) => ctx.open(e, name, pinned)}
+          />
+        )}
 
         <SidebarFooter onSignOut={onSignOut} />
       </aside>

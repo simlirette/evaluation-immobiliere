@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PanelSkeleton from '@/components/shared/PanelSkeleton'
+import PanelError from '@/components/shared/PanelError'
 import EmptyState from '@/components/shared/EmptyState'
 import ValuationTrace from '@/components/shared/ValuationTrace'
 import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
@@ -129,19 +130,22 @@ function ProjectionTable({ pv }: { pv: NonNullable<Enrichment['projection_valeur
 export default function SynthesePanel({ dossierId, address, onCritiqueFound }: Props) {
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     if (!dossierId) { setLoading(false); return }
     setLoading(true)
+    setError(false)
     fetchRuntimeEnrichment(dossierId).then(data => {
       setEnrichment(data)
       setLoading(false)
       const nb = data?.alertes?.nb_critiques ?? 0
       if (nb > 0) onCritiqueFound?.(nb)
-    }).catch(() => setLoading(false))
+    }).catch(() => { setError(true); setLoading(false) })
   }, [dossierId, onCritiqueFound])
 
   if (loading) return <PanelSkeleton />
+  if (error) return <PanelError />
 
   if (!enrichment || !enrichment.score_global) {
     return (

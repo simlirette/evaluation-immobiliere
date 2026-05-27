@@ -1,4 +1,5 @@
 import type { Adjustment, Comparable, Document, Dossier, Enrichment, FactChip } from '@/types'
+import { dedup } from './fetch-dedup'
 
 const BFF_BASE = '/api/runtime'
 
@@ -148,15 +149,18 @@ async function runtimeJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function fetchAppState(sessionId?: string | null): Promise<AppState> {
+  const key = sessionId ? `state:${sessionId}` : 'state:'
   const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
-  return runtimeJson<AppState>(`/app/state${query}`)
+  return dedup(key, () => runtimeJson<AppState>(`/app/state${query}`))
 }
 
-export async function fetchRuntimeDossiers(): Promise<Dossier[]> {
-  const state = await fetchAppState()
-  // archived filtered server-side; pinned comes from backend record
-  return (state.dossiers ?? [])
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+export function fetchRuntimeDossiers(): Promise<Dossier[]> {
+  return dedup('dossiers', async () => {
+    const state = await fetchAppState()
+    // archived filtered server-side; pinned comes from backend record
+    return (state.dossiers ?? [])
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+  })
 }
 
 export async function fetchRuntimeDossier(sessionId: string): Promise<Dossier | null> {
@@ -423,9 +427,11 @@ export async function generateRapport(
   return result.content
 }
 
-export async function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichment | null> {
-  const state = await fetchAppState(sessionId)
-  return state.active?.enrichment ?? null
+export function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichment | null> {
+  return dedup(`enrichment:${sessionId}`, async () => {
+    const state = await fetchAppState(sessionId)
+    return state.active?.enrichment ?? null
+  })
 }
 
 export interface TranscriptExchange {

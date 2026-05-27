@@ -112,14 +112,16 @@ export default function ValuationTrace({ sessionId }: Props) {
   const [open, setOpen] = useState(false)
   const [trace, setTrace] = useState<TraceData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [traceError, setTraceError] = useState(false)
 
   useEffect(() => {
     if (!open || trace || !sessionId) return
     setLoading(true)
+    setTraceError(false)
     fetchValuationTrace(sessionId).then(data => {
       setTrace(data)
       setLoading(false)
-    })
+    }).catch(() => { setTraceError(true); setLoading(false) })
   }, [open, sessionId, trace])
 
   const hasData = trace && trace.approaches.length > 0
@@ -143,7 +145,12 @@ export default function ValuationTrace({ sessionId }: Props) {
           {loading && (
             <div className="py-4 text-center text-[12px] text-[#b5b2ac]">Chargement…</div>
           )}
-          {!loading && !hasData && (
+          {!loading && traceError && (
+            <div className="py-4 text-center text-[12px] text-red-500">
+              Erreur lors du chargement de la trace.
+            </div>
+          )}
+          {!loading && !traceError && !hasData && (
             <div className="py-4 text-center text-[12px] text-[#b5b2ac]">
               Aucune trace — le pipeline de valorisation n&apos;a pas encore été exécuté.
             </div>
