@@ -19,9 +19,10 @@ interface Props {
   dossier: Dossier
   onClick: () => void
   onContextMenu?: (e: React.MouseEvent) => void
+  index?: number
 }
 
-export default function DossierCard({ dossier, onClick, onContextMenu }: Props) {
+export default function DossierCard({ dossier, onClick, onContextMenu, index = 0 }: Props) {
   return (
     <div
       role="button"
@@ -29,17 +30,18 @@ export default function DossierCard({ dossier, onClick, onContextMenu }: Props) 
       onClick={onClick}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       aria-label={`Ouvrir le dossier ${dossier.address}`}
-      className="group relative rounded-[18px] px-[22px] pt-[22px] pb-[18px] cursor-pointer transition-[transform,box-shadow] duration-200 hover:-translate-y-[3px] border border-white/[.72] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]"
+      className={`card-enter group relative rounded-[18px] px-[22px] pt-[22px] pb-[18px] cursor-pointer transition-[transform,box-shadow] duration-200 hover:-translate-y-[3px] border border-white/[.72] dark:border-white/[.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155] ${dossier.pinned ? 'card-pinned' : ''}`}
       style={{
         background: 'linear-gradient(165deg, rgba(248,244,238,.96) 0%, rgba(238,232,223,.90) 100%)',
         boxShadow: 'var(--shadow-card)',
+        animationDelay: `${index * 55}ms`,
       }}
     >
-      <div className="absolute top-3.5 right-3.5 flex items-center gap-1 z-10">
+      <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 z-10">
         {dossier.pinned && (
-          <svg width="11" height="11" fill="currentColor" viewBox="0 0 24 24" className="text-[#b5b2ac]">
-            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
-          </svg>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full tracking-wide text-[#334155] bg-[rgba(51,65,85,.10)]">
+            Épinglé
+          </span>
         )}
         {onContextMenu && (
           <button
@@ -54,12 +56,20 @@ export default function DossierCard({ dossier, onClick, onContextMenu }: Props) 
         )}
       </div>
       <div
-        className="text-[17px] font-medium text-[#1a1916] mb-1 leading-[1.2] tracking-[.01em] pr-7"
+        className="text-[18px] font-medium text-[#1a1916] dark:text-[#e8e5e0] mb-0.5 leading-[1.18] tracking-[.005em] pr-[60px]"
         style={{ fontFamily: 'var(--font-serif)' }}
       >
         {dossier.address}
       </div>
-      <div className="text-xs text-[#8a8780] font-light mb-3.5">{dossier.property_type} - {dossier.neighborhood}</div>
+      <div
+        className="text-[13px] text-[#8a8780] mb-4 leading-snug"
+        style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}
+      >
+        {dossier.property_type}
+        {dossier.neighborhood && (
+          <span className="text-[#b5b2ac]"> · {dossier.neighborhood}</span>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-[#b5b2ac]">{formatRelativeDate(dossier.updatedAt)}</span>
         <span className={`text-[10px] font-medium px-[9px] py-[3px] rounded-full tracking-[.02em] ${statusStyles[dossier.status]}`}>

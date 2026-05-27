@@ -27,10 +27,10 @@ export default function TabBar({ activeTab, onTabChange, hidden, reportReady, sy
         role="tablist"
         aria-label="Onglets du dossier"
         style={{
-          background: 'linear-gradient(180deg, rgba(230,224,214,.80) 0%, rgba(218,211,200,.70) 100%)',
+          background: 'linear-gradient(180deg, rgba(222,215,204,.90) 0%, rgba(208,200,188,.82) 100%)',
           backdropFilter: 'var(--glass-blur)',
           WebkitBackdropFilter: 'var(--glass-blur)',
-          border: '1px solid rgba(255,255,255,.38)',
+          border: '1px solid rgba(255,255,255,.48)',
           boxShadow: 'var(--shadow-glass)',
         }}
       >

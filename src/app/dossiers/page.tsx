@@ -296,12 +296,31 @@ export default function MesDossiersPage() {
           {!loading && dossiers.length > 0 && (() => {
             const s = computeDossierStats(dossiers)
             return (
-              <div className="flex justify-center mb-5 flex-shrink-0">
-                <div className="flex items-center gap-3 text-[11px] text-[#b5b2ac]">
-                  <span>{s.total} dossier{s.total !== 1 ? 's' : ''}</span>
-                  {s.complet > 0 && <><span className="opacity-40">·</span><span className="text-[#1f7a5c]">{s.complet} complet{s.complet !== 1 ? 's' : ''}</span></>}
-                  {s.en_cours > 0 && <><span className="opacity-40">·</span><span className="text-[#334155]">{s.en_cours} en cours</span></>}
-                  {s.brouillon > 0 && <><span className="opacity-40">·</span><span>{s.brouillon} brouillon{s.brouillon !== 1 ? 's' : ''}</span></>}
+              <div className="flex justify-center mb-6 flex-shrink-0">
+                <div className="flex items-stretch gap-px rounded-[14px] overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(248,244,238,.80) 0%, rgba(235,229,220,.70) 100%)',
+                    backdropFilter: 'var(--glass-blur)',
+                    WebkitBackdropFilter: 'var(--glass-blur)',
+                    border: '1px solid rgba(255,255,255,.55)',
+                    boxShadow: 'var(--shadow-glass)',
+                  }}
+                >
+                  {[
+                    { count: s.total, label: 'dossier' + (s.total !== 1 ? 's' : ''), color: '#1a1916' },
+                    ...(s.complet > 0 ? [{ count: s.complet, label: 'complet' + (s.complet !== 1 ? 's' : ''), color: '#1f7a5c' }] : []),
+                    ...(s.en_cours > 0 ? [{ count: s.en_cours, label: 'en cours', color: '#334155' }] : []),
+                    ...(s.brouillon > 0 ? [{ count: s.brouillon, label: 'brouillon' + (s.brouillon !== 1 ? 's' : ''), color: '#8a8780' }] : []),
+                  ].map((item, i, arr) => (
+                    <div key={item.label} className="flex flex-col items-center px-5 py-2.5" style={{
+                      borderRight: i < arr.length - 1 ? '1px solid rgba(0,0,0,.06)' : 'none',
+                    }}>
+                      <span className="text-[22px] leading-none font-light tracking-tight" style={{ fontFamily: 'var(--font-serif)', color: item.color }}>
+                        {item.count}
+                      </span>
+                      <span className="text-[9px] uppercase tracking-[.08em] text-[#b5b2ac] mt-0.5 font-medium">{item.label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -352,12 +371,13 @@ export default function MesDossiersPage() {
             </div>
           ) : (
             <div className="dossier-grid grid gap-4 grid-cols-1">
-              {filtered.map(d => (
+              {filtered.map((d, i) => (
                 <DossierCard
                   key={d.id}
                   dossier={d}
                   onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
                   onContextMenu={e => ctx.open(e, d.address, d.pinned)}
+                  index={i}
                 />
               ))}
             </div>
