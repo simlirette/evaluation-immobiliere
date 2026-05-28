@@ -1,18 +1,13 @@
 import type { Metadata } from 'next'
-import { Cormorant_Garamond, Inter } from 'next/font/google'
+import { Source_Serif_4 } from 'next/font/google'
 import Providers from '@/providers/Providers'
 import './globals.css'
 
-const cormorant = Cormorant_Garamond({
+const sourceSerif = Source_Serif_4({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-  variable: '--font-cormorant',
-  display: 'swap',
-})
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
+  weight: ['300', '400', '500', '600', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-source-serif',
   display: 'swap',
 })
 
@@ -25,7 +20,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" data-theme="light">
-      <body className={`${cormorant.variable} ${inter.variable}`}>
+      <body className={sourceSerif.variable}>
         <Providers>{children}</Providers>
       </body>
     </html>
