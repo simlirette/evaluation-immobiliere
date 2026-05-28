@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import TabBar from '@/components/layout/TabBar'
-import ThemeToggle from '@/components/layout/ThemeToggle'
 import Toast from '@/components/shared/Toast'
 import ShortcutHelp from '@/components/shared/ShortcutHelp'
 import DossierPanel from '@/components/panels/DossierPanel'
@@ -120,20 +119,10 @@ function DossierShellInner() {
   }
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      <ThemeToggle />
-
+    <div className="relative w-full h-screen overflow-hidden flex" style={{ background: 'var(--paper)' }}>
       <Sidebar
-        activeDossierId={activeDossierId}
-        activeTab={activeTab}
-        showMesDossiers={showMesDossiers}
-        currentDossierName={currentDossierName}
-        refreshKey={sidebarRefreshKey}
-        onTabChange={setTab}
-        onDossierSelect={handleDossierSelect}
-        onNewDossier={handleNewDossier}
-        onMesDossiers={handleMesDossiers}
         onSignOut={handleSignOut}
+        currentDossierAddress={isNew ? null : currentDossierName}
       />
 
       <div className="main-content absolute inset-0 flex flex-col">

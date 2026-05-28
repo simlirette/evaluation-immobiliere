@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
-import ThemeToggle from '@/components/layout/ThemeToggle'
 import DossierCard from '@/components/dossiers/DossierCard'
 import EmptyState from '@/components/shared/EmptyState'
 import ContextMenu from '@/components/layout/ContextMenu'
@@ -14,7 +13,7 @@ import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
 import { filterDossiers, type StatusFilter } from '@/lib/filter-dossiers'
 import { computeDossierStats } from '@/lib/dossier-stats'
 import { createClient } from '@/lib/supabase/client'
-import type { Dossier, TabId } from '@/types'
+import type { Dossier } from '@/types'
 
 const SORT_LABELS: Record<SortKey, string> = {
   recent: 'Récent en premier',
@@ -185,20 +184,8 @@ export default function MesDossiersPage() {
   const filtered = sortDossiers(filterDossiers(dossiers, search, statusFilter), sort)
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      <ThemeToggle />
-
-      <Sidebar
-        activeDossierId={null}
-        activeTab="dossier"
-        showMesDossiers={true}
-        currentDossierName=""
-        onTabChange={(tab: TabId) => router.push(`/dossier/nouveau?tab=${tab}`)}
-        onDossierSelect={(id: string) => router.push(`/dossier/${id}?tab=dossier`)}
-        onNewDossier={() => router.push('/dossier/nouveau?tab=dossier')}
-        onMesDossiers={() => {}}
-        onSignOut={handleSignOut}
-      />
+    <div className="relative w-full h-screen overflow-hidden flex" style={{ background: 'var(--paper)' }}>
+      <Sidebar onSignOut={handleSignOut} />
 
       <div className="main-content absolute inset-0 flex flex-col overflow-y-auto">
         <div className="flex flex-col px-10 pt-7 pb-9 flex-1">
