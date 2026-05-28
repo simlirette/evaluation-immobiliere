@@ -175,27 +175,28 @@ function NewDossierForm() {
   }
 
   const inputStyle = {
-    background: 'var(--input-bg)',
-    border: '1px solid var(--input-border)',
+    background: 'var(--paper-hi)',
+    border: '1px solid var(--rule)',
   }
 
   const selectStyle = {
-    background: 'var(--input-bg)',
-    border: '1px solid var(--input-border)',
+    background: 'var(--paper-hi)',
+    border: '1px solid var(--rule)',
     appearance: 'none' as const,
     WebkitAppearance: 'none' as const,
   }
 
   return (
     <div className="w-full max-w-[520px] flex flex-col gap-6 pb-9">
-      <div className="text-center">
-        <div
-          className="text-[20px] font-medium text-[#1a1916] tracking-[-.01em]"
-          style={{ fontFamily: 'var(--font-serif)' }}
+      <div>
+        <div className="eyebrow mb-1">Étape 1 — Dossier</div>
+        <h2
+          className="text-[26px] font-medium"
+          style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)' }}
         >
           Nouveau dossier
-        </div>
-        <p className="mt-1 text-[13px] text-[#8a8780]">
+        </h2>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--ink-mute)' }}>
           {formStep === 1
             ? 'Lance un dossier pilote dans le backend runtime et ouvre les agents AI.'
             : formStep === 2
@@ -205,7 +206,10 @@ function NewDossierForm() {
       </div>
 
       {error && (
-        <div className="rounded-[10px] px-4 py-3 text-[13px] text-red-700 bg-red-50/80 border border-red-200/60">
+        <div
+          className="rounded-[var(--r-md)] px-4 py-3 text-[13px]"
+          style={{ color: 'var(--oxblood)', background: 'rgba(138,48,48,.08)', border: '1px solid rgba(138,48,48,.15)' }}
+        >
           {error}
         </div>
       )}
@@ -345,8 +349,7 @@ function NewDossierForm() {
                 setFormStep(2)
               }
             }}
-            className="mt-1 w-full rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-            style={{ background: '#334155' }}
+            className="btn accent btn-full mt-1"
           >
             Suivant →
           </button>
@@ -463,15 +466,14 @@ function NewDossierForm() {
             <button
               type="button"
               onClick={() => { setError(''); setFormStep(1) }}
-              className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+              className="btn ghost flex-1"
             >
               ← Retour
             </button>
             <button
               type="submit"
-              className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: '#334155' }}
+              className="btn accent"
+              style={{ flex: 2 }}
             >
               Suivant →
             </button>
@@ -632,15 +634,14 @@ function NewDossierForm() {
             <button
               type="button"
               onClick={() => { setError(''); setFormStep(2) }}
-              className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+              className="btn ghost flex-1"
             >
               ← Retour
             </button>
             <button
               type="submit"
-              className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: '#334155' }}
+              className="btn accent"
+              style={{ flex: 2 }}
             >
               Lancer l&apos;évaluation
             </button>

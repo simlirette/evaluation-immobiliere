@@ -35,6 +35,10 @@
 
 /* ── LIGHT TOKENS ── */
 :root {
+  /* Legacy aliases for backward-compat with panel components */
+  --input-bg:     var(--paper-hi);
+  --input-border: var(--rule);
+
   --paper:       #faf9f5;
   --paper-2:     #f3f1ea;
   --paper-3:     #ebe8dd;

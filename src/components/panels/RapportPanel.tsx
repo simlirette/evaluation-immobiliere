@@ -284,18 +284,18 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 </ul>
               </div>
             )}
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3 flex-wrap">
               <button
                 onClick={handleValidate}
                 disabled={!state.canValidate || busy !== ''}
-                className="rounded-full px-3.5 py-2 text-[12px] bg-[#334155] text-white disabled:opacity-40"
+                className="btn secondary btn-sm disabled:opacity-40"
               >
                 {busy === 'review' ? 'Validation...' : 'Valider revue interne'}
               </button>
               <button
                 onClick={handlePackage}
                 disabled={!state.canPackage || busy !== ''}
-                className="rounded-full px-3.5 py-2 text-[12px] bg-[#1f7a5c] text-white disabled:opacity-40"
+                className="btn accent btn-sm disabled:opacity-40"
               >
                 {busy === 'package' ? 'G\u00e9n\u00e9ration...' : 'G\u00e9n\u00e9rer paquet V1'}
               </button>
@@ -303,7 +303,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
                 <button
                   onClick={handleDownload}
                   disabled={busy !== ''}
-                  className="rounded-full px-3.5 py-2 text-[12px] bg-[#334155] text-white disabled:opacity-40"
+                  className="btn secondary btn-sm disabled:opacity-40"
                 >
                   {busy === 'download' ? 'Téléchargement...' : '↓ Télécharger paquet'}
                 </button>
