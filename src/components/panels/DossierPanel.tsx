@@ -1061,16 +1061,31 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             + Ajouter un fichier local
           </button>
           {dossierId && (
-            <button
-              onClick={async () => {
-                setMandatDownloading(true)
-                try { await downloadLettreMandat(dossierId) } finally { setMandatDownloading(false) }
-              }}
-              disabled={mandatDownloading}
-              className="mt-1 text-[12px] text-[#8a8780] hover:text-[#1a1916] underline underline-offset-2 bg-transparent border-none cursor-pointer font-sans disabled:opacity-40"
+            <div
+              className="mt-3 rounded-[var(--r-md)] px-4 py-3 flex items-center justify-between gap-4"
+              style={{ background: 'var(--paper-2)', border: '1px solid var(--rule-soft)' }}
             >
-              {mandatDownloading ? 'Génération…' : '↓ Lettre de mandat (PDF)'}
-            </button>
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium" style={{ color: 'var(--ink)' }}>
+                  Lettre de mandat
+                </div>
+                <div className="text-[12px] mt-0.5" style={{ color: 'var(--ink-mute)' }}>
+                  {commanditaire
+                    ? `${commanditaire.nom}${commanditaire.organisation ? ` · ${commanditaire.organisation}` : ''}`
+                    : 'Document signé requis avant rapport'}
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  setMandatDownloading(true)
+                  try { await downloadLettreMandat(dossierId) } finally { setMandatDownloading(false) }
+                }}
+                disabled={mandatDownloading}
+                className="btn secondary btn-sm flex-shrink-0 disabled:opacity-40"
+              >
+                {mandatDownloading ? 'Génération…' : '↓ PDF'}
+              </button>
+            </div>
           )}
         </AgentMessage>
         {uploads.map((u, i) => (
