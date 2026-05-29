@@ -20,12 +20,17 @@ const MIN_COMPARABLES = 3
 
 function ScoreBadge({ score }: { score: number }) {
   const pct = Math.round(score * 100)
-  const color =
-    score >= 0.75 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
-    : score >= 0.55 ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
-    : 'bg-red-500/15 text-red-400 border-red-500/20'
+  const style =
+    score >= 0.75
+      ? { background: 'rgba(74,107,84,.12)', color: 'var(--verdigris)', border: '1px solid rgba(74,107,84,.22)' }
+      : score >= 0.55
+      ? { background: 'rgba(184,138,62,.12)', color: 'var(--ochre)', border: '1px solid rgba(184,138,62,.22)' }
+      : { background: 'rgba(138,48,48,.10)', color: 'var(--oxblood)', border: '1px solid rgba(138,48,48,.20)' }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${color}`}>
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+      style={style}
+    >
       {pct}%
     </span>
   )
@@ -41,26 +46,31 @@ function CandidateRow({
   onToggle: () => void
 }) {
   return (
-    <label className={[
-      'flex items-start gap-3 px-3 py-3 rounded-xl border cursor-pointer transition-all',
-      selected
-        ? 'border-amber-500/40 bg-amber-500/5'
-        : 'border-white/8 bg-white/2 hover:border-white/15',
-    ].join(' ')}>
+    <label
+      className="flex items-start gap-3 px-3 py-3 rounded-[var(--r-md)] cursor-pointer transition-colors"
+      style={{
+        border: selected ? '1px solid var(--navy)' : '1px solid var(--rule)',
+        background: selected ? 'var(--navy-tint)' : 'var(--paper-hi)',
+      }}
+    >
       <input
         type="checkbox"
         checked={selected}
         onChange={onToggle}
-        className="mt-0.5 shrink-0 w-4 h-4 accent-amber-400"
+        className="mt-0.5 flex-shrink-0 w-4 h-4"
+        style={{ accentColor: 'var(--navy)' }}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-sm font-medium text-foreground truncate">{candidate.adresse}</span>
-          <div className="flex items-center gap-2 shrink-0">
-            <ScoreBadge score={candidate.score} />
-          </div>
+          <span className="text-[13px] font-medium truncate" style={{ color: 'var(--ink)' }}>
+            {candidate.adresse}
+          </span>
+          <ScoreBadge score={candidate.score} />
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-foreground/50">
+        <div
+          className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-[12px]"
+          style={{ color: 'var(--ink-mute)' }}
+        >
           <span>{formatCAD(candidate.prix_vente)}</span>
           {candidate.date_vente && <span>{candidate.date_vente.slice(0, 10)}</span>}
           {candidate.surface_habitable != null && (
@@ -71,7 +81,7 @@ function CandidateRow({
           {candidate.distance_km != null && (
             <span>{candidate.distance_km.toFixed(1)} km</span>
           )}
-          <span className="text-foreground/30">{candidate.source_id}</span>
+          <span style={{ color: 'var(--ink-faint)' }}>{candidate.source_id}</span>
         </div>
       </div>
     </label>
@@ -158,18 +168,29 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/15 text-amber-400 font-bold text-sm shrink-0">
+        <span
+          className="flex items-center justify-center text-[14px] font-bold flex-shrink-0"
+          style={{
+            width: '2rem',
+            height: '2rem',
+            borderRadius: '50%',
+            background: 'rgba(184,138,62,.12)',
+            color: 'var(--ochre)',
+          }}
+        >
           {checkpoint}
         </span>
         <div>
-          <p className="text-xs text-foreground/50 uppercase tracking-wider">Confirmation requise</p>
-          <h2 className="font-semibold text-foreground">Sélection des comparables</h2>
+          <div className="eyebrow">Confirmation requise</div>
+          <h2 className="text-[16px] font-medium mt-0.5" style={{ color: 'var(--ink)' }}>
+            Sélection des comparables
+          </h2>
         </div>
       </div>
 
       {subjectAddress && (
-        <div className="text-xs text-foreground/40">
-          Bien sujet : <span className="text-foreground/70">{subjectAddress}</span>
+        <div className="text-[12px]" style={{ color: 'var(--ink-mute)' }}>
+          Bien sujet : <span style={{ color: 'var(--ink)' }}>{subjectAddress}</span>
         </div>
       )}
 
@@ -178,12 +199,12 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
         onClick={() => inputRef.current?.click()}
-        className={[
-          'flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-5 cursor-pointer transition-colors text-center',
-          uploading
-            ? 'border-amber-500/40 bg-amber-500/5 cursor-wait'
-            : 'border-white/10 hover:border-white/20 bg-white/2',
-        ].join(' ')}
+        className="flex flex-col items-center justify-center gap-2 rounded-[var(--r-md)] px-6 py-5 transition-colors text-center"
+        style={{
+          border: uploading ? '2px dashed var(--ochre)' : '2px dashed var(--rule)',
+          background: uploading ? 'rgba(184,138,62,.05)' : 'var(--paper-2)',
+          cursor: uploading ? 'wait' : 'pointer',
+        }}
       >
         <input
           ref={inputRef}
@@ -197,27 +218,41 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
           }}
         />
         {uploading ? (
-          <span className="text-sm text-amber-400 animate-pulse">Import en cours…</span>
+          <span className="text-[13px] animate-pulse" style={{ color: 'var(--ochre)' }}>
+            Import en cours…
+          </span>
         ) : (
           <>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-foreground/30" aria-hidden>
-              <path d="M10 3v10M6 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden
+              style={{ color: 'var(--ink-faint)' }}>
+              <path d="M10 3v10M6 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5"
+                strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
-            <span className="text-sm text-foreground/50">
+            <span className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>
               {candidates.length > 0
                 ? 'Importer un autre export JLR (CSV)'
-                : 'Importer l\'export CSV JLR'}
+                : "Importer l'export CSV JLR"}
             </span>
-            <span className="text-xs text-foreground/30">Glisser-déposer ou cliquer — CSV uniquement, max 5 Mo</span>
+            <span className="text-[12px]" style={{ color: 'var(--ink-faint)' }}>
+              Glisser-déposer ou cliquer — CSV uniquement, max 5 Mo
+            </span>
           </>
         )}
       </div>
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 mt-0.5" aria-hidden>
+        <div
+          className="flex items-start gap-3 p-3 rounded-[var(--r-md)] text-[13px]"
+          style={{
+            background: 'rgba(138,48,48,.08)',
+            border: '1px solid rgba(138,48,48,.18)',
+            color: 'var(--oxblood)',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+            className="flex-shrink-0 mt-0.5" aria-hidden>
             <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
             <line x1="8" y1="4.5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             <circle cx="8" cy="11.5" r="1" fill="currentColor"/>
@@ -228,7 +263,7 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
 
       {/* Loading */}
       {loading && (
-        <div className="py-6 text-center text-foreground/40 text-sm animate-pulse">
+        <div className="py-6 text-center text-[13px] animate-pulse" style={{ color: 'var(--ink-faint)' }}>
           Chargement des comparables…
         </div>
       )}
@@ -236,13 +271,18 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
       {/* Candidates list */}
       {!loading && candidates.length > 0 && (
         <>
-          <div className="flex items-center justify-between text-xs text-foreground/40">
-            <span>{candidates.length} comparable{candidates.length > 1 ? 's' : ''} proposé{candidates.length > 1 ? 's' : ''} — sélectionnez-en au moins {MIN_COMPARABLES}</span>
+          <div className="flex items-center justify-between text-[12px]" style={{ color: 'var(--ink-mute)' }}>
+            <span>
+              {candidates.length} comparable{candidates.length > 1 ? 's' : ''} proposé
+              {candidates.length > 1 ? 's' : ''} — sélectionnez-en au moins {MIN_COMPARABLES}
+            </span>
             {nSelected > 0 && (
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="text-foreground/40 hover:text-foreground/60 transition-colors"
+                style={{ color: 'var(--ink-mute)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--ink)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-mute)')}
               >
                 Tout désélectionner
               </button>
@@ -261,8 +301,8 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
           </div>
 
           {/* Selection summary */}
-          <div className="flex items-center justify-between text-sm">
-            <span className={nSelected < MIN_COMPARABLES ? 'text-orange-400' : 'text-emerald-400'}>
+          <div className="flex items-center text-[13px]">
+            <span style={{ color: nSelected < MIN_COMPARABLES ? 'var(--ochre)' : 'var(--verdigris)' }}>
               {nSelected} sélectionné{nSelected > 1 ? 's' : ''}
               {nSelected < MIN_COMPARABLES && ` — minimum ${MIN_COMPARABLES} requis (B007)`}
             </span>
@@ -272,30 +312,23 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
           <button
             onClick={handleConfirm}
             disabled={!canConfirm || confirming}
-            className={[
-              'w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all',
-              !canConfirm
-                ? 'bg-white/5 text-foreground/30 cursor-not-allowed'
-                : confirming
-                  ? 'bg-white/5 text-foreground/30 cursor-not-allowed'
-                  : 'bg-amber-500 hover:bg-amber-400 text-white active:scale-[0.98]',
-            ].join(' ')}
+            className="btn accent btn-full disabled:opacity-40"
           >
             {confirming
               ? 'Confirmation en cours…'
               : `Confirmer les comparables (${nSelected} sélectionné${nSelected > 1 ? 's' : ''})`}
           </button>
 
-          <p className="text-center text-xs text-foreground/30">
+          <p className="text-center text-[12px]" style={{ color: 'var(--ink-faint)' }}>
             En confirmant, vous attestez avoir vérifié et retenu ces comparables.
             Cette action est horodatée et rattachée à votre compte.
           </p>
         </>
       )}
 
-      {/* Empty state — no candidates yet */}
+      {/* Empty state */}
       {!loading && candidates.length === 0 && !error && (
-        <div className="py-6 text-center text-foreground/40 text-sm">
+        <div className="py-6 text-center text-[13px]" style={{ color: 'var(--ink-mute)' }}>
           Importez un export CSV JLR pour afficher les comparables.
         </div>
       )}
