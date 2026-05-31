@@ -1,30 +1,38 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 9580d99 (branch: docs/audit-et-plans-2026-05-31)_
+_Updated: 2026-05-31 | HEAD: a commit après T2.6 (branch: docs/audit-et-plans-2026-05-31)_
 
 ## Current Goal
 
-Phase 2 — T2.1+T2.3+T2.5 done. Prochaine : T2.2 (unification source calcul) ou T2.6 (frontend diagnostics).
+Phase 2 — T2.1+T2.3+T2.5+T2.6 done. T2.2 (architectural) ou Phase 3 next.
 
 ## Plan Status
 
 Plan : `docs/plans/2026-05-31-phase-2-coeur-analytique.md`
 
-- [x] T2.1 — Grille ajustements 7 lignes/comp, médiane, fourchette (bdf2630)
-- [x] T2.3 — AMU réelle 4 critères déterministes (3fd9a0e)
-- [x] T2.5 — TGA/coûts proxy marqués VALEUR PROXY, notes a_valider (9580d99)
-- [ ] T2.2 — Unification source calcul TS/Python (Python = source vérité, frontend = affichage)
-- [ ] T2.4 — Tables coûts certifiables (accès Altus requis — externe)
-- [ ] T2.6 — Visibilité diagnostics sources (frontend MarchePanel/CheckpointComparablePanel)
+- [x] T2.1 — Grille ajustements 7 lignes/comp, médiane, fourchette
+- [x] T2.3 — AMU réelle 4 critères déterministes
+- [x] T2.5 — PROXY TGA/coûts marqués VALEUR PROXY
+- [x] T2.6 — Diagnostics sources frontend (SourceDiagnosticPanel, MarchePanel, CheckpointComparablePanel)
+- [ ] T2.2 — Unification TS/Python (~150 compute-*.ts audit + décision Python = source vérité)
+- [ ] T2.4 — Tables coûts certifiables (Altus — accès externe requis)
+
+Phase 3 — Rapport expert (prochaine priorité après T2.2 ou directement) :
+Plan : `docs/plans/2026-05-31-phase-3-rapport-expert.md`
+- T3.1 — 16 éléments garantis post-génération
+- T3.2 — Grille ajustements dans le rapport
+- T3.3 — Capture inspection (élément 14 NPP)
+- T3.4 — Repli déterministe complet
+- T3.5 — Export certifiable (signature, n° permis)
 
 ## Evidence
 
-- 36 tests P2 verts (9580d99)
-- AVERTISSEMENT = "VALEUR PROXY" dans trace.defaults_used quand TGA/vacance/loyer = défaut
-- _cost_uses_default + AVERTISSEMENT_COUT pour approche coût
+- 953 tests backend verts (3fd9a0e)
+- 0 erreurs TS après T2.6 (npx tsc --noEmit)
+- SourceDiagnosticPanel : compact/full, statuts colorés ok/partial/empty/failed/missing
 
 ## Open Issues
 
 - T0.5+T1.3 prod : migrations 002–006 + index_corpus()
-- T2.2 : ~150 compute-*.ts frontend à auditer (usage réel?) avant décision
+- T2.2 : décision à prendre — Python source vérité, frontend = affichage (compute-*.ts = analytics only)
 - T2.4 : accès Altus incertain — repli saisie manuelle É.A.
