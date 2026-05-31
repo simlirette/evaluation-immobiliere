@@ -11,6 +11,7 @@ import ast
 import uuid
 
 from engine.audit import append_audit_log
+from engine.amu import evaluate_amu
 from engine.compliance import run_compliance, check_conflit_interets
 from engine.llm_routing import get_llm_model, estimate_llm_cost
 from engine.schema_contracts import validate_artifact_schema
@@ -769,42 +770,7 @@ class RuntimeEngine:
             payload["sources"] = [{"source_id": source_id} for source_id in collect_source_ids(case)]
 
         if step == "amu-analyst" and artifact == "umpp_conclusion.json":
-            type_bien = str(case.get("type_bien", "inconnu")).lower()
-            usage_map = {
-                "residentiel_unifamilial": "residentiel_unifamilial",
-                "unifamilial": "residentiel_unifamilial",
-                "maison": "residentiel_unifamilial",
-                "condo": "residentiel_condo",
-                "duplex": "residentiel_multifamilial",
-                "triplex": "residentiel_multifamilial",
-                "commercial": "commercial",
-                "industriel": "industriel",
-                "terrain": "terrain_vacant",
-                "terrain_vacant": "terrain_vacant",
-            }
-            usage_retenu = usage_map.get(type_bien, type_bien or "inconnu")
-            payload.update({
-                "umpp": {
-                    "usage_retenu": usage_retenu,
-                    "usage_actuel": type_bien,
-                    "conformite_zonage": True,
-                    "criteres": {
-                        "physiquement_possible": True,
-                        "legalement_permis": True,
-                        "financierement_faisable": True,
-                        "maximalement_productif": True,
-                    },
-                    "conclusion": (
-                        f"L'usage actuel ({type_bien.replace('_', ' ')}) constitue le "
-                        f"meilleur usage du bien."
-                        if usage_retenu == type_bien else
-                        f"L'usage optimal ({usage_retenu.replace('_', ' ')}) differe "
-                        f"de l'usage actuel ({type_bien.replace('_', ' ')})."
-                    ),
-                    "umpp_differe_usage_actuel": usage_retenu != type_bien,
-                },
-                "confidence": 0.70,
-            })
+            payload.update(evaluate_amu(case))
 
         if step == "amu-analyst" and artifact == "amu_analyse.md":
             type_bien = str(case.get("type_bien", "inconnu")).replace("_", " ")
