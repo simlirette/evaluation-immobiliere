@@ -5203,8 +5203,10 @@ def enrich_case(
         except Exception as exc:
             logger.debug("rendement_locatif skip: %s", exc)
 
-    # ── Score composite d'investissement (calcul interne, dépend B30+B31+B32) ─
-    if not case.get("score_investissement"):
+    # ── Score composite d'investissement (hors périmètre OEAQ — optionnel T6.2) ─
+    # Activé seulement si INCLUDE_INVESTMENT_CONTEXT=1 (UI marché seulement)
+    _include_investment = os.environ.get("INCLUDE_INVESTMENT_CONTEXT", "0") == "1"
+    if _include_investment and not case.get("score_investissement"):
         try:
             invest = compute_score_investissement(case)
             if invest:
@@ -5228,28 +5230,27 @@ def enrich_case(
         except Exception as exc:
             logger.debug("taxes_municipales skip: %s", exc)
 
-    # ── Coûts de possession totaux (calcul interne, dépend B30+B34) ──────────
-    if not case.get("couts_possession"):
-        try:
-            couts = compute_couts_possession(case)
-            if couts:
-                case["couts_possession"] = couts
-                logger.debug("couts_possession : total=%d $/mois (%s)",
-                             couts.get("total_mensuel", 0),
-                             couts.get("interpretation"))
-        except Exception as exc:
-            logger.debug("couts_possession skip: %s", exc)
-
-    # ── Ratio prix/loyer (calcul interne, dépend B5 + évaluation) ─────────────
-    if not case.get("ratio_prix_loyer"):
-        try:
-            plr = compute_ratio_prix_loyer(case)
-            if plr:
-                case["ratio_prix_loyer"] = plr
-                logger.debug("ratio_prix_loyer : %.1f (%s)",
-                             plr.get("ratio_prix_loyer", 0), plr.get("signal"))
-        except Exception as exc:
-            logger.debug("ratio_prix_loyer skip: %s", exc)
+    # ── Coûts de possession / ratio prix-loyer (hors périmètre OEAQ — optionnel) ─
+    if _include_investment:
+        if not case.get("couts_possession"):
+            try:
+                couts = compute_couts_possession(case)
+                if couts:
+                    case["couts_possession"] = couts
+                    logger.debug("couts_possession : total=%d $/mois (%s)",
+                                 couts.get("total_mensuel", 0),
+                                 couts.get("interpretation"))
+            except Exception as exc:
+                logger.debug("couts_possession skip: %s", exc)
+        if not case.get("ratio_prix_loyer"):
+            try:
+                plr = compute_ratio_prix_loyer(case)
+                if plr:
+                    case["ratio_prix_loyer"] = plr
+                    logger.debug("ratio_prix_loyer : %.1f (%s)",
+                                 plr.get("ratio_prix_loyer", 0), plr.get("signal"))
+            except Exception as exc:
+                logger.debug("ratio_prix_loyer skip: %s", exc)
 
     # ── Vétusté du bâtiment (calcul interne, depuis annee_construction) ───────
     if not case.get("vetuste_batiment"):
@@ -5264,31 +5265,40 @@ def enrich_case(
         except Exception as exc:
             logger.debug("vetuste_batiment skip: %s", exc)
 
-    # ── Indice de qualité de vie (calcul interne, dépend B20+B21+B27+B28) ────
-    if not case.get("indice_qualite_vie"):
-        try:
-            qdv = compute_indice_qualite_vie(case)
-            if qdv:
-                case["indice_qualite_vie"] = qdv
-                logger.debug("indice_qualite_vie : %.2f/10 (%s)",
-                             qdv.get("indice_qualite_vie", 0), qdv.get("interpretation"))
-        except Exception as exc:
-            logger.debug("indice_qualite_vie skip: %s", exc)
+    # ── QdV / risque / valeur indicative / score global (hors périmètre OEAQ) ──
+    if _include_investment:
+        if not case.get("indice_qualite_vie"):
+            try:
+                qdv = compute_indice_qualite_vie(case)
+                if qdv:
+                    case["indice_qualite_vie"] = qdv
+                    logger.debug("indice_qualite_vie : %.2f/10 (%s)",
+                                 qdv.get("indice_qualite_vie", 0), qdv.get("interpretation"))
+            except Exception as exc:
+                logger.debug("indice_qualite_vie skip: %s", exc)
+        if not case.get("score_risque"):
+            try:
+                risque = compute_score_risque(case)
+                if risque:
+                    case["score_risque"] = risque
+                    logger.debug("score_risque : %.2f/10 (%s) — %d facteurs",
+                                 risque.get("score_risque", 0),
+                                 risque.get("categorie"),
+                                 len(risque.get("facteurs_risque", [])))
+            except Exception as exc:
+                logger.debug("score_risque skip: %s", exc)
+        if not case.get("score_global"):
+            try:
+                global_score = compute_score_global(case)
+                if global_score:
+                    case["score_global"] = global_score
+                    logger.debug("score_global : %.2f/10 grade=%s",
+                                 global_score.get("score_global", 0),
+                                 global_score.get("grade"))
+            except Exception as exc:
+                logger.debug("score_global skip: %s", exc)
 
-    # ── Score de risque global (calcul interne, dépend B8+B9+B21+B28+B37) ────
-    if not case.get("score_risque"):
-        try:
-            risque = compute_score_risque(case)
-            if risque:
-                case["score_risque"] = risque
-                logger.debug("score_risque : %.2f/10 (%s) — %d facteurs",
-                             risque.get("score_risque", 0),
-                             risque.get("categorie"),
-                             len(risque.get("facteurs_risque", [])))
-        except Exception as exc:
-            logger.debug("score_risque skip: %s", exc)
-
-    # ── Estimation de valeur indicative (calcul interne, dépend B5+B10+B36) ──
+    # ── Valeur indicative (garde : utilisée par AMU financièrement faisable) ───
     if not case.get("valeur_indicative"):
         try:
             valeur = compute_valeur_indicative(case)
@@ -5299,18 +5309,6 @@ def enrich_case(
                              valeur.get("fiabilite"))
         except Exception as exc:
             logger.debug("valeur_indicative skip: %s", exc)
-
-    # ── Score global de synthèse (calcul interne, dépend B33+B38+B39) ─────────
-    if not case.get("score_global"):
-        try:
-            global_score = compute_score_global(case)
-            if global_score:
-                case["score_global"] = global_score
-                logger.debug("score_global : %.2f/10 grade=%s",
-                             global_score.get("score_global", 0),
-                             global_score.get("grade"))
-        except Exception as exc:
-            logger.debug("score_global skip: %s", exc)
 
     # ── Coût estimé de rénovation (calcul interne, dépend B37 + surface) ──────
     if not case.get("cout_renovation"):
@@ -5325,28 +5323,27 @@ def enrich_case(
         except Exception as exc:
             logger.debug("cout_renovation skip: %s", exc)
 
-    # ── Projection de valeur à 5 ans (calcul interne, dépend B10+B40) ─────────
-    if not case.get("projection_valeur"):
-        try:
-            proj = compute_projection_valeur(case)
-            if proj:
-                case["projection_valeur"] = proj
-                logger.debug("projection_valeur : base=%d$ taux=%.2f%%/an",
-                             proj.get("valeur_base", 0),
-                             proj.get("taux_base_pct", 0))
-        except Exception as exc:
-            logger.debug("projection_valeur skip: %s", exc)
-
-    # ── Alertes consolidées (calcul interne, dépend tous B-sources) ───────────
-    if not case.get("alertes"):
-        try:
-            alrt = compute_alertes(case)
-            if alrt:
-                case["alertes"] = alrt
-                logger.debug("alertes : %d critique(s) %d attention(s)",
-                             alrt.get("nb_alertes_critiques", 0),
-                             alrt.get("nb_alertes_attention", 0))
-        except Exception as exc:
-            logger.debug("alertes skip: %s", exc)
+    # ── Projection / alertes investissement (hors périmètre OEAQ — optionnel) ──
+    if _include_investment:
+        if not case.get("projection_valeur"):
+            try:
+                proj = compute_projection_valeur(case)
+                if proj:
+                    case["projection_valeur"] = proj
+                    logger.debug("projection_valeur : base=%d$ taux=%.2f%%/an",
+                                 proj.get("valeur_base", 0),
+                                 proj.get("taux_base_pct", 0))
+            except Exception as exc:
+                logger.debug("projection_valeur skip: %s", exc)
+        if not case.get("alertes"):
+            try:
+                alrt = compute_alertes(case)
+                if alrt:
+                    case["alertes"] = alrt
+                    logger.debug("alertes : %d critique(s) %d attention(s)",
+                                 alrt.get("nb_alertes_critiques", 0),
+                                 alrt.get("nb_alertes_attention", 0))
+            except Exception as exc:
+                logger.debug("alertes skip: %s", exc)
 
     attach_source_coverage(case)

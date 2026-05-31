@@ -733,11 +733,24 @@ def bureau_dashboard_summary(bureau_id: str, limit: int = 100) -> dict:
     sessions.sort(key=lambda s: str(s.get("updated_at_utc") or ""), reverse=True)
     sessions = sessions[:limit]
 
-    # Agrégation par évaluateur
+    # Agrégation par évaluateur — charger directement depuis session.json (owner_evaluator_id)
+    # sessions ici sont des workbench records (ne contiennent pas toujours owner_evaluator_id)
+    # On relit les sessions raw pour extraire owner_evaluator_id
+    ev_by_session: dict[str, str] = {}
+    for path in SESSIONS_DIR.glob("*/session.json"):
+        try:
+            raw = read_json_dict(path)
+            if raw and str(raw.get("bureau_id", "")) == bureau_id:
+                sid = str(raw.get("session_id", ""))
+                ev_by_session[sid] = str(raw.get("owner_evaluator_id", "inconnu") or "inconnu")
+        except OSError:
+            pass
+
     by_evaluateur: dict[str, dict] = {}
     status_counts: dict[str, int] = {}
     for s in sessions:
-        ev = str(s.get("owner_evaluator_id") or "inconnu")
+        sid = str(s.get("session_id", ""))
+        ev = ev_by_session.get(sid, "inconnu")
         if ev not in by_evaluateur:
             by_evaluateur[ev] = {"evaluateur_id": ev, "count": 0, "statuts": {}}
         by_evaluateur[ev]["count"] += 1
@@ -1670,6 +1683,13 @@ def app_generate_rapport(body: dict) -> dict:
             "tokens_out": llm_result["tokens_out"],
             "cost_usd": llm_result["cost_usd"],
         }
+        # T6.6 — Metering tokens rapport
+        track_llm_usage(
+            str(session.get("session_id", "")),
+            int(llm_result.get("tokens_in", 0)),
+            int(llm_result.get("tokens_out", 0)),
+            float(llm_result.get("cost_usd", 0.0)),
+        )
     else:
         from engine.runtime import _generate_rapport_deterministic
         rapport_md = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
@@ -4256,6 +4276,16 @@ def assistant_message(body: dict) -> dict:
     llm_meta: dict = {}
     try:
         answer, llm_meta = llm_assistant_answer(message, agent, context, history=history)
+        # T6.6 — Metering tokens assistant
+        if llm_meta.get("llm"):
+            _cost = llm_meta.get("input_tokens", 0) / 1_000_000 * 0.005 + \
+                    llm_meta.get("output_tokens", 0) / 1_000_000 * 0.015
+            track_llm_usage(
+                str(session.get("session_id", "")),
+                int(llm_meta.get("input_tokens", 0)),
+                int(llm_meta.get("output_tokens", 0)),
+                round(_cost, 6),
+            )
     except Exception:
         answer = render_assistant_answer(message, agent, context)
 
