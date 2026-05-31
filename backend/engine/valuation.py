@@ -235,6 +235,13 @@ def calculate_cost_approach(case: dict) -> dict[str, object]:
             ],
         },
     }
+    if _cost_uses_default(case, ref):
+        warnings.append("cout_unitaire_defaut_a_valider")
+        result["AVERTISSEMENT_COUT"] = (
+            f"VALEUR PROXY (approche coût) — Coût unitaire par défaut "
+            f"({round(unit_cost_m2, 0):,.0f} $/m²) utilisé faute de données réelles. "
+            "À remplacer par barème Altus/MEFQ ou données É.A."
+        )
     if warnings:
         result["AVERTISSEMENT"] = "Approche cout partielle: " + ", ".join(warnings)
     return result
@@ -255,7 +262,22 @@ def calculate_income_approach(case: dict) -> dict[str, object]:
         }
 
     value = income["noi"] / income["cap_rate"]
-    return {
+    notes = income.get("notes", [])
+    defaults_used: list[str] = []
+    if "taux_capitalisation_defaut_a_valider" in notes:
+        defaults_used.append(
+            f"TGA par défaut ({income['taux_capitalisation_pct']:.3f}% selon type de bien) — "
+            "À valider par É.A. avec données marché réelles."
+        )
+    if "taux_vacance_defaut_5pct_a_valider" in notes:
+        defaults_used.append("Taux de vacance par défaut 5% — À valider avec données SCHL/secteur.")
+    if "loyer_source_marche_locatif_a_valider" in notes:
+        defaults_used.append(
+            "Loyer issu du marché locatif (SCHL/données secteur) — "
+            "À confirmer avec baux réels si disponibles."
+        )
+
+    result: dict[str, object] = {
         "approach": "approche_revenu",
         "method": "direct_capitalization_v1",
         "value": round(value, 2),
@@ -264,13 +286,20 @@ def calculate_income_approach(case: dict) -> dict[str, object]:
         "trace": {
             **income,
             "value_formula": "RNE / taux_capitalisation",
+            "defaults_used": defaults_used,
             "calculation_policy": [
                 "RBP moins vacance = RBE.",
                 "RBE moins depenses = RNE.",
                 "Valeur par capitalisation directe = RNE / TGA.",
+                "Valeurs par défaut = VALEUR PROXY — confirmer avec données marché É.A.",
             ],
         },
     }
+    if defaults_used:
+        result["AVERTISSEMENT"] = (
+            "VALEUR PROXY (approche revenu) — " + " | ".join(defaults_used)
+        )
+    return result
 
 
 def calculate_fta_approach(case: dict) -> dict[str, object]:
@@ -448,7 +477,12 @@ def _income_inputs(case: dict) -> dict[str, Any]:
         if monthly_rent > 0:
             potential_revenue = monthly_rent * max(units, 1.0) * 12.0
             input_count += 1
-            notes.append("revenu_brut_projete_depuis_loyer_mensuel")
+            # Distinguer si le loyer vient de données réelles vs marché locatif (SCHL)
+            if _first_float(market, ["loyer_moyen_total", "loyer_median_total"]) > 0 and \
+               _first_float(source, ["loyer_mensuel_total", "loyer_total_mensuel"]) <= 0:
+                notes.append("loyer_source_marche_locatif_a_valider")
+            else:
+                notes.append("revenu_brut_projete_depuis_loyer_mensuel")
 
     effective_revenue = _first_float(source, [
         "revenu_brut_effectif",
@@ -460,7 +494,7 @@ def _income_inputs(case: dict) -> dict[str, Any]:
         vacancy_pct = _first_float(_as_dict(case.get("taux_inoccupation")), ["taux_total_pct"])
     if vacancy_pct <= 0:
         vacancy_pct = 5.0
-        notes.append("taux_vacance_defaut_5pct")
+        notes.append("taux_vacance_defaut_5pct_a_valider")
     else:
         input_count += 1
 
@@ -498,7 +532,7 @@ def _income_inputs(case: dict) -> dict[str, Any]:
         input_count += 1
     else:
         cap_rate_pct = _default_cap_rate_pct(case)
-        notes.append("taux_capitalisation_defaut_par_type")
+        notes.append("taux_capitalisation_defaut_a_valider")
 
     return {
         "revenu_brut_potentiel": round(potential_revenue, 2) if potential_revenue else 0.0,
@@ -625,6 +659,17 @@ def _cost_unit_m2(case: dict, ref: dict[str, Any], type_bien: str) -> float:
     if ref.get("allow_default_cost_reference") is True:
         return _DEFAULT_COST_PER_M2[_cost_family(type_bien)]
     return 0.0
+
+
+def _cost_uses_default(case: dict, ref: dict) -> bool:
+    """Retourne True si le coût unitaire provient de la table par défaut (pas de données réelles)."""
+    type_bien = _normalize_type(case.get("type_bien"))
+    unit_m2 = _first_float(ref, ["cout_unitaire_m2", "cout_neuf_m2", "cout_base_m2",
+                                  "cout_remplacement_m2", "replacement_cost_m2"])
+    unit_pi2 = _first_float(ref, ["cout_unitaire_pi2", "cout_neuf_pi2", "replacement_cost_sqft"])
+    explicit_total = _first_float(ref, ["cout_neuf_total", "cout_remplacement_total"])
+    return unit_m2 <= 0 and unit_pi2 <= 0 and explicit_total <= 0 and \
+           ref.get("allow_default_cost_reference") is True
 
 
 def _cost_factors(ref: dict[str, Any], type_bien: str) -> dict[str, float]:

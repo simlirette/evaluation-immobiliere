@@ -339,3 +339,102 @@ def test_amu_no_hardcoded_true():
     result = evaluate_amu(case)
     # Sans données, doit être None pas True
     assert result["umpp"]["conformite_zonage"] is not True
+
+
+# ── T2.5 : TGA/loyers défauts marqués "à valider" ────────────────────────────
+
+from engine.valuation import calculate_income_approach, calculate_cost_approach
+
+
+def _income_case_with_default_tga():
+    return {
+        "dossier_id": "D-T25-INC",
+        "type_bien": "duplex",
+        "nb_logements": 2,
+        "revenus_depenses": {
+            "revenu_brut_potentiel": 36_000,
+            "depenses_exploitation": 10_000,
+            # pas de taux_capitalisation_pct → doit utiliser défaut
+        },
+    }
+
+
+def _income_case_with_real_tga():
+    return {
+        "dossier_id": "D-T25-REAL",
+        "type_bien": "duplex",
+        "revenus_depenses": {
+            "revenu_brut_potentiel": 36_000,
+            "depenses_exploitation": 10_000,
+            "taux_capitalisation_pct": 5.25,  # TGA réel fourni
+        },
+    }
+
+
+def test_income_default_tga_avertissement():
+    result = calculate_income_approach(_income_case_with_default_tga())
+    assert result["calculation_status"] == "OK"
+    # Doit avoir avertissement VALEUR PROXY
+    avert = result.get("AVERTISSEMENT", "")
+    assert "VALEUR PROXY" in avert or "défaut" in avert.lower() or "valider" in avert.lower()
+
+
+def test_income_default_tga_trace_defaults_used():
+    result = calculate_income_approach(_income_case_with_default_tga())
+    defaults = result.get("trace", {}).get("defaults_used", [])
+    assert len(defaults) >= 1
+    assert any("TGA" in d or "taux" in d.lower() for d in defaults)
+
+
+def test_income_real_tga_no_proxy_warning():
+    result = calculate_income_approach(_income_case_with_real_tga())
+    assert result["calculation_status"] == "OK"
+    avert = result.get("AVERTISSEMENT", "")
+    # Pas d'avertissement PROXY pour TGA quand fourni
+    assert "VALEUR PROXY" not in avert or "TGA" not in avert
+
+
+def test_income_default_vacancy_noted():
+    result = calculate_income_approach(_income_case_with_default_tga())
+    defaults = result.get("trace", {}).get("defaults_used", [])
+    # Vacance par défaut 5% doit être notée
+    assert any("vacance" in d.lower() or "5%" in d for d in defaults)
+
+
+def test_income_loyer_marche_marked():
+    case = {
+        "dossier_id": "D-T25-LOYER",
+        "type_bien": "duplex",
+        "nb_logements": 2,
+        "revenus_depenses": {},  # pas de loyer direct
+        "marche_locatif": {"loyer_moyen_total": 1800},  # loyer depuis marché SCHL
+    }
+    result = calculate_income_approach(case)
+    if result["calculation_status"] == "OK":
+        defaults = result.get("trace", {}).get("defaults_used", [])
+        assert any("marché" in d.lower() or "SCHL" in d or "locatif" in d.lower() for d in defaults)
+
+
+def test_cost_default_proxy_warning_when_allowed():
+    case = {
+        "dossier_id": "D-T25-COUT",
+        "type_bien": "unifamiliale",
+        "surface": {"value": 150, "unit": "m2"},
+        "couts_reference": {"allow_default_cost_reference": True},
+    }
+    result = calculate_cost_approach(case)
+    if result.get("calculation_status") in ("OK", "PARTIAL_MISSING_LAND_VALUE"):
+        avert = result.get("AVERTISSEMENT_COUT", "")
+        assert "VALEUR PROXY" in avert or "défaut" in avert.lower()
+
+
+def test_cost_no_proxy_warning_with_real_data():
+    case = {
+        "dossier_id": "D-T25-COUT-REAL",
+        "type_bien": "unifamiliale",
+        "surface": {"value": 150, "unit": "m2"},
+        "couts_reference": {"cout_unitaire_m2": 2500},  # données réelles
+    }
+    result = calculate_cost_approach(case)
+    # Pas d'avertissement PROXY quand données réelles fournies
+    assert "AVERTISSEMENT_COUT" not in result
