@@ -1455,23 +1455,8 @@ class RuntimeEngine:
             payload["recommendations"] = build_recommendations(blocking, warnings)
 
         if step == "redaction" and artifact == "brouillon_rapport.md":
-            # T3.3 — charger inspection.json si présent dans la session
+            # T3.3 — inspection pré-chargée dans run_case_data (case["inspection"])
             _inspection: dict | None = case.get("inspection")
-            if _inspection is None:
-                # Chercher dans le répertoire de session (2 niveaux au-dessus de case_dir)
-                for _insp_candidate in [
-                    case_dir / "inspection.json",
-                    case_dir.parent / "inspection.json",
-                    case_dir.parent.parent / "inspection.json",
-                ]:
-                    if _insp_candidate.exists():
-                        try:
-                            _insp_data = json.loads(_insp_candidate.read_text(encoding="utf-8"))
-                            if _insp_data.get("date_visite"):
-                                _inspection = _insp_data
-                        except (json.JSONDecodeError, OSError):
-                            pass
-                        break
             rapport_md = generate_brouillon_rapport(
                 case, valuation_values or {}, status, blocking, warnings,
                 inspection=_inspection,
@@ -1525,6 +1510,21 @@ class RuntimeEngine:
 
         status, blocking, warnings = self._compute_qa(case)
         case_dir.mkdir(parents=True, exist_ok=True)
+        # T3.3 : pré-charger inspection.json depuis le répertoire de session
+        if case.get("inspection") is None:
+            for _insp_candidate in [
+                case_dir / "inspection.json",
+                case_dir.parent / "inspection.json",
+                case_dir.parent.parent / "inspection.json",
+            ]:
+                if _insp_candidate.exists():
+                    try:
+                        _insp_data = json.loads(_insp_candidate.read_text(encoding="utf-8"))
+                        if _insp_data.get("date_visite"):
+                            case["inspection"] = _insp_data
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                    break
         valuation_values: dict[str, float] = {}
 
         for warning in warnings:

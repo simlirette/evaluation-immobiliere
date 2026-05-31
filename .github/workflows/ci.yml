@@ -60,4 +60,13 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: pytest tests/
+          --ignore=tests/test_live_external_sources.py
+          --ignore=tests/test_mamh_provisioning.py
+          --ignore=tests/test_registre_foncier.py
+          --ignore=tests/test_infolot.py
+          -q
+        env:
+          # T6.4 : CI sans réseau — bloquer les appels httpx/WDS
+          EVAL_IMMO_LIVE_EXTERNALS: "0"
+          INCLUDE_INVESTMENT_CONTEXT: "0"
