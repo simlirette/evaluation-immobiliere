@@ -141,7 +141,20 @@
 .sidebar-toggle.sidebar-open { left: 260px; }
 
 /* ── MAIN ── */
-.main-content { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+.main-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin-left: 0;
+  transition: margin-left .22s cubic-bezier(.4,0,.2,1);
+}
+/* Quand la sidebar est ouverte, pousser le contenu à droite */
+.sidebar.open ~ .main-content {
+  margin-left: 260px;
+  width: calc(100% - 260px);
+}
 
 /* ── DOSSIER GRID ── */
 .dossier-card-grid {
