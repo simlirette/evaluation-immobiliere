@@ -5455,7 +5455,8 @@ class TestDataEnrichment_ScoreInvestissement:
         assert compute_score_investissement(case) == {}
 
     def test_enrich_case_injects_score_investissement(self, tmp_path):
-        """enrich_case injecte score_investissement quand B30+B31+B32 disponibles."""
+        """enrich_case injecte score_investissement quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5468,7 +5469,8 @@ class TestDataEnrichment_ScoreInvestissement:
             "indice_abordabilite": {"ratio_loyer_revenu_pct": 28.0},
         }
 
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         inv = case.get("score_investissement", {})
@@ -5592,7 +5594,8 @@ class TestDataEnrichment_CoutsPossession:
         assert compute_couts_possession({}) == {}
 
     def test_enrich_case_injects_couts_possession(self, tmp_path):
-        """enrich_case injecte couts_possession quand données disponibles."""
+        """enrich_case injecte couts_possession quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5604,7 +5607,8 @@ class TestDataEnrichment_CoutsPossession:
             "taxes_municipales": {"taxes_mensuelles_estimees": 292},
         }
 
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         cp = case.get("couts_possession", {})
@@ -5668,7 +5672,8 @@ class TestDataEnrichment_RatioPrixLoyer:
         assert compute_ratio_prix_loyer({"evaluation_municipale_totale": 400_000}) == {}
 
     def test_enrich_case_injects_ratio(self, tmp_path):
-        """enrich_case injecte ratio_prix_loyer."""
+        """enrich_case injecte ratio_prix_loyer quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5678,7 +5683,8 @@ class TestDataEnrichment_RatioPrixLoyer:
             "evaluation_municipale_totale": 500_000,
             "marche_locatif": {"loyer_moyen_total": 1_700},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         plr = case.get("ratio_prix_loyer", {})
@@ -5809,7 +5815,8 @@ class TestDataEnrichment_IndiceQualiteVie:
         assert compute_indice_qualite_vie(case) == {}
 
     def test_enrich_case_injects_qdv(self, tmp_path):
-        """enrich_case injecte indice_qualite_vie quand données dispo."""
+        """enrich_case injecte indice_qualite_vie quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5823,7 +5830,8 @@ class TestDataEnrichment_IndiceQualiteVie:
                 "epiceries_500m": 1, "parcs_1km": 3,
             },
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         qdv = case.get("indice_qualite_vie", {})

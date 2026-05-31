@@ -221,6 +221,7 @@ plans:
     reference_normative: "Loi sur l'expropriation (RLRQ c. E-24) — indemnité = avant - après + préjudices"
     format_rapport: narratif_complet
     methodes_requises:
+      - approche_avant_apres
       - approche_comparative
       - approche_cout
     methodes_optionnelles:
