@@ -1,42 +1,33 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 3d62846 (branch: docs/audit-et-plans-2026-05-31)_
+_Updated: 2026-05-31 | HEAD: 5250204 (master)_
 
 ## Current Goal
 
-Phase 6 ✅. Toutes phases P0–P6 couvertes. Prochaine : merger branche ou apicore/llm.py.
+Exécuter waves A–D (items immédiats + moyen terme post-P0–P6).
 
 ## Plan Status
 
-### Phase 6 ✅
+### Wave A — Légal + observabilité
+- [ ] A1  T0.6 Loi 25 : masquage PII SIRF + doc politique
+- [ ] A2  T5.5 Observabilité : /bureau/metrics + composant usage
+- [ ] A3  T5.6 SCALE-MIGRATION.md
 
-- [x] T6.1 — apicore/ : formatters, llm_config, storage, sessions (580 L extraites)
-- [x] T6.2 — INCLUDE_INVESTMENT_CONTEXT flag
-- [x] T6.3 — docs/CALCULS-SOURCE-OF-TRUTH.md (Python = vérité, TS = affichage)
-- [x] T6.4 — CI hermétique + E2E happy path + conftest.py
-- [x] T6.5 — Dead code ThemeToggle/TabBar supprimés
-- [x] T6.6 — track_llm_usage branché rapport + assistant
-- [ ] T6.1 complet — extraire apicore/llm.py + apicore/handler.py (api.py = ~6300L restantes)
+### Wave B — Validation + profil É.A.
+- [ ] B1  T3.6 Fixture anonymisée : pipeline complet chrono
+- [ ] B2  Profil É.A. : n° permis OEAQ depuis profiles → SignatureForm
+- [ ] B3  T2.2 : tags @deprecated compute-*.ts + doc mapping
 
-### apicore/ état (T6.1 fondation)
+### Wave C — Frontend bureau
+- [ ] C1  Page /bureau/dashboard
+- [ ] C2  apicore/llm.py extraction
 
-```
-apicore/
-  __init__.py        — doc plan migration
-  formatters.py      — app_money, utc_now_*, etc.
-  llm_config.py      — _AGENT_TOOLS, constantes LLM
-  storage.py         — atomic_write_text, write_json, read_json_dict
-  sessions.py        — create_session, load_session, track_llm_usage, etc.
-```
+### Wave D — Approche coût sans Altus
+- [ ] D1  allow_default_cost_reference résidentiel + DBI MEFQ
+- [ ] D2  UI saisie manuelle coûts É.A.
 
 ## Evidence
 
-- 58 tests regression verts (3d62846)
-- apicore.sessions : get_sessions_dir() via os.environ — patchable sans monkeypatch api.SESSIONS_DIR
-- docs/CALCULS-SOURCE-OF-TRUTH.md : invariant "calcul TS ≠ rapport Python" documenté
-
-## Open Issues
-
-- T0.5 prod : migrations 002–008 Supabase
-- T3.6 : démo bureau dossier réel
-- T6.1 complet : apicore/llm.py (openai client, llm_assistant_answer, stream)
+- Migrations 001–008 Supabase prod 2026-05-31
+- RAG : 8745 chunks, threshold 0.35, retrieval OK
+- Altus non disponible → repli MEFQ + saisie manuelle (Wave D)
