@@ -1455,7 +1455,27 @@ class RuntimeEngine:
             payload["recommendations"] = build_recommendations(blocking, warnings)
 
         if step == "redaction" and artifact == "brouillon_rapport.md":
-            rapport_md = generate_brouillon_rapport(case, valuation_values or {}, status, blocking, warnings)
+            # T3.3 — charger inspection.json si présent dans la session
+            _inspection: dict | None = case.get("inspection")
+            if _inspection is None:
+                # Chercher dans le répertoire de session (2 niveaux au-dessus de case_dir)
+                for _insp_candidate in [
+                    case_dir / "inspection.json",
+                    case_dir.parent / "inspection.json",
+                    case_dir.parent.parent / "inspection.json",
+                ]:
+                    if _insp_candidate.exists():
+                        try:
+                            _insp_data = json.loads(_insp_candidate.read_text(encoding="utf-8"))
+                            if _insp_data.get("date_visite"):
+                                _inspection = _insp_data
+                        except (json.JSONDecodeError, OSError):
+                            pass
+                        break
+            rapport_md = generate_brouillon_rapport(
+                case, valuation_values or {}, status, blocking, warnings,
+                inspection=_inspection,
+            )
             payload["_raw_md"] = rapport_md
             payload["sections"] = {
                 "dossier": case.get("dossier_id"),
@@ -2055,6 +2075,7 @@ def _build_rapport_prompt_v2(
     status: str,
     blocking: list,
     warnings: list,
+    inspection: dict | None = None,
 ) -> str:
     """Construit le prompt utilisateur enrichi pour la génération du rapport."""
     surface = case.get("surface", {})
@@ -2122,6 +2143,21 @@ def _build_rapport_prompt_v2(
         lines += ["", f"HYPOTHÈSES ({len(hypotheses)}):"]
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
+
+    # T3.3 — Injecter les données d'inspection (élément 14)
+    if inspection and inspection.get("date_visite"):
+        type_insp = str(inspection.get("type_inspection", "interieure_exterieure")).replace("_", " ")
+        lines += [
+            "",
+            "INSPECTION (élément 14 NPP) :",
+            f"  Date de visite : {inspection['date_visite']}",
+            f"  Type : {type_insp}",
+            f"  Étendue : {inspection.get('etendue', 'non précisée')}",
+            f"  Observations : {inspection.get('observations', 'non précisées')}",
+            f"  Accès limité : {'Oui — ' + inspection.get('notes_acces', '') if inspection.get('acces_limite') else 'Non'}",
+        ]
+    else:
+        lines += ["", "INSPECTION : non saisie — section 14 à compléter par l'É.A."]
 
     # T3.2 — Injecter la grille d'ajustements calculée (évite les [ADJ] vides)
     grille_data = case.get("_grille_ajustements")  # injecté par run_case_data si disponible
@@ -2225,7 +2261,29 @@ def _generate_rapport_llm(prompt: str, format: str = "abrege") -> dict | None:
         return None
 
 
-def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
+def _build_inspection_section(inspection: dict | None) -> str:
+    """Formate la section 14 (inspection) pour le rapport déterministe."""
+    if not inspection or not inspection.get("date_visite"):
+        return (
+            "**Date de visite :** À compléter par l'É.A.\n"
+            "**Étendue de l'inspection :** À compléter par l'É.A.\n"
+            "**Type d'inspection :** Intérieure et extérieure (à confirmer)\n"
+            "**Observations :** À RÉDIGER PAR L'É.A.\n\n"
+            "*⚠ Section 14 non complétée — Attestation conditionnelle à la saisie d'inspection.*"
+        )
+    type_insp = str(inspection.get("type_inspection", "interieure_exterieure")).replace("_", " ").capitalize()
+    acces = "Oui — " + str(inspection.get("notes_acces", "")) if inspection.get("acces_limite") else "Non"
+    return (
+        f"**Date de visite :** {inspection['date_visite']}\n"
+        f"**Type d'inspection :** {type_insp}\n"
+        f"**Étendue :** {inspection.get('etendue', 'non précisée')}\n"
+        f"**Observations :** {inspection.get('observations', 'non précisées')}\n"
+        f"**Accès limité :** {acces}\n"
+        f"*Inspection enregistrée le {inspection.get('enregistre_le', '—')}.*"
+    )
+
+
+def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list, inspection: dict | None = None) -> str:
     """Repli déterministe — 16 éléments structurels, mode dégradé honnête (T3.4).
 
     Produit quand OpenAI est indisponible. Les sections nécessitant la prose É.A. sont
@@ -2493,12 +2551,7 @@ _[SCEAU PROFESSIONNEL]_
 
 ## 14. Information sur l'inspection
 
-**Date de visite :** À compléter par l'É.A.
-**Étendue de l'inspection :** À compléter par l'É.A.
-**Type d'inspection :** Intérieure et extérieure (à confirmer)
-**Observations :** À RÉDIGER PAR L'É.A.
-
-*⚠ Section 14 non complétée — Attestation conditionnelle à la saisie d'inspection.*
+{_build_inspection_section(inspection)}
 
 ---
 
@@ -2527,12 +2580,13 @@ def generate_brouillon_rapport(
     blocking: list,
     warnings: list,
     format: str = "abrege",
+    inspection: dict | None = None,
 ) -> str:
     """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe.
 
     Retourne toujours un str. Métadonnées LLM (modèle, coût) disponibles via _generate_rapport_llm().
     """
-    prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings)
+    prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings, inspection=inspection)
     llm_result = _generate_rapport_llm(prompt, format)
     if llm_result and llm_result.get("text"):
         disclaimer = (
@@ -2541,7 +2595,7 @@ def generate_brouillon_rapport(
         )
         rapport = disclaimer + llm_result["text"]
     else:
-        rapport = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+        rapport = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings, inspection=inspection)
 
     # T3.1 — Validation post-génération des 16 éléments CUSPAP/NPP
     check = check_rapport_elements(rapport)

@@ -16,7 +16,9 @@ import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
 import CheckpointComparablePanel from '@/components/panels/CheckpointComparablePanel'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
-import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, fetchRuntimeInspection, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
+import type { InspectionData } from '@/lib/runtime-api'
+import InspectionForm from '@/components/shared/InspectionForm'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import type { Document, EnrichmentLocalisation, FactChip, ComparableInput, SourceCoverage } from '@/types'
 
@@ -774,6 +776,8 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   type CommanditaireData = { nom: string; organisation: string; fin_evaluation: string } | null
   const [commanditaire, setCommanditaire] = useState<CommanditaireData>(null)
+  const [inspection, setInspection] = useState<InspectionData | null>(null)
+  const [showInspectionForm, setShowInspectionForm] = useState(false)
 
   const [editFacts, setEditFacts] = useState(false)
   const [draftSurface, setDraftSurface] = useState('')
@@ -800,7 +804,8 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
       fetchRuntimeDocuments(dossierId),
       fetchAppState(dossierId),
       fetchRuntimeEnrichment(dossierId),
-    ]).then(([docs, appState, enrichment]) => {
+      fetchRuntimeInspection(dossierId).catch(() => null),
+    ]).then(([docs, appState, enrichment, insp]) => {
       setDocuments(docs)
       setChips(appState.active?.fact_chips ?? [])
       setMandat(appState.active?.mandat ?? null)
@@ -808,6 +813,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
       setCommanditaire(appState.active?.commanditaire ?? null)
       setLocalisation(enrichment?.localisation ?? null)
       setSourceCoverage(enrichment?.source_coverage ?? null)
+      setInspection(insp ?? null)
       setLoading(false)
       // Démarrer le polling uniquement si le pipeline tourne encore
       if (!isNew) {
@@ -1016,6 +1022,55 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             )}
             {sourceCoverage && <SourceCoverageSummary coverage={sourceCoverage} />}
             {localisation && <LocalisationContexte loc={localisation} />}
+            {/* T3.3 — Inspection (élément 14 NPP) */}
+            {!isNew && dossierId && (
+              <div className="mt-3">
+                {inspection ? (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-[8px]"
+                    style={{ border: '1px solid var(--rule)', background: 'rgba(74,107,84,.05)' }}>
+                    <div>
+                      <span className="text-[11px] font-semibold" style={{ color: 'var(--verdigris)' }}>
+                        ✓ Inspection enregistrée
+                      </span>
+                      <span className="ml-2 text-[11px]" style={{ color: 'var(--ink-mute)' }}>
+                        {inspection.date_visite} · {inspection.type_inspection.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowInspectionForm(v => !v)}
+                      className="text-[11px]"
+                      style={{ color: 'var(--ink-mute)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      {showInspectionForm ? 'Fermer' : 'Modifier'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowInspectionForm(v => !v)}
+                    className="w-full flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-[12px] transition-colors"
+                    style={{
+                      border: '1px dashed var(--rule)',
+                      color: 'var(--ink-mute)',
+                      background: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>+ Saisir inspection (élément 14 NPP)</span>
+                  </button>
+                )}
+                {showInspectionForm && (
+                  <div className="mt-2">
+                    <InspectionForm
+                      dossierId={dossierId}
+                      initial={inspection}
+                      onSaved={insp => { setInspection(insp); setShowInspectionForm(false) }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </AgentMessage>
         )}
         {chips.length === 0 && sourceCoverage && (

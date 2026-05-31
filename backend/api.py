@@ -5346,6 +5346,56 @@ def write_json(path: Path, payload: dict) -> None:
     _atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+# ── Inspection (T3.3) ─────────────────────────────────────────────────────────
+
+_INSPECTION_TYPES = {"interieure_exterieure", "exterieure", "documentaire"}
+
+
+def app_save_inspection(body: dict) -> dict:
+    """POST /app/inspection — Sauvegarde les données d'inspection (élément 14 NPP)."""
+    session_id = str(body.get("session_id", ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable: {session_id}")
+
+    date_visite = str(body.get("date_visite", "")).strip()
+    type_inspection = str(body.get("type_inspection", "interieure_exterieure")).strip()
+    if type_inspection not in _INSPECTION_TYPES:
+        raise ValueError(f"type_inspection invalide: {type_inspection}. Valeurs: {_INSPECTION_TYPES}")
+    etendue = str(body.get("etendue", "")).strip()
+    observations = str(body.get("observations", "")).strip()
+    acces_limite = bool(body.get("acces_limite", False))
+    notes_acces = str(body.get("notes_acces", "")).strip()
+
+    payload = {
+        "session_id": session_id,
+        "date_visite": date_visite,
+        "type_inspection": type_inspection,
+        "etendue": etendue,
+        "observations": observations,
+        "acces_limite": acces_limite,
+        "notes_acces": notes_acces,
+        "enregistre_le": datetime.now(timezone.utc).isoformat(),
+    }
+    insp_path = SESSIONS_DIR / safe_path_id(session_id) / "inspection.json"
+    write_json(insp_path, payload)
+    return {"ok": True, "inspection": payload}
+
+
+def app_get_inspection(session_id: str) -> dict:
+    """GET /app/inspection — Charge les données d'inspection d'une session."""
+    insp_path = SESSIONS_DIR / safe_path_id(session_id) / "inspection.json"
+    if not insp_path.exists():
+        return {"inspection": None}
+    try:
+        data = json.loads(insp_path.read_text(encoding="utf-8"))
+        return {"inspection": data}
+    except (json.JSONDecodeError, OSError):
+        return {"inspection": None}
+
+
 class RuntimeApiHandler(BaseHTTPRequestHandler):
     server_version = "EvaluationImmobiliereRuntime/0.1"
 
@@ -5419,6 +5469,18 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 self._send_json(200, app_get_facts(resolved))
             except ValueError as exc:
                 self._send_json(404, {"error": str(exc)})
+            return
+        if parsed.path == "/app/inspection":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            if not self._require_session_access(resolved):
+                return
+            self._send_json(200, app_get_inspection(resolved))
             return
         if parsed.path == "/app/comparables/candidates":
             if not self._require_permission("runtime_read"):
@@ -5876,6 +5938,13 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_save_fact_overrides(body))
+                return
+            if self.path == "/app/inspection":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_save_inspection(body))
                 return
             if self.path == "/app/jlr/upload":
                 if not self._require_permission("runtime_write"):

@@ -457,6 +457,36 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
   })
 }
 
+// ── Inspection (T3.3) ─────────────────────────────────────────────────────────
+
+export interface InspectionData {
+  date_visite: string
+  type_inspection: 'interieure_exterieure' | 'exterieure' | 'documentaire'
+  etendue: string
+  observations: string
+  acces_limite: boolean
+  notes_acces: string
+  enregistre_le?: string
+}
+
+export async function fetchRuntimeInspection(sessionId: string): Promise<InspectionData | null> {
+  const result = await runtimeJson<{ inspection: InspectionData | null }>(
+    `/app/inspection?session_id=${encodeURIComponent(sessionId)}`
+  )
+  return result.inspection
+}
+
+export async function saveRuntimeInspection(
+  sessionId: string,
+  inspection: Omit<InspectionData, 'enregistre_le'>
+): Promise<InspectionData> {
+  const result = await runtimeJson<{ ok: boolean; inspection: InspectionData }>('/app/inspection', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...inspection }),
+  })
+  return result.inspection
+}
+
 export async function saveRuntimeFactOverrides(
   sessionId: string,
   overrides: { surface_pi2?: number | null; zone?: string; date_reference?: string }
