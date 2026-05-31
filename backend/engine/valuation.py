@@ -712,6 +712,13 @@ def _surface_m2(case: dict) -> float:
     return _to_float(surface)
 
 
+_RESIDENTIAL_TYPES_FOR_DEFAULT_COST = {
+    "unifamiliale", "unifamilial", "residentiel_unifamilial", "maison", "bungalow", "cottage",
+    "condo", "condominium", "duplex", "triplex", "quadruplex", "quintuplex", "plex",
+    "residentiel_multifamilial", "multifamilial",
+}
+
+
 def _cost_unit_m2(case: dict, ref: dict[str, Any], type_bien: str) -> float:
     unit_m2 = _first_float(ref, [
         "cout_unitaire_m2",
@@ -727,6 +734,11 @@ def _cost_unit_m2(case: dict, ref: dict[str, Any], type_bien: str) -> float:
         return unit_pi2 / 0.09290304
     if ref.get("allow_default_cost_reference") is True:
         return _DEFAULT_COST_PER_M2[_cost_family(type_bien)]
+    # D1 : pour les types résidentiels standards, utiliser les défauts MEFQ (filigrane PROXY)
+    # L'É.A. peut surcharger avec allow_default_cost_reference=False pour forcer INSUFFICIENT
+    if ref.get("allow_default_cost_reference") is not False:
+        if _normalize_type(type_bien) in _RESIDENTIAL_TYPES_FOR_DEFAULT_COST:
+            return _DEFAULT_COST_PER_M2[_cost_family(type_bien)]
     return 0.0
 
 
@@ -737,8 +749,11 @@ def _cost_uses_default(case: dict, ref: dict) -> bool:
                                   "cout_remplacement_m2", "replacement_cost_m2"])
     unit_pi2 = _first_float(ref, ["cout_unitaire_pi2", "cout_neuf_pi2", "replacement_cost_sqft"])
     explicit_total = _first_float(ref, ["cout_neuf_total", "cout_remplacement_total"])
-    return unit_m2 <= 0 and unit_pi2 <= 0 and explicit_total <= 0 and \
-           ref.get("allow_default_cost_reference") is True
+    has_explicit = unit_m2 > 0 or unit_pi2 > 0 or explicit_total > 0
+    if has_explicit:
+        return False
+    # Défaut explicitement activé OU inféré pour résidentiel (D1)
+    return True
 
 
 def _cost_factors(ref: dict[str, Any], type_bien: str) -> dict[str, float]:
