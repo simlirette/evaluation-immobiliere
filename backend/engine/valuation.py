@@ -131,7 +131,9 @@ def calculate_all_valuation_traces(
         "calculation_status": "NOT_APPLICABLE",
     }
 
-    return {
+    mandat_type = _normalize_type(case.get("mandat_type", ""))
+
+    result = {
         "approche_comparative": (
             calculate_valuation_trace(case, "approche_comparative")
             if "approche_comparative" in applicable
@@ -148,6 +150,16 @@ def calculate_all_valuation_traces(
             else {**not_applicable, "approach": "approche_revenu"}
         ),
     }
+
+    # T4.3 — Expropriation (méthode avant-après)
+    if mandat_type == "expropriation":
+        result["approche_avant_apres"] = calculate_expropriation(case)
+
+    # T4.4 — Liquidation
+    if mandat_type == "liquidation":
+        result["approche_liquidation"] = calculate_liquidation_value(case)
+
+    return result
 
 
 def calculate_cost_approach(case: dict) -> dict[str, object]:
@@ -820,3 +832,143 @@ def _normalize_type(value: object) -> str:
     nfkd = unicodedata.normalize("NFKD", text)
     normalized = "".join(c for c in nfkd if not unicodedata.combining(c))
     return normalized.replace("-", "_").replace(" ", "_")
+
+
+# ── T4.3 — Expropriation (méthode avant-après) ────────────────────────────────
+
+def calculate_expropriation(case: dict) -> dict[str, object]:
+    """Calcule l'indemnité d'expropriation : avant − après + préjudices.
+
+    Entrées attendues dans case :
+      expropriation.valeur_avant    : valeur du bien entier avant expropriation ($)
+      expropriation.valeur_apres    : valeur du résidu après expropriation ($)
+      expropriation.prejudices      : list[{description, montant}] ou montant total ($)
+      expropriation.superficie_prise: m² ou pi² expropriés (informatif)
+      expropriation.notes           : str (justification)
+    """
+    exp = _as_dict(case.get("expropriation") or {})
+
+    valeur_avant = _to_float(exp.get("valeur_avant"))
+    valeur_apres = _to_float(exp.get("valeur_apres"))
+
+    # Préjudices : liste ou montant total
+    prejudices_raw = exp.get("prejudices", [])
+    if isinstance(prejudices_raw, list):
+        total_prejudices = sum(_to_float(p.get("montant") if isinstance(p, dict) else p) for p in prejudices_raw)
+        prejudices_detail = prejudices_raw
+    else:
+        total_prejudices = _to_float(prejudices_raw)
+        prejudices_detail = [{"description": "Préjudices accessoires", "montant": total_prejudices}] if total_prejudices else []
+
+    if valeur_avant <= 0:
+        return {
+            "approach": "approche_avant_apres",
+            "method": "expropriation_avant_apres_v1",
+            "value": None,
+            "input_count": 0,
+            "calculation_status": "MISSING_VALEUR_AVANT",
+            "AVERTISSEMENT": (
+                "Données d'expropriation insuffisantes : valeur_avant requise. "
+                "Fournir expropriation.valeur_avant, expropriation.valeur_apres "
+                "et expropriation.prejudices."
+            ),
+        }
+
+    indemnite = valeur_avant - valeur_apres + total_prejudices
+
+    return {
+        "approach": "approche_avant_apres",
+        "method": "expropriation_avant_apres_v1",
+        "value": round(indemnite, 2),
+        "input_count": 3 if valeur_apres > 0 else 2,
+        "calculation_status": "OK",
+        "trace": {
+            "valeur_avant": round(valeur_avant, 2),
+            "valeur_apres": round(valeur_apres, 2),
+            "perte_valeur": round(valeur_avant - valeur_apres, 2),
+            "total_prejudices": round(total_prejudices, 2),
+            "prejudices_detail": prejudices_detail,
+            "indemnite_totale": round(indemnite, 2),
+            "superficie_prise": exp.get("superficie_prise"),
+            "notes": str(exp.get("notes", "")),
+            "reference_normative": "Loi sur l'expropriation (RLRQ c. E-24)",
+            "calculation_policy": [
+                "Indemnité = Valeur avant − Valeur résidu + Préjudices accessoires.",
+                "Valeur avant = valeur marchande du bien entier avant expropriation.",
+                "Valeur résidu = valeur marchande du reste après expropriation.",
+                "Préjudices : dépréciation contiguïté, perte valeur résiduelle, frais déménagement.",
+            ],
+        },
+    }
+
+
+# ── T4.4 — Liquidation (valeur marchande − décote) ───────────────────────────
+
+_DEFAULT_LIQUIDATION_DECOTE_PCT = 15.0  # % — défaut conservateur, à valider É.A.
+
+
+def calculate_liquidation_value(case: dict) -> dict[str, object]:
+    """Calcule la valeur de liquidation : valeur marchande × (1 − décote).
+
+    Entrées attendues dans case :
+      liquidation.valeur_marchande  : valeur marchande standard ($) ou case.valeur_marchande
+      liquidation.decote_pct        : % de décote (ex. 15.0)
+      liquidation.type_liquidation  : "ordonnee" | "forcee" (défaut: ordonnee)
+      liquidation.justification     : str (motif de la décote)
+    """
+    liq = _as_dict(case.get("liquidation") or {})
+
+    valeur_marchande = _to_float(liq.get("valeur_marchande") or case.get("valeur_marchande"))
+    decote_pct = _to_float(liq.get("decote_pct"))
+    type_liq = str(liq.get("type_liquidation", "ordonnee")).lower()
+    justification = str(liq.get("justification", "")).strip()
+
+    decote_source = "fournie"
+    if decote_pct <= 0:
+        decote_pct = _DEFAULT_LIQUIDATION_DECOTE_PCT
+        decote_source = "defaut_a_valider"
+
+    if valeur_marchande <= 0:
+        return {
+            "approach": "approche_liquidation",
+            "method": "liquidation_value_v1",
+            "value": None,
+            "input_count": 0,
+            "calculation_status": "MISSING_VALEUR_MARCHANDE",
+            "AVERTISSEMENT": (
+                "Valeur marchande manquante pour le calcul de liquidation. "
+                "Fournir liquidation.valeur_marchande ou valeur_marchande dans le case."
+            ),
+        }
+
+    valeur_liquidation = valeur_marchande * (1.0 - decote_pct / 100.0)
+
+    result: dict[str, object] = {
+        "approach": "approche_liquidation",
+        "method": "liquidation_value_v1",
+        "value": round(valeur_liquidation, 2),
+        "input_count": 2 if decote_source == "fournie" else 1,
+        "calculation_status": "OK",
+        "trace": {
+            "valeur_marchande": round(valeur_marchande, 2),
+            "decote_pct": round(decote_pct, 2),
+            "decote_source": decote_source,
+            "type_liquidation": type_liq,
+            "montant_decote": round(valeur_marchande * decote_pct / 100.0, 2),
+            "valeur_liquidation": round(valeur_liquidation, 2),
+            "justification": justification or "À justifier par l'É.A. (période exposition, contexte vente forcée)",
+            "reference_normative": "NPP OEAQ — valeur de liquidation ordonnée",
+            "calculation_policy": [
+                "Valeur liquidation = valeur marchande × (1 − décote%).",
+                f"Décote : {decote_source} — {'À valider par É.A. avec données comparables liquidation.' if decote_source == 'defaut_a_valider' else 'Justification requise dans le rapport.'}",
+                "La décote doit être quantifiée et documentée dans le rapport.",
+            ],
+        },
+    }
+
+    if decote_source == "defaut_a_valider":
+        result["AVERTISSEMENT"] = (
+            f"VALEUR PROXY (liquidation) — Décote par défaut {decote_pct:.1f}% utilisée. "
+            "À remplacer par une décote justifiée à partir de données de marché comparables."
+        )
+    return result

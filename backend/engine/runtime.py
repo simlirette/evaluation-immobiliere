@@ -2068,6 +2068,85 @@ def _fmt_cad(value: float) -> str:
     return f"{round(value):,}".replace(",", "\u00a0") + " $"
 
 
+_DEFINITION_VALEUR_TEXT = {
+    "juste_valeur_marchande": (
+        "DÉFINITION DE VALEUR : Juste valeur marchande (JVM) au sens de la Loi de l'impôt sur le revenu — "
+        "prix le plus élevé exprimé en dollars qu'un bien rapporterait sur un marché libre, "
+        "entre acheteur et vendeur compétents et sans lien de dépendance, "
+        "aucune des parties n'étant forcée de conclure la transaction."
+    ),
+    "valeur_reelle": (
+        "DÉFINITION DE VALEUR : Valeur réelle au sens de l'art. 42 de la Loi sur la fiscalité municipale — "
+        "prix le plus probable qu'un vendeur et un acheteur consentiraient, dans un marché ouvert et concurrentiel, "
+        "compte tenu de toutes les conditions du marché (réf. Loi sur la fiscalité municipale, RLRQ c. F-2.1)."
+    ),
+    "valeur_liquidation": (
+        "DÉFINITION DE VALEUR : Valeur de liquidation ordonnée — "
+        "valeur marchande ajustée pour tenir compte des contraintes de temps et du contexte de vente forcée. "
+        "Décote justifiée par rapport à la valeur marchande standard à documenter quantitativement."
+    ),
+    "valeur_marchande": "",  # Standard, pas de mention spéciale requise
+}
+
+_MANDAT_SPECIAL_NOTES = {
+    "succession": [
+        "CONTRAINTE DATE : tous les comparables et données de marché doivent être ANTÉRIEURS à la date de référence.",
+        "RÉFÉRENCE NORMATIVE : LIR art. 70(5) — JVM à la date du décès.",
+        "Le rapport doit justifier explicitement la date retenue et l'absence de données postérieures.",
+    ],
+    "donation": [
+        "CONTRAINTE DATE : données de marché antérieures à la date de transfert seulement.",
+        "RÉFÉRENCE NORMATIVE : LIR art. 69(1) — JVM à la date du don ou du roulement.",
+    ],
+    "contestation_role": [
+        "DATE TRIENNALE : la date de référence est fixée au 1er juillet de la 2e année du triennat précédent.",
+        "RÉFÉRENCE NORMATIVE : LFM art. 42 — valeur réelle à la date de référence triennale.",
+        "Citer explicitement l'art. 42 LFM dans la section définition de valeur.",
+        "Comparables : utiliser des ventes contemporaines à la date triennale.",
+    ],
+    "expropriation": [
+        "MÉTHODE OBLIGATOIRE : avant-après.",
+        "Présenter DEUX évaluations distinctes : (1) bien entier avant expropriation, (2) résidu après.",
+        "Indemnité = Valeur avant − Valeur résidu + Préjudices accessoires (à quantifier séparément).",
+        "RÉFÉRENCE NORMATIVE : Loi sur l'expropriation (RLRQ c. E-24).",
+    ],
+    "liquidation": [
+        "VALEUR DEMANDÉE : valeur de liquidation ordonnée (pas la valeur marchande standard).",
+        "Quantifier la décote de liquidation (%) par rapport à la valeur marchande standard.",
+        "Justifier la décote : période d'exposition réduite, contexte de vente forcée, données comparables.",
+    ],
+}
+
+
+def _mandat_special_lines(case: dict) -> list[str]:
+    """Retourne les lignes de prompt spécifiques au type de mandat (T4.1+T4.2)."""
+    mandat_type = str(case.get("mandat_type", "")).lower()
+    lines: list[str] = []
+
+    try:
+        from engine.orchestrator import load_plan_for_mandat  # type: ignore
+        plan = load_plan_for_mandat(mandat_type)
+        def_valeur = plan.to_dict().get("definition_valeur", "valeur_marchande")
+        ref_normative = plan.to_dict().get("reference_normative", "")
+    except (KeyError, Exception):
+        def_valeur = "valeur_marchande"
+        ref_normative = ""
+
+    def_text = _DEFINITION_VALEUR_TEXT.get(def_valeur, "")
+    if def_text:
+        lines += ["", def_text]
+    if ref_normative:
+        lines.append(f"RÉFÉRENCE NORMATIVE : {ref_normative}")
+
+    special_notes = _MANDAT_SPECIAL_NOTES.get(mandat_type, [])
+    if special_notes:
+        lines += ["", f"CONSIGNES MANDAT {mandat_type.upper()} :"]
+        for note in special_notes:
+            lines.append(f"  - {note}")
+
+    return lines
+
+
 def _build_rapport_prompt_v2(
     case: dict,
     format: str,
@@ -2116,6 +2195,7 @@ def _build_rapport_prompt_v2(
         f"FIN ÉVALUATION: {cmd.get('fin_evaluation', '—')}",
         f"TYPE MANDAT: {case.get('mandat_type', case.get('type_bien', '—'))}",
         f"DATE RÉFÉRENCE: {case.get('date_reference', '—')}",
+        *_mandat_special_lines(case),
         "",
         "IDENTIFICATION:",
         f"  Adresse: {case.get('adresse', case.get('display_name', '—'))}",

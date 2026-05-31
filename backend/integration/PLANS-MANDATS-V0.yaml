@@ -134,6 +134,126 @@ plans:
       Mandat écrit signé obligatoire.
       Coût = remplacement (neuf équivalent fonctionnel) ou reproduction.
 
+  # ── Mandats à date / définition de valeur particulière (T4.1 + T4.2) ────────
+
+  succession:
+    label: "Succession / donation / roulement corporatif (JVM)"
+    definition_valeur: juste_valeur_marchande
+    reference_normative: "LIR art. 70(5) / art. 69(1) — JVM à la date du décès ou du don"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+      - approche_cout
+    methodes_optionnelles:
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    date_retrospective: true
+    notes: >
+      JUSTE VALEUR MARCHANDE (JVM) au sens de la Loi de l'impôt sur le revenu.
+      Date de référence RÉTROSPECTIVE imposée (date du décès ou du roulement).
+      Tous les comparables et données de marché doivent être antérieurs à cette date.
+      Définition JVM à citer explicitement : "le prix le plus élevé exprimé en dollars
+      qu'un bien rapporterait sur un marché libre et ouvert..."
+      Rapport narratif complet avec historique détaillé obligatoire.
+
+  donation:
+    label: "Donation / roulement (JVM — art. 69 LIR)"
+    definition_valeur: juste_valeur_marchande
+    reference_normative: "LIR art. 69(1) — JVM à la date du transfert"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+    methodes_optionnelles:
+      - approche_cout
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    date_retrospective: true
+    notes: >
+      JVM au sens LIR — même définition que succession.
+      Date de référence = date du transfert (peut être rétrospective).
+
+  contestation_role:
+    label: "Contestation de rôle d'évaluation (valeur réelle — LFM)"
+    definition_valeur: valeur_reelle
+    reference_normative: "LFM art. 42 — valeur réelle à la date de référence triennale"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+    methodes_optionnelles:
+      - approche_cout
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    date_retrospective: true
+    date_triennale: true
+    notes: >
+      VALEUR RÉELLE au sens de l'art. 42 LFM (pas la valeur marchande courante).
+      Date de référence = 1er juillet de la 2e année du triennat précédent.
+      Comparables doivent être contemporains à cette date triennale.
+      Citer art. 42 LFM explicitement dans le rapport.
+      Évaluation pour fins fiscales municipales — usage limité à la contestation.
+
+  financement:
+    label: "Financement hypothécaire (valeur marchande)"
+    definition_valeur: valeur_marchande
+    reference_normative: "NPP OEAQ / CUSPAP 2026 — valeur marchande standard"
+    format_rapport: abrege
+    methodes_requises:
+      - approche_comparative
+      - approche_cout
+    methodes_optionnelles:
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      Valeur marchande standard. Format abrégé habituel.
+      Lender review requirements si prêteur institutionnel précisé.
+
+  expropriation:
+    label: "Expropriation (méthode avant-après)"
+    definition_valeur: valeur_marchande
+    reference_normative: "Loi sur l'expropriation (RLRQ c. E-24) — indemnité = avant - après + préjudices"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+      - approche_cout
+    methodes_optionnelles:
+      - approche_revenu
+    methode_preponderante: approche_avant_apres
+    umpp_requis: true
+    visite_physique: obligatoire
+    notes: >
+      MÉTHODE AVANT-APRÈS OBLIGATOIRE.
+      Indemnité = Valeur entière (avant) − Valeur résidu (après) + Préjudices accessoires.
+      Deux évaluations distinctes dans le rapport : bien entier + résidu post-expropriation.
+      Préjudices : dépréciation par contiguïté, perte de valeur résiduelle, frais déménagement si applicable.
+
+  liquidation:
+    label: "Liquidation / vente forcée ordonnée"
+    definition_valeur: valeur_liquidation
+    reference_normative: "NPP OEAQ — valeur de liquidation ordonnée"
+    format_rapport: narratif_complet
+    methodes_requises:
+      - approche_comparative
+    methodes_optionnelles:
+      - approche_cout
+      - approche_revenu
+    methode_preponderante: approche_comparative
+    umpp_requis: false
+    visite_physique: obligatoire
+    notes: >
+      VALEUR DE LIQUIDATION = valeur marchande − décote justifiée.
+      Décote motivée par contraintes de temps (période d'exposition réduite),
+      contexte de vente forcée, et données de marché comparables de liquidation.
+      La décote doit être quantifiée et documentée (% du VM standard).
+      Distinction liquidation ordonnée (temps raisonnable contraint) vs forcée (immédiate).
+
 # Correspondances type_bien → mandat_type
 # Utilisé par classify_dossier() pour le routing automatique
 type_bien_mapping:
@@ -194,5 +314,18 @@ type_bien_mapping:
   mise_a_jour: mise_a_jour
   mise_à_jour: mise_a_jour
   assurance: assurance
+  # Mandats spéciaux (T4.1+T4.2)
+  succession: succession
+  donation: donation
+  roulement: succession
+  contestation_role: contestation_role
+  contestation_rôle: contestation_role
+  financement: financement
+  hypothecaire: financement
+  hypothécaire: financement
+  expropriation: expropriation
+  liquidation: liquidation
+  vente_forcee: liquidation
+  vente_forcée: liquidation
 
 default_mandat_type: residentiel_standard
