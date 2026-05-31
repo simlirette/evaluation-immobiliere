@@ -1,39 +1,35 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 7bf30d8 (branch: docs/audit-et-plans-2026-05-31)_
+_Updated: 2026-05-31 | HEAD: 90016c4 (branch: docs/audit-et-plans-2026-05-31)_
 
 ## Current Goal
 
-Phase 5 T5.1–T5.4 done. T5.5/T5.6 ou Phase 6 next.
+Phase 6 partielle done. T6.1 (api.py découpe) ou T6.4 (CI mocks) next.
 
 ## Plan Status
 
-### Phase 5 — Multi-bureau ✅ (partiel)
+### Phase 6 — Qualité & dette (partiel)
 
-- [x] T5.1 — migration 007_bureaux_tenant.sql : bureaux + bureau_membres + helpers RLS (7bf30d8)
-- [x] T5.2 — migration 008_rls_tenant.sql + session_access_allowed bureau-aware (7bf30d8)
-- [x] T5.3 — bureau_dashboard_summary + GET /bureau/dashboard (7bf30d8)
-- [x] T5.4 — create_session usage init + track_llm_usage (7bf30d8)
-- [ ] T5.5 — Observabilité/audit étendu (métriques bureau)
-- [ ] T5.6 — Doc migration cloud SCALE-MIGRATION.md
+- [x] T6.2 — data_enrichment : INCLUDE_INVESTMENT_CONTEXT flag (scores hors OEAQ gérés) (90016c4)
+- [x] T6.5 — Dead code : ThemeToggle.tsx + TabBar.tsx supprimés (90016c4)
+- [x] T6.6 — Observabilité tokens réels : track_llm_usage branché rapport + assistant (90016c4)
+- [ ] T6.1 — Découper api.py 6000+ lignes en modules (~30 Ko max)
+- [ ] T6.3 — Unification TS/Python (Python = source vérité, frontend = affichage)
+- [ ] T6.4 — CI durcie + E2E happy path
 
-### Phase 6 — Qualité & dette (prochaine priorité)
+### Phases antérieures ✅
 
-Plan : `docs/plans/2026-05-31-phase-6-qualite-dette.md`
-- T6.1 — Découper api.py 256 Ko en modules
-- T6.2 — CI mocks réseau + tests E2E
-- T6.3 — Dead code (ThemeToggle, TabBar)
-- T6.4 — Unification calculs TS/Python
-- T6.5 — Observabilité tokens LLM
+P0–P5 : voir session-log.md pour détails.
 
 ## Evidence
 
-- 15 tests P5 verts, 1002+ tests total (7bf30d8)
-- sessions_access_allowed bureau-aware (bureau_id param)
-- track_llm_usage incrémentiel silencieux
+- 78 tests P3+P4+P5+valuation verts (90016c4)
+- 0 TS errors après suppression dead code (npx tsc --noEmit avant suppression)
+- INCLUDE_INVESTMENT_CONTEXT=0 (défaut) : enrich_case ne calcule plus 8 scores hors périmètre
 
 ## Open Issues
 
-- T0.5 : appliquer migrations 002–008 sur Supabase prod
-- T1.3 prod : index_corpus() après migrations
+- T6.1 : api.py 6000+ lignes — refactor risqué, tester chaque route après
+- T6.4 : CI sans accès réseau (data_enrichment, SIRF, Infolot) + E2E fixture
+- T0.5 prod : appliquer migrations 002–008 sur Supabase
 - T3.6 : démo bureau dossier réel
