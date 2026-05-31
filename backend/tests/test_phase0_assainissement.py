@@ -34,7 +34,7 @@ _BANNED_TITLES = [
 
 
 def _build_amu_md(case_overrides: dict | None = None) -> str:
-    from engine.runtime import _build_deterministic_payload  # type: ignore
+    from engine.runtime import RuntimeEngine  # type: ignore
 
     case: dict = {
         "dossier_id": "D-P0-001",
@@ -58,7 +58,12 @@ def _build_amu_md(case_overrides: dict | None = None) -> str:
     if case_overrides:
         case.update(case_overrides)
 
-    payload = _build_deterministic_payload("amu-analyst", "amu_analyse.md", case)
+    runtime = RuntimeEngine.__new__(RuntimeEngine)
+    runtime.strict_mode = False
+    payload = runtime._artifact_payload(
+        "amu-analyst", "amu_analyse.md", case,
+        status="OK", blocking=[], warnings=[],
+    )
     return payload.get("_raw_md", "")
 
 
@@ -138,13 +143,13 @@ def _make_handler(env_overrides: dict):
     for k, v in env_overrides.items():
         os.environ[k] = v
     try:
-        from api import EvalRuntimeHandler  # type: ignore
+        from api import RuntimeApiHandler  # type: ignore
         request = FakeSocket()
         client_address = ("127.0.0.1", 12345)
         server = type("S", (), {"server_address": ("127.0.0.1", 8080)})()
         with pytest.MonkeyPatch().context() as mp:
             # Suppress __init__ side effects
-            handler = object.__new__(EvalRuntimeHandler)
+            handler = object.__new__(RuntimeApiHandler)
             handler.headers = {}
             handler._auth_context_env = env_overrides
         # Patch os.environ directly and reinstantiate _auth_context
@@ -153,7 +158,7 @@ def _make_handler(env_overrides: dict):
 
         def _patched_auth(self=handler):
             # re-read from current os.environ
-            return EvalRuntimeHandler._auth_context(handler)
+            return RuntimeApiHandler._auth_context(handler)
 
         handler._auth_context = _patched_auth
         return handler
@@ -166,12 +171,12 @@ def test_fail_closed_no_token_prod(monkeypatch):
     monkeypatch.setenv("ENV", "production")
     monkeypatch.delenv("EVAL_RUNTIME_API_TOKEN", raising=False)
 
-    from api import EvalRuntimeHandler  # type: ignore
+    from api import RuntimeApiHandler  # type: ignore
 
-    handler = object.__new__(EvalRuntimeHandler)
+    handler = object.__new__(RuntimeApiHandler)
     handler.headers = type("H", (), {"get": staticmethod(lambda k, d="": "")})()
 
-    ctx = EvalRuntimeHandler._auth_context(handler)
+    ctx = RuntimeApiHandler._auth_context(handler)
     assert ctx["authorized"] is False
     assert ctx["reason"] == "token_not_configured"
 
@@ -181,12 +186,12 @@ def test_fail_closed_no_token_require_auth(monkeypatch):
     monkeypatch.delenv("EVAL_RUNTIME_API_TOKEN", raising=False)
     monkeypatch.delenv("ENV", raising=False)
 
-    from api import EvalRuntimeHandler  # type: ignore
+    from api import RuntimeApiHandler  # type: ignore
 
-    handler = object.__new__(EvalRuntimeHandler)
+    handler = object.__new__(RuntimeApiHandler)
     handler.headers = type("H", (), {"get": staticmethod(lambda k, d="": "")})()
 
-    ctx = EvalRuntimeHandler._auth_context(handler)
+    ctx = RuntimeApiHandler._auth_context(handler)
     assert ctx["authorized"] is False
     assert ctx["reason"] == "token_not_configured"
 
@@ -196,11 +201,11 @@ def test_local_dev_allowed_without_token(monkeypatch):
     monkeypatch.delenv("ENV", raising=False)
     monkeypatch.delenv("EVAL_RUNTIME_REQUIRE_AUTH", raising=False)
 
-    from api import EvalRuntimeHandler  # type: ignore
+    from api import RuntimeApiHandler  # type: ignore
 
-    handler = object.__new__(EvalRuntimeHandler)
+    handler = object.__new__(RuntimeApiHandler)
     handler.headers = type("H", (), {"get": staticmethod(lambda k, d="": "")})()
 
-    ctx = EvalRuntimeHandler._auth_context(handler)
+    ctx = RuntimeApiHandler._auth_context(handler)
     assert ctx["authorized"] is True
     assert ctx["role"] == "local_dev"

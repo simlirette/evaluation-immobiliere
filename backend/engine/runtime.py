@@ -14,7 +14,7 @@ from engine.audit import append_audit_log
 from engine.compliance import run_compliance, check_conflit_interets
 from engine.llm_routing import get_llm_model, estimate_llm_cost
 from engine.schema_contracts import validate_artifact_schema
-from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
+from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt, load_skill_knowledge
 from engine.tools import search_comparables, validate_schema
 from engine.valuation import calculate_valuation_trace, approaches_for_case
 
@@ -395,6 +395,25 @@ class RuntimeEngine:
 
         if not system_prompt:
             return payload
+
+        # Injecter analysis.md des skills de l'étape dans le system prompt
+        if step.skills:
+            skill_blocks: list[str] = []
+            budget = 3000
+            used = 0
+            for skill_name in step.skills:
+                if used >= budget:
+                    break
+                remaining = budget - used
+                block = load_skill_knowledge(skill_name, max_chars=min(1500, remaining))
+                if block:
+                    skill_blocks.append(f"### {skill_name}\n{block}")
+                    used += len(block)
+            if skill_blocks:
+                system_prompt += (
+                    "\n\n---\nCONNAISSANCE MÉTHODOLOGIQUE (analysis.md) :\n"
+                    + "\n\n".join(skill_blocks)
+                )
 
         user_prompt = _build_enrichment_prompt(step.name, artifact, payload, case)
 

@@ -4526,32 +4526,10 @@ _AGENT_SYSTEM_LIMITS = (
 )
 
 
-def _extract_skill_knowledge(skill_name: str, max_chars: int = 900) -> str:
-    """Extrait sections 2 (Connaissances) et 4 (Règles critiques) d'un SKILL.md.
-    Retourne le texte tronqué à max_chars. Silencieux si fichier absent."""
-    skill_path = ROOT / "skills" / skill_name / "SKILL.md"
-    if not skill_path.exists():
-        return ""
-    try:
-        text = skill_path.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-    sections: list[str] = []
-    current: list[str] | None = None
-    for line in text.splitlines():
-        if line.startswith("## 2.") or line.startswith("## 4."):
-            current = [line]
-        elif line.startswith("## ") and current is not None:
-            sections.append("\n".join(current))
-            current = None
-        elif current is not None:
-            current.append(line)
-    if current:
-        sections.append("\n".join(current))
-
-    combined = "\n\n".join(sections).strip()
-    return combined[:max_chars] if len(combined) > max_chars else combined
+def _extract_skill_knowledge(skill_name: str, max_chars: int = 2000) -> str:
+    """Charge la connaissance d'un skill (analysis.md prioritaire sur SKILL.md 2+4)."""
+    from engine.skills import load_skill_knowledge
+    return load_skill_knowledge(skill_name, max_chars=max_chars)
 
 
 def _build_agent_full_prompt(agent: str, profile: dict) -> str:
@@ -4581,14 +4559,14 @@ def _build_agent_full_prompt(agent: str, profile: dict) -> str:
         return base_prompt
 
     skill_blocks: list[str] = []
-    # Budget: ~3500 chars total pour les skills (env. 2-3 skills complets)
-    budget = 3500
+    # Budget: ~5000 chars (analysis.md prioritaire, ~2-3 skills complets)
+    budget = 5000
     used = 0
     for skill_name in skill_names:
         if used >= budget:
             break
         remaining = budget - used
-        block = _extract_skill_knowledge(skill_name, max_chars=min(900, remaining))
+        block = _extract_skill_knowledge(skill_name, max_chars=min(2000, remaining))
         if block:
             skill_blocks.append(f"### {skill_name}\n{block}")
             used += len(block)
@@ -4597,7 +4575,7 @@ def _build_agent_full_prompt(agent: str, profile: dict) -> str:
         return base_prompt
 
     skills_section = (
-        "\n\n---\nSKILLS MÉTHODOLOGIQUES DISPONIBLES (connaissances encodées et règles) :\n"
+        "\n\n---\nCONNAISSANCE MÉTHODOLOGIQUE (analysis.md) :\n"
         + "\n\n".join(skill_blocks)
     )
     return base_prompt + skills_section
