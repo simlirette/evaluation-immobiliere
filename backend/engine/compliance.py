@@ -420,3 +420,41 @@ def run_compliance(
         confidence_min=confidence_min,
     )
     return ComplianceReport(blocking=blocking, warnings=warnings)
+
+
+# ── Conflit d'intérêts déterministe ──────────────────────────────────────────
+
+@dataclass
+class ConflitResult:
+    conflit_detecte: bool
+    motif: str  # vide si pas de conflit
+
+
+def check_conflit_interets(case: dict) -> ConflitResult:
+    """Détecte les conflits d'intérêts à partir de signaux structurés.
+
+    Signaux vérifiés (Python pur, sans LLM) :
+    - C001 : lien déclaré entre commanditaire et évaluateur (commanditaire.lien_evaluateur non vide)
+    - C002 : mandat conditionnel à une valeur cible (commanditaire.valeur_cible_conditionnelle = True)
+    - C003 : évaluateur déclaré avec un intérêt dans la propriété (evaluateur.interet_propriete = True)
+
+    Returns:
+        ConflitResult(conflit_detecte=True, motif=...) si au moins un signal présent.
+    """
+    motifs: list[str] = []
+
+    commanditaire = case.get("commanditaire") or {}
+    lien = str(commanditaire.get("lien_evaluateur", "") or "").strip()
+    if lien:
+        motifs.append(f"C001: lien déclaré commanditaire/évaluateur — {lien}")
+
+    if commanditaire.get("valeur_cible_conditionnelle"):
+        motifs.append("C002: mandat conditionnel à une valeur cible")
+
+    evaluateur = case.get("evaluateur") or {}
+    if evaluateur.get("interet_propriete"):
+        motifs.append("C003: évaluateur déclare un intérêt dans la propriété")
+
+    if motifs:
+        return ConflitResult(conflit_detecte=True, motif="; ".join(motifs))
+    return ConflitResult(conflit_detecte=False, motif="")

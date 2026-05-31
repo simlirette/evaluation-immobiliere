@@ -5940,7 +5940,20 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
         expected = os.environ.get("EVAL_RUNTIME_API_TOKEN", "")
         ops_expected = os.environ.get("EVAL_RUNTIME_OPS_TOKEN", "")
         evaluator_id = str(self.headers.get("X-Evaluator-Id", "") or "").strip()
+        is_prod = (
+            os.environ.get("ENV", "").lower() == "production"
+            or os.environ.get("EVAL_RUNTIME_REQUIRE_AUTH", "").strip() == "1"
+        )
         if not expected:
+            if is_prod:
+                # Fail-closed: token absent en prod = refus explicite
+                return {
+                    "enabled": True,
+                    "authorized": False,
+                    "role": "none",
+                    "reason": "token_not_configured",
+                    "evaluator_id": evaluator_id,
+                }
             return {
                 "enabled": False,
                 "authorized": True,

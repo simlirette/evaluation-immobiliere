@@ -11,7 +11,7 @@ import ast
 import uuid
 
 from engine.audit import append_audit_log
-from engine.compliance import run_compliance
+from engine.compliance import run_compliance, check_conflit_interets
 from engine.llm_routing import get_llm_model, estimate_llm_cost
 from engine.schema_contracts import validate_artifact_schema
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
@@ -79,7 +79,6 @@ _LLM_TEXT_FIELD_BY_ARTIFACT: dict[str, str] = {
     "recommandations_corrections.md": "_raw_md",
     "brouillon_valeur.md": "_raw_md",
     "amu_analyse.md": "_raw_md",
-    "lettre_mandat.md": "_raw_md",
     "conflit_interets.json": "analyse_conflit",
     # brouillon_rapport.md : géré par generate_brouillon_rapport — ne pas dupliquer
 }
@@ -1191,25 +1190,6 @@ class RuntimeEngine:
                 )
             else:
                 climat_section = ""
-            # Build crime statistics section
-            crime = case.get("crime_stats") or {}
-            if crime:
-                tc = crime.get("taux_criminalite_total")
-                tv = crime.get("taux_crimes_violents")
-                tp = crime.get("taux_crimes_contre_propriete")
-                annee_crime = crime.get("annee", "")
-                ville_crime = crime.get("ville", zone)
-                crime_section = (
-                    f"## Profil de sécurité — CMA {ville_crime}"
-                    + (f" ({annee_crime})" if annee_crime else "")
-                    + "\n\nTaux pour 100 000 habitants (Police-reported, StatCan 35-10-0078-01)  \n"
-                    + (f"Criminalité totale : **{tc:,.1f}**  \n" if tc is not None else "")
-                    + (f"Crimes violents : **{tv:,.1f}**  \n" if tv is not None else "")
-                    + (f"Crimes contre la propriété : **{tp:,.1f}**  \n" if tp is not None else "")
-                    + "\n"
-                )
-            else:
-                crime_section = ""
             # Build distance to CBD section
             dist_cbd = case.get("distance_cbd") or {}
             if dist_cbd:
@@ -1225,95 +1205,6 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
-            # Build indicative value section
-            vi = case.get("valeur_indicative") or {}
-            if vi:
-                vi_synth = vi.get("valeur_indicative_synthese")
-                vi_comp = vi.get("valeur_par_comparable_ajuste")
-                vi_rev = vi.get("valeur_par_revenu_grm")
-                vi_ecart = vi.get("ecart_methodes_pct")
-                vi_fiab = vi.get("fiabilite", "")
-                vi_meth = vi.get("methodes_utilisees") or []
-                valeur_indicative_section = (
-                    "## Estimation de valeur indicative (calcul interne)\n\n"
-                    + (f"**Valeur de synthèse : {vi_synth:,.0f} $**  \n" if vi_synth else "")
-                    + (f"Approche comparative ajustée : {vi_comp:,.0f} $  \n" if vi_comp else "")
-                    + (f"Approche revenu (GRM) : {vi_rev:,.0f} $  \n" if vi_rev else "")
-                    + (f"Écart entre approches : {vi_ecart:.1f} %  \n" if vi_ecart is not None else "")
-                    + (f"Fiabilité : **{vi_fiab}**  \n" if vi_fiab else "")
-                    + (f"Méthodes : {'; '.join(vi_meth)}  \n" if vi_meth else "")
-                    + "\n*Note : estimation indicative à titre informatif uniquement. "
-                    "L'évaluateur agréé doit exercer son jugement professionnel.*\n\n"
-                )
-            else:
-                valeur_indicative_section = ""
-            # Build risk score section
-            rsk = case.get("score_risque") or {}
-            if rsk:
-                rsk_score = rsk.get("score_risque")
-                rsk_cat = rsk.get("categorie", "")
-                rsk_facteurs = rsk.get("facteurs_risque") or []
-                risque_section = (
-                    "## Score de risque global (calcul interne)\n\n"
-                    + (f"Score : **{rsk_score:.2f} / 10** — {rsk_cat}  \n" if rsk_score is not None else "")
-                    + (
-                        "Facteurs de risque identifiés :\n"
-                        + "".join(f"- {f}  \n" for f in rsk_facteurs)
-                        if rsk_facteurs else "Aucun facteur de risque majeur identifié.  \n"
-                    )
-                    + "\n"
-                )
-            else:
-                risque_section = ""
-            # Build quality-of-life index section
-            qdv_d = case.get("indice_qualite_vie") or {}
-            if qdv_d:
-                qdv_score = qdv_d.get("indice_qualite_vie")
-                qdv_interp = qdv_d.get("interpretation", "")
-                qdv_comp = qdv_d.get("composantes") or {}
-                qdv_section = (
-                    "## Indice de qualité de vie (calcul interne)\n\n"
-                    + (f"Score : **{qdv_score:.2f} / 10** — {qdv_interp}  \n" if qdv_score is not None else "")
-                    + (
-                        "Composantes : "
-                        + ", ".join(
-                            f"{k.replace('_', ' ')} {v:.1f}/10"
-                            for k, v in qdv_comp.items()
-                        )
-                        + "  \n"
-                        if qdv_comp else ""
-                    )
-                    + "\n"
-                )
-            else:
-                qdv_section = ""
-            # Build value projection section
-            pv_d = case.get("projection_valeur") or {}
-            if pv_d:
-                pv_base = pv_d.get("valeur_base")
-                pv_taux = pv_d.get("taux_base_pct")
-                pv_proj = pv_d.get("projections") or {}
-                pv_src = pv_d.get("source_taux", "")
-
-                def _pv_row(scenario: str, label: str) -> str:
-                    s = pv_proj.get(scenario, {})
-                    if not s:
-                        return ""
-                    return (f"**{label}** ({pv_d.get(f'taux_{scenario}_pct', 0):.1f} %/an) : "
-                            + " | ".join(f"{n} an{'s' if n>1 else ''} → {s.get(f'an{n}', 0):,.0f} $"
-                                         for n in [1, 3, 5])
-                            + "  \n")
-
-                projection_section = (
-                    "## Projection de valeur à 5 ans (calcul interne)\n\n"
-                    + (f"Valeur de base : **{pv_base:,.0f} $** | Taux NHPI : {pv_taux:.2f} %/an ({pv_src})  \n\n" if pv_base else "")
-                    + _pv_row("optimiste", "Optimiste")
-                    + _pv_row("base", "Base")
-                    + _pv_row("pessimiste", "Pessimiste")
-                    + "\n*Projection à titre indicatif — ne constitue pas une garantie de rendement.*\n\n"
-                )
-            else:
-                projection_section = ""
             # Build renovation cost section
             cr_d = case.get("cout_renovation") or {}
             if cr_d:
@@ -1352,45 +1243,6 @@ class RuntimeEngine:
                 )
             else:
                 vetuste_section = ""
-            # Build price-to-rent ratio section
-            plr_d = case.get("ratio_prix_loyer") or {}
-            if plr_d:
-                plr_ratio = plr_d.get("ratio_prix_loyer")
-                plr_signal = plr_d.get("signal", "")
-                plr_ecart = plr_d.get("ecart_loyer_marche_pct")
-                plr_esig = plr_d.get("ecart_signal", "")
-                plr_section = (
-                    "## Ratio prix/loyer (calcul interne)\n\n"
-                    + (f"Ratio P/L : **{plr_ratio:.1f}** (valeur ÷ loyers annuels)  \n" if plr_ratio else "")
-                    + (f"Signal marché : **{plr_signal}**  \n" if plr_signal else "")
-                    + (f"Écart posséder vs louer : **{plr_ecart:+.1f} %** — {plr_esig}  \n" if plr_ecart is not None else "")
-                    + "\n"
-                )
-            else:
-                plr_section = ""
-            # Build ownership carrying costs section
-            cp = case.get("couts_possession") or {}
-            if cp:
-                cp_total_m = cp.get("total_mensuel")
-                cp_total_a = cp.get("total_annuel")
-                cp_hypo = cp.get("versement_hypothecaire_mensuel")
-                cp_taxes = cp.get("taxes_mensuelles")
-                cp_entretien = cp.get("entretien_mensuel")
-                cp_assurance = cp.get("assurance_mensuelle")
-                cp_ratio = cp.get("ratio_revenu_pct")
-                cp_interp = cp.get("interpretation", "")
-                couts_section = (
-                    "## Coûts de possession totaux (calcul interne)\n\n"
-                    + (f"Versement hypothécaire estimé : **{cp_hypo:,.0f} $/mois**  \n" if cp_hypo else "")
-                    + (f"Taxes municipales : **{cp_taxes:,.0f} $/mois**  \n" if cp_taxes else "")
-                    + (f"Entretien estimé (1 %/an) : **{cp_entretien:,.0f} $/mois**  \n" if cp_entretien else "")
-                    + (f"Assurance estimée (0,35 %/an) : **{cp_assurance:,.0f} $/mois**  \n" if cp_assurance else "")
-                    + (f"**Total mensuel : {cp_total_m:,.0f} $** ({cp_total_a:,.0f} $/an)  \n" if cp_total_m else "")
-                    + (f"Ratio coûts/revenu médian : **{cp_ratio:.1f} %** — {cp_interp}  \n" if cp_ratio else "")
-                    + "\n"
-                )
-            else:
-                couts_section = ""
             # Build municipal taxes section
             tx = case.get("taxes_municipales") or {}
             if tx:
@@ -1408,107 +1260,11 @@ class RuntimeEngine:
                 )
             else:
                 taxes_section = ""
-            # Build composite investment score section
-            inv = case.get("score_investissement") or {}
-            if inv:
-                inv_score = inv.get("score_investissement")
-                inv_reco = inv.get("recommandation", "")
-                inv_comp = inv.get("composantes") or {}
-                invest_section = (
-                    "## Score composite d'investissement (calcul interne)\n\n"
-                    + (f"Score : **{inv_score:.2f} / 10**  \n" if inv_score is not None else "")
-                    + (f"Recommandation : **{inv_reco}**  \n" if inv_reco else "")
-                    + (
-                        "Composantes : "
-                        + ", ".join(
-                            f"{k.replace('_', ' ')} {v:.1f}/10"
-                            for k, v in inv_comp.items()
-                        )
-                        + "  \n"
-                        if inv_comp else ""
-                    )
-                    + "\n"
-                )
-            else:
-                invest_section = ""
-            # Build rental yield section
-            rend_loc = case.get("rendement_locatif") or {}
-            if rend_loc:
-                rl_brut = rend_loc.get("taux_capitalisation_brut_pct")
-                rl_net = rend_loc.get("taux_capitalisation_net_estime_pct")
-                rl_interp = rend_loc.get("interpretation", "")
-                rl_valeur = rend_loc.get("valeur_reference")
-                rl_loyer = rend_loc.get("loyer_mensuel_reference")
-                rendement_section = (
-                    "## Rendement locatif estimé (calcul interne)\n\n"
-                    + (f"Valeur de référence : **{rl_valeur:,.0f} $**  \n" if rl_valeur else "")
-                    + (f"Loyer médian CMA : **{rl_loyer:,.0f} $/mois**  \n" if rl_loyer else "")
-                    + (f"Taux de capitalisation brut : **{rl_brut:.2f} %**  \n" if rl_brut is not None else "")
-                    + (f"Taux de capitalisation net estimé : **{rl_net:.2f} %**  \n" if rl_net is not None else "")
-                    + (f"Évaluation : **{rl_interp}**  \n" if rl_interp else "")
-                    + "\n"
-                )
-            else:
-                rendement_section = ""
-            # Build market score section
-            score_m = case.get("score_marche") or {}
-            if score_m:
-                sm_score = score_m.get("score_marche")
-                sm_interp = score_m.get("interpretation", "")
-                sm_tension = score_m.get("tension_locative", "")
-                sm_indic = score_m.get("indicateurs_utilises", [])
-                n_indic = len(sm_indic)
-                score_marche_section = (
-                    "## Score de marché synthétique (calcul interne)\n\n"
-                    + (f"Score : **{sm_score:.1f} / 10** ({n_indic} indicateurs)  \n"
-                       if sm_score is not None else "")
-                    + (f"Tension locative : **{sm_tension}**  \n" if sm_tension else "")
-                    + (f"Évaluation globale : **{sm_interp}**  \n" if sm_interp else "")
-                    + "\n"
-                )
-            else:
-                score_marche_section = ""
-            # Build global score header
-            sg_d = case.get("score_global") or {}
-            if sg_d:
-                sg_score = sg_d.get("score_global")
-                sg_grade = sg_d.get("grade", "")
-                sg_reco = sg_d.get("recommandation_finale", "")
-                score_global_header = (
-                    f"> **Score global : {sg_score:.2f} / 10 — Grade {sg_grade}**  \n"
-                    f"> {sg_reco}\n\n"
-                ) if sg_score is not None else ""
-            else:
-                score_global_header = ""
-            # Build alerts section
-            alrt_d = case.get("alertes") or {}
-            alrt_list = alrt_d.get("alertes") or []
-            if alrt_list:
-                niveau_icon = {
-                    "critique": "🔴",
-                    "attention": "🟡",
-                    "info": "🔵",
-                }
-                alrt_lines = "\n".join(
-                    f"- {niveau_icon.get(a.get('niveau',''), '•')} **[{a.get('niveau','').upper()}]** "
-                    f"*{a.get('categorie','')}* — {a.get('message','')}"
-                    for a in alrt_list
-                )
-                alertes_section = (
-                    "## Alertes et signaux de risque\n\n"
-                    + (f"{alrt_d.get('nb_alertes_critiques',0)} critique(s) · "
-                       f"{alrt_d.get('nb_alertes_attention',0)} attention(s) · "
-                       f"{alrt_d.get('nb_alertes_info',0)} info(s)  \n\n")
-                    + alrt_lines + "\n\n"
-                )
-            else:
-                alertes_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
                 f"**Type de bien :** {type_bien}  \n"
                 f"**Zone :** {zone_code}\n\n"
-                + score_global_header
                 + zonage_section
                 + patrimoine_section
                 + inond_section
@@ -1535,20 +1291,9 @@ class RuntimeEngine:
                 + postsec_section
                 + nuisances_section
                 + climat_section
-                + crime_section
                 + vetuste_section
                 + renov_section
-                + risque_section
-                + valeur_indicative_section
-                + qdv_section
                 + taxes_section
-                + couts_section
-                + plr_section
-                + rendement_section
-                + invest_section
-                + projection_section
-                + score_marche_section
-                + alertes_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"
@@ -1558,10 +1303,16 @@ class RuntimeEngine:
             )
 
         if step == "mandat-intake" and artifact == "conflit_interets.json":
+            _conflit = check_conflit_interets(case)
             payload.update({
-                "conflit_detecte": False,
+                "conflit_detecte": _conflit.conflit_detecte,
+                "conflit_motif": _conflit.motif,
                 "verification_completee": True,
-                "commentaire": "Aucun conflit d'interets detecte — verification V0 deterministe.",
+                "commentaire": (
+                    f"Conflit détecté : {_conflit.motif}"
+                    if _conflit.conflit_detecte
+                    else "Aucun conflit d'intérêts détecté — vérification déterministe."
+                ),
                 "analyse_conflit": "",
             })
 
