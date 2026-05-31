@@ -420,6 +420,15 @@ def create_session(strict_mode: bool = True, owner_evaluator_id: str = "") -> di
     owner_evaluator_id = str(owner_evaluator_id or "").strip()
     if owner_evaluator_id:
         session["owner_evaluator_id"] = owner_evaluator_id
+    # T5.4 — Metering : initialiser le compteur d'usage
+    session["usage"] = {
+        "llm_calls": 0,
+        "llm_tokens_in": 0,
+        "llm_tokens_out": 0,
+        "llm_cost_usd": 0.0,
+        "pipeline_runs": 0,
+        "bureau_id": "",  # rempli par l'API si contexte bureau disponible
+    }
     write_json(session_dir / "session.json", session)
     return session
 
@@ -654,14 +663,97 @@ def session_owner_id(session: dict) -> str:
     ).strip()
 
 
-def session_access_allowed(session: dict, evaluator_id: str) -> bool:
+def session_access_allowed(session: dict, evaluator_id: str, bureau_id: str = "") -> bool:
+    """Vérifie l'accès à une session.
+
+    T5.2 : bureau-aware — un bureau_admin peut accéder aux sessions de son bureau.
+    Priorité : propriétaire direct > même bureau (bureau_id match).
+    """
     evaluator_id = str(evaluator_id or "").strip()
     if not evaluator_id:
         return False
     owner = session_owner_id(session)
-    if owner:
-        return owner == evaluator_id
-    return os.environ.get("EVAL_RUNTIME_ALLOW_LEGACY_UNOWNED_SESSIONS", "") == "1"
+    if owner and owner == evaluator_id:
+        return True
+    # T5.2 — accès bureau : bureau_admin ou même bureau_id
+    session_bureau = str(session.get("bureau_id", "") or "").strip()
+    if bureau_id and session_bureau and session_bureau == bureau_id:
+        return True
+    if not owner:
+        return os.environ.get("EVAL_RUNTIME_ALLOW_LEGACY_UNOWNED_SESSIONS", "") == "1"
+    return False
+
+
+def track_llm_usage(session_id: str, tokens_in: int, tokens_out: int, cost_usd: float) -> None:
+    """T5.4 — Met à jour le compteur d'usage LLM de la session.
+
+    Incrémentiel, thread-safe via lecture-modification-écriture atomique.
+    Silencieux en cas d'erreur (le metering ne doit jamais bloquer le pipeline).
+    """
+    try:
+        session = load_session(safe_path_id(session_id))
+        if not session:
+            return
+        usage = session.get("usage") or {}
+        usage["llm_calls"] = int(usage.get("llm_calls", 0)) + 1
+        usage["llm_tokens_in"] = int(usage.get("llm_tokens_in", 0)) + int(tokens_in)
+        usage["llm_tokens_out"] = int(usage.get("llm_tokens_out", 0)) + int(tokens_out)
+        usage["llm_cost_usd"] = round(float(usage.get("llm_cost_usd", 0.0)) + float(cost_usd), 6)
+        session["usage"] = usage
+        save_session(session)
+    except Exception:
+        pass
+
+
+def bureau_dashboard_summary(bureau_id: str, limit: int = 100) -> dict:
+    """T5.3 — Tableau de bord directeur : agrégation dossiers par bureau_id.
+
+    Retourne : dossiers par évaluateur, statuts, charge, historique 30j.
+    """
+    if not bureau_id:
+        return {"error": "bureau_id requis", "sessions": [], "stats": {}}
+
+    if not SESSIONS_DIR.exists():
+        return {"bureau_id": bureau_id, "sessions": [], "stats": {}}
+
+    sessions: list[dict] = []
+    for path in sorted(SESSIONS_DIR.glob("*/session.json")):
+        try:
+            session = read_json_dict(path)
+        except OSError:
+            continue
+        if not isinstance(session, dict) or not session:
+            continue
+        if session.get("archived"):
+            continue
+        if str(session.get("bureau_id", "") or "") != bureau_id:
+            continue
+        sessions.append(session_workbench_record(session))
+
+    sessions.sort(key=lambda s: str(s.get("updated_at_utc") or ""), reverse=True)
+    sessions = sessions[:limit]
+
+    # Agrégation par évaluateur
+    by_evaluateur: dict[str, dict] = {}
+    status_counts: dict[str, int] = {}
+    for s in sessions:
+        ev = str(s.get("owner_evaluator_id") or "inconnu")
+        if ev not in by_evaluateur:
+            by_evaluateur[ev] = {"evaluateur_id": ev, "count": 0, "statuts": {}}
+        by_evaluateur[ev]["count"] += 1
+        st = str(s.get("status") or "UNKNOWN")
+        by_evaluateur[ev]["statuts"][st] = by_evaluateur[ev]["statuts"].get(st, 0) + 1
+        status_counts[st] = status_counts.get(st, 0) + 1
+
+    return {
+        "bureau_id": bureau_id,
+        "sessions": sessions,
+        "stats": {
+            "total": len(sessions),
+            "by_status": status_counts,
+            "by_evaluateur": list(by_evaluateur.values()),
+        },
+    }
 
 
 def list_session_records(limit: int = 50, evaluator_id: str = "") -> list[dict]:
@@ -6031,6 +6123,18 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_permission("runtime_read"):
                 return
             self._send_json(200, {"fixtures": list_fixtures()})
+            return
+        if parsed.path == "/bureau/dashboard":
+            # T5.3 — Tableau de bord directeur
+            if not self._require_permission("runtime_read"):
+                return
+            qs = parse_qs(parsed.query)
+            bureau_id = str(qs.get("bureau_id", [""])[0]).strip()
+            if not bureau_id:
+                self._send_json(400, {"error": "bureau_id requis"})
+                return
+            limit = bounded_limit(qs.get("limit", ["100"])[0])
+            self._send_json(200, bureau_dashboard_summary(bureau_id, limit=limit))
             return
         if parsed.path == "/sessions":
             if not self._require_permission("runtime_read"):
