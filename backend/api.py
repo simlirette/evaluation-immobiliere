@@ -21,6 +21,11 @@ import time
 import uuid
 
 from engine.runtime import RuntimeEngine, PipelineConflitError, load_steps_from_pipeline_yaml, safe_path_id
+# T6.1 — Fondation package apicore/ (extractions de api.py)
+# Ces modules sont disponibles pour import direct ; api.py conserve ses propres defs
+# pour compatibilité jusqu'à la migration complète.
+# from apicore.formatters import ... (utiliser directement dans le code qui le souhaite)
+# from apicore.llm_config import ... (idem)
 from engine.checkpoints import (
     CHECKPOINT_LABELS,
     CHECKPOINT_STEPS,
