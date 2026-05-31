@@ -1,7 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { saveRuntimeSignature, generateCertifiedExport, type SignatureData } from '@/lib/runtime-api'
+import { useState, useEffect } from 'react'
+import {
+  saveRuntimeSignature, generateCertifiedExport,
+  fetchEvaluateurProfile, updateEvaluateurProfile,
+  type SignatureData,
+} from '@/lib/runtime-api'
 
 interface Props {
   dossierId: string
@@ -12,6 +16,15 @@ interface Props {
 export default function SignatureForm({ dossierId, initial, onSigned }: Props) {
   const [nomEa, setNomEa] = useState(initial?.nom_ea ?? '')
   const [noPermis, setNoPermis] = useState(initial?.no_permis_oeaq ?? '')
+
+  // B2 — Pré-remplir depuis le profil Supabase É.A.
+  useEffect(() => {
+    if (nomEa || noPermis) return  // déjà pré-rempli
+    fetchEvaluateurProfile().then(profile => {
+      if (profile?.nom_ea) setNomEa(profile.nom_ea)
+      if (profile?.no_permis_oeaq) setNoPermis(profile.no_permis_oeaq)
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [dateSig, setDateSig] = useState(
     initial?.date_signature ?? new Date().toISOString().slice(0, 10)
   )
@@ -34,6 +47,9 @@ export default function SignatureForm({ dossierId, initial, onSigned }: Props) {
         no_permis_oeaq: noPermis.trim(),
         date_signature: dateSig,
       })
+      // B2 — Persister dans le profil Supabase pour pré-remplir la prochaine fois
+      updateEvaluateurProfile({ nom_ea: nomEa.trim(), no_permis_oeaq: noPermis.trim() })
+        .catch(() => {})  // silencieux — non bloquant
       setSigned(true)
       onSigned?.(result)
     } catch (e) {

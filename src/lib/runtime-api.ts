@@ -457,6 +457,43 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
   })
 }
 
+// ── Profil É.A. (B2) ─────────────────────────────────────────────────────────
+
+export interface EvaluateurProfile {
+  id: string
+  nom_ea: string
+  no_permis_oeaq: string
+  role: string
+  bureau_id: string | null
+}
+
+export async function fetchEvaluateurProfile(): Promise<EvaluateurProfile | null> {
+  try {
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, nom_ea, no_permis_oeaq, role, bureau_id')
+      .eq('id', user.id)
+      .single()
+    return (data as EvaluateurProfile | null) ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function updateEvaluateurProfile(
+  updates: Partial<Pick<EvaluateurProfile, 'nom_ea' | 'no_permis_oeaq'>>
+): Promise<void> {
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+  await supabase.from('profiles').upsert({ id: user.id, ...updates })
+}
+
 // ── Signature / Export certifié (T3.5) ───────────────────────────────────────
 
 export interface SignatureData {

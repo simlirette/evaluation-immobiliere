@@ -189,3 +189,54 @@ def test_e2e_amu_not_hardcoded_true(tmp_path, monkeypatch):
                    umpp.get("methodologie") == "deterministe_v1", (
                 "conformite_zonage=True sans données de zonage — constat A3 non corrigé"
             )
+
+
+@pytest.mark.e2e
+def test_e2e_acceptance_fixture_pipeline(tmp_path, monkeypatch):
+    """B1 — Pipeline complet sur fixture acceptation résidentielle anonymisée.
+
+    Mesure le temps réel (mode déterministe sans LLM).
+    DoD : status non-FAILED, 0 blocages, score 16 éléments ≥ 0.85.
+    """
+    import time
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("RUNTIME_DETERMINISTIC", "1")
+
+    from engine.runtime import RuntimeEngine, load_steps_from_pipeline_yaml
+    from engine.report_check import check_rapport_elements
+
+    ACCEPTANCE = Path(__file__).resolve().parent / "fixtures" / "acceptance" / \
+        "ea_acceptance_anonymized_residential.json"
+    if not ACCEPTANCE.exists():
+        pytest.skip("Fixture acceptation non disponible")
+
+    case = json.loads(ACCEPTANCE.read_text(encoding="utf-8"))
+    engine = RuntimeEngine(
+        steps=load_steps_from_pipeline_yaml(PIPELINE),
+        strict_mode=False,
+    )
+
+    t0 = time.time()
+    result = engine.run_case_data(
+        case, tmp_path / "DEMO",
+        source_fixture=ACCEPTANCE.name,
+        case_stem="DEMO",
+        case_subdir=True,
+    )
+    elapsed = time.time() - t0
+
+    assert result["status"] not in ("FAILED", "ERROR"), f"Pipeline échoué: {result['status']}"
+    assert len(result.get("blocking_failures", [])) == 0, \
+        f"Blocages: {result['blocking_failures']}"
+
+    rapport_path = tmp_path / "DEMO" / "DEMO" / "redaction.brouillon_rapport.md"
+    if rapport_path.exists():
+        rapport = rapport_path.read_text(encoding="utf-8")
+        check = check_rapport_elements(rapport)
+        assert check.score >= 0.85, \
+            f"Score 16 éléments insuffisant: {check.score:.2f} — manquants: {[e.numero for e in check.manquants]}"
+
+    # Log chrono pour référence
+    print(f"\n[B1] Pipeline acceptance: {elapsed:.2f}s | status={result['status']} | "
+          f"blocages={len(result.get('blocking_failures', []))} | "
+          f"warnings={len(result.get('warnings', []))}")

@@ -1,3 +1,9 @@
+/**
+ * @display-only — T2.2 CALCULS-SOURCE-OF-TRUTH.md
+ * Ce calcul est pour l'affichage interactif uniquement.
+ * La valeur finale du rapport provient du moteur Python (engine/valuation.py).
+ * Ne pas utiliser ce résultat pour un rapport certifiable.
+ */
 import type { Adjustment } from '@/types'
 
 export interface AdjustedPriceRangeNarrowing {
