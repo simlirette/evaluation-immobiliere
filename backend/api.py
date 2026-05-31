@@ -4657,7 +4657,68 @@ _FETCH_ARTIFACT_TOOL = {
         },
     },
 }
+_SEARCH_KNOWLEDGE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_knowledge",
+        "description": (
+            "Recherche sémantique dans la base de connaissances normative "
+            "(NPP OEAQ, CUSPAP 2026, MEFQ 2025, LFM, règlements OEAQ). "
+            "Utilise cet outil pour citer une règle spécifique, vérifier une norme, "
+            "ou appuyer une affirmation sur une source officielle."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Question ou extrait à rechercher dans les normes, "
+                        "ex: 'critères AMU résidentiel' ou 'éléments obligatoires rapport CUSPAP'."
+                    ),
+                },
+                "domain": {
+                    "type": "string",
+                    "description": (
+                        "Filtrer par domaine (optionnel). Valeurs : "
+                        "oeaq_professional_standards, cuspap_nuppec_professional_standards, "
+                        "municipal_assessment_manual, municipal_statute_regulation, "
+                        "oeaq_regulation, oeaq_discipline."
+                    ),
+                },
+            },
+            "required": ["query"],
+        },
+    },
+}
 _TOOL_MAX_ROUNDS = 3
+_AGENT_TOOLS = [_FETCH_ARTIFACT_TOOL, _SEARCH_KNOWLEDGE_TOOL]
+
+
+def _execute_search_knowledge(query: str, domain: str | None = None) -> str:
+    """Recherche RAG dans la base de connaissances normative."""
+    try:
+        from engine.knowledge_rag import retrieve_context  # type: ignore
+        result = retrieve_context(query, top_k=3, domain=domain or None)
+        return result if result else "Aucun résultat trouvé dans la base de connaissances."
+    except Exception as exc:
+        return f"Erreur recherche knowledge: {exc}"
+
+
+def _execute_tool_call(name: str, args: dict, session_id: str, dossier_id: str) -> str:
+    """Dispatch vers le bon handler selon le nom de l'outil."""
+    if name == "fetch_artifact":
+        return _execute_fetch_artifact(
+            session_id, dossier_id,
+            str(args.get("step", "")),
+            str(args.get("artifact_name", "")),
+        )
+    if name == "search_knowledge":
+        return _execute_search_knowledge(
+            str(args.get("query", "")),
+            args.get("domain"),
+        )
+    return f"Outil inconnu : {name}"
 
 
 def _execute_fetch_artifact(session_id: str, dossier_id: str, step: str, artifact_name: str) -> str:
@@ -4847,7 +4908,7 @@ def llm_assistant_answer(
             model=model,
             max_tokens=_LLM_MAX_TOKENS,
             messages=messages,
-            tools=[_FETCH_ARTIFACT_TOOL],
+            tools=_AGENT_TOOLS,
             tool_choice="auto",
         )
         if response.usage:
@@ -4878,11 +4939,10 @@ def llm_assistant_answer(
         for tc in tool_calls:
             try:
                 args = json.loads(tc.function.arguments)
-                result = _execute_fetch_artifact(
+                result = _execute_tool_call(
+                    tc.function.name, args,
                     context.get("session_id", ""),
                     context.get("dossier_id", ""),
-                    str(args.get("step", "")),
-                    str(args.get("artifact_name", "")),
                 )
             except Exception as exc:
                 result = f"Erreur exécution outil: {exc}"
@@ -4952,7 +5012,7 @@ def llm_assistant_stream(
             model=model,
             max_tokens=_LLM_MAX_TOKENS,
             messages=messages,
-            tools=[_FETCH_ARTIFACT_TOOL],
+            tools=_AGENT_TOOLS,
             tool_choice="auto",
         )
         if probe.usage:
@@ -4981,11 +5041,10 @@ def llm_assistant_stream(
         for tc in tool_calls:
             try:
                 args = json.loads(tc.function.arguments)
-                result = _execute_fetch_artifact(
+                result = _execute_tool_call(
+                    tc.function.name, args,
                     context.get("session_id", ""),
                     context.get("dossier_id", ""),
-                    str(args.get("step", "")),
-                    str(args.get("artifact_name", "")),
                 )
             except Exception as exc:
                 result = f"Erreur exécution outil: {exc}"

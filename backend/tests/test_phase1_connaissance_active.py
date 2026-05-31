@@ -123,3 +123,52 @@ def test_pipeline_skill_knowledge_injected(monkeypatch):
         assert "CONNAISSANCE MÉTHODOLOGIQUE" in captured[0], (
             "Injection analysis.md absente du system_prompt pipeline"
         )
+
+
+# ── T1.4 : citations normatives dans annexe_sources.md + prompt rapport ──────
+
+def test_annexe_sources_contains_normative_table():
+    from engine.runtime import _build_annexe_sources_md
+    case = {
+        "dossier_id": "D-T14-001",
+        "date_reference": "2026-01-01",
+        "type_bien": "unifamiliale",
+        "mandat_type": "residentiel_standard",
+        "comparables": [{"source_id": "JLR-TEST-001"}],
+    }
+    md = _build_annexe_sources_md(case)
+    assert "Sources normatives applicables" in md
+    assert "NPP OEAQ" in md or "CUSPAP" in md
+    assert "JLR-TEST-001" in md  # données aussi présentes
+
+
+def test_annexe_sources_normative_traceable():
+    from engine.runtime import _build_annexe_sources_md
+    case = {"dossier_id": "D-T14-002", "type_bien": "unifamiliale"}
+    md = _build_annexe_sources_md(case)
+    assert "source officielle" in md.lower() or "lien" in md.lower() or "official" in md.lower()
+
+
+def test_normative_sources_residential():
+    from engine.runtime import _normative_sources_for_case
+    case = {"type_bien": "unifamiliale", "mandat_type": "residentiel_standard"}
+    sources = _normative_sources_for_case(case)
+    families = [s["source_family"] for s in sources]
+    shorts = [s["short"] for s in sources]
+    assert any("NPP" in f or "NPP" in s for f, s in zip(families, shorts))
+    assert any("CUSPAP" in f or "CUSPAP" in s for f, s in zip(families, shorts))
+
+
+def test_rapport_prompt_normative_citations():
+    from engine.runtime import _build_rapport_prompt_v2
+    case = {
+        "dossier_id": "D-T14-003",
+        "type_bien": "unifamiliale",
+        "mandat_type": "residentiel_standard",
+        "date_reference": "2026-01-01",
+        "comparables": [],
+    }
+    prompt = _build_rapport_prompt_v2(case, "abrege", {}, "OK", [], [])
+    assert "SOURCES NORMATIVES" in prompt
+    assert "NPP OEAQ" in prompt or "CUSPAP" in prompt
+    assert "citer" in prompt.lower()

@@ -1498,6 +1498,7 @@ class RuntimeEngine:
 
         if step == "redaction" and artifact == "annexe_sources.md":
             payload["sources"] = collect_source_ids(case)
+            payload["_raw_md"] = _build_annexe_sources_md(case)
 
         return payload
 
@@ -1775,6 +1776,127 @@ def collect_source_ids(case: dict) -> list[str]:
     return _unique(source_ids)
 
 
+# Domaines normatifs prioritaires par type de mandat/bien
+_NORMATIVE_DOMAINS_ALWAYS = {
+    "oeaq_professional_standards",   # NPP OEAQ
+    "cuspap_nuppec_professional_standards",  # CUSPAP 2026
+}
+_NORMATIVE_DOMAINS_RESIDENTIAL = {
+    "municipal_assessment_manual",   # MEFQ
+    "municipal_statute_regulation",  # LFM
+    "oeaq_regulation",               # Règlements OEAQ
+}
+_NORMATIVE_SOURCE_FAMILIES_KEY = {
+    # source_family → abréviation de citation
+    "NPP OEAQ": "NPP OEAQ",
+    "CUSPAP/NUPPEC 2026": "CUSPAP 2026",
+    "Manuel d'évaluation foncière du Québec": "MEFQ 2025",
+    "Loi sur la fiscalité municipale": "LFM",
+    "OEAQ Règlements": "Règl. OEAQ",
+    "AIC Canada": "AIC",
+}
+
+
+def _normative_sources_for_case(case: dict) -> list[dict]:
+    """Retourne les entrées du source-catalog normatives pertinentes pour le dossier.
+
+    Sélectionne selon le type de bien et le mandat. Toujours inclus : NPP + CUSPAP.
+    Pour résidentiel standard : ajoute MEFQ + LFM.
+    """
+    try:
+        from engine.knowledge_rag import load_catalog  # type: ignore
+        catalog = load_catalog()
+    except Exception:
+        return []
+
+    type_bien = str(case.get("type_bien", "")).lower()
+    mandat_type = str(case.get("mandat_type", "residentiel_standard")).lower()
+
+    active_domains = set(_NORMATIVE_DOMAINS_ALWAYS)
+    if any(k in type_bien or k in mandat_type for k in ("resident", "unifami", "duplex", "triplex", "condo")):
+        active_domains |= _NORMATIVE_DOMAINS_RESIDENTIAL
+    elif any(k in type_bien or k in mandat_type for k in ("commercial", "bureau", "industriel", "agricole")):
+        active_domains.add("municipal_assessment_manual")
+        active_domains.add("municipal_statute_regulation")
+
+    seen_families: set[str] = set()
+    sources: list[dict] = []
+    for entry in catalog:
+        if entry.get("domain") not in active_domains:
+            continue
+        family = entry.get("source_family", "")
+        if family in seen_families:
+            continue
+        seen_families.add(family)
+        short = _NORMATIVE_SOURCE_FAMILIES_KEY.get(family, family)
+        sources.append({
+            "source_id": entry["source_id"],
+            "source_family": family,
+            "short": short,
+            "domain": entry["domain"],
+            "folder": entry["folder"],
+            "official_source": entry.get("official_source", ""),
+        })
+    return sources
+
+
+def _build_annexe_sources_md(case: dict) -> str:
+    """Construit le contenu markdown de annexe_sources.md.
+
+    Inclut : sources de données (comparables/hypothèses) + sources normatives.
+    """
+    data_ids = collect_source_ids(case)
+    normative = _normative_sources_for_case(case)
+
+    lines: list[str] = [
+        "# Annexe — Sources et références\n",
+        f"**Dossier :** {case.get('dossier_id', '—')}  \n",
+        f"**Date de référence :** {case.get('date_reference', '—')}  \n",
+        "",
+    ]
+
+    # Sources de données
+    lines += [
+        "## Sources de données\n",
+        f"Nombre de sources : {len(data_ids)}\n",
+    ]
+    if data_ids:
+        lines.append("\n| # | source_id |")
+        lines.append("|---|---|")
+        for i, sid in enumerate(data_ids, 1):
+            lines.append(f"| {i} | {sid} |")
+    else:
+        lines.append("_Aucune source de données identifiée._")
+    lines.append("")
+
+    # Sources normatives
+    lines += [
+        "## Sources normatives applicables\n",
+        "Les règles et normes suivantes s'appliquent à ce dossier :\n",
+    ]
+    if normative:
+        lines.append("\n| Abréviation | Document | Domaine | Source officielle |")
+        lines.append("|---|---|---|---|")
+        for s in normative:
+            url = s["official_source"]
+            url_cell = f"[lien]({url})" if url else "—"
+            lines.append(
+                f"| **{s['short']}** | {s['source_family']} | {s['domain']} | {url_cell} |"
+            )
+    else:
+        lines.append("_Catalogue normatif non disponible._")
+    lines.append("")
+
+    lines += [
+        "## Note de traçabilité\n",
+        "Chaque affirmation quantitative du rapport est rattachée à un `source_id` de données.  \n",
+        "Chaque règle normative citée dans le corps du rapport correspond à une entrée du tableau ci-dessus.  \n",
+        "Le corpus complet est disponible dans `backend/knowledge/corpus/`.  \n",
+    ]
+
+    return "\n".join(lines)
+
+
 def build_recommendations(blocking: list[str], warnings: list[str]) -> list[str]:
     recommendations: list[str] = []
     for failure in blocking:
@@ -2033,6 +2155,22 @@ def _build_rapport_prompt_v2(
         lines += ["", f"HYPOTHÈSES ({len(hypotheses)}):"]
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
+
+    # Inject normative references so LLM cites them in the report
+    normative = _normative_sources_for_case(case)
+    if normative:
+        norm_lines = [
+            "",
+            "SOURCES NORMATIVES APPLICABLES (à citer dans les sections pertinentes) :",
+        ]
+        for s in normative:
+            norm_lines.append(f"  - {s['short']} : {s['source_family']}")
+        norm_lines += [
+            "CONSIGNE : chaque règle invoquée dans le rapport doit citer son abréviation entre crochets,",
+            "ex. « L'évaluateur doit analyser les quatre critères [NPP OEAQ §8] ».",
+            "ex. « La valeur retenue respecte les limites plausibles [MEFQ 2025 Partie 3] ».",
+        ]
+        lines += norm_lines
 
     # Inject template structure as guidance if available
     template_txt = _load_rapport_template(case.get("type_bien", ""))
