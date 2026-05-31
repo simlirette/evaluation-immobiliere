@@ -1,0 +1,125 @@
+{
+  "dossier_id": "D-DEMO-SYNTH-001",
+  "type_bien": "unifamiliale",
+  "mandat_type": "financement",
+  "but_evaluation": "financement hypothécaire",
+  "date_reference": "2026-01-01",
+  "adresse": "1275 rue des Érables, Laval (Fabreville), QC H7P 2H9",
+  "adresse_complete": "1275 rue des Érables, Laval (Fabreville), QC H7P 2H9",
+  "display_name": "1275 rue des Érables, Fabreville, Laval",
+  "zone": "Laval",
+  "zone_code": "H.49",
+  "municipalite": "Laval",
+  "no_matricule": "065-075-1234",
+  "superficie_terrain": 580,
+  "surface": {"value": 148, "unit": "m2"},
+  "annee_construction": 1992,
+  "nb_logements": 1,
+  "nb_chambres": 4,
+  "nb_pieces": 8,
+  "nb_garages": 1,
+  "sous_sol_fini_m2": 65,
+  "etat": "bon",
+  "commanditaire": {
+    "nom": "Caisse Desjardins Laval-Nord",
+    "organisation": "Desjardins Groupe d'assurances",
+    "fin_evaluation": "financement",
+    "valeur_cible_conditionnelle": false
+  },
+  "evaluateur": {
+    "nom": "Jean-François Tremblay É.A.",
+    "interet_propriete": false
+  },
+  "comparables": [
+    {
+      "comparable_id": "COMP-001",
+      "source_id": "JLR-2025-44891",
+      "adresse": "1188 rue des Érables, Fabreville, Laval",
+      "prix_vente": 548000,
+      "date_vente": "2025-09-15",
+      "surface": {"value": 152, "unit": "m2"},
+      "surface_terrain": 620,
+      "annee_construction": 1990,
+      "nb_garages": 1,
+      "etat": "bon",
+      "distance_km": 0.4,
+      "type_bien": "unifamiliale",
+      "confidence": 0.92
+    },
+    {
+      "comparable_id": "COMP-002",
+      "source_id": "JLR-2025-39204",
+      "adresse": "875 boul. Cartier O., Laval-des-Rapides",
+      "prix_vente": 521000,
+      "date_vente": "2025-07-20",
+      "surface": {"value": 138, "unit": "m2"},
+      "surface_terrain": 510,
+      "annee_construction": 1988,
+      "nb_garages": 1,
+      "etat": "bon",
+      "distance_km": 1.2,
+      "type_bien": "unifamiliale",
+      "confidence": 0.87
+    },
+    {
+      "comparable_id": "COMP-003",
+      "source_id": "JLR-2025-52017",
+      "adresse": "2340 rue de l'Épinette, Duvernay, Laval",
+      "prix_vente": 574000,
+      "date_vente": "2025-10-08",
+      "surface": {"value": 161, "unit": "m2"},
+      "surface_terrain": 645,
+      "annee_construction": 1995,
+      "nb_garages": 1,
+      "etat": "bon",
+      "distance_km": 1.8,
+      "type_bien": "unifamiliale",
+      "confidence": 0.84
+    },
+    {
+      "comparable_id": "COMP-004",
+      "source_id": "JLR-2025-41533",
+      "adresse": "1450 rue Duchesneau, Chomedey, Laval",
+      "prix_vente": 498000,
+      "date_vente": "2025-06-10",
+      "surface": {"value": 131, "unit": "m2"},
+      "surface_terrain": 490,
+      "annee_construction": 1985,
+      "nb_garages": 0,
+      "etat": "bon",
+      "distance_km": 2.3,
+      "type_bien": "unifamiliale",
+      "confidence": 0.79
+    },
+    {
+      "comparable_id": "COMP-005",
+      "source_id": "JLR-2025-58824",
+      "adresse": "3012 rue des Bosquets, Fabreville, Laval",
+      "prix_vente": 562000,
+      "date_vente": "2025-11-20",
+      "surface": {"value": 155, "unit": "m2"},
+      "surface_terrain": 600,
+      "annee_construction": 1993,
+      "nb_garages": 2,
+      "etat": "tres_bon",
+      "distance_km": 0.9,
+      "type_bien": "unifamiliale",
+      "confidence": 0.90
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothese": "Le bien est évalué en pleine propriété, libre de toute servitude non déclarée.",
+      "source_ids": []
+    },
+    {
+      "hypothese": "Les informations fournies par le commanditaire concernant les caractéristiques du bien sont présumées exactes.",
+      "source_ids": []
+    }
+  ],
+  "documents_sources": [],
+  "source_ids": ["JLR-2025-44891", "JLR-2025-39204", "JLR-2025-52017", "JLR-2025-41533", "JLR-2025-58824"],
+  "confidence": 0.86,
+  "_demo": true,
+  "_note": "Dossier synthétique haute-fidélité pour démo bureau É.A. Adresse réelle publique, comparables vraisemblables marché Laval 2025."
+}

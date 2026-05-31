@@ -30,7 +30,7 @@ _ELEMENTS_16: list[ReportElement] = [
         critique=True),
     ReportElement(2, "But de l'évaluation",
         "Fin/but déclaré (financement, succession, vente...)",
-        ["but.*evaluat", "fin.*evaluat", "objet.*mandat", "but d'"],
+        ["but.*[eé]valuat", "fin.*[eé]valuat", "objet.*mandat", "but d'", "but et fin"],
         critique=True),
     ReportElement(3, "Définition du type de valeur",
         "Valeur marchande, JVM, valeur réelle...",
