@@ -415,6 +415,22 @@ class RuntimeEngine:
                     + "\n\n".join(skill_blocks)
                 )
 
+        # Injecter RAG normatif pour les agents de recherche et rédaction
+        _rag_steps = {"data-facts", "amu-analyst", "comps-market", "valuation-draft",
+                      "compliance-qa", "redaction"}
+        if step.name in _rag_steps:
+            try:
+                from engine.knowledge_rag import retrieve_context  # type: ignore
+                _rag_query = f"{step.name} {artifact} {case.get('type_bien', '')} {case.get('zone', '')}"
+                _rag_context = retrieve_context(_rag_query, top_k=3)
+                if _rag_context:
+                    system_prompt += (
+                        "\n\n---\nSOURCES NORMATIVES PERTINENTES (RAG) :\n"
+                        + _rag_context
+                    )
+            except Exception:
+                pass  # RAG is optional — never block pipeline
+
         user_prompt = _build_enrichment_prompt(step.name, artifact, payload, case)
 
         try:
