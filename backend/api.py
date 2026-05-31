@@ -5346,6 +5346,132 @@ def write_json(path: Path, payload: dict) -> None:
     _atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+# ── Signature / Export certifié (T3.5) ───────────────────────────────────────
+
+def app_save_signature(body: dict) -> dict:
+    """POST /app/signature — Enregistre la signature É.A. (action explicite, horodatée).
+
+    Prérequis : revue interne VALIDE (CP4 confirmé).
+    Ne génère PAS automatiquement les exports — action séparée /app/signature/export.
+    """
+    session_id = str(body.get("session_id", ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable: {session_id}")
+
+    nom_ea = str(body.get("nom_ea", "")).strip()
+    no_permis_oeaq = str(body.get("no_permis_oeaq", "")).strip()
+    date_signature = str(body.get("date_signature", "")).strip()
+
+    if not nom_ea:
+        raise ValueError("nom_ea requis")
+    if not no_permis_oeaq:
+        raise ValueError("no_permis_oeaq requis")
+    if not date_signature:
+        raise ValueError("date_signature requise")
+
+    payload = {
+        "session_id": session_id,
+        "nom_ea": nom_ea,
+        "no_permis_oeaq": no_permis_oeaq,
+        "date_signature": date_signature,
+        "signe_le": datetime.now(timezone.utc).isoformat(),
+        "dossier_id": session.get("dossier_id", ""),
+    }
+    sig_path = SESSIONS_DIR / safe_path_id(session_id) / "signature.json"
+    write_json(sig_path, payload)
+    return {"ok": True, "signature": payload}
+
+
+def app_get_signature(session_id: str) -> dict:
+    """GET /app/signature — Charge la signature d'une session."""
+    sig_path = SESSIONS_DIR / safe_path_id(session_id) / "signature.json"
+    if not sig_path.exists():
+        return {"signature": None}
+    try:
+        data = json.loads(sig_path.read_text(encoding="utf-8"))
+        return {"signature": data}
+    except (json.JSONDecodeError, OSError):
+        return {"signature": None}
+
+
+def app_generate_certified_export(body: dict) -> dict:
+    """POST /app/signature/export — Génère les exports certifiés (HTML + PDF).
+
+    Action explicite É.A. uniquement. Requiert signature.json dans la session.
+    Retourne les exports en base64.
+    """
+    from engine.report_export import generate_certified_html, generate_certified_pdf  # type: ignore
+
+    session_id = str(body.get("session_id", ""))
+    if not session_id:
+        raise ValueError("session_id requis")
+
+    sig_path = SESSIONS_DIR / safe_path_id(session_id) / "signature.json"
+    if not sig_path.exists():
+        raise ValueError("Signature non trouvée — signer d'abord via POST /app/signature")
+    signature = json.loads(sig_path.read_text(encoding="utf-8"))
+
+    # Charger le brouillon rapport le plus récent
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        raise ValueError(f"Session introuvable: {session_id}")
+    dossier_id = str(session.get("dossier_id", "D-INCONNU"))
+
+    result_path = session.get("result_path", "")
+    rapport_md = ""
+    if result_path:
+        try:
+            result = json.loads(Path(str(result_path)).read_text(encoding="utf-8"))
+            rapport_md = str(result.get("brouillon_rapport_md", "") or "")
+        except (json.JSONDecodeError, OSError, TypeError):
+            pass
+
+    if not rapport_md:
+        # Chercher dans les artefacts de session
+        session_dir = SESSIONS_DIR / safe_path_id(session_id)
+        for candidate in session_dir.rglob("*brouillon_rapport.md"):
+            try:
+                rapport_md = candidate.read_text(encoding="utf-8")
+                break
+            except OSError:
+                pass
+
+    if not rapport_md:
+        raise ValueError("Brouillon de rapport non trouvé dans la session")
+
+    html_certified = generate_certified_html(rapport_md, dossier_id, signature)
+    try:
+        pdf_certified = generate_certified_pdf(rapport_md, dossier_id, signature)
+        pdf_b64 = base64.b64encode(pdf_certified).decode("ascii")
+    except Exception as exc:
+        pdf_b64 = None
+        pdf_error = str(exc)
+    else:
+        pdf_error = None
+
+    # Persister l'export certifié
+    certified_dir = SESSIONS_DIR / safe_path_id(session_id) / "certified"
+    certified_dir.mkdir(parents=True, exist_ok=True)
+    (certified_dir / "rapport_certifie.html").write_text(html_certified, encoding="utf-8")
+    if pdf_b64:
+        (certified_dir / "rapport_certifie.pdf").write_bytes(pdf_certified)
+
+    return {
+        "ok": True,
+        "dossier_id": dossier_id,
+        "session_id": session_id,
+        "signature": signature,
+        "html_certified": html_certified,
+        "pdf_b64": pdf_b64,
+        "pdf_error": pdf_error,
+        "certified_dir": str(certified_dir),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ── Inspection (T3.3) ─────────────────────────────────────────────────────────
 
 _INSPECTION_TYPES = {"interieure_exterieure", "exterieure", "documentaire"}
@@ -5481,6 +5607,18 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
             if not self._require_session_access(resolved):
                 return
             self._send_json(200, app_get_inspection(resolved))
+            return
+        if parsed.path == "/app/signature":
+            if not self._require_permission("runtime_read"):
+                return
+            raw_id = parse_qs(parsed.query).get("session_id", [""])[0]
+            resolved = _normalize_session_id(raw_id) if raw_id else ""
+            if not resolved:
+                self._send_json(400, {"error": "session_id requis"})
+                return
+            if not self._require_session_access(resolved):
+                return
+            self._send_json(200, app_get_signature(resolved))
             return
         if parsed.path == "/app/comparables/candidates":
             if not self._require_permission("runtime_read"):
@@ -5945,6 +6083,20 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_save_inspection(body))
+                return
+            if self.path == "/app/signature":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_save_signature(body))
+                return
+            if self.path == "/app/signature/export":
+                if not self._require_permission("runtime_write"):
+                    return
+                if not self._require_body_session_access(body):
+                    return
+                self._send_json(200, app_generate_certified_export(body))
                 return
             if self.path == "/app/jlr/upload":
                 if not self._require_permission("runtime_write"):

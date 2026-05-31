@@ -212,3 +212,66 @@ def test_deterministic_repli_never_certifie():
     assert "BROUILLON" in rapport or "NON CERTIFIÉ" in rapport or "mode dégradé" in rapport.lower()
     # Ne doit pas présenter le rapport comme un rapport certifié complet
     assert "rapport certifié" not in rapport.lower().replace("ne constitue pas un rapport certifié", "").replace("sans validation et signature", "")
+
+
+# ── T3.5 : export certifié ────────────────────────────────────────────────────
+
+from engine.report_export import (
+    generate_certified_html,
+    generate_certified_pdf,
+    _remove_brouillon_watermark,
+)
+
+
+_SAMPLE_RAPPORT = """\
+> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.
+> Validation requise.
+
+# Rapport d'évaluation
+## 1. Identification
+Dossier D-TEST. Valeur marchande. Date référence 2026-01-01.
+## 2. Conclusion
+Valeur : 500 000 $ (cinq cent mille dollars).
+"""
+
+_SAMPLE_SIG = {
+    "nom_ea": "Jean Martin",
+    "no_permis_oeaq": "4321",
+    "date_signature": "2026-01-15",
+}
+
+
+def test_remove_brouillon_watermark():
+    clean = _remove_brouillon_watermark(_SAMPLE_RAPPORT)
+    assert "BROUILLON NON CERTIFIÉ" not in clean
+    assert "Produit par assistant IA" not in clean
+    assert "Rapport d'évaluation" in clean
+
+
+def test_generate_certified_html_no_brouillon():
+    html = generate_certified_html(_SAMPLE_RAPPORT, "D-TEST", _SAMPLE_SIG)
+    assert "BROUILLON" not in html
+    assert "CERTIFIÉ" in html or "certif" in html.lower()
+    assert "Jean Martin" in html
+    assert "4321" in html
+
+
+def test_generate_certified_html_signature_bloc():
+    html = generate_certified_html(_SAMPLE_RAPPORT, "D-TEST", _SAMPLE_SIG)
+    assert "Permis" in html and "4321" in html
+    assert "2026-01-15" in html
+
+
+def test_generate_certified_html_preserves_content():
+    html = generate_certified_html(_SAMPLE_RAPPORT, "D-TEST", _SAMPLE_SIG)
+    assert "500" in html or "Valeur" in html
+
+
+def test_generate_certified_pdf_returns_bytes():
+    try:
+        pdf = generate_certified_pdf(_SAMPLE_RAPPORT, "D-TEST", _SAMPLE_SIG)
+        assert isinstance(pdf, bytes)
+        assert len(pdf) > 1000  # PDF valide non vide
+        assert pdf[:4] == b"%PDF"
+    except ImportError:
+        pytest.skip("fitz (PyMuPDF) non disponible")

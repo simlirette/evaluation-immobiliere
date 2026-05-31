@@ -457,6 +457,50 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
   })
 }
 
+// ── Signature / Export certifié (T3.5) ───────────────────────────────────────
+
+export interface SignatureData {
+  nom_ea: string
+  no_permis_oeaq: string
+  date_signature: string
+  signe_le?: string
+  dossier_id?: string
+}
+
+export async function fetchRuntimeSignature(sessionId: string): Promise<SignatureData | null> {
+  const result = await runtimeJson<{ signature: SignatureData | null }>(
+    `/app/signature?session_id=${encodeURIComponent(sessionId)}`
+  )
+  return result.signature
+}
+
+export async function saveRuntimeSignature(
+  sessionId: string,
+  signature: SignatureData
+): Promise<SignatureData> {
+  const result = await runtimeJson<{ ok: boolean; signature: SignatureData }>('/app/signature', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...signature }),
+  })
+  return result.signature
+}
+
+export interface CertifiedExportResult {
+  ok: boolean
+  dossier_id: string
+  html_certified: string
+  pdf_b64: string | null
+  pdf_error: string | null
+  generated_at: string
+}
+
+export async function generateCertifiedExport(sessionId: string): Promise<CertifiedExportResult> {
+  return runtimeJson<CertifiedExportResult>('/app/signature/export', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+}
+
 // ── Inspection (T3.3) ─────────────────────────────────────────────────────────
 
 export interface InspectionData {
