@@ -14,19 +14,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 class TestApplicableApproaches:
     def test_unifamiliale_comparative_only(self):
         from engine.valuation import applicable_approaches
-        assert applicable_approaches("unifamiliale") == ["approche_comparative"]
+        assert applicable_approaches("unifamiliale") == ["approche_comparative", "approche_cout"]
 
     def test_maison_comparative_only(self):
         from engine.valuation import applicable_approaches
-        assert applicable_approaches("maison") == ["approche_comparative"]
+        assert applicable_approaches("maison") == ["approche_comparative", "approche_cout"]
 
     def test_cottage_comparative_only(self):
         from engine.valuation import applicable_approaches
-        assert applicable_approaches("cottage") == ["approche_comparative"]
+        assert applicable_approaches("cottage") == ["approche_comparative", "approche_cout"]
 
     def test_residentiel_unifamilial_comparative_only(self):
         from engine.valuation import applicable_approaches
-        assert applicable_approaches("residentiel_unifamilial") == ["approche_comparative"]
+        assert applicable_approaches("residentiel_unifamilial") == ["approche_comparative", "approche_cout"]
 
     def test_terrain_comparative_only(self):
         from engine.valuation import applicable_approaches
@@ -41,9 +41,9 @@ class TestApplicableApproaches:
         from engine.valuation import applicable_approaches
         assert "approche_revenu" in applicable_approaches("duplex")
 
-    def test_commercial_includes_revenu(self):
+    def test_commercial_includes_cout(self):
         from engine.valuation import applicable_approaches
-        assert "approche_revenu" in applicable_approaches("commercial")
+        assert "approche_cout" in applicable_approaches("commercial")
 
     def test_empty_defaults_to_comparative_only(self):
         from engine.valuation import applicable_approaches
@@ -53,16 +53,16 @@ class TestApplicableApproaches:
         from engine.valuation import applicable_approaches
         assert applicable_approaches("propriete_speciale_xyz") == ["approche_comparative"]
 
-    def test_cout_never_in_applicable(self):
-        """L'approche coût n'est jamais retournée — données Altus absentes."""
+    def test_terrain_excludes_cout_and_revenu(self):
         from engine.valuation import applicable_approaches
-        for t in ["unifamiliale", "immeuble_revenus", "commercial", "terrain", ""]:
+        for t in ["terrain", "terrain_vacant", "lot"]:
             assert "approche_cout" not in applicable_approaches(t)
+            assert "approche_revenu" not in applicable_approaches(t)
 
 
-# ── watermark proxy ───────────────────────────────────────────────────────────
+# ── deterministic cost/revenue model failures ────────────────────────────────
 
-class TestWatermarkProxy:
+class TestModelInputFailures:
     _CASE = {
         "comparables": [
             {"comparable_id": "C1", "source_id": "JLR-001", "prix_vente": 400000, "date_vente": "2025-01-01"},
@@ -70,28 +70,29 @@ class TestWatermarkProxy:
         "ajustements": [],
     }
 
-    def test_cout_has_avertissement(self):
+    def test_cout_requires_cost_inputs(self):
         from engine.valuation import calculate_valuation_trace
         result = calculate_valuation_trace(self._CASE, "approche_cout")
         assert "AVERTISSEMENT" in result
-        assert "PROXY" in str(result["AVERTISSEMENT"])
-        assert "OEAQ" in str(result["AVERTISSEMENT"])
+        assert result["value"] is None
+        assert result["calculation_status"] == "INSUFFICIENT_COST_DATA"
 
-    def test_revenu_has_avertissement(self):
+    def test_revenu_requires_income_inputs(self):
         from engine.valuation import calculate_valuation_trace
         result = calculate_valuation_trace(self._CASE, "approche_revenu")
         assert "AVERTISSEMENT" in result
-        assert "PROXY" in str(result["AVERTISSEMENT"])
+        assert result["value"] is None
+        assert result["calculation_status"] == "INSUFFICIENT_INCOME_DATA"
 
     def test_comparative_no_avertissement(self):
         from engine.valuation import calculate_valuation_trace
         result = calculate_valuation_trace(self._CASE, "approche_comparative")
         assert "AVERTISSEMENT" not in result
 
-    def test_watermark_mentions_altus(self):
+    def test_no_proxy_watermark(self):
         from engine.valuation import calculate_valuation_trace
         result = calculate_valuation_trace(self._CASE, "approche_cout")
-        assert "Altus" in str(result["AVERTISSEMENT"])
+        assert "PROXY" not in str(result.get("AVERTISSEMENT", ""))
 
 
 # ── calculate_all_valuation_traces — filtrage par type_bien ──────────────────
@@ -124,14 +125,15 @@ class TestCalculateAllFilteredByType:
         rev = traces["approche_revenu"]
         # applicable not set to False → real trace
         assert rev.get("applicable") is not False
-        assert rev.get("value") is not None
+        assert rev.get("value") is None
+        assert rev.get("calculation_status") == "INSUFFICIENT_INCOME_DATA"
 
-    def test_cout_always_not_applicable(self):
+    def test_unifamiliale_cout_applicable_but_requires_inputs(self):
         from engine.valuation import calculate_all_valuation_traces
-        for t in ["unifamiliale", "immeuble_revenus", "commercial"]:
-            traces = calculate_all_valuation_traces(self._CASE, type_bien=t)
-            cout = traces["approche_cout"]
-            assert cout.get("applicable") is False, f"cout should not be applicable for {t}"
+        traces = calculate_all_valuation_traces(self._CASE, type_bien="unifamiliale")
+        cout = traces["approche_cout"]
+        assert cout.get("applicable") is not False
+        assert cout.get("calculation_status") == "INSUFFICIENT_COST_DATA"
 
     def test_type_bien_from_case_dict(self):
         """type_bien absent du paramètre → lu depuis case dict."""
@@ -141,15 +143,58 @@ class TestCalculateAllFilteredByType:
         assert traces["approche_revenu"].get("applicable") is False
 
 
+# ── valuation input hardening ─────────────────────────────────────────────────
+
+class TestValuationInputHardening:
+    def test_zero_price_comparable_is_excluded(self):
+        from engine.valuation import calculate_valuation_trace
+        case = {
+            "comparables": [
+                {"comparable_id": "C0", "source_id": "JLR-000", "prix_vente": 0, "date_vente": "2025-01-01"},
+                {"comparable_id": "C1", "source_id": "JLR-001", "prix_vente": 400000, "date_vente": "2025-01-01"},
+            ],
+            "ajustements": [],
+        }
+        result = calculate_valuation_trace(case, "approche_comparative")
+        assert result["input_count"] == 1
+        assert result["excluded_comparable_count"] == 1
+        selected = result["trace"]["selected_comparables"]
+        assert [c["comparable_id"] for c in selected] == ["C1"]
+
+    def test_no_usable_comparable_sets_status_and_warning(self):
+        from engine.valuation import calculate_valuation_trace
+        case = {
+            "comparables": [
+                {"comparable_id": "C0", "source_id": "JLR-000", "prix_vente": 0, "date_vente": "2025-01-01"},
+            ],
+            "ajustements": [{"montant": "bad", "validation_humaine": True}],
+        }
+        result = calculate_valuation_trace(case, "approche_comparative")
+        assert result["value"] == 0
+        assert result["input_count"] == 0
+        assert result["calculation_status"] == "INSUFFICIENT_COMPARABLES"
+        assert "AVERTISSEMENT" in result
+
+
 # ── StatCan WDS désactivé ─────────────────────────────────────────────────────
 
+@pytest.mark.network  # Ces tests vérifient que les stubs WDS retournent None — bypasse block_network_calls
 class TestWdsDisabled:
     def test_wds_post_returns_none(self):
-        from engine.data_enrichment import _wds_post
-        result = _wds_post("getCubeMetadata/123", {})
+        """Vérifie que _wds_post stub retourne None (fonctions désactivées)."""
+        import engine.data_enrichment as de_mod
+        # Appel direct sur la fonction originale (avant patch conftest)
+        original = de_mod.__dict__.get("_wds_post")
+        if original is None:
+            pytest.skip("_wds_post non disponible")
+        result = original("getCubeMetadata/123", {})
         assert result is None
 
     def test_wds_get_returns_none(self):
-        from engine.data_enrichment import _wds_get
-        result = _wds_get("getCubeMetadata/123")
+        """Vérifie que _wds_get stub retourne None (fonctions désactivées)."""
+        import engine.data_enrichment as de_mod
+        original = de_mod.__dict__.get("_wds_get")
+        if original is None:
+            pytest.skip("_wds_get non disponible")
+        result = original("getCubeMetadata/123")
         assert result is None

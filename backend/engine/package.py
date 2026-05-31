@@ -17,31 +17,71 @@ _KEY_ARTIFACTS = [
     ("data-facts", "fiche_bien.json"),
     ("comps-market", "comparables_proposes.json"),
     ("valuation-draft", "calculs_approche_comparative.json"),
-    ("compliance-qa", "rapport_conformite.json"),
+    ("compliance-qa", "rapport_non_conformites.json"),
+    ("compliance-qa", "statut_sortie.json"),
 ]
+
+
+def _resolve_session_file(session: dict, raw_path: object) -> Path | None:
+    raw = Path(str(raw_path or ""))
+    if not raw:
+        return None
+    try:
+        resolved = raw.resolve()
+        session_dir = Path(str(session.get("session_dir") or "")).resolve()
+        resolved.relative_to(session_dir)
+    except (OSError, ValueError):
+        return None
+    return resolved if resolved.exists() and resolved.is_file() else None
+
+
+def _load_artifact_index(session: dict) -> dict:
+    artifact_index_path = Path(str(session.get("session_dir") or "")) / "artifact_index.json"
+    if not artifact_index_path.exists():
+        return {}
+    try:
+        payload = json.loads(artifact_index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _find_rapport_md(session: dict) -> tuple[str, Path | None]:
     """Locate brouillon_rapport.md artifact. Returns (md_text, path|None)."""
-    artifact_index_path = Path(str(session.get("session_dir") or "")) / "artifact_index.json"
-    if not artifact_index_path.exists():
-        return "", None
-    try:
-        index = json.loads(artifact_index_path.read_text(encoding="utf-8"))
-    except Exception:
-        return "", None
+    index = _load_artifact_index(session)
+
+    for record in index.get("artifacts", []) if isinstance(index.get("artifacts"), list) else []:
+        if record.get("step") != "redaction" or record.get("artifact") != "brouillon_rapport.md":
+            continue
+        art_path = _resolve_session_file(session, record.get("path"))
+        if art_path:
+            return art_path.read_text(encoding="utf-8"), art_path
 
     for event in index.get("events", []) if isinstance(index.get("events"), list) else []:
         for art in event.get("artifacts", []) if isinstance(event.get("artifacts"), list) else []:
             if art.get("artifact") == "brouillon_rapport.md":
-                art_path = Path(str(art.get("path") or ""))
-                if art_path.exists():
+                art_path = _resolve_session_file(session, art.get("path"))
+                if art_path:
                     return art_path.read_text(encoding="utf-8"), art_path
     return "", None
 
 
-def _collect_artifact_paths(case: dict) -> list[tuple[str, Path]]:
+def _collect_artifact_paths(case: dict, session: dict | None = None) -> list[tuple[str, Path]]:
     """Collect existing key artifact JSON files from artifact_dir."""
+    if session:
+        index = _load_artifact_index(session)
+        collected: list[tuple[str, Path]] = []
+        for step, artifact in _KEY_ARTIFACTS:
+            for record in index.get("artifacts", []) if isinstance(index.get("artifacts"), list) else []:
+                if record.get("step") != step or record.get("artifact") != artifact:
+                    continue
+                path = _resolve_session_file(session, record.get("path"))
+                if path:
+                    collected.append((artifact, path))
+                break
+        if collected:
+            return collected
+
     artifact_dir = Path(str(case.get("artifact_dir") or ""))
     if not artifact_dir.exists():
         return []
@@ -61,6 +101,9 @@ def generate_package_from_case(
     review: dict,
     integrity: dict,
     package_origin: str = "validated_runtime_session",
+    certifiability_gate: dict | None = None,
+    require_report_md: bool = False,
+    require_report_pdf: bool = False,
 ) -> dict:
     """Generate package V1 ZIP bundle.
 
@@ -82,6 +125,8 @@ def generate_package_from_case(
     if md_text:
         rapport_md_path.write_text(md_text, encoding="utf-8")
         files.append({"name": PACKAGE_FILES["rapport_md"], "size": len(md_text.encode())})
+    elif require_report_md:
+        raise ValueError("paquet V1 refuse: brouillon_rapport.md introuvable")
 
     # ── 2. Rapport PDF ─────────────────────────────────────────────────────────
     rapport_pdf_path = out_dir / PACKAGE_FILES["rapport_pdf"]
@@ -90,11 +135,15 @@ def generate_package_from_case(
             pdf_bytes = _generate_pdf(md_text, dossier_id)
             rapport_pdf_path.write_bytes(pdf_bytes)
             files.append({"name": PACKAGE_FILES["rapport_pdf"], "size": len(pdf_bytes)})
-        except Exception:
-            pass  # PDF generation is best-effort
+        except Exception as exc:
+            if require_report_pdf:
+                raise ValueError(f"paquet V1 refuse: generation PDF impossible ({type(exc).__name__})") from exc
+            pass  # PDF generation remains best-effort for direct helper usage.
+    elif require_report_pdf:
+        raise ValueError("paquet V1 refuse: rapport PDF impossible sans brouillon")
 
     # ── 3. Key artifacts ───────────────────────────────────────────────────────
-    artifact_files = _collect_artifact_paths(case)
+    artifact_files = _collect_artifact_paths(case, session)
     for filename, src_path in artifact_files:
         dst = out_dir / filename
         dst.write_bytes(src_path.read_bytes())
@@ -117,6 +166,10 @@ def generate_package_from_case(
             "reviewed_at": review.get("reviewed_at", ""),
         },
         "integrity_ok": bool(integrity.get("ok")),
+        "certifiability_gate": certifiability_gate or {},
+        "requires_human_validation": True,
+        "certification_automatic": False,
+        "external_evaluator_responses_included": False,
         "artifacts_count": len(files),
         "package_files": {f["name"]: f["size"] for f in files},
     }

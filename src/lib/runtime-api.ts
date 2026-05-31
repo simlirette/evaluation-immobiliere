@@ -1,6 +1,22 @@
 import type { Adjustment, Comparable, Document, Dossier, Enrichment, FactChip } from '@/types'
+import { dedup } from './fetch-dedup'
 
 const BFF_BASE = '/api/runtime'
+
+export interface CertifiabilityGate {
+  ok: boolean
+  status?: string
+  blocking_errors?: string[]
+  blocking_messages?: string[]
+  blocking_errors_count?: number
+  actual_review_decision?: string
+  integrity_ok?: boolean
+  compliance_status?: string
+  compliance_blocking_failures_count?: number
+  comparative_input_count?: number
+  comparative_value?: number | null
+  report_available?: boolean
+}
 
 export interface AppState {
   schema_version: string
@@ -44,12 +60,16 @@ export interface AppState {
       preview: string
       title: string
       subtitle: string
+      certifiability_gate?: CertifiabilityGate
     }
     workflow: {
       status: string
       can_validate_review: boolean
       can_generate_package: boolean
       steps: Array<{ id: string; label: string; status: string; complete: boolean }>
+      certifiability_gate?: CertifiabilityGate
+      package_gate?: CertifiabilityGate
+      blocking_messages?: string[]
     }
     pipeline_progress: {
       steps: string[]
@@ -57,6 +77,8 @@ export interface AppState {
       running: string | null
       waiting_checkpoint: number | null
     } | null
+    pipeline_error?: string | null
+    ingestion_error?: string | null
     assistant: {
       agents?: Array<{ agent: string; label: string; status: string; focus: string }>
       transcript?: { messages_count?: number; latest_agent_label?: string }
@@ -65,6 +87,7 @@ export interface AppState {
       status: string
       manifest?: Record<string, unknown>
       files?: string[]
+      gate?: CertifiabilityGate
     }
     enrichment: Enrichment | null
   }
@@ -126,15 +149,18 @@ async function runtimeJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function fetchAppState(sessionId?: string | null): Promise<AppState> {
+  const key = sessionId ? `state:${sessionId}` : 'state:'
   const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
-  return runtimeJson<AppState>(`/app/state${query}`)
+  return dedup(key, () => runtimeJson<AppState>(`/app/state${query}`))
 }
 
-export async function fetchRuntimeDossiers(): Promise<Dossier[]> {
-  const state = await fetchAppState()
-  // archived filtered server-side; pinned comes from backend record
-  return (state.dossiers ?? [])
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+export function fetchRuntimeDossiers(): Promise<Dossier[]> {
+  return dedup('dossiers', async () => {
+    const state = await fetchAppState()
+    // archived filtered server-side; pinned comes from backend record
+    return (state.dossiers ?? [])
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+  })
 }
 
 export async function fetchRuntimeDossier(sessionId: string): Promise<Dossier | null> {
@@ -196,14 +222,46 @@ export async function fetchRuntimeDocuments(sessionId: string): Promise<Document
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const UPLOAD_ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+const UPLOAD_EXTENSIONS_BY_TYPE: Record<string, string[]> = {
+  'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+}
+
+function assertUploadFilename(file: File) {
+  if (file.name.includes('/') || file.name.includes('\\')) {
+    throw new Error('Nom de fichier invalide.')
+  }
+  const lower = file.name.toLowerCase()
+  const allowed = UPLOAD_EXTENSIONS_BY_TYPE[file.type] ?? []
+  if (!allowed.some(ext => lower.endsWith(ext))) {
+    throw new Error('Extension de fichier incompatible avec le type déclaré.')
+  }
+}
+
+async function assertUploadSignature(file: File) {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
+  if (head.length === 0) throw new Error('Fichier vide.')
+  if (file.type === 'application/pdf') {
+    const pdf = [0x25, 0x50, 0x44, 0x46, 0x2d]
+    if (!pdf.every((byte, i) => head[i] === byte)) throw new Error('Fichier PDF invalide.')
+  } else if (file.type === 'image/jpeg') {
+    if (head[0] !== 0xff || head[1] !== 0xd8) throw new Error('Image JPEG invalide.')
+  } else if (file.type === 'image/png') {
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    if (!png.every((byte, i) => head[i] === byte)) throw new Error('Image PNG invalide.')
+  }
+}
 
 export async function uploadRuntimeDocument(sessionId: string, file: File): Promise<Document> {
   if (!UPLOAD_ALLOWED_TYPES.has(file.type)) {
     throw new Error('Type non autorisé. PDF, JPG ou PNG uniquement.')
   }
+  assertUploadFilename(file)
   if (file.size > UPLOAD_MAX_BYTES) {
     throw new Error('Fichier trop volumineux (maximum 10 Mo).')
   }
+  await assertUploadSignature(file)
 
   const content_b64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -369,9 +427,11 @@ export async function generateRapport(
   return result.content
 }
 
-export async function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichment | null> {
-  const state = await fetchAppState(sessionId)
-  return state.active?.enrichment ?? null
+export function fetchRuntimeEnrichment(sessionId: string): Promise<Enrichment | null> {
+  return dedup(`enrichment:${sessionId}`, async () => {
+    const state = await fetchAppState(sessionId)
+    return state.active?.enrichment ?? null
+  })
 }
 
 export interface TranscriptExchange {
@@ -395,6 +455,80 @@ export async function saveRuntimeAdjustments(sessionId: string, adjustments: Adj
     method: 'POST',
     body: JSON.stringify({ session_id: sessionId, adjustments }),
   })
+}
+
+// ── Signature / Export certifié (T3.5) ───────────────────────────────────────
+
+export interface SignatureData {
+  nom_ea: string
+  no_permis_oeaq: string
+  date_signature: string
+  signe_le?: string
+  dossier_id?: string
+}
+
+export async function fetchRuntimeSignature(sessionId: string): Promise<SignatureData | null> {
+  const result = await runtimeJson<{ signature: SignatureData | null }>(
+    `/app/signature?session_id=${encodeURIComponent(sessionId)}`
+  )
+  return result.signature
+}
+
+export async function saveRuntimeSignature(
+  sessionId: string,
+  signature: SignatureData
+): Promise<SignatureData> {
+  const result = await runtimeJson<{ ok: boolean; signature: SignatureData }>('/app/signature', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...signature }),
+  })
+  return result.signature
+}
+
+export interface CertifiedExportResult {
+  ok: boolean
+  dossier_id: string
+  html_certified: string
+  pdf_b64: string | null
+  pdf_error: string | null
+  generated_at: string
+}
+
+export async function generateCertifiedExport(sessionId: string): Promise<CertifiedExportResult> {
+  return runtimeJson<CertifiedExportResult>('/app/signature/export', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+}
+
+// ── Inspection (T3.3) ─────────────────────────────────────────────────────────
+
+export interface InspectionData {
+  date_visite: string
+  type_inspection: 'interieure_exterieure' | 'exterieure' | 'documentaire'
+  etendue: string
+  observations: string
+  acces_limite: boolean
+  notes_acces: string
+  enregistre_le?: string
+}
+
+export async function fetchRuntimeInspection(sessionId: string): Promise<InspectionData | null> {
+  const result = await runtimeJson<{ inspection: InspectionData | null }>(
+    `/app/inspection?session_id=${encodeURIComponent(sessionId)}`
+  )
+  return result.inspection
+}
+
+export async function saveRuntimeInspection(
+  sessionId: string,
+  inspection: Omit<InspectionData, 'enregistre_le'>
+): Promise<InspectionData> {
+  const result = await runtimeJson<{ ok: boolean; inspection: InspectionData }>('/app/inspection', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...inspection }),
+  })
+  return result.inspection
 }
 
 export async function saveRuntimeFactOverrides(

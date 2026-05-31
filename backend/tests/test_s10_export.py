@@ -90,21 +90,96 @@ class TestExportFilenameUsesDossierId:
         session_dir.mkdir()
         artifacts_dir = session_dir / "artifacts" / dossier_id
         artifacts_dir.mkdir(parents=True)
+        run_id = "run_s10"
         rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
         rapport_path.write_text("## Rapport\n\nContenu test.", encoding="utf-8")
+        compliance_path = artifacts_dir / "compliance-qa.statut_sortie.json"
+        compliance_path.write_text(
+            json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}),
+            encoding="utf-8",
+        )
+        comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
+        comparative_path.write_text(
+            json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}),
+            encoding="utf-8",
+        )
+        result_path = session_dir / "result.json"
+        result_path.write_text(
+            json.dumps({
+                "dossier_id": dossier_id,
+                "status": "PRET_REVISION_FINALE",
+                "blocking_failures": [],
+                "warnings": [],
+                "artifact_dir": str(artifacts_dir),
+            }),
+            encoding="utf-8",
+        )
+        review_path = session_dir / "review.json"
+        review_path.write_text(
+            json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}),
+            encoding="utf-8",
+        )
+        events = [
+            ("evt_s10_report", "redaction", "brouillon_rapport.md", rapport_path),
+            ("evt_s10_compliance", "compliance-qa", "statut_sortie.json", compliance_path),
+            ("evt_s10_comparative", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
+        ]
+        events_path = session_dir / "events.jsonl"
+        events_path.write_text(
+            "\n".join(
+                json.dumps({
+                    "event_id": event_id,
+                    "session_id": session_id,
+                    "run_id": run_id,
+                    "sequence": index,
+                    "event": "artifact_written",
+                    "step": step,
+                    "artifact": artifact,
+                    "path": str(path),
+                    "artifact_path": str(path),
+                })
+                for index, (event_id, step, artifact, path) in enumerate(events, start=1)
+            ) + "\n",
+            encoding="utf-8",
+        )
         artifact_index = {
             "artifacts": [
                 {
                     "step": "redaction",
                     "artifact": "brouillon_rapport.md",
-                    "event_id": "evt_s10",
+                    "event_id": "evt_s10_report",
                     "path": str(rapport_path),
+                    "exists": True,
+                },
+                {
+                    "step": "compliance-qa",
+                    "artifact": "statut_sortie.json",
+                    "event_id": "evt_s10_compliance",
+                    "path": str(compliance_path),
+                    "exists": True,
+                },
+                {
+                    "step": "valuation-draft",
+                    "artifact": "calculs_approche_comparative.json",
+                    "event_id": "evt_s10_comparative",
+                    "path": str(comparative_path),
+                    "exists": True,
                 }
             ]
         }
-        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        artifact_index_path = session_dir / "artifact_index.json"
+        artifact_index_path.write_text(json.dumps(artifact_index), encoding="utf-8")
         (session_dir / "session.json").write_text(
-            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": dossier_id}),
+            json.dumps({
+                "session_id": session_id,
+                "run_id": run_id,
+                "session_dir": str(session_dir),
+                "dossier_id": dossier_id,
+                "result_path": str(result_path),
+                "review_path": str(review_path),
+                "events_path": str(events_path),
+                "artifact_index_path": str(artifact_index_path),
+            }),
             encoding="utf-8",
         )
 

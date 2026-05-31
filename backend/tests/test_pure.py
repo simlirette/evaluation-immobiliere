@@ -3,6 +3,24 @@ import sys
 import pytest
 from pathlib import Path
 
+
+@pytest.fixture(autouse=True)
+def _block_unmocked_network(monkeypatch):
+    """Keep this legacy pure-unit file deterministic when enrichment tests forget a mock."""
+
+    def blocked_network(*_args, **_kwargs):
+        raise OSError("network access is disabled in backend/tests/test_pure.py")
+
+    monkeypatch.setattr("urllib.request.urlopen", blocked_network)
+
+    try:
+        import httpx  # type: ignore
+    except ImportError:
+        return
+
+    monkeypatch.setattr(httpx, "get", blocked_network)
+    monkeypatch.setattr(httpx, "stream", blocked_network)
+
 # Allow importing api.py directly without the full package installed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -1326,13 +1344,33 @@ class TestExportRapport_DocxEndpoint:
         session_dir.mkdir()
         artifacts_dir = session_dir / "artifacts" / "D-EXPORT"
         artifacts_dir.mkdir(parents=True)
+        run_id = "run-export-docx"
         rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
         rapport_path.write_text("## Rapport\n\nContenu test.", encoding="utf-8")
-        artifact_index = {"artifacts": [{"step": "redaction", "artifact": "brouillon_rapport.md",
-                                          "event_id": "evt_001", "path": str(rapport_path)}]}
-        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        compliance_path = artifacts_dir / "compliance-qa.statut_sortie.json"
+        compliance_path.write_text(json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}), encoding="utf-8")
+        comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
+        comparative_path.write_text(json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}), encoding="utf-8")
+        result_path = session_dir / "result.json"
+        result_path.write_text(json.dumps({"dossier_id": "D-EXPORT", "status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": [], "artifact_dir": str(artifacts_dir)}), encoding="utf-8")
+        review_path = session_dir / "review.json"
+        review_path.write_text(json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}), encoding="utf-8")
+        events_path = session_dir / "events.jsonl"
+        events = [
+            ("evt_001", "redaction", "brouillon_rapport.md", rapport_path),
+            ("evt_002", "compliance-qa", "statut_sortie.json", compliance_path),
+            ("evt_003", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
+        ]
+        events_path.write_text("\n".join(json.dumps({"event_id": event_id, "session_id": session_id, "run_id": run_id, "sequence": index, "event": "artifact_written", "step": step, "artifact": artifact, "path": str(path), "artifact_path": str(path)}) for index, (event_id, step, artifact, path) in enumerate(events, start=1)) + "\n", encoding="utf-8")
+        artifact_index = {"artifacts": [
+            {"step": "redaction", "artifact": "brouillon_rapport.md", "event_id": "evt_001", "path": str(rapport_path), "exists": True},
+            {"step": "compliance-qa", "artifact": "statut_sortie.json", "event_id": "evt_002", "path": str(compliance_path), "exists": True},
+            {"step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "event_id": "evt_003", "path": str(comparative_path), "exists": True},
+        ]}
+        artifact_index_path = session_dir / "artifact_index.json"
+        artifact_index_path.write_text(json.dumps(artifact_index), encoding="utf-8")
         (session_dir / "session.json").write_text(
-            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": "D-EXPORT"}),
+            json.dumps({"session_id": session_id, "run_id": run_id, "session_dir": str(session_dir), "dossier_id": "D-EXPORT", "result_path": str(result_path), "review_path": str(review_path), "events_path": str(events_path), "artifact_index_path": str(artifact_index_path)}),
             encoding="utf-8")
 
         result = api_module.app_export_rapport({"session_id": session_id, "format": "docx"})
@@ -1356,13 +1394,33 @@ class TestExportRapport_HtmlEndpoint:
         session_dir.mkdir()
         artifacts_dir = session_dir / "artifacts" / "D-HTML"
         artifacts_dir.mkdir(parents=True)
+        run_id = "run-export-html"
         rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
         rapport_path.write_text("## Test\n\nContenu.", encoding="utf-8")
-        artifact_index = {"artifacts": [{"step": "redaction", "artifact": "brouillon_rapport.md",
-                                          "event_id": "evt_001", "path": str(rapport_path)}]}
-        (session_dir / "artifact_index.json").write_text(json.dumps(artifact_index), encoding="utf-8")
+        compliance_path = artifacts_dir / "compliance-qa.statut_sortie.json"
+        compliance_path.write_text(json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}), encoding="utf-8")
+        comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
+        comparative_path.write_text(json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}), encoding="utf-8")
+        result_path = session_dir / "result.json"
+        result_path.write_text(json.dumps({"dossier_id": "D-HTML", "status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": [], "artifact_dir": str(artifacts_dir)}), encoding="utf-8")
+        review_path = session_dir / "review.json"
+        review_path.write_text(json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}), encoding="utf-8")
+        events_path = session_dir / "events.jsonl"
+        events = [
+            ("evt_001", "redaction", "brouillon_rapport.md", rapport_path),
+            ("evt_002", "compliance-qa", "statut_sortie.json", compliance_path),
+            ("evt_003", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
+        ]
+        events_path.write_text("\n".join(json.dumps({"event_id": event_id, "session_id": session_id, "run_id": run_id, "sequence": index, "event": "artifact_written", "step": step, "artifact": artifact, "path": str(path), "artifact_path": str(path)}) for index, (event_id, step, artifact, path) in enumerate(events, start=1)) + "\n", encoding="utf-8")
+        artifact_index = {"artifacts": [
+            {"step": "redaction", "artifact": "brouillon_rapport.md", "event_id": "evt_001", "path": str(rapport_path), "exists": True},
+            {"step": "compliance-qa", "artifact": "statut_sortie.json", "event_id": "evt_002", "path": str(compliance_path), "exists": True},
+            {"step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "event_id": "evt_003", "path": str(comparative_path), "exists": True},
+        ]}
+        artifact_index_path = session_dir / "artifact_index.json"
+        artifact_index_path.write_text(json.dumps(artifact_index), encoding="utf-8")
         (session_dir / "session.json").write_text(
-            json.dumps({"session_id": session_id, "session_dir": str(session_dir), "dossier_id": "D-HTML"}),
+            json.dumps({"session_id": session_id, "run_id": run_id, "session_dir": str(session_dir), "dossier_id": "D-HTML", "result_path": str(result_path), "review_path": str(review_path), "events_path": str(events_path), "artifact_index_path": str(artifact_index_path)}),
             encoding="utf-8")
 
         result = api_module.app_export_rapport({"session_id": session_id, "format": "html"})
@@ -5397,7 +5455,8 @@ class TestDataEnrichment_ScoreInvestissement:
         assert compute_score_investissement(case) == {}
 
     def test_enrich_case_injects_score_investissement(self, tmp_path):
-        """enrich_case injecte score_investissement quand B30+B31+B32 disponibles."""
+        """enrich_case injecte score_investissement quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5410,7 +5469,8 @@ class TestDataEnrichment_ScoreInvestissement:
             "indice_abordabilite": {"ratio_loyer_revenu_pct": 28.0},
         }
 
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         inv = case.get("score_investissement", {})
@@ -5534,7 +5594,8 @@ class TestDataEnrichment_CoutsPossession:
         assert compute_couts_possession({}) == {}
 
     def test_enrich_case_injects_couts_possession(self, tmp_path):
-        """enrich_case injecte couts_possession quand données disponibles."""
+        """enrich_case injecte couts_possession quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5546,7 +5607,8 @@ class TestDataEnrichment_CoutsPossession:
             "taxes_municipales": {"taxes_mensuelles_estimees": 292},
         }
 
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         cp = case.get("couts_possession", {})
@@ -5610,7 +5672,8 @@ class TestDataEnrichment_RatioPrixLoyer:
         assert compute_ratio_prix_loyer({"evaluation_municipale_totale": 400_000}) == {}
 
     def test_enrich_case_injects_ratio(self, tmp_path):
-        """enrich_case injecte ratio_prix_loyer."""
+        """enrich_case injecte ratio_prix_loyer quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5620,7 +5683,8 @@ class TestDataEnrichment_RatioPrixLoyer:
             "evaluation_municipale_totale": 500_000,
             "marche_locatif": {"loyer_moyen_total": 1_700},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         plr = case.get("ratio_prix_loyer", {})
@@ -5751,7 +5815,8 @@ class TestDataEnrichment_IndiceQualiteVie:
         assert compute_indice_qualite_vie(case) == {}
 
     def test_enrich_case_injects_qdv(self, tmp_path):
-        """enrich_case injecte indice_qualite_vie quand données dispo."""
+        """enrich_case injecte indice_qualite_vie quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5765,7 +5830,8 @@ class TestDataEnrichment_IndiceQualiteVie:
                 "epiceries_500m": 1, "parcs_1km": 3,
             },
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         qdv = case.get("indice_qualite_vie", {})
@@ -5831,7 +5897,8 @@ class TestDataEnrichment_ScoreRisque:
         assert compute_score_risque(case) == {}
 
     def test_enrich_case_injects_score_risque(self, tmp_path):
-        """enrich_case injecte score_risque quand données disponibles."""
+        """enrich_case injecte score_risque quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5842,7 +5909,8 @@ class TestDataEnrichment_ScoreRisque:
             "nuisances_environnementales": {"score_nuisances": 1},
             "crime_stats": {"taux_criminalite_total": 4_000},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         rsk = case.get("score_risque", {})
@@ -5975,7 +6043,8 @@ class TestDataEnrichment_ScoreGlobal:
         assert compute_score_global(case) == {}
 
     def test_enrich_case_injects_score_global(self, tmp_path):
-        """enrich_case injecte score_global quand B33+B38+B39 disponibles."""
+        """enrich_case injecte score_global quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5986,7 +6055,8 @@ class TestDataEnrichment_ScoreGlobal:
             "indice_qualite_vie":   {"indice_qualite_vie": 6.5},
             "score_risque":         {"score_risque": 8.0},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         sg = case.get("score_global", {})
@@ -6113,7 +6183,8 @@ class TestDataEnrichment_ProjectionValeur:
         assert compute_projection_valeur({}) == {}
 
     def test_enrich_case_injects_projection(self, tmp_path):
-        """enrich_case injecte projection_valeur quand valeur disponible."""
+        """enrich_case injecte projection_valeur quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -6123,7 +6194,8 @@ class TestDataEnrichment_ProjectionValeur:
             "evaluation_municipale_totale": 450_000,
             "indice_prix_logement": {"variation_annuelle_pct": 3.5},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         pv = case.get("projection_valeur", {})
@@ -6202,7 +6274,8 @@ class TestDataEnrichment_Alertes:
         )
 
     def test_enrich_case_injects_alertes(self, tmp_path):
-        """enrich_case injecte alertes avec zone_inondable active → critique."""
+        """enrich_case injecte alertes quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -6211,7 +6284,8 @@ class TestDataEnrichment_Alertes:
             "dossier_id": "D-ALRT-TEST",
             "zone_inondable": {"en_zone_inondable": True, "recurrence_label": "20 ans"},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         alrt = case.get("alertes", {})

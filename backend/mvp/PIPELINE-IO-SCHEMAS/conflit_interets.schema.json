@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/conflit_interets.schema.json",
+  "title": "conflit_interets.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "conflit_detecte", "verification_completee"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "mandat-intake" },
+    "artifact": { "const": "conflit_interets.json" },
+    "source_fixture": { "type": "string" },
+    "conflit_detecte": { "type": "boolean" },
+    "verification_completee": { "type": "boolean" },
+    "commentaire": { "type": "string" },
+    "analyse_conflit": { "type": "string" }
+  }
+}

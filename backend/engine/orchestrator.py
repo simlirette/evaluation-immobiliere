@@ -198,10 +198,22 @@ def classify_dossier(case: dict) -> str:
     if case.get("mandat_type"):
         return str(case["mandat_type"]).strip().lower()
 
-    # 2. But assurance
+    # 2. But évaluation → routing spécialisé (T4.1+T4.2)
     but = str(case.get("but_evaluation", "")).lower()
     if "assurance" in but:
         return "assurance"
+    if any(k in but for k in ("succession", "héritage", "heritage", "décès", "deces")):
+        return "succession"
+    if any(k in but for k in ("donation", "roulement", "transfert")):
+        return "donation"
+    if any(k in but for k in ("contestation", "rôle", "role", "triennal", "evaluation_municipale")):
+        return "contestation_role"
+    if any(k in but for k in ("financement", "hypothécaire", "hypothecaire", "prêt", "pret")):
+        return "financement"
+    if any(k in but for k in ("expropriation", "expropriateur")):
+        return "expropriation"
+    if any(k in but for k in ("liquidation", "vente_forcée", "vente_forcee", "forcé", "force")):
+        return "liquidation"
 
     # 3. Lookup exact type_bien
     type_bien = str(case.get("type_bien", "")).strip().lower()

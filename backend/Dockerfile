@@ -15,9 +15,10 @@ COPY . .
 # Sessions directory — override with SESSIONS_DIR env var pointing to a Railway volume
 ENV PORT=8080
 ENV SESSIONS_DIR=/data/sessions
+ENV DATA_CACHE_DIR=/data/data_cache
 
-# Create default sessions dir (Railway volume will be mounted here)
-RUN mkdir -p /data/sessions
+# Create default persistent dirs (Railway volumes can be mounted here)
+RUN mkdir -p /data/sessions /data/data_cache
 
 EXPOSE 8080
 

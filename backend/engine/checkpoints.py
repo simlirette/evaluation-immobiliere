@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +36,18 @@ CHECKPOINT_STEPS: dict[int, list[str]] = {
 }
 
 CHECKPOINT_LOG_FILENAME = "checkpoint_log.jsonl"
+_CHECKPOINT_LOCKS_GUARD = threading.Lock()
+_CHECKPOINT_LOCKS: dict[str, threading.RLock] = {}
+
+
+def _checkpoint_lock(session_dir: Path) -> threading.RLock:
+    key = session_dir.resolve().as_posix()
+    with _CHECKPOINT_LOCKS_GUARD:
+        lock = _CHECKPOINT_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _CHECKPOINT_LOCKS[key] = lock
+        return lock
 
 
 # ── Exceptions ────────────────────────────────────────────────────────────────
@@ -64,7 +78,12 @@ def read_checkpoint_log(session_dir: Path) -> list[dict]:
     if not path.exists():
         return []
     entries: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    with _checkpoint_lock(session_dir):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            return []
+    for line in lines:
         line = line.strip()
         if line:
             try:
@@ -136,7 +155,11 @@ def confirm_checkpoint(
     }
 
     log_path = checkpoint_log_path(session_dir)
-    with log_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with _checkpoint_lock(session_dir):
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
 
     return entry

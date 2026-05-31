@@ -86,7 +86,8 @@ export function usePipelinePolling(
         const app = await fetchAppState(dossierId)
         const status: string = (app.active?.workflow.status as string | null) ?? ''
         setWorkflowStatus(status)
-        setError(null)
+        const runtimeError = app.active?.pipeline_error ?? app.active?.ingestion_error ?? null
+        setError(runtimeError ? String(runtimeError) : null)
 
         // Use real-time agent step progress when available, fall back to workflow steps
         const progress = app.active?.pipeline_progress
@@ -98,14 +99,14 @@ export function usePipelinePolling(
           // Stop polling when segment completes (waiting for checkpoint confirmation)
           // or pipeline fully terminates
           const allAgentsDone = progress.completed.length === progress.steps.length
-          if (wcp !== null || allAgentsDone || PIPELINE_TERMINAL_STATUSES.has(status)) {
+          if (wcp !== null || allAgentsDone || PIPELINE_TERMINAL_STATUSES.has(status) || runtimeError) {
             stopPolling()
           }
         } else {
           const workflowSteps = (app.active?.workflow.steps ?? []) as PipelineStep[]
           setSteps(workflowSteps)
           const allDone = workflowSteps.length > 0 && workflowSteps.every(s => s.complete)
-          if (PIPELINE_TERMINAL_STATUSES.has(status) || allDone) {
+          if (PIPELINE_TERMINAL_STATUSES.has(status) || allDone || runtimeError) {
             stopPolling()
           }
         }

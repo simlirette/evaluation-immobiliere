@@ -35,6 +35,7 @@ _B006_COMP_RATIO_MIN = 0.5
 _DEFAULT_SENSITIVE_AMOUNT_MIN = 25_000.0  # B005 — ajustement sensible ($)
 _DEFAULT_MAX_DISTANCE_WARNING_KM = 30.0   # W002
 _DEFAULT_MAX_DISTANCE_BLOCKING_KM = 50.0  # B007
+_DEFAULT_MIN_USABLE_COMPARABLES = 3       # B008
 
 
 # ── Dataclasses ───────────────────────────────────────────────────────────────
@@ -83,6 +84,31 @@ def _parse_date(value: object) -> date | None:
         return None
 
 
+def _to_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _source_id(item: dict) -> str:
+    return str(item.get("source_id") or item.get("meta") or "").strip()
+
+
+def _sale_date_text(item: dict) -> str:
+    return str(item.get("date_vente") or item.get("sale_date") or "").strip()
+
+
+def _sale_price(item: dict) -> float:
+    if "prix_vente" in item:
+        return _to_float(item.get("prix_vente"))
+    return _to_float(item.get("sale_price"))
+
+
+def _is_usable_comparable(item: dict) -> bool:
+    return _source_id(item) != "" and _sale_price(item) > 0 and _parse_date(_sale_date_text(item)) is not None
+
+
 # ── Règles B ─────────────────────────────────────────────────────────────────
 
 def check_B001(case: dict) -> ComplianceResult:
@@ -105,10 +131,10 @@ def check_B002(case: dict) -> ComplianceResult:
     """source_id absent sur au moins un comparable ou ajustement."""
     missing: list[str] = []
     for i, c in enumerate(case.get("comparables", []), 1):
-        if "source_id" not in c:
+        if not isinstance(c, dict) or not _source_id(c):
             missing.append(f"comparable #{i}")
     for i, a in enumerate(case.get("ajustements", []), 1):
-        if "source_id" not in a:
+        if not isinstance(a, dict) or not _source_id(a):
             missing.append(f"ajustement #{i}")
     violated = bool(missing)
     return ComplianceResult(
@@ -134,9 +160,11 @@ def check_B003(case: dict) -> ComplianceResult:
         )
     future: list[str] = []
     for i, c in enumerate(case.get("comparables", []), 1):
-        sale_date = _parse_date(c.get("date_vente"))
+        if not isinstance(c, dict):
+            continue
+        sale_date = _parse_date(_sale_date_text(c))
         if sale_date and sale_date > reference_date:
-            future.append(f"#{i} (vendu le {c.get('date_vente')})")
+            future.append(f"#{i} (vendu le {_sale_date_text(c)})")
     violated = bool(future)
     return ComplianceResult(
         rule="B003",
@@ -157,7 +185,7 @@ def check_B004(case: dict) -> ComplianceResult:
     comp_units = {
         c["surface"]["unit"]
         for c in case.get("comparables", [])
-        if isinstance(c.get("surface"), dict) and c["surface"].get("unit")
+        if isinstance(c, dict) and isinstance(c.get("surface"), dict) and c["surface"].get("unit")
     }
     incoherent_units = comp_units - ({subject_unit} if subject_unit else set())
     violated = bool(subject_unit and incoherent_units)
@@ -189,7 +217,8 @@ def check_B005(
     bad: list[str] = [
         f"#{i} ({a.get('montant', '?')} $)"
         for i, a in enumerate(case.get("ajustements", []), 1)
-        if _montant_float(a) >= sensitive_amount_min
+        if isinstance(a, dict)
+        and _montant_float(a) >= sensitive_amount_min
         and not a.get("validation_humaine", False)
     ]
     violated = bool(bad)
@@ -234,7 +263,11 @@ def check_B006(case: dict) -> ComplianceResult:
             ),
         )
 
-    prices = [float(c["prix_vente"]) for c in case.get("comparables", []) if c.get("prix_vente")]
+    prices = [
+        _sale_price(c)
+        for c in case.get("comparables", [])
+        if isinstance(c, dict) and _sale_price(c) > 0
+    ]
     if prices:
         mean_price = sum(prices) / len(prices)
         if mean_price > 0 and (
@@ -263,12 +296,13 @@ def check_B007(
     max_distance_blocking_km: float = _DEFAULT_MAX_DISTANCE_BLOCKING_KM,
 ) -> ComplianceResult:
     """Comparable situé au-delà du seuil de distance bloquant."""
-    far: list[str] = [
-        f"#{i} ({c.get('distance_km')} km)"
-        for i, c in enumerate(case.get("comparables", []), 1)
-        if c.get("distance_km") is not None
-        and float(c.get("distance_km", 0)) > max_distance_blocking_km
-    ]
+    far: list[str] = []
+    for i, c in enumerate(case.get("comparables", []), 1):
+        if not isinstance(c, dict) or c.get("distance_km") is None:
+            continue
+        dist = _to_float(c.get("distance_km"), default=-1.0)
+        if dist > max_distance_blocking_km:
+            far.append(f"#{i} ({c.get('distance_km')} km)")
     violated = bool(far)
     return ComplianceResult(
         rule="B007",
@@ -278,6 +312,27 @@ def check_B007(
             f"{', '.join(far)}. Remplacez par des comparables de proximité."
             if violated
             else "Tous les comparables sont dans la zone acceptable."
+        ),
+    )
+
+
+def check_B008(
+    case: dict,
+    minimum: int = _DEFAULT_MIN_USABLE_COMPARABLES,
+) -> ComplianceResult:
+    """Moins de 3 ventes comparables exploitables pour l'approche comparative."""
+    comparables = [c for c in case.get("comparables", []) if isinstance(c, dict)]
+    usable = [c for c in comparables if _is_usable_comparable(c)]
+    violated = len(usable) < minimum
+    return ComplianceResult(
+        rule="B008",
+        violated=violated,
+        explanation_fr=(
+            f"Seulement {len(usable)} vente(s) comparable(s) exploitable(s) sur {len(comparables)}. "
+            f"Chaque comparable doit avoir source_id, prix_vente > 0 et date_vente ISO; "
+            f"minimum {minimum} requis pour l'approche comparative."
+            if violated
+            else "Nombre minimal de ventes comparables exploitables atteint."
         ),
     )
 
@@ -292,16 +347,19 @@ def _compute_warnings(
 ) -> list[str]:
     warnings: list[str] = []
 
-    if case.get("confidence", 1) < confidence_min:
+    confidence = _to_float(case.get("confidence", 1), default=1.0)
+    if confidence < confidence_min:
         warnings.append(
-            f"W001: Confiance globale faible ({case.get('confidence'):.2f} < {confidence_min}). "
+            f"W001: Confiance globale faible ({confidence:.2f} < {confidence_min}). "
             "Revérifiez les données avant de finaliser l'évaluation."
         )
 
     for i, c in enumerate(case.get("comparables", []), 1):
+        if not isinstance(c, dict):
+            continue
         dist = c.get("distance_km")
         if dist is not None:
-            dist_f = float(dist)
+            dist_f = _to_float(dist, default=-1.0)
             if max_distance_warning_km < dist_f <= max_distance_blocking_km:
                 warnings.append(
                     f"W002: Comparable #{i} éloigné ({dist_f} km). "
@@ -309,6 +367,8 @@ def _compute_warnings(
                 )
 
     for i, h in enumerate(case.get("hypotheses", []), 1):
+        if not isinstance(h, dict):
+            continue
         if len(h.get("source_ids", [])) < 2:
             warnings.append(
                 f"W003: Hypothèse #{i} appuyée par une seule source. "
@@ -326,6 +386,7 @@ def run_compliance(
     sensitive_amount_min: float = _DEFAULT_SENSITIVE_AMOUNT_MIN,
     max_distance_warning_km: float = _DEFAULT_MAX_DISTANCE_WARNING_KM,
     max_distance_blocking_km: float = _DEFAULT_MAX_DISTANCE_BLOCKING_KM,
+    min_usable_comparables: int = _DEFAULT_MIN_USABLE_COMPARABLES,
     confidence_min: float = 0.60,
 ) -> ComplianceReport:
     """Exécute toutes les règles B001-B007 + avertissements W001-W003.
@@ -335,6 +396,7 @@ def run_compliance(
         sensitive_amount_min: seuil B005 en dollars (défaut 25 000 $)
         max_distance_warning_km: seuil W002 en km (défaut 30 km)
         max_distance_blocking_km: seuil B007 en km (défaut 50 km)
+        min_usable_comparables: seuil B008 de ventes exploitables (défaut 3)
         confidence_min: seuil W001 (défaut 0.60)
 
     Returns:
@@ -348,6 +410,7 @@ def run_compliance(
         check_B005(case, sensitive_amount_min=sensitive_amount_min),
         check_B006(case),
         check_B007(case, max_distance_blocking_km=max_distance_blocking_km),
+        check_B008(case, minimum=min_usable_comparables),
     ]
     blocking = [r for r in results if r.violated]
     warnings = _compute_warnings(
@@ -357,3 +420,41 @@ def run_compliance(
         confidence_min=confidence_min,
     )
     return ComplianceReport(blocking=blocking, warnings=warnings)
+
+
+# ── Conflit d'intérêts déterministe ──────────────────────────────────────────
+
+@dataclass
+class ConflitResult:
+    conflit_detecte: bool
+    motif: str  # vide si pas de conflit
+
+
+def check_conflit_interets(case: dict) -> ConflitResult:
+    """Détecte les conflits d'intérêts à partir de signaux structurés.
+
+    Signaux vérifiés (Python pur, sans LLM) :
+    - C001 : lien déclaré entre commanditaire et évaluateur (commanditaire.lien_evaluateur non vide)
+    - C002 : mandat conditionnel à une valeur cible (commanditaire.valeur_cible_conditionnelle = True)
+    - C003 : évaluateur déclaré avec un intérêt dans la propriété (evaluateur.interet_propriete = True)
+
+    Returns:
+        ConflitResult(conflit_detecte=True, motif=...) si au moins un signal présent.
+    """
+    motifs: list[str] = []
+
+    commanditaire = case.get("commanditaire") or {}
+    lien = str(commanditaire.get("lien_evaluateur", "") or "").strip()
+    if lien:
+        motifs.append(f"C001: lien déclaré commanditaire/évaluateur — {lien}")
+
+    if commanditaire.get("valeur_cible_conditionnelle"):
+        motifs.append("C002: mandat conditionnel à une valeur cible")
+
+    evaluateur = case.get("evaluateur") or {}
+    if evaluateur.get("interet_propriete"):
+        motifs.append("C003: évaluateur déclare un intérêt dans la propriété")
+
+    if motifs:
+        return ConflitResult(conflit_detecte=True, motif="; ".join(motifs))
+    return ConflitResult(conflit_detecte=False, motif="")

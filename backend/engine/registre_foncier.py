@@ -21,6 +21,8 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
+from engine.source_diagnostics import append_source_diagnostic, make_source_diagnostic
+
 logger = logging.getLogger("registre_foncier")
 
 # ---------------------------------------------------------------------------
@@ -331,6 +333,7 @@ def enrich_pool_with_sirf(
     cache_dir: Path | None = None,
     supabase_client=None,
     max_sirf_lookups: int = 10,
+    diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     """
     Remplace prix_vente=0 / date_vente="" dans les items du pool via SIRF.
@@ -344,13 +347,21 @@ def enrich_pool_with_sirf(
     Non-bloquant : toute exception retourne le pool intact.
     """
     if cache_dir is None:
-        cache_dir = Path("data_cache")
+        from engine.data_enrichment import get_data_cache_dir
+        cache_dir = get_data_cache_dir()
 
     if supabase_client is None:
         supabase_client = _build_supabase_client()
 
     live_lookups = 0
     sirf_session_obj = None
+    eligible_count = 0
+    enriched_count = 0
+    cache_hit_count = 0
+    error_count = 0
+    no_transaction_count = 0
+    quota_skipped_count = 0
+    last_error = ""
 
     enriched = []
     for item in pool:
@@ -360,6 +371,7 @@ def enrich_pool_with_sirf(
         if not no_lot or item.get("prix_vente", 0) > 0:
             enriched.append(item)
             continue
+        eligible_count += 1
 
         # 1. Cache disque
         cached = _local_cache_get(int(no_lot), cache_dir)
@@ -370,17 +382,20 @@ def enrich_pool_with_sirf(
                 _local_cache_set(int(no_lot), cached, cache_dir)
 
         if cached:
+            cache_hit_count += 1
             item["prix_vente"]  = float(cached.get("prix_vente") or 0)
             item["date_vente"]  = cached.get("date_vente") or ""
             item["vendeur"]     = cached.get("vendeur") or ""
             item["acheteur"]    = cached.get("acheteur") or ""
             if item["prix_vente"] > 0:
                 item["source_type"] = "registre_foncier"
+                enriched_count += 1
             enriched.append(item)
             continue
 
         # 3. Live SIRF (si quota non atteint)
         if live_lookups >= max_sirf_lookups:
+            quota_skipped_count += 1
             enriched.append(item)
             continue
 
@@ -397,9 +412,14 @@ def enrich_pool_with_sirf(
                 item["acheteur"]   = transaction.get("acheteur") or ""
                 if item["prix_vente"] > 0:
                     item["source_type"] = "registre_foncier"
+                    enriched_count += 1
+            else:
+                no_transaction_count += 1
             live_lookups += 1
         except Exception as exc:
             logger.warning("SIRF lookup failed for no_lot=%s: %s", no_lot, exc)
+            error_count += 1
+            last_error = f"{type(exc).__name__}: {exc}"
             live_lookups += 1
 
         enriched.append(item)
@@ -410,4 +430,39 @@ def enrich_pool_with_sirf(
         except Exception:
             pass
 
+    if eligible_count == 0:
+        status = "skipped"
+        message = "Aucun comparable eligible a enrichir via SIRF"
+    elif enriched_count > 0 and error_count == 0 and quota_skipped_count == 0:
+        status = "ok"
+        message = "Transactions SIRF ajoutees aux comparables"
+    elif enriched_count > 0:
+        status = "partial"
+        message = "Transactions SIRF partiellement ajoutees aux comparables"
+    elif error_count > 0:
+        status = "failed"
+        message = "SIRF indisponible ou identifiants manquants"
+    else:
+        status = "empty"
+        message = "Aucune transaction SIRF exploitable trouvee"
+    append_source_diagnostic(
+        diagnostics,
+        make_source_diagnostic(
+            "sirf",
+            status,
+            message,
+            stage="sirf_lookup",
+            severity="warning" if status == "failed" else "info",
+            details={
+                "eligible_count": eligible_count,
+                "enriched_count": enriched_count,
+                "cache_hit_count": cache_hit_count,
+                "live_lookup_count": live_lookups,
+                "error_count": error_count,
+                "quota_skipped_count": quota_skipped_count,
+                "no_transaction_count": no_transaction_count,
+                "last_error": last_error,
+            },
+        ),
+    )
     return enriched

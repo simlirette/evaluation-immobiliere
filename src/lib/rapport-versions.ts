@@ -8,7 +8,9 @@ export interface RapportVersion {
   format: string
   label: string
   is_initial: boolean
+  created_by: string | null
   created_at: string
+  updated_at: string
 }
 
 /**
@@ -24,6 +26,8 @@ export async function saveVersion(
   isInitial: boolean
 ): Promise<void> {
   const supabase = createClient()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) throw new Error('saveVersion: utilisateur non authentifie')
   const { error } = await supabase.from('rapport_versions').insert({
     session_id: sessionId,
     dossier_id: dossierId,
@@ -31,6 +35,7 @@ export async function saveVersion(
     format,
     label,
     is_initial: isInitial,
+    created_by: user.id,
   })
   if (error) throw new Error(`saveVersion: ${error.message}`)
 }

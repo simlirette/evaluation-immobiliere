@@ -8,6 +8,9 @@ from pathlib import Path
 from engine.llm_routing import get_llm_model
 
 _MAX_VISION_PAGES = 5  # cap Vision fallback pages per PDF
+_MAX_PDF_PAGES = 75
+_MAX_EXTRACTED_TEXT_CHARS = 250_000
+_MAX_STRUCTURED_PROMPT_CHARS = 120_000
 
 _STRUCTURED_FIELDS_SCHEMA = {
     # ── Identification ────────────────────────────────────────────────────────
@@ -137,18 +140,36 @@ def extract_text_from_pdf(path: Path) -> tuple[str, bool]:
         import fitz  # type: ignore  # PyMuPDF
     except ImportError:
         return "", False
+    doc = None
     try:
         doc = fitz.open(str(path))
+        if getattr(doc, "is_encrypted", False) is True:
+            return "", False
+        if len(doc) > _MAX_PDF_PAGES:
+            return "", False
         pages_text = []
+        total_chars = 0
         for i, page in enumerate(doc):
-            if i >= _MAX_VISION_PAGES:
+            if i >= _MAX_PDF_PAGES:
                 break
-            pages_text.append(page.get_text())
-        doc.close()
+            text = page.get_text()
+            remaining = _MAX_EXTRACTED_TEXT_CHARS - total_chars
+            if remaining <= 0:
+                break
+            if len(text) > remaining:
+                text = text[:remaining]
+            pages_text.append(text)
+            total_chars += len(text)
         text = "\n".join(pages_text).strip()
         return text, bool(text)
     except Exception:
         return "", False
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
 
 def pdf_page_to_b64_image(path: Path, page_num: int = 0) -> str:
@@ -157,19 +178,28 @@ def pdf_page_to_b64_image(path: Path, page_num: int = 0) -> str:
         import fitz  # type: ignore  # PyMuPDF
     except ImportError:
         return ""
+    doc = None
     try:
         doc = fitz.open(str(path))
+        if getattr(doc, "is_encrypted", False) is True:
+            return ""
+        if len(doc) > _MAX_PDF_PAGES:
+            return ""
         if page_num >= len(doc):
-            doc.close()
             return ""
         page = doc[page_num]
         mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for legibility
         pix = page.get_pixmap(matrix=mat)
         png_bytes = pix.tobytes("png")
-        doc.close()
         return base64.b64encode(png_bytes).decode("ascii")
     except Exception:
         return ""
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
 
 def describe_with_vision(b64_image: str, client, prompt: str = _VISION_PROMPT_DOC) -> str:
@@ -281,6 +311,8 @@ def parse_structured_fields(docs: list[dict], client) -> dict:
         return {}
 
     combined = "\n\n".join(texts)
+    if len(combined) > _MAX_STRUCTURED_PROMPT_CHARS:
+        combined = combined[:_MAX_STRUCTURED_PROMPT_CHARS] + "\n\n[TRONQUE]"
     schema_str = json.dumps(_STRUCTURED_FIELDS_SCHEMA, ensure_ascii=False, indent=2)
     prompt = (
         "Tu es un expert en évaluation immobilière québécoise. "
@@ -480,6 +512,16 @@ class IngestionError(Exception):
     """Levée quand l'extraction PDF échoue de façon critique (visible dans l'UI)."""
 
 
+def _resolve_uploaded_file(uploads_dir: Path, filename: str) -> Path | None:
+    if not filename or "/" in filename or "\\" in filename:
+        return None
+    root = uploads_dir.resolve()
+    candidate = (uploads_dir / filename).resolve()
+    if not candidate.is_relative_to(root):
+        return None
+    return candidate
+
+
 def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
     """Main entry point. Extract text from uploaded documents, return structured case fields.
 
@@ -524,8 +566,15 @@ def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
         mime_type = str(doc.get("mime_type") or "")
         if not filename:
             continue
-        path = uploads_dir / filename
+        path = _resolve_uploaded_file(uploads_dir, filename)
+        if path is None:
+            doc["extraction_status"] = "error"
+            doc["extraction_error"] = "Chemin de document invalide."
+            skipped_files.append(filename or "?")
+            continue
         if not path.exists():
+            doc["extraction_status"] = "error"
+            doc["extraction_error"] = "Document introuvable sur disque."
             skipped_files.append(filename)
             continue
         result = extract_document(path, mime_type, client)
@@ -533,8 +582,15 @@ def ingest_uploaded_documents(session: dict, api_key: str | None) -> dict:
         doc["extracted_text"] = result["extracted_text"]
         doc["extraction_method"] = result["method"]
         if result["extracted_text"]:
+            doc["extraction_status"] = "extracted"
+            doc.pop("extraction_error", None)
             extracted_docs.append(result)
         elif result["method"] == "skipped":
+            doc["extraction_status"] = "skipped"
+            doc["extraction_error"] = (
+                "Extraction PDF incomplete - aucun texte extrait. "
+                "Verifiez que le document n'est pas protege par mot de passe ou illisible."
+            )
             skipped_files.append(filename)
 
     # Raise if documents were uploaded but no text could be extracted

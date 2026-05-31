@@ -19,6 +19,8 @@ import math
 import time
 from pathlib import Path
 
+from engine.source_diagnostics import append_source_diagnostic, make_source_diagnostic
+
 logger = logging.getLogger("infolot")
 
 _WFS_BASE = (
@@ -128,6 +130,7 @@ def fetch_lots_in_radius(
     lon: float,
     radius_km: float,
     cache_dir: Path,
+    diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     """
     Retourne les lots cadastraux dans un rayon autour d'un point.
@@ -140,12 +143,33 @@ def fetch_lots_in_radius(
     cp = _cache_path(lat, lon, radius_km, cache_dir)
     cached = _read_cache(cp)
     if cached is not None:
+        append_source_diagnostic(
+            diagnostics,
+            make_source_diagnostic(
+                "infolot",
+                "ok" if cached else "empty",
+                "Cache Infolot utilise",
+                stage="wfs",
+                cached=True,
+                details={"lot_count": len(cached), "radius_km": radius_km},
+            ),
+        )
         return cached
 
     try:
         import httpx
     except ImportError:
         logger.warning("httpx non disponible — Infolot désactivé")
+        append_source_diagnostic(
+            diagnostics,
+            make_source_diagnostic(
+                "infolot",
+                "failed",
+                "httpx non disponible",
+                stage="wfs",
+                severity="warning",
+            ),
+        )
         return []
 
     minlng, minlat, maxlng, maxlat = _bbox_from_radius(lat, lon, radius_km)
@@ -167,10 +191,25 @@ def fetch_lots_in_radius(
         data = r.json()
     except Exception as exc:
         logger.warning("Infolot WFS error: %s", exc)
+        append_source_diagnostic(
+            diagnostics,
+            make_source_diagnostic(
+                "infolot",
+                "failed",
+                "Erreur WFS Infolot",
+                stage="wfs",
+                severity="warning",
+                details={"error": f"{type(exc).__name__}: {exc}"},
+            ),
+        )
         return []
 
+    raw_features = data.get("features", []) if isinstance(data, dict) else []
+    features = raw_features if isinstance(raw_features, list) else []
     lots: list[dict] = []
-    for feature in data.get("features", []):
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
         props = feature.get("properties") or {}
         geom = feature.get("geometry") or {}
 
@@ -201,5 +240,15 @@ def fetch_lots_in_radius(
 
     lots.sort(key=lambda x: x["distance_km"])
     _write_cache(cp, lots)
+    append_source_diagnostic(
+        diagnostics,
+        make_source_diagnostic(
+            "infolot",
+            "ok" if lots else "empty",
+            "Lots cadastraux Infolot recuperes" if lots else "Aucun lot Infolot dans le rayon",
+            stage="wfs",
+            details={"lot_count": len(lots), "feature_count": len(features), "radius_km": radius_km},
+        ),
+    )
     logger.info("Infolot WFS: %d lots dans %.1f km autour de (%.4f, %.4f)", len(lots), radius_km, lat, lon)
     return lots

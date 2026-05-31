@@ -8,13 +8,17 @@ import os
 import re
 import time
 import ast
+import uuid
 
 from engine.audit import append_audit_log
-from engine.compliance import run_compliance
+from engine.amu import evaluate_amu
+from engine.compliance import run_compliance, check_conflit_interets
+from engine.report_check import check_rapport_elements, build_rapport_check_section
 from engine.llm_routing import get_llm_model, estimate_llm_cost
-from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt
+from engine.schema_contracts import validate_artifact_schema
+from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt, load_skill_knowledge
 from engine.tools import search_comparables, validate_schema
-from engine.valuation import calculate_valuation_trace, applicable_approaches
+from engine.valuation import calculate_valuation_trace, approaches_for_case
 
 
 @dataclass
@@ -35,8 +39,8 @@ REQUIRED_FIELDS_BY_ARTIFACT = {
     "statut_sortie.json": ["dossier_id", "step", "artifact", "source_fixture", "status", "blocking_failures", "warnings"],
     "comparables_proposes.json": ["dossier_id", "step", "artifact", "source_fixture", "comparables"],
     "calculs_approche_comparative.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
-    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
-    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "method", "value", "input_count", "trace"],
+    "calculs_approche_cout.json": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
+    "calculs_approche_revenu.json": ["dossier_id", "step", "artifact", "source_fixture", "approach", "value", "input_count"],
     "umpp_conclusion.json": ["dossier_id", "step", "artifact", "source_fixture", "umpp"],
     "conflit_interets.json": ["dossier_id", "step", "artifact", "source_fixture", "conflit_detecte"],
 }
@@ -77,7 +81,6 @@ _LLM_TEXT_FIELD_BY_ARTIFACT: dict[str, str] = {
     "recommandations_corrections.md": "_raw_md",
     "brouillon_valeur.md": "_raw_md",
     "amu_analyse.md": "_raw_md",
-    "lettre_mandat.md": "_raw_md",
     "conflit_interets.json": "analyse_conflit",
     # brouillon_rapport.md : géré par generate_brouillon_rapport — ne pas dupliquer
 }
@@ -395,6 +398,41 @@ class RuntimeEngine:
         if not system_prompt:
             return payload
 
+        # Injecter analysis.md des skills de l'étape dans le system prompt
+        if step.skills:
+            skill_blocks: list[str] = []
+            budget = 3000
+            used = 0
+            for skill_name in step.skills:
+                if used >= budget:
+                    break
+                remaining = budget - used
+                block = load_skill_knowledge(skill_name, max_chars=min(1500, remaining))
+                if block:
+                    skill_blocks.append(f"### {skill_name}\n{block}")
+                    used += len(block)
+            if skill_blocks:
+                system_prompt += (
+                    "\n\n---\nCONNAISSANCE MÉTHODOLOGIQUE (analysis.md) :\n"
+                    + "\n\n".join(skill_blocks)
+                )
+
+        # Injecter RAG normatif pour les agents de recherche et rédaction
+        _rag_steps = {"data-facts", "amu-analyst", "comps-market", "valuation-draft",
+                      "compliance-qa", "redaction"}
+        if step.name in _rag_steps:
+            try:
+                from engine.knowledge_rag import retrieve_context  # type: ignore
+                _rag_query = f"{step.name} {artifact} {case.get('type_bien', '')} {case.get('zone', '')}"
+                _rag_context = retrieve_context(_rag_query, top_k=3)
+                if _rag_context:
+                    system_prompt += (
+                        "\n\n---\nSOURCES NORMATIVES PERTINENTES (RAG) :\n"
+                        + _rag_context
+                    )
+            except Exception:
+                pass  # RAG is optional — never block pipeline
+
         user_prompt = _build_enrichment_prompt(step.name, artifact, payload, case)
 
         try:
@@ -483,6 +521,10 @@ class RuntimeEngine:
             # Inject enrichment data when available
             if case.get("annee_construction"):
                 fb["annee_construction"] = case["annee_construction"]
+            if case.get("source_diagnostics"):
+                fb["source_diagnostics"] = case.get("source_diagnostics")
+            if case.get("source_coverage"):
+                fb["source_coverage"] = case.get("source_coverage")
             if case.get("role_municipal"):
                 role = case["role_municipal"]
                 fb["role_municipal"] = {
@@ -729,42 +771,7 @@ class RuntimeEngine:
             payload["sources"] = [{"source_id": source_id} for source_id in collect_source_ids(case)]
 
         if step == "amu-analyst" and artifact == "umpp_conclusion.json":
-            type_bien = str(case.get("type_bien", "inconnu")).lower()
-            usage_map = {
-                "residentiel_unifamilial": "residentiel_unifamilial",
-                "unifamilial": "residentiel_unifamilial",
-                "maison": "residentiel_unifamilial",
-                "condo": "residentiel_condo",
-                "duplex": "residentiel_multifamilial",
-                "triplex": "residentiel_multifamilial",
-                "commercial": "commercial",
-                "industriel": "industriel",
-                "terrain": "terrain_vacant",
-                "terrain_vacant": "terrain_vacant",
-            }
-            usage_retenu = usage_map.get(type_bien, type_bien or "inconnu")
-            payload.update({
-                "umpp": {
-                    "usage_retenu": usage_retenu,
-                    "usage_actuel": type_bien,
-                    "conformite_zonage": True,
-                    "criteres": {
-                        "physiquement_possible": True,
-                        "legalement_permis": True,
-                        "financierement_faisable": True,
-                        "maximalement_productif": True,
-                    },
-                    "conclusion": (
-                        f"L'usage actuel ({type_bien.replace('_', ' ')}) constitue le "
-                        f"meilleur usage du bien."
-                        if usage_retenu == type_bien else
-                        f"L'usage optimal ({usage_retenu.replace('_', ' ')}) differe "
-                        f"de l'usage actuel ({type_bien.replace('_', ' ')})."
-                    ),
-                    "umpp_differe_usage_actuel": usage_retenu != type_bien,
-                },
-                "confidence": 0.70,
-            })
+            payload.update(evaluate_amu(case))
 
         if step == "amu-analyst" and artifact == "amu_analyse.md":
             type_bien = str(case.get("type_bien", "inconnu")).replace("_", " ")
@@ -1185,25 +1192,6 @@ class RuntimeEngine:
                 )
             else:
                 climat_section = ""
-            # Build crime statistics section
-            crime = case.get("crime_stats") or {}
-            if crime:
-                tc = crime.get("taux_criminalite_total")
-                tv = crime.get("taux_crimes_violents")
-                tp = crime.get("taux_crimes_contre_propriete")
-                annee_crime = crime.get("annee", "")
-                ville_crime = crime.get("ville", zone)
-                crime_section = (
-                    f"## Profil de sécurité — CMA {ville_crime}"
-                    + (f" ({annee_crime})" if annee_crime else "")
-                    + "\n\nTaux pour 100 000 habitants (Police-reported, StatCan 35-10-0078-01)  \n"
-                    + (f"Criminalité totale : **{tc:,.1f}**  \n" if tc is not None else "")
-                    + (f"Crimes violents : **{tv:,.1f}**  \n" if tv is not None else "")
-                    + (f"Crimes contre la propriété : **{tp:,.1f}**  \n" if tp is not None else "")
-                    + "\n"
-                )
-            else:
-                crime_section = ""
             # Build distance to CBD section
             dist_cbd = case.get("distance_cbd") or {}
             if dist_cbd:
@@ -1219,95 +1207,6 @@ class RuntimeEngine:
                 )
             else:
                 dist_section = ""
-            # Build indicative value section
-            vi = case.get("valeur_indicative") or {}
-            if vi:
-                vi_synth = vi.get("valeur_indicative_synthese")
-                vi_comp = vi.get("valeur_par_comparable_ajuste")
-                vi_rev = vi.get("valeur_par_revenu_grm")
-                vi_ecart = vi.get("ecart_methodes_pct")
-                vi_fiab = vi.get("fiabilite", "")
-                vi_meth = vi.get("methodes_utilisees") or []
-                valeur_indicative_section = (
-                    "## Estimation de valeur indicative (calcul interne)\n\n"
-                    + (f"**Valeur de synthèse : {vi_synth:,.0f} $**  \n" if vi_synth else "")
-                    + (f"Approche comparative ajustée : {vi_comp:,.0f} $  \n" if vi_comp else "")
-                    + (f"Approche revenu (GRM) : {vi_rev:,.0f} $  \n" if vi_rev else "")
-                    + (f"Écart entre approches : {vi_ecart:.1f} %  \n" if vi_ecart is not None else "")
-                    + (f"Fiabilité : **{vi_fiab}**  \n" if vi_fiab else "")
-                    + (f"Méthodes : {'; '.join(vi_meth)}  \n" if vi_meth else "")
-                    + "\n*Note : estimation indicative à titre informatif uniquement. "
-                    "L'évaluateur agréé doit exercer son jugement professionnel.*\n\n"
-                )
-            else:
-                valeur_indicative_section = ""
-            # Build risk score section
-            rsk = case.get("score_risque") or {}
-            if rsk:
-                rsk_score = rsk.get("score_risque")
-                rsk_cat = rsk.get("categorie", "")
-                rsk_facteurs = rsk.get("facteurs_risque") or []
-                risque_section = (
-                    "## Score de risque global (calcul interne)\n\n"
-                    + (f"Score : **{rsk_score:.2f} / 10** — {rsk_cat}  \n" if rsk_score is not None else "")
-                    + (
-                        "Facteurs de risque identifiés :\n"
-                        + "".join(f"- {f}  \n" for f in rsk_facteurs)
-                        if rsk_facteurs else "Aucun facteur de risque majeur identifié.  \n"
-                    )
-                    + "\n"
-                )
-            else:
-                risque_section = ""
-            # Build quality-of-life index section
-            qdv_d = case.get("indice_qualite_vie") or {}
-            if qdv_d:
-                qdv_score = qdv_d.get("indice_qualite_vie")
-                qdv_interp = qdv_d.get("interpretation", "")
-                qdv_comp = qdv_d.get("composantes") or {}
-                qdv_section = (
-                    "## Indice de qualité de vie (calcul interne)\n\n"
-                    + (f"Score : **{qdv_score:.2f} / 10** — {qdv_interp}  \n" if qdv_score is not None else "")
-                    + (
-                        "Composantes : "
-                        + ", ".join(
-                            f"{k.replace('_', ' ')} {v:.1f}/10"
-                            for k, v in qdv_comp.items()
-                        )
-                        + "  \n"
-                        if qdv_comp else ""
-                    )
-                    + "\n"
-                )
-            else:
-                qdv_section = ""
-            # Build value projection section
-            pv_d = case.get("projection_valeur") or {}
-            if pv_d:
-                pv_base = pv_d.get("valeur_base")
-                pv_taux = pv_d.get("taux_base_pct")
-                pv_proj = pv_d.get("projections") or {}
-                pv_src = pv_d.get("source_taux", "")
-
-                def _pv_row(scenario: str, label: str) -> str:
-                    s = pv_proj.get(scenario, {})
-                    if not s:
-                        return ""
-                    return (f"**{label}** ({pv_d.get(f'taux_{scenario}_pct', 0):.1f} %/an) : "
-                            + " | ".join(f"{n} an{'s' if n>1 else ''} → {s.get(f'an{n}', 0):,.0f} $"
-                                         for n in [1, 3, 5])
-                            + "  \n")
-
-                projection_section = (
-                    "## Projection de valeur à 5 ans (calcul interne)\n\n"
-                    + (f"Valeur de base : **{pv_base:,.0f} $** | Taux NHPI : {pv_taux:.2f} %/an ({pv_src})  \n\n" if pv_base else "")
-                    + _pv_row("optimiste", "Optimiste")
-                    + _pv_row("base", "Base")
-                    + _pv_row("pessimiste", "Pessimiste")
-                    + "\n*Projection à titre indicatif — ne constitue pas une garantie de rendement.*\n\n"
-                )
-            else:
-                projection_section = ""
             # Build renovation cost section
             cr_d = case.get("cout_renovation") or {}
             if cr_d:
@@ -1346,45 +1245,6 @@ class RuntimeEngine:
                 )
             else:
                 vetuste_section = ""
-            # Build price-to-rent ratio section
-            plr_d = case.get("ratio_prix_loyer") or {}
-            if plr_d:
-                plr_ratio = plr_d.get("ratio_prix_loyer")
-                plr_signal = plr_d.get("signal", "")
-                plr_ecart = plr_d.get("ecart_loyer_marche_pct")
-                plr_esig = plr_d.get("ecart_signal", "")
-                plr_section = (
-                    "## Ratio prix/loyer (calcul interne)\n\n"
-                    + (f"Ratio P/L : **{plr_ratio:.1f}** (valeur ÷ loyers annuels)  \n" if plr_ratio else "")
-                    + (f"Signal marché : **{plr_signal}**  \n" if plr_signal else "")
-                    + (f"Écart posséder vs louer : **{plr_ecart:+.1f} %** — {plr_esig}  \n" if plr_ecart is not None else "")
-                    + "\n"
-                )
-            else:
-                plr_section = ""
-            # Build ownership carrying costs section
-            cp = case.get("couts_possession") or {}
-            if cp:
-                cp_total_m = cp.get("total_mensuel")
-                cp_total_a = cp.get("total_annuel")
-                cp_hypo = cp.get("versement_hypothecaire_mensuel")
-                cp_taxes = cp.get("taxes_mensuelles")
-                cp_entretien = cp.get("entretien_mensuel")
-                cp_assurance = cp.get("assurance_mensuelle")
-                cp_ratio = cp.get("ratio_revenu_pct")
-                cp_interp = cp.get("interpretation", "")
-                couts_section = (
-                    "## Coûts de possession totaux (calcul interne)\n\n"
-                    + (f"Versement hypothécaire estimé : **{cp_hypo:,.0f} $/mois**  \n" if cp_hypo else "")
-                    + (f"Taxes municipales : **{cp_taxes:,.0f} $/mois**  \n" if cp_taxes else "")
-                    + (f"Entretien estimé (1 %/an) : **{cp_entretien:,.0f} $/mois**  \n" if cp_entretien else "")
-                    + (f"Assurance estimée (0,35 %/an) : **{cp_assurance:,.0f} $/mois**  \n" if cp_assurance else "")
-                    + (f"**Total mensuel : {cp_total_m:,.0f} $** ({cp_total_a:,.0f} $/an)  \n" if cp_total_m else "")
-                    + (f"Ratio coûts/revenu médian : **{cp_ratio:.1f} %** — {cp_interp}  \n" if cp_ratio else "")
-                    + "\n"
-                )
-            else:
-                couts_section = ""
             # Build municipal taxes section
             tx = case.get("taxes_municipales") or {}
             if tx:
@@ -1402,107 +1262,11 @@ class RuntimeEngine:
                 )
             else:
                 taxes_section = ""
-            # Build composite investment score section
-            inv = case.get("score_investissement") or {}
-            if inv:
-                inv_score = inv.get("score_investissement")
-                inv_reco = inv.get("recommandation", "")
-                inv_comp = inv.get("composantes") or {}
-                invest_section = (
-                    "## Score composite d'investissement (calcul interne)\n\n"
-                    + (f"Score : **{inv_score:.2f} / 10**  \n" if inv_score is not None else "")
-                    + (f"Recommandation : **{inv_reco}**  \n" if inv_reco else "")
-                    + (
-                        "Composantes : "
-                        + ", ".join(
-                            f"{k.replace('_', ' ')} {v:.1f}/10"
-                            for k, v in inv_comp.items()
-                        )
-                        + "  \n"
-                        if inv_comp else ""
-                    )
-                    + "\n"
-                )
-            else:
-                invest_section = ""
-            # Build rental yield section
-            rend_loc = case.get("rendement_locatif") or {}
-            if rend_loc:
-                rl_brut = rend_loc.get("taux_capitalisation_brut_pct")
-                rl_net = rend_loc.get("taux_capitalisation_net_estime_pct")
-                rl_interp = rend_loc.get("interpretation", "")
-                rl_valeur = rend_loc.get("valeur_reference")
-                rl_loyer = rend_loc.get("loyer_mensuel_reference")
-                rendement_section = (
-                    "## Rendement locatif estimé (calcul interne)\n\n"
-                    + (f"Valeur de référence : **{rl_valeur:,.0f} $**  \n" if rl_valeur else "")
-                    + (f"Loyer médian CMA : **{rl_loyer:,.0f} $/mois**  \n" if rl_loyer else "")
-                    + (f"Taux de capitalisation brut : **{rl_brut:.2f} %**  \n" if rl_brut is not None else "")
-                    + (f"Taux de capitalisation net estimé : **{rl_net:.2f} %**  \n" if rl_net is not None else "")
-                    + (f"Évaluation : **{rl_interp}**  \n" if rl_interp else "")
-                    + "\n"
-                )
-            else:
-                rendement_section = ""
-            # Build market score section
-            score_m = case.get("score_marche") or {}
-            if score_m:
-                sm_score = score_m.get("score_marche")
-                sm_interp = score_m.get("interpretation", "")
-                sm_tension = score_m.get("tension_locative", "")
-                sm_indic = score_m.get("indicateurs_utilises", [])
-                n_indic = len(sm_indic)
-                score_marche_section = (
-                    "## Score de marché synthétique (calcul interne)\n\n"
-                    + (f"Score : **{sm_score:.1f} / 10** ({n_indic} indicateurs)  \n"
-                       if sm_score is not None else "")
-                    + (f"Tension locative : **{sm_tension}**  \n" if sm_tension else "")
-                    + (f"Évaluation globale : **{sm_interp}**  \n" if sm_interp else "")
-                    + "\n"
-                )
-            else:
-                score_marche_section = ""
-            # Build global score header
-            sg_d = case.get("score_global") or {}
-            if sg_d:
-                sg_score = sg_d.get("score_global")
-                sg_grade = sg_d.get("grade", "")
-                sg_reco = sg_d.get("recommandation_finale", "")
-                score_global_header = (
-                    f"> **Score global : {sg_score:.2f} / 10 — Grade {sg_grade}**  \n"
-                    f"> {sg_reco}\n\n"
-                ) if sg_score is not None else ""
-            else:
-                score_global_header = ""
-            # Build alerts section
-            alrt_d = case.get("alertes") or {}
-            alrt_list = alrt_d.get("alertes") or []
-            if alrt_list:
-                niveau_icon = {
-                    "critique": "🔴",
-                    "attention": "🟡",
-                    "info": "🔵",
-                }
-                alrt_lines = "\n".join(
-                    f"- {niveau_icon.get(a.get('niveau',''), '•')} **[{a.get('niveau','').upper()}]** "
-                    f"*{a.get('categorie','')}* — {a.get('message','')}"
-                    for a in alrt_list
-                )
-                alertes_section = (
-                    "## Alertes et signaux de risque\n\n"
-                    + (f"{alrt_d.get('nb_alertes_critiques',0)} critique(s) · "
-                       f"{alrt_d.get('nb_alertes_attention',0)} attention(s) · "
-                       f"{alrt_d.get('nb_alertes_info',0)} info(s)  \n\n")
-                    + alrt_lines + "\n\n"
-                )
-            else:
-                alertes_section = ""
             payload["_raw_md"] = (
                 f"# Analyse du Meilleur Usage (AMU)\n\n"
                 f"**Dossier :** {dossier_id}  \n"
                 f"**Type de bien :** {type_bien}  \n"
                 f"**Zone :** {zone_code}\n\n"
-                + score_global_header
                 + zonage_section
                 + patrimoine_section
                 + inond_section
@@ -1529,20 +1293,9 @@ class RuntimeEngine:
                 + postsec_section
                 + nuisances_section
                 + climat_section
-                + crime_section
                 + vetuste_section
                 + renov_section
-                + risque_section
-                + valeur_indicative_section
-                + qdv_section
                 + taxes_section
-                + couts_section
-                + plr_section
-                + rendement_section
-                + invest_section
-                + projection_section
-                + score_marche_section
-                + alertes_section
                 + f"## Critere 4 — Maximalement productif\n\n"
                 f"L'usage actuel ({type_bien}) constitue l'usage le meilleur et le "
                 f"plus profitable (UMPP) pour ce bien.\n\n"
@@ -1552,10 +1305,16 @@ class RuntimeEngine:
             )
 
         if step == "mandat-intake" and artifact == "conflit_interets.json":
+            _conflit = check_conflit_interets(case)
             payload.update({
-                "conflit_detecte": False,
+                "conflit_detecte": _conflit.conflit_detecte,
+                "conflit_motif": _conflit.motif,
                 "verification_completee": True,
-                "commentaire": "Aucun conflit d'interets detecte — verification V0 deterministe.",
+                "commentaire": (
+                    f"Conflit détecté : {_conflit.motif}"
+                    if _conflit.conflit_detecte
+                    else "Aucun conflit d'intérêts détecté — vérification déterministe."
+                ),
                 "analyse_conflit": "",
             })
 
@@ -1599,15 +1358,20 @@ class RuntimeEngine:
             if not case.get("comparables"):
                 try:
                     from engine.comparables_builder import build_comparable_pool
+                    from engine.data_enrichment import get_data_cache_dir
+                    from engine.source_diagnostics import attach_source_coverage, ensure_source_diagnostics
                     address = str(case.get("adresse_complete") or "")
                     if address:
+                        diagnostics = ensure_source_diagnostics(case)
                         auto_pool = build_comparable_pool(
                             subject_address=address,
                             subject_surface_m2=float(case.get("surface_habitable") or 0),
                             subject_type_bien=str(case.get("type_bien") or ""),
                             subject_annee_construction=int(case.get("annee_construction") or 0),
-                            cache_dir=Path("data_cache"),
+                            cache_dir=get_data_cache_dir(),
+                            diagnostics=diagnostics,
                         )
+                        attach_source_coverage(case)
                         if auto_pool:
                             case["comparables"] = auto_pool
                             logger.info(
@@ -1651,9 +1415,14 @@ class RuntimeEngine:
                 "calculs_approche_revenu.json": "approche_revenu",
             }
             approach_id = approach_by_artifact[artifact]
-            type_bien = str(case.get("type_bien") or "")
-            if approach_id in ("approche_cout", "approche_revenu") and approach_id not in applicable_approaches(type_bien):
-                payload.update({"approach": approach_id, "applicable": False, "value": None, "input_count": 0})
+            if approach_id in ("approche_cout", "approche_revenu") and approach_id not in approaches_for_case(case):
+                payload.update({
+                    "approach": approach_id,
+                    "applicable": False,
+                    "value": None,
+                    "input_count": 0,
+                    "calculation_status": "NOT_APPLICABLE",
+                })
             else:
                 payload.update(calculate_valuation_trace(case, approach_id))
 
@@ -1686,7 +1455,12 @@ class RuntimeEngine:
             payload["recommendations"] = build_recommendations(blocking, warnings)
 
         if step == "redaction" and artifact == "brouillon_rapport.md":
-            rapport_md = generate_brouillon_rapport(case, valuation_values or {}, status, blocking, warnings)
+            # T3.3 — inspection pré-chargée dans run_case_data (case["inspection"])
+            _inspection: dict | None = case.get("inspection")
+            rapport_md = generate_brouillon_rapport(
+                case, valuation_values or {}, status, blocking, warnings,
+                inspection=_inspection,
+            )
             payload["_raw_md"] = rapport_md
             payload["sections"] = {
                 "dossier": case.get("dossier_id"),
@@ -1696,6 +1470,7 @@ class RuntimeEngine:
 
         if step == "redaction" and artifact == "annexe_sources.md":
             payload["sources"] = collect_source_ids(case)
+            payload["_raw_md"] = _build_annexe_sources_md(case)
 
         return payload
 
@@ -1735,6 +1510,21 @@ class RuntimeEngine:
 
         status, blocking, warnings = self._compute_qa(case)
         case_dir.mkdir(parents=True, exist_ok=True)
+        # T3.3 : pré-charger inspection.json depuis le répertoire de session
+        if case.get("inspection") is None:
+            for _insp_candidate in [
+                case_dir / "inspection.json",
+                case_dir.parent / "inspection.json",
+                case_dir.parent.parent / "inspection.json",
+            ]:
+                if _insp_candidate.exists():
+                    try:
+                        _insp_data = json.loads(_insp_candidate.read_text(encoding="utf-8"))
+                        if _insp_data.get("date_visite"):
+                            case["inspection"] = _insp_data
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                    break
         valuation_values: dict[str, float] = {}
 
         for warning in warnings:
@@ -1796,6 +1586,24 @@ class RuntimeEngine:
                     )
                     if step.name == "compliance-qa":
                         payload.setdefault("blocking_failures", []).extend(contract_failures)
+
+                schema_failures = validate_artifact_schema(artifact, payload)
+                if schema_failures:
+                    formatted_failures = [f"JSON_SCHEMA: {failure}" for failure in schema_failures]
+                    blocking = _unique([*blocking, *formatted_failures])
+                    status = _status_from_contracts(has_blocking=True, has_warnings=bool(warnings))
+                    self._record_event(
+                        events,
+                        audit_log_path,
+                        {
+                            "event": "json_schema_invalid",
+                            "step": step.name,
+                            "artifact": artifact,
+                            "failures": schema_failures,
+                        },
+                    )
+                    if step.name == "compliance-qa":
+                        payload.setdefault("blocking_failures", []).extend(formatted_failures)
 
                 write_artifact_payload(artifact_path, payload)
                 self._record_event(
@@ -1953,6 +1761,127 @@ def collect_source_ids(case: dict) -> list[str]:
             if source_id:
                 source_ids.append(str(source_id))
     return _unique(source_ids)
+
+
+# Domaines normatifs prioritaires par type de mandat/bien
+_NORMATIVE_DOMAINS_ALWAYS = {
+    "oeaq_professional_standards",   # NPP OEAQ
+    "cuspap_nuppec_professional_standards",  # CUSPAP 2026
+}
+_NORMATIVE_DOMAINS_RESIDENTIAL = {
+    "municipal_assessment_manual",   # MEFQ
+    "municipal_statute_regulation",  # LFM
+    "oeaq_regulation",               # Règlements OEAQ
+}
+_NORMATIVE_SOURCE_FAMILIES_KEY = {
+    # source_family → abréviation de citation
+    "NPP OEAQ": "NPP OEAQ",
+    "CUSPAP/NUPPEC 2026": "CUSPAP 2026",
+    "Manuel d'évaluation foncière du Québec": "MEFQ 2025",
+    "Loi sur la fiscalité municipale": "LFM",
+    "OEAQ Règlements": "Règl. OEAQ",
+    "AIC Canada": "AIC",
+}
+
+
+def _normative_sources_for_case(case: dict) -> list[dict]:
+    """Retourne les entrées du source-catalog normatives pertinentes pour le dossier.
+
+    Sélectionne selon le type de bien et le mandat. Toujours inclus : NPP + CUSPAP.
+    Pour résidentiel standard : ajoute MEFQ + LFM.
+    """
+    try:
+        from engine.knowledge_rag import load_catalog  # type: ignore
+        catalog = load_catalog()
+    except Exception:
+        return []
+
+    type_bien = str(case.get("type_bien", "")).lower()
+    mandat_type = str(case.get("mandat_type", "residentiel_standard")).lower()
+
+    active_domains = set(_NORMATIVE_DOMAINS_ALWAYS)
+    if any(k in type_bien or k in mandat_type for k in ("resident", "unifami", "duplex", "triplex", "condo")):
+        active_domains |= _NORMATIVE_DOMAINS_RESIDENTIAL
+    elif any(k in type_bien or k in mandat_type for k in ("commercial", "bureau", "industriel", "agricole")):
+        active_domains.add("municipal_assessment_manual")
+        active_domains.add("municipal_statute_regulation")
+
+    seen_families: set[str] = set()
+    sources: list[dict] = []
+    for entry in catalog:
+        if entry.get("domain") not in active_domains:
+            continue
+        family = entry.get("source_family", "")
+        if family in seen_families:
+            continue
+        seen_families.add(family)
+        short = _NORMATIVE_SOURCE_FAMILIES_KEY.get(family, family)
+        sources.append({
+            "source_id": entry["source_id"],
+            "source_family": family,
+            "short": short,
+            "domain": entry["domain"],
+            "folder": entry["folder"],
+            "official_source": entry.get("official_source", ""),
+        })
+    return sources
+
+
+def _build_annexe_sources_md(case: dict) -> str:
+    """Construit le contenu markdown de annexe_sources.md.
+
+    Inclut : sources de données (comparables/hypothèses) + sources normatives.
+    """
+    data_ids = collect_source_ids(case)
+    normative = _normative_sources_for_case(case)
+
+    lines: list[str] = [
+        "# Annexe — Sources et références\n",
+        f"**Dossier :** {case.get('dossier_id', '—')}  \n",
+        f"**Date de référence :** {case.get('date_reference', '—')}  \n",
+        "",
+    ]
+
+    # Sources de données
+    lines += [
+        "## Sources de données\n",
+        f"Nombre de sources : {len(data_ids)}\n",
+    ]
+    if data_ids:
+        lines.append("\n| # | source_id |")
+        lines.append("|---|---|")
+        for i, sid in enumerate(data_ids, 1):
+            lines.append(f"| {i} | {sid} |")
+    else:
+        lines.append("_Aucune source de données identifiée._")
+    lines.append("")
+
+    # Sources normatives
+    lines += [
+        "## Sources normatives applicables\n",
+        "Les règles et normes suivantes s'appliquent à ce dossier :\n",
+    ]
+    if normative:
+        lines.append("\n| Abréviation | Document | Domaine | Source officielle |")
+        lines.append("|---|---|---|---|")
+        for s in normative:
+            url = s["official_source"]
+            url_cell = f"[lien]({url})" if url else "—"
+            lines.append(
+                f"| **{s['short']}** | {s['source_family']} | {s['domain']} | {url_cell} |"
+            )
+    else:
+        lines.append("_Catalogue normatif non disponible._")
+    lines.append("")
+
+    lines += [
+        "## Note de traçabilité\n",
+        "Chaque affirmation quantitative du rapport est rattachée à un `source_id` de données.  \n",
+        "Chaque règle normative citée dans le corps du rapport correspond à une entrée du tableau ci-dessus.  \n",
+        "Le corpus complet est disponible dans `backend/knowledge/corpus/`.  \n",
+    ]
+
+    return "\n".join(lines)
 
 
 def build_recommendations(blocking: list[str], warnings: list[str]) -> list[str]:
@@ -2139,6 +2068,85 @@ def _fmt_cad(value: float) -> str:
     return f"{round(value):,}".replace(",", "\u00a0") + " $"
 
 
+_DEFINITION_VALEUR_TEXT = {
+    "juste_valeur_marchande": (
+        "DÉFINITION DE VALEUR : Juste valeur marchande (JVM) au sens de la Loi de l'impôt sur le revenu — "
+        "prix le plus élevé exprimé en dollars qu'un bien rapporterait sur un marché libre, "
+        "entre acheteur et vendeur compétents et sans lien de dépendance, "
+        "aucune des parties n'étant forcée de conclure la transaction."
+    ),
+    "valeur_reelle": (
+        "DÉFINITION DE VALEUR : Valeur réelle au sens de l'art. 42 de la Loi sur la fiscalité municipale — "
+        "prix le plus probable qu'un vendeur et un acheteur consentiraient, dans un marché ouvert et concurrentiel, "
+        "compte tenu de toutes les conditions du marché (réf. Loi sur la fiscalité municipale, RLRQ c. F-2.1)."
+    ),
+    "valeur_liquidation": (
+        "DÉFINITION DE VALEUR : Valeur de liquidation ordonnée — "
+        "valeur marchande ajustée pour tenir compte des contraintes de temps et du contexte de vente forcée. "
+        "Décote justifiée par rapport à la valeur marchande standard à documenter quantitativement."
+    ),
+    "valeur_marchande": "",  # Standard, pas de mention spéciale requise
+}
+
+_MANDAT_SPECIAL_NOTES = {
+    "succession": [
+        "CONTRAINTE DATE : tous les comparables et données de marché doivent être ANTÉRIEURS à la date de référence.",
+        "RÉFÉRENCE NORMATIVE : LIR art. 70(5) — JVM à la date du décès.",
+        "Le rapport doit justifier explicitement la date retenue et l'absence de données postérieures.",
+    ],
+    "donation": [
+        "CONTRAINTE DATE : données de marché antérieures à la date de transfert seulement.",
+        "RÉFÉRENCE NORMATIVE : LIR art. 69(1) — JVM à la date du don ou du roulement.",
+    ],
+    "contestation_role": [
+        "DATE TRIENNALE : la date de référence est fixée au 1er juillet de la 2e année du triennat précédent.",
+        "RÉFÉRENCE NORMATIVE : LFM art. 42 — valeur réelle à la date de référence triennale.",
+        "Citer explicitement l'art. 42 LFM dans la section définition de valeur.",
+        "Comparables : utiliser des ventes contemporaines à la date triennale.",
+    ],
+    "expropriation": [
+        "MÉTHODE OBLIGATOIRE : avant-après.",
+        "Présenter DEUX évaluations distinctes : (1) bien entier avant expropriation, (2) résidu après.",
+        "Indemnité = Valeur avant − Valeur résidu + Préjudices accessoires (à quantifier séparément).",
+        "RÉFÉRENCE NORMATIVE : Loi sur l'expropriation (RLRQ c. E-24).",
+    ],
+    "liquidation": [
+        "VALEUR DEMANDÉE : valeur de liquidation ordonnée (pas la valeur marchande standard).",
+        "Quantifier la décote de liquidation (%) par rapport à la valeur marchande standard.",
+        "Justifier la décote : période d'exposition réduite, contexte de vente forcée, données comparables.",
+    ],
+}
+
+
+def _mandat_special_lines(case: dict) -> list[str]:
+    """Retourne les lignes de prompt spécifiques au type de mandat (T4.1+T4.2)."""
+    mandat_type = str(case.get("mandat_type", "")).lower()
+    lines: list[str] = []
+
+    try:
+        from engine.orchestrator import load_plan_for_mandat  # type: ignore
+        plan = load_plan_for_mandat(mandat_type)
+        def_valeur = plan.to_dict().get("definition_valeur", "valeur_marchande")
+        ref_normative = plan.to_dict().get("reference_normative", "")
+    except (KeyError, Exception):
+        def_valeur = "valeur_marchande"
+        ref_normative = ""
+
+    def_text = _DEFINITION_VALEUR_TEXT.get(def_valeur, "")
+    if def_text:
+        lines += ["", def_text]
+    if ref_normative:
+        lines.append(f"RÉFÉRENCE NORMATIVE : {ref_normative}")
+
+    special_notes = _MANDAT_SPECIAL_NOTES.get(mandat_type, [])
+    if special_notes:
+        lines += ["", f"CONSIGNES MANDAT {mandat_type.upper()} :"]
+        for note in special_notes:
+            lines.append(f"  - {note}")
+
+    return lines
+
+
 def _build_rapport_prompt_v2(
     case: dict,
     format: str,
@@ -2146,6 +2154,7 @@ def _build_rapport_prompt_v2(
     status: str,
     blocking: list,
     warnings: list,
+    inspection: dict | None = None,
 ) -> str:
     """Construit le prompt utilisateur enrichi pour la génération du rapport."""
     surface = case.get("surface", {})
@@ -2186,6 +2195,7 @@ def _build_rapport_prompt_v2(
         f"FIN ÉVALUATION: {cmd.get('fin_evaluation', '—')}",
         f"TYPE MANDAT: {case.get('mandat_type', case.get('type_bien', '—'))}",
         f"DATE RÉFÉRENCE: {case.get('date_reference', '—')}",
+        *_mandat_special_lines(case),
         "",
         "IDENTIFICATION:",
         f"  Adresse: {case.get('adresse', case.get('display_name', '—'))}",
@@ -2213,6 +2223,77 @@ def _build_rapport_prompt_v2(
         lines += ["", f"HYPOTHÈSES ({len(hypotheses)}):"]
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
+
+    # T4.6 — Mentions types spécialisés (indivise, agricole, patrimonial, RPA)
+    try:
+        from engine.specialized_valuation import specialized_mentions_for_prompt  # type: ignore
+        lines += specialized_mentions_for_prompt(case)
+    except Exception:
+        pass
+
+    # T3.3 — Injecter les données d'inspection (élément 14)
+    if inspection and inspection.get("date_visite"):
+        type_insp = str(inspection.get("type_inspection", "interieure_exterieure")).replace("_", " ")
+        lines += [
+            "",
+            "INSPECTION (élément 14 NPP) :",
+            f"  Date de visite : {inspection['date_visite']}",
+            f"  Type : {type_insp}",
+            f"  Étendue : {inspection.get('etendue', 'non précisée')}",
+            f"  Observations : {inspection.get('observations', 'non précisées')}",
+            f"  Accès limité : {'Oui — ' + inspection.get('notes_acces', '') if inspection.get('acces_limite') else 'Non'}",
+        ]
+    else:
+        lines += ["", "INSPECTION : non saisie — section 14 à compléter par l'É.A."]
+
+    # T3.2 — Injecter la grille d'ajustements calculée (évite les [ADJ] vides)
+    grille_data = case.get("_grille_ajustements")  # injecté par run_case_data si disponible
+    if not grille_data:
+        from engine.adjustments import compute_adjustment_grid  # type: ignore
+        grille_result = compute_adjustment_grid(case)
+        grille_data = grille_result.get("grilles", [])
+    if grille_data:
+        grille_lines = ["", "GRILLE D'AJUSTEMENTS (à utiliser dans la table comparative du rapport) :"]
+        for g in grille_data[:5]:
+            prix_ajuste = g.get("prix_ajuste", 0)
+            prix_vendu = g.get("prix_vendu", 0)
+            total_adj = g.get("total_ajustements", 0)
+            pct = g.get("pct_total_brut", 0)
+            grille_lines.append(
+                f"  Comparable {g.get('comparable_id', '?')} : "
+                f"prix vendu {_fmt_cad(prix_vendu)} | "
+                f"ajustements {_fmt_cad(total_adj)} ({pct:.1f}%) | "
+                f"prix ajusté {_fmt_cad(prix_ajuste)}"
+            )
+            for adj in g.get("ajustements", []):
+                if adj.get("montant", 0) != 0:
+                    grille_lines.append(
+                        f"    • {adj['caracteristique']}: {_fmt_cad(adj['montant'])} "
+                        f"({adj.get('taux_info', '—')}) [{adj.get('statut', '?')}]"
+                    )
+        fourchette = grille_result.get("fourchette", {}) if not case.get("_grille_ajustements") else {}
+        if fourchette:
+            grille_lines.append(
+                f"  Fourchette : {_fmt_cad(fourchette.get('min', 0))} – {_fmt_cad(fourchette.get('max', 0))} "
+                f"(écart {fourchette.get('ecart_pct', 0):.1f}%)"
+            )
+        lines += grille_lines
+
+    # Inject normative references so LLM cites them in the report
+    normative = _normative_sources_for_case(case)
+    if normative:
+        norm_lines = [
+            "",
+            "SOURCES NORMATIVES APPLICABLES (à citer dans les sections pertinentes) :",
+        ]
+        for s in normative:
+            norm_lines.append(f"  - {s['short']} : {s['source_family']}")
+        norm_lines += [
+            "CONSIGNE : chaque règle invoquée dans le rapport doit citer son abréviation entre crochets,",
+            "ex. « L'évaluateur doit analyser les quatre critères [NPP OEAQ §8] ».",
+            "ex. « La valeur retenue respecte les limites plausibles [MEFQ 2025 Partie 3] ».",
+        ]
+        lines += norm_lines
 
     # Inject template structure as guidance if available
     template_txt = _load_rapport_template(case.get("type_bien", ""))
@@ -2267,20 +2348,69 @@ def _generate_rapport_llm(prompt: str, format: str = "abrege") -> dict | None:
         return None
 
 
-def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
-    """Template déterministe avec vraies données — utilisé si aucun LLM disponible."""
+def _build_inspection_section(inspection: dict | None) -> str:
+    """Formate la section 14 (inspection) pour le rapport déterministe."""
+    if not inspection or not inspection.get("date_visite"):
+        return (
+            "**Date de visite :** À compléter par l'É.A.\n"
+            "**Étendue de l'inspection :** À compléter par l'É.A.\n"
+            "**Type d'inspection :** Intérieure et extérieure (à confirmer)\n"
+            "**Observations :** À RÉDIGER PAR L'É.A.\n\n"
+            "*⚠ Section 14 non complétée — Attestation conditionnelle à la saisie d'inspection.*"
+        )
+    type_insp = str(inspection.get("type_inspection", "interieure_exterieure")).replace("_", " ").capitalize()
+    acces = "Oui — " + str(inspection.get("notes_acces", "")) if inspection.get("acces_limite") else "Non"
+    return (
+        f"**Date de visite :** {inspection['date_visite']}\n"
+        f"**Type d'inspection :** {type_insp}\n"
+        f"**Étendue :** {inspection.get('etendue', 'non précisée')}\n"
+        f"**Observations :** {inspection.get('observations', 'non précisées')}\n"
+        f"**Accès limité :** {acces}\n"
+        f"*Inspection enregistrée le {inspection.get('enregistre_le', '—')}.*"
+    )
+
+
+def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list, inspection: dict | None = None) -> str:
+    """Repli déterministe — 16 éléments structurels, mode dégradé honnête (T3.4).
+
+    Produit quand OpenAI est indisponible. Les sections nécessitant la prose É.A. sont
+    marquées explicitement « À RÉDIGER PAR L'É.A. ». Jamais un faux rapport complet.
+    """
     dossier_id = case.get("dossier_id", "—")
     date_ref = case.get("date_reference", "—")
-    type_bien = case.get("type_bien", "—").replace("_", " ").capitalize()
+    type_bien = str(case.get("type_bien", "—")).replace("_", " ").capitalize()
     zone = case.get("zone", "—")
     surface = case.get("surface", {})
     surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+    adresse = str(case.get("adresse") or case.get("display_name") or "Non fournie")
+    annee_constr = case.get("annee_construction") or "—"
+    nb_logements = case.get("nb_logements") or "—"
+    surface_terrain = case.get("surface_terrain") or "—"
     today = date.today().isoformat()
 
-    # Valeur principale = approche comparative si disponible
+    cmd = case.get("commanditaire", {}) or {}
+    cmd_nom = cmd.get("nom", "[COMMANDITAIRE]") if isinstance(cmd, dict) else "[COMMANDITAIRE]"
+    cmd_org = cmd.get("organisation", "") if isinstance(cmd, dict) else ""
+    cmd_label = f"{cmd_nom} — {cmd_org}" if cmd_org else cmd_nom
+    fin_eval = str((cmd.get("fin_evaluation", "non spécifié") if isinstance(cmd, dict) else "non spécifié")).replace("_", " ")
+
+    # Valeur principale
     val_principale = valuation_values.get("approche_comparative") or next(iter(valuation_values.values()), None)
     val_str = _fmt_cad(val_principale) if val_principale else "—"
 
+    # AMU / UMPP
+    umpp_data = (case.get("umpp") or {})
+    if isinstance(umpp_data, dict):
+        usage_retenu = umpp_data.get("usage_retenu", type_bien)
+        umpp_conclusion = umpp_data.get("conclusion", "À compléter par l'É.A.")
+        conformite_zonage = umpp_data.get("conformite_zonage")
+        zone_conf_str = "Oui" if conformite_zonage is True else ("Non" if conformite_zonage is False else "Données manquantes")
+    else:
+        usage_retenu = type_bien
+        umpp_conclusion = "À compléter par l'É.A."
+        zone_conf_str = "Données manquantes"
+
+    # Comparables + grille
     comparables = case.get("comparables", [])[:5]
     comp_rows = ""
     for i, c in enumerate(comparables, 1):
@@ -2290,6 +2420,24 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
         score_str = f"{float(score):.2f}" if isinstance(score, float) else str(score)
         comp_rows += f"| {i} | {c.get('source_id', '—')} | {price_str} | {c.get('date_vente', '—')} | {score_str} |\n"
 
+    # Grille d'ajustements (T3.2)
+    from engine.adjustments import compute_adjustment_grid  # type: ignore
+    grille_result = compute_adjustment_grid(case)
+    grilles = grille_result.get("grilles", [])
+    grille_rows = ""
+    for g in grilles[:5]:
+        for adj in g.get("ajustements", []):
+            montant = adj.get("montant", 0)
+            montant_str = _fmt_cad(montant) if montant != 0 else "0"
+            statut = adj.get("statut", "?")
+            grille_rows += (
+                f"| {g.get('comparable_id', '?')} | {adj['caracteristique']} | "
+                f"{montant_str} | {adj.get('taux_info', '—')} | {statut} |\n"
+            )
+    valeur_indiquee = grille_result.get("valeur_indiquee", 0)
+    fourchette = grille_result.get("fourchette", {})
+
+    # Approches
     approach_rows = ""
     labels = {
         "approche_comparative": "Approche comparative",
@@ -2304,75 +2452,211 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
     if blocking:
         items = "\n".join(f"- {b}" for b in blocking)
         blocking_section = f"\n**Blocages ({len(blocking)}) :**\n{items}\n"
-
     warnings_section = ""
     if warnings:
         items = "\n".join(f"- {w}" for w in warnings)
         warnings_section = f"\n**Avertissements ({len(warnings)}) :**\n{items}\n"
 
     return f"""\
-# BROUILLON DE RAPPORT D'ÉVALUATION
+# RAPPORT D'ÉVALUATION IMMOBILIÈRE — MODE DÉGRADÉ
 
-> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA le {today}.
-> Validation et signature d'un évaluateur agréé requises avant toute diffusion.
+> **⚠ MODE DÉGRADÉ — Service IA indisponible au moment de la génération.**
+> Ce rapport contient la structure des 16 éléments obligatoires avec les données calculées.
+> Les sections marquées « À RÉDIGER PAR L'É.A. » requièrent la prose de l'évaluateur agréé.
+> **Ce document ne constitue pas un rapport certifié sans révision et signature É.A.**
 
 ---
 
-## 1. Identification du bien
+## 1. Identification et but du mandat
 
 | Champ | Valeur |
-|-------|--------|
+|---|---|
 | Dossier | {dossier_id} |
+| Adresse | {adresse} |
 | Type de bien | {type_bien} |
-| Zone | {zone} |
-| Surface | {surface_str} |
+| Zone / secteur | {zone} |
+| Surface habitable | {surface_str} |
+| Surface terrain | {surface_terrain} m² |
+| Année construction | {annee_constr} |
+| Nb logements | {nb_logements} |
+| Commanditaire | {cmd_label} |
+| But et fin de l'évaluation | {fin_eval} |
 | Date de référence | {date_ref} |
-| Statut conformité | {status} |
+
+**Droits évalués :** Pleine propriété (à confirmer par É.A.)
+**Définition de la valeur :** Valeur marchande au sens de NPP OEAQ et CUSPAP 2026
+**Historique des transactions :** À RÉDIGER PAR L'É.A.
 
 ---
 
-## 2. Conclusion de valeur marchande proposée
+## 2. Étendue du travail
 
-**Valeur estimée : {val_str}**
-
-Cette valeur est établie principalement par l'approche comparative, corroborée par les approches
-par le coût et par le revenu. Elle n'est pas certifiée et ne constitue pas une opinion formelle
-d'un évaluateur agréé.
+- Collecte de données : sources structurées du dossier ({dossier_id})
+- Inspection du bien : **voir section 14**
+- Vérifications effectuées : données cadastrales, zonage, marché (sources automatisées)
+- Analyses : approche comparative (grille d'ajustements), approche par le coût (si applicable)
 
 ---
 
-## 3. Réconciliation des approches
+## 3. Réserves et hypothèses
+
+1. L'analyse est fondée exclusivement sur les données fournies et vérifiées.
+2. Aucune inspection de structure cachée n'a été effectuée.
+3. L'évaluateur suppose l'absence de contamination environnementale sauf mention contraire.
+4. Les données de registre foncier sont présumées exactes.
+5. Les droits réels et servitudes sont ceux déclarés au dossier.
+6. La valeur est exprimée en dollars canadiens courants à la date de référence.
+7. Cette évaluation est préparée pour l'usage identifié ci-dessus seulement.
+8. Les comparables sont issus de sources validées (source_id traçable).
+9. Les taux d'ajustement marqués « à_valider » sont des défauts à confirmer par l'É.A.
+10. Les sections en mode dégradé nécessitent la révision d'un évaluateur agréé.
+11. À RÉDIGER PAR L'É.A. : hypothèses extraordinaires si applicable.
+
+---
+
+## 4. Informations générales et marché
+
+**Ville / Secteur :** {zone}
+**Marché immobilier :** À RÉDIGER PAR L'É.A. (données de marché disponibles dans le dossier)
+**Données municipales :** À RÉDIGER PAR L'É.A.
+**Conformité au zonage :** {zone_conf_str}
+
+---
+
+## 5. Description du terrain
+
+**Superficie :** {surface_terrain} m²
+**Zone :** {zone}
+**Accès / Services :** À RÉDIGER PAR L'É.A.
+**Caractéristiques particulières :** À RÉDIGER PAR L'É.A.
+
+---
+
+## 6. Meilleur usage (UMPP/AMU)
+
+**Usage actuel :** {type_bien}
+**Usage retenu (UMPP) :** {usage_retenu}
+**Conformité au zonage :** {zone_conf_str}
+
+**Conclusion AMU :** {umpp_conclusion}
+
+*Les 4 critères (légalement permis, physiquement possible, financièrement faisable, maximalement productif) sont évalués dans l'artefact umpp_conclusion.json du dossier.*
+
+---
+
+## 7. Description du bâtiment
+
+**Type :** {type_bien}
+**Surface habitable :** {surface_str}
+**Année de construction :** {annee_constr}
+**Nombre de logements :** {nb_logements}
+**État général :** À RÉDIGER PAR L'É.A.
+**Composantes principales :** À RÉDIGER PAR L'É.A.
+
+---
+
+## 8. Approches de valeur — Présentation et justification
+
+| Méthode | Statut |
+|---|---|
+| Approche comparative | Appliquée |
+| Approche par le coût | {'Appliquée' if 'approche_cout' in valuation_values else 'Non appliquée — terrain ou coûts indisponibles'} |
+| Approche par le revenu | {'Appliquée' if 'approche_revenu' in valuation_values else 'Non appliquée — bien non locatif ou données manquantes'} |
+
+**Justification des méthodes rejetées :** À RÉDIGER PAR L'É.A.
+
+---
+
+## 9. Approche comparative — Grille d'ajustements
+
+**{len(comparables)} comparable(s) retenu(s)** | Valeur indiquée : **{_fmt_cad(valeur_indiquee) if valeur_indiquee else '—'}**
+{f"Fourchette : {_fmt_cad(fourchette.get('min', 0))} – {_fmt_cad(fourchette.get('max', 0))} (écart {fourchette.get('ecart_pct', 0):.1f}%)" if fourchette.get('min') else ""}
+
+| # | Source | Prix de vente | Date | Score |
+|---|---|---|---|---|
+{comp_rows if comp_rows else "| — | Aucun comparable disponible | — | — | — |\n"}
+
+**Grille d'ajustements par comparable :**
+
+| Comparable | Caractéristique | Ajustement | Taux | Statut |
+|---|---|---|---|---|
+{grille_rows if grille_rows else "| — | Données insuffisantes | — | — | — |\n"}
+
+*Lignes « a_valider » = taux par défaut MEFQ/APCIQ, à confirmer par É.A.*
+*Lignes « donnees_manquantes » = champ absent dans les données comparables.*
+
+---
+
+## 10. Approche par le coût
+
+{'*Non appliquée dans ce dossier — données de coûts insuffisantes.*' if 'approche_cout' not in valuation_values else f"Valeur indiquée : {_fmt_cad(valuation_values['approche_cout'])}"}
+
+---
+
+## 11. Approche par le revenu
+
+{'*Non appliquée dans ce dossier — bien non locatif ou données de revenus manquantes.*' if 'approche_revenu' not in valuation_values else f"Valeur indiquée : {_fmt_cad(valuation_values['approche_revenu'])}"}
+
+---
+
+## 12. Réconciliation et valeur finale
 
 | Méthode | Valeur indiquée |
-|---------|-----------------|
-{approach_rows}
+|---|---|
+{approach_rows if approach_rows else "| — | Aucune approche disponible |\n"}
+
+**Valeur finale retenue : {val_str}**
+
+Réconciliation (jugement pondéré) : À RÉDIGER PAR L'É.A.
+La valeur comparative est la méthode prépondérante pour ce type de bien résidentiel.
+
 ---
 
-## 4. Soutien du marché — comparables retenus
+## 13. Attestation
 
-{len(comparables)} comparable(s) retenu(s) pour l'analyse comparative :
+> **BROUILLON NON CERTIFIÉ — Signatures requises avant toute utilisation.**
 
-| # | Référence source | Prix de vente | Date de vente | Score similarité |
-|---|------------------|---------------|---------------|-----------------|
-{comp_rows}
----
+Je/Nous soussigné(e)(s), évaluateur(s) agréé(s) membre(s) de l'OEAQ, atteste(ons) :
 
-## 5. Hypothèses et conditions limitatives
+1. Les affirmations contenues dans ce rapport sont exactes et véridiques selon ma connaissance.
+2. Les analyses, opinions et conclusions sont limitées aux hypothèses et conditions stipulées.
+3. Je n'ai aucun intérêt personnel actuel ou futur dans le bien évalué.
+4. L'indemnisation n'est aucunement liée à la valeur estimée.
+5. L'évaluation a été effectuée en conformité avec les normes professionnelles OEAQ/CUSPAP.
+6. J'ai inspecté personnellement le bien évalué (voir section 14).
+7. Les règles de conduite et normes OEAQ ont été respectées.
 
-- L'analyse est basée exclusivement sur les données et sources référencées dans ce dossier.
-- Aucune inspection physique du bien n'a été effectuée par le système IA.
-- Les valeurs des approches par le coût et par le revenu sont des proxys V0 et ne remplacent
-  pas un calcul de coût ou de capitalisation complet par un évaluateur agréé.
-- Toute donnée manquante ou incomplète est signalée dans la section conformité ci-dessous.
+**Valeur marchande au {date_ref} : {val_str}**
+*(Montant en lettres : À RÉDIGER PAR L'É.A.)*
+
+_[SIGNATURE É.A. — N° PERMIS OEAQ]_
+_[DATE DE SIGNATURE]_
+_[SCEAU PROFESSIONNEL]_
 {blocking_section}{warnings_section}
+
 ---
 
-## 6. Mention légale
+## 14. Information sur l'inspection
 
-Ce document est un brouillon produit par un assistant IA à titre d'aide à la rédaction.
-Il **ne constitue pas** un rapport d'évaluation certifié au sens des normes professionnelles
-applicables et ne peut être utilisé à des fins de transaction, de financement ou de litige
-sans validation et signature d'un évaluateur agréé autorisé.
+{_build_inspection_section(inspection)}
+
+---
+
+## 15. Annexes
+
+- [ ] Plan du terrain (à joindre)
+- [ ] Photos du bien (à joindre)
+- [ ] Extrait du rôle municipal
+- [ ] Certificat de localisation
+- [ ] Données comparables (source_ids : {', '.join(c.get('source_id', '?') for c in comparables[:3]) if comparables else '—'})
+
+---
+
+## 16. Statut de conformité
+
+**Statut :** {status}
+{blocking_section}{warnings_section}
+*Produit le {today} en mode dégradé (sans LLM). Révision É.A. obligatoire.*
 """
 
 
@@ -2383,29 +2667,65 @@ def generate_brouillon_rapport(
     blocking: list,
     warnings: list,
     format: str = "abrege",
+    inspection: dict | None = None,
 ) -> str:
     """Génère le brouillon de rapport : LLM si disponible, sinon template déterministe.
 
     Retourne toujours un str. Métadonnées LLM (modèle, coût) disponibles via _generate_rapport_llm().
     """
-    prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings)
+    prompt = _build_rapport_prompt_v2(case, format, valuation_values, status, blocking, warnings, inspection=inspection)
     llm_result = _generate_rapport_llm(prompt, format)
     if llm_result and llm_result.get("text"):
         disclaimer = (
             "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
             "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
         )
-        return disclaimer + llm_result["text"]
-    return _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+        rapport = disclaimer + llm_result["text"]
+    else:
+        rapport = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings, inspection=inspection)
+
+    # T3.1 — Validation post-génération des 16 éléments CUSPAP/NPP
+    check = check_rapport_elements(rapport)
+    rapport += build_rapport_check_section(check)
+    return rapport
 
 
 def write_artifact_payload(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    def _replace_tmp() -> None:
+        last_error: PermissionError | None = None
+        for _ in range(5):
+            try:
+                os.replace(tmp_path, path)
+                last_error = None
+                break
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.02)
+        if last_error is not None:
+            raise last_error
+
     if path.suffix == ".md":
         raw = payload.get("_raw_md")
-        path.write_text(raw if isinstance(raw, str) else render_markdown_payload(payload), encoding="utf-8")
+        text = raw if isinstance(raw, str) else render_markdown_payload(payload)
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _replace_tmp()
+        finally:
+            tmp_path.unlink(missing_ok=True)
         return
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, indent=2))
+            handle.flush()
+            os.fsync(handle.fileno())
+        _replace_tmp()
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def render_markdown_payload(payload: dict) -> str:

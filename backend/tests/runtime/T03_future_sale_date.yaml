@@ -1,0 +1,55 @@
+{
+  "id": "T03",
+  "description": "Future comparable sale date blocks chronology.",
+  "expected": {
+    "status": "A_REVOIR",
+    "blocking_prefixes": ["B003"],
+    "required_artifacts": [
+      "mandat-intake.conflit_interets.json",
+      "data-facts.fiche_bien.json",
+      "compliance-qa.statut_sortie.json"
+    ]
+  },
+  "case": {
+    "dossier_id": "D-RUNTIME-T03",
+    "mandat_type": "residentiel_standard",
+    "format_rapport": "abrege",
+    "type_bien": "unifamiliale",
+    "date_reference": "2026-01-15",
+    "zone": "R1",
+    "adresse_anonymisee": "125 rue Pilote",
+    "surface": { "value": 120, "unit": "m2" },
+    "confidence": 0.88,
+    "comparables": [
+      {
+        "comparable_id": "SIRF-T03-001",
+        "source_id": "SIRF-T03-001",
+        "prix_vente": 410000,
+        "date_vente": "2026-02-01",
+        "distance_km": 1.1,
+        "surface": { "value": 118, "unit": "m2" },
+        "type_bien": "unifamiliale"
+      },
+      {
+        "comparable_id": "SIRF-T03-002",
+        "source_id": "SIRF-T03-002",
+        "prix_vente": 425000,
+        "date_vente": "2025-07-15",
+        "distance_km": 2.0,
+        "surface": { "value": 124, "unit": "m2" },
+        "type_bien": "unifamiliale"
+      },
+      {
+        "comparable_id": "SIRF-T03-003",
+        "source_id": "SIRF-T03-003",
+        "prix_vente": 399000,
+        "date_vente": "2025-08-20",
+        "distance_km": 2.8,
+        "surface": { "value": 116, "unit": "m2" },
+        "type_bien": "unifamiliale"
+      }
+    ],
+    "ajustements": [],
+    "hypotheses": []
+  }
+}

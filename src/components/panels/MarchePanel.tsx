@@ -8,6 +8,7 @@ import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchRuntimeEnrichment, fetchRuntimeComparables, fetchRuntimeAdjustments } from '@/lib/runtime-api'
+import SourceDiagnosticPanel from '@/components/shared/SourceDiagnosticPanel'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildMarcheHtml } from '@/lib/marche-html'
@@ -26,7 +27,7 @@ import { computeComparableCompleteness } from '@/lib/compute-comparable-complete
 import { computeDataQualityReport } from '@/lib/compute-data-quality-report'
 import { computeSalesPressureIndex } from '@/lib/compute-sales-pressure-index'
 import { fmtNum, formatCAD, formatCADCompact } from '@/lib/format-number'
-import type { Comparable, Adjustment, EnrichmentMarche } from '@/types'
+import type { Comparable, Adjustment, EnrichmentMarche, SourceCoverage } from '@/types'
 
 interface Props {
   dossierId: string | null
@@ -107,6 +108,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [marche, setMarche] = useState<EnrichmentMarche | null>(null)
+  const [sourceCoverage, setSourceCoverage] = useState<SourceCoverage | null>(null)
   const [sortKey, setSortKey] = useState<ComparableSortKey>('rank')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -125,6 +127,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
       setComparables(comps)
       setAdjustments(adjs)
       setMarche(enrichment?.marche ?? null)
+      setSourceCoverage(enrichment?.source_coverage ?? null)
       setLoading(false)
     }).catch(() => { setError(true); setLoading(false) })
   }
@@ -163,6 +166,16 @@ export default function MarchePanel({ dossierId, address }: Props) {
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparable{comparables.length !== 1 ? 's' : ''}</strong>{' depuis les art\u00e9facts du backend.'}
+          {comparables.length === 0 && sourceCoverage && (
+            <div className="mt-3">
+              <SourceDiagnosticPanel coverage={sourceCoverage} />
+            </div>
+          )}
+          {comparables.length === 0 && !sourceCoverage && (
+            <p className="mt-2 text-[13px] text-[#8a8780]">
+              Aucune source de comparables disponible. Importez un export CSV JLR au checkpoint 2.
+            </p>
+          )}
           {marche && <MarcheContexte m={marche} />}
           {stats && comparables.length > 1 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -345,16 +358,16 @@ export default function MarchePanel({ dossierId, address }: Props) {
               a.click()
               URL.revokeObjectURL(url)
             }}
-            className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+            className="btn ghost btn-sm"
           >
-            ⬇ Export CSV
+            Export CSV
           </button>
           <button
             type="button"
             onClick={() => printWindow(buildMarcheHtml(visibleComps, marche, address, adjustments), address ?? 'Marché')}
-            className="rounded-full px-3.5 py-2 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
+            className="btn ghost btn-sm"
           >
-            🖨 Imprimer le rapport marché
+            Imprimer le rapport marché
           </button>
         </div>
       )}

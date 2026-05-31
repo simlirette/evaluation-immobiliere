@@ -38,9 +38,11 @@ Dans Railway → service → Variables, ajouter :
 |---|---|
 | `OPENAI_API_KEY` | `sk-...` |
 | `OPENAI_MODEL` | `gpt-4o-mini` (ou `gpt-4o`) |
+| `APP_ENV` | `production` |
 | `EVAL_RUNTIME_API_TOKEN` | générer : `openssl rand -hex 32` |
 | `EVAL_RUNTIME_ALLOWED_ORIGIN` | URL Vercel exacte, ex : `https://eval-immo.vercel.app` |
 | `SESSIONS_DIR` | `/data/sessions` |
+| `DATA_CACHE_DIR` | `/data/data_cache` |
 
 > `PORT` est injecté automatiquement par Railway — ne pas définir.
 
@@ -50,11 +52,27 @@ Railway → service → **Volumes** → Add Volume :
 - Mount path : `/data/sessions`
 - Sans volume, les sessions sont perdues à chaque redéploiement.
 
+Ajouter aussi un stockage persistant pour les sources publiques :
+- Mount path : `/data/data_cache` si volume separe, ou monter `/data` et utiliser `/data/data_cache`.
+- Prechauffer le cache MAMH avant usage reel : `python scripts/provision_mamh_cache.py --cache-dir /data/data_cache --all`.
+
 ### 1.4 Vérifier le healthcheck
+
+Avant de publier l'URL Railway, executer le garde de readiness dans le service backend :
+
+```bash
+cd backend
+APP_ENV=production python scripts/check_deploy_readiness.py --json
+```
+
+Le script retourne un code non-zero si une configuration critique manque.
 
 ```bash
 curl https://<ton-service>.railway.app/health
-# Attendu : {"status":"ok","version":"2.0","openai":true,"pymupdf":true,"sessions_dir":"/data/sessions"}
+# Liveness: retourne 200 et inclut "readiness" pour diagnostic.
+
+curl https://<ton-service>.railway.app/readiness
+# Readiness: retourne 200 si deployable, 503 si bloque par configuration critique.
 ```
 
 ---
@@ -101,7 +119,8 @@ BACKEND=https://<ton-service>.railway.app
 FRONTEND=https://eval-immo.vercel.app
 TOKEN=<EVAL_RUNTIME_API_TOKEN>
 
-# 1. Health backend
+# 1. Readiness + health backend
+curl $BACKEND/readiness
 curl $BACKEND/health
 
 # 2. App state via BFF (sans auth Supabase, le middleware passe en passthrough)
@@ -124,8 +143,13 @@ curl -X POST $BACKEND/app/create \
 - [ ] `EVAL_RUNTIME_API_TOKEN` générée (`openssl rand -hex 32`)
 - [ ] `EVAL_RUNTIME_ALLOWED_ORIGIN` = URL Vercel exacte
 - [ ] `SESSIONS_DIR=/data/sessions` configurée
+- [ ] `DATA_CACHE_DIR=/data/data_cache` configurée
 - [ ] Volume `/data/sessions` monté
-- [ ] `GET /health` retourne 200 avec `"openai":true,"pymupdf":true`
+- [ ] Volume/cache MAMH persistant monté et provisionné (`docs/MAMH-DATA-CACHE.md`)
+- [ ] Smoke sources externes exécuté hors CI si réseau/identifiants disponibles (`docs/EXTERNAL-SOURCE-SMOKE.md`)
+- [ ] `APP_ENV=production` configure.
+- [ ] `python scripts/check_deploy_readiness.py --json` retourne `"ok": true`.
+- [ ] `GET /readiness` retourne 200 et `GET /health` retourne 200.
 
 ### Frontend Vercel
 - [ ] Projet importé depuis la racine du repo
@@ -139,6 +163,7 @@ curl -X POST $BACKEND/app/create \
 - [ ] Créer un dossier → pipeline démarre
 - [ ] Questionner Agent Dossier → réponse LLM reçue
 - [ ] Générer paquet V1 → ZIP téléchargeable
+- [ ] Acceptance dossier anonymisee executee avec un E.A. (`docs/EA-ACCEPTANCE.md`)
 
 ---
 
@@ -166,3 +191,5 @@ Sans `OPENAI_API_KEY`, les agents retournent des réponses déterministes.
 - **CORS** : `EVAL_RUNTIME_ALLOWED_ORIGIN` doit correspondre exactement à l'URL Vercel (sans slash final). En dev local, laisser `*`.
 - **PyMuPDF** : Requiert `libgomp1` sur Linux — installé automatiquement par le `Dockerfile`.
 - **Volume Railway** : Sans volume persistant, les sessions sont en mémoire uniquement et perdues au redémarrage.
+- **Cache donnees publiques** : `DATA_CACHE_DIR` doit pointer vers un volume persistant. Le cache MAMH se provisionne avec `python scripts/provision_mamh_cache.py --cache-dir /data/data_cache --all`.
+- **Smoke externes** : Infolot/MAMH/SIRF sont couverts par `backend/tests/test_live_external_sources.py`, désactivé par défaut. SIRF peut coûter de l'argent; activer seulement avec approbation.

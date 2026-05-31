@@ -1,0 +1,75 @@
+{
+  "id": "T01",
+  "description": "Clean unifamiliale dossier reaches final review.",
+  "expected": {
+    "status": "PRET_REVISION_FINALE",
+    "blocking_prefixes": [],
+    "required_artifacts": [
+      "mandat-intake.conflit_interets.json",
+      "data-facts.fiche_bien.json",
+      "comps-market.comparables_proposes.json",
+      "valuation-draft.calculs_approche_comparative.json",
+      "compliance-qa.statut_sortie.json",
+      "redaction.brouillon_rapport.md"
+    ]
+  },
+  "case": {
+    "dossier_id": "D-RUNTIME-T01",
+    "mandat_type": "residentiel_standard",
+    "format_rapport": "abrege",
+    "type_bien": "unifamiliale",
+    "date_reference": "2026-01-15",
+    "zone": "R1",
+    "adresse_anonymisee": "123 rue Pilote",
+    "surface": { "value": 120, "unit": "m2" },
+    "surface_habitable": 120,
+    "annee_construction": 1995,
+    "confidence": 0.88,
+    "commanditaire": {
+      "nom": "Banque Exemple",
+      "organisation": "Bureau pilote",
+      "fin_evaluation": "financement"
+    },
+    "comparables": [
+      {
+        "comparable_id": "SIRF-T01-001",
+        "source_id": "SIRF-T01-001",
+        "adresse": "101 rue A",
+        "prix_vente": 410000,
+        "date_vente": "2025-06-01",
+        "distance_km": 1.1,
+        "surface": { "value": 118, "unit": "m2" },
+        "type_bien": "unifamiliale",
+        "confidence": 0.92
+      },
+      {
+        "comparable_id": "SIRF-T01-002",
+        "source_id": "SIRF-T01-002",
+        "adresse": "102 rue B",
+        "prix_vente": 425000,
+        "date_vente": "2025-07-15",
+        "distance_km": 2.0,
+        "surface": { "value": 124, "unit": "m2" },
+        "type_bien": "unifamiliale",
+        "confidence": 0.89
+      },
+      {
+        "comparable_id": "SIRF-T01-003",
+        "source_id": "SIRF-T01-003",
+        "adresse": "103 rue C",
+        "prix_vente": 399000,
+        "date_vente": "2025-08-20",
+        "distance_km": 2.8,
+        "surface": { "value": 116, "unit": "m2" },
+        "type_bien": "unifamiliale",
+        "confidence": 0.87
+      }
+    ],
+    "ajustements": [
+      { "source_id": "AJ-T01-001", "montant": 10000, "validation_humaine": true }
+    ],
+    "hypotheses": [
+      { "texte": "Condition moyenne du secteur.", "source_ids": ["HYP-T01-001", "HYP-T01-002"] }
+    ]
+  }
+}

@@ -240,3 +240,44 @@ def _as_list(value: object) -> list[str]:
     if isinstance(value, str) and value:
         return [value]
     return []
+
+
+def load_skill_knowledge(skill_name: str, max_chars: int = 2000) -> str:
+    """Charge le contenu de connaissance d'un skill.
+
+    Priorité : analysis.md complet > sections 2+4 du SKILL.md.
+    Retourne texte tronqué à max_chars. Silencieux si fichier absent.
+    """
+    skill_dir = PROJECT_ROOT / "skills" / skill_name
+
+    analysis_path = skill_dir / "analysis.md"
+    if analysis_path.exists():
+        try:
+            content = analysis_path.read_text(encoding="utf-8").strip()
+            return content[:max_chars] if len(content) > max_chars else content
+        except OSError:
+            pass
+
+    skill_path = skill_dir / "SKILL.md"
+    if not skill_path.exists():
+        return ""
+    try:
+        text = skill_path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+    sections: list[str] = []
+    current: list[str] | None = None
+    for line in text.splitlines():
+        if line.startswith("## 2.") or line.startswith("## 4."):
+            current = [line]
+        elif line.startswith("## ") and current is not None:
+            sections.append("\n".join(current))
+            current = None
+        elif current is not None:
+            current.append(line)
+    if current:
+        sections.append("\n".join(current))
+
+    combined = "\n\n".join(sections).strip()
+    return combined[:max_chars] if len(combined) > max_chars else combined

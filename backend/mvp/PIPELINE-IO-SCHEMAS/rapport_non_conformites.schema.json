@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eval-immo://artifact/rapport_non_conformites.schema.json",
+  "title": "rapport_non_conformites.json",
+  "type": "object",
+  "required": ["dossier_id", "step", "artifact", "source_fixture", "blocking_failures", "warnings"],
+  "properties": {
+    "dossier_id": { "type": ["string", "null"] },
+    "step": { "const": "compliance-qa" },
+    "artifact": { "const": "rapport_non_conformites.json" },
+    "source_fixture": { "type": "string" },
+    "blocking_failures": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "analyse_conformite": { "type": "string" }
+  }
+}

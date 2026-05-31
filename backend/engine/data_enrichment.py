@@ -15,17 +15,57 @@ import csv
 import json
 import logging
 import math
+import os
 import time
 import unicodedata
 from pathlib import Path
 from typing import Any
 
+from engine.source_diagnostics import (
+    append_source_diagnostic,
+    attach_source_coverage,
+    ensure_source_diagnostics,
+    make_source_diagnostic,
+)
+
 logger = logging.getLogger("data_enrichment")
+
+
+def _record_source(
+    diagnostics: list[dict] | None,
+    source: str,
+    status: str,
+    message: str,
+    *,
+    stage: str,
+    severity: str = "info",
+    details: dict | None = None,
+) -> None:
+    append_source_diagnostic(
+        diagnostics,
+        make_source_diagnostic(
+            source,
+            status,
+            message,
+            stage=stage,
+            severity=severity,
+            details=details,
+        ),
+    )
+
 
 _CACHE_TTL = 86_400  # 24 h
 _HTTP_TIMEOUT = 8.0
 _WDS_BASE = "https://www150.statcan.gc.ca/t1/wds/rest/"
 _SCHL_TABLE = 3410013301  # CANSIM 34-10-0133-01 : loyers moyens CMHC
+
+
+def get_data_cache_dir(default: Path | None = None) -> Path:
+    """Resolve the shared external-data cache directory."""
+    configured = os.environ.get("DATA_CACHE_DIR", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return default or Path(__file__).resolve().parent.parent / "data_cache"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -4691,8 +4731,9 @@ def enrich_case(
     Never raises — all failures logged at DEBUG level.
     """
     if cache_dir is None:
-        cache_dir = Path(__file__).resolve().parent.parent / "data_cache"
+        cache_dir = get_data_cache_dir()
 
+    diagnostics = ensure_source_diagnostics(case)
     zone = str(case.get("zone", ""))
     city_code = detect_city(display_name, zone)
 
@@ -4854,15 +4895,38 @@ def enrich_case(
     if not case.get("role_municipal"):
         matricule = str(case.get("matricule") or "").strip() or None
         role: dict = {}
+        role_source_seen = False
+        role_error_recorded = False
 
         if city_code == "montreal":
             # Montréal: CSV lookup
             csv_path = cache_dir / "role_mtl.csv"
             if csv_path.exists():
+                role_source_seen = True
                 try:
                     role = lookup_role_mtl(csv_path, matricule=matricule, display_name=display_name)
                 except Exception as exc:
+                    role_error_recorded = True
+                    _record_source(
+                        diagnostics,
+                        "mamh",
+                        "failed",
+                        "Lecture du role municipal Montreal echouee",
+                        stage="role_municipal",
+                        severity="warning",
+                        details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+                    )
                     logger.debug("role_municipal (mtl csv) skip: %s", exc)
+            else:
+                role_error_recorded = True
+                _record_source(
+                    diagnostics,
+                    "mamh",
+                    "skipped",
+                    "CSV du role municipal Montreal absent",
+                    stage="role_municipal",
+                    details={"city_code": city_code, "csv_path": str(csv_path)},
+                )
         elif city_code in _ROLE_XML_CITIES:
             # Autres villes: XML JSON index lookup
             index_path = cache_dir / f"role_{city_code}_index.json"
@@ -4873,14 +4937,63 @@ def enrich_case(
                     try:
                         build_role_xml_index(xml_path, index_path, city_code)
                     except Exception as exc:
+                        role_error_recorded = True
+                        _record_source(
+                            diagnostics,
+                            "mamh",
+                            "failed",
+                            "Index MAMH XML illisible ou non constructible",
+                            stage="role_municipal",
+                            severity="warning",
+                            details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+                        )
                         logger.debug("role XML index build skip: %s", exc)
+                else:
+                    role_error_recorded = True
+                    _record_source(
+                        diagnostics,
+                        "mamh",
+                        "skipped",
+                        "Index et XML MAMH absents pour la ville",
+                        stage="role_municipal",
+                        details={"city_code": city_code, "index_path": str(index_path), "xml_path": str(xml_path)},
+                    )
             if index_path.exists():
+                role_source_seen = True
                 try:
                     role = lookup_role_xml(index_path, matricule=matricule, display_name=display_name)
                 except Exception as exc:
+                    role_error_recorded = True
+                    _record_source(
+                        diagnostics,
+                        "mamh",
+                        "failed",
+                        "Recherche dans l'index MAMH XML echouee",
+                        stage="role_municipal",
+                        severity="warning",
+                        details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+                    )
                     logger.debug("role_municipal (xml) skip: %s", exc)
+        else:
+            role_error_recorded = True
+            _record_source(
+                diagnostics,
+                "mamh",
+                "skipped",
+                "Ville non supportee par le role municipal local",
+                stage="role_municipal",
+                details={"city_code": city_code},
+            )
 
         if role:
+            _record_source(
+                diagnostics,
+                "mamh",
+                "ok",
+                "Role municipal MAMH associe au dossier",
+                stage="role_municipal",
+                details={"city_code": city_code, "mode": "csv" if city_code == "montreal" else "xml"},
+            )
             case["role_municipal"] = role
             if not case.get("annee_construction") and role.get("annee_construction"):
                 case["annee_construction"] = role["annee_construction"]
@@ -4892,6 +5005,16 @@ def enrich_case(
             logger.debug("role_municipal injecté : %s (%s)", role.get("matricule83"), city_code)
 
     # ── Geocode (shared by zonage + CPTAQ + patrimoine + inondable) ─────────
+        elif role_source_seen and not role_error_recorded:
+            _record_source(
+                diagnostics,
+                "mamh",
+                "empty",
+                "Aucune entree MAMH ne correspond au dossier",
+                stage="role_municipal",
+                details={"city_code": city_code},
+            )
+
     _coords: tuple[float, float] | None = None
     if display_name and (
         not case.get("zonage_urbanisme")
@@ -4903,7 +5026,24 @@ def enrich_case(
     ):
         try:
             _coords = geocode_address(display_name, cache_dir)
+            _record_source(
+                diagnostics,
+                "geocoding",
+                "ok" if _coords else "empty",
+                "Adresse geocodee pour les enrichissements spatiaux" if _coords else "Aucune coordonnee geocodee pour les enrichissements spatiaux",
+                stage="spatial_enrichment",
+                details={"city_code": city_code},
+            )
         except Exception as exc:
+            _record_source(
+                diagnostics,
+                "geocoding",
+                "failed",
+                "Geocodage spatial echoue",
+                stage="spatial_enrichment",
+                severity="warning",
+                details={"error": f"{type(exc).__name__}: {exc}", "city_code": city_code},
+            )
             logger.debug("geocode skip: %s", exc)
 
     # ── Distance au CBD (Haversine) ───────────────────────────────────────────
@@ -5063,8 +5203,10 @@ def enrich_case(
         except Exception as exc:
             logger.debug("rendement_locatif skip: %s", exc)
 
-    # ── Score composite d'investissement (calcul interne, dépend B30+B31+B32) ─
-    if not case.get("score_investissement"):
+    # ── Score composite d'investissement (hors périmètre OEAQ — optionnel T6.2) ─
+    # Activé seulement si INCLUDE_INVESTMENT_CONTEXT=1 (UI marché seulement)
+    _include_investment = os.environ.get("INCLUDE_INVESTMENT_CONTEXT", "0") == "1"
+    if _include_investment and not case.get("score_investissement"):
         try:
             invest = compute_score_investissement(case)
             if invest:
@@ -5088,28 +5230,27 @@ def enrich_case(
         except Exception as exc:
             logger.debug("taxes_municipales skip: %s", exc)
 
-    # ── Coûts de possession totaux (calcul interne, dépend B30+B34) ──────────
-    if not case.get("couts_possession"):
-        try:
-            couts = compute_couts_possession(case)
-            if couts:
-                case["couts_possession"] = couts
-                logger.debug("couts_possession : total=%d $/mois (%s)",
-                             couts.get("total_mensuel", 0),
-                             couts.get("interpretation"))
-        except Exception as exc:
-            logger.debug("couts_possession skip: %s", exc)
-
-    # ── Ratio prix/loyer (calcul interne, dépend B5 + évaluation) ─────────────
-    if not case.get("ratio_prix_loyer"):
-        try:
-            plr = compute_ratio_prix_loyer(case)
-            if plr:
-                case["ratio_prix_loyer"] = plr
-                logger.debug("ratio_prix_loyer : %.1f (%s)",
-                             plr.get("ratio_prix_loyer", 0), plr.get("signal"))
-        except Exception as exc:
-            logger.debug("ratio_prix_loyer skip: %s", exc)
+    # ── Coûts de possession / ratio prix-loyer (hors périmètre OEAQ — optionnel) ─
+    if _include_investment:
+        if not case.get("couts_possession"):
+            try:
+                couts = compute_couts_possession(case)
+                if couts:
+                    case["couts_possession"] = couts
+                    logger.debug("couts_possession : total=%d $/mois (%s)",
+                                 couts.get("total_mensuel", 0),
+                                 couts.get("interpretation"))
+            except Exception as exc:
+                logger.debug("couts_possession skip: %s", exc)
+        if not case.get("ratio_prix_loyer"):
+            try:
+                plr = compute_ratio_prix_loyer(case)
+                if plr:
+                    case["ratio_prix_loyer"] = plr
+                    logger.debug("ratio_prix_loyer : %.1f (%s)",
+                                 plr.get("ratio_prix_loyer", 0), plr.get("signal"))
+            except Exception as exc:
+                logger.debug("ratio_prix_loyer skip: %s", exc)
 
     # ── Vétusté du bâtiment (calcul interne, depuis annee_construction) ───────
     if not case.get("vetuste_batiment"):
@@ -5124,31 +5265,40 @@ def enrich_case(
         except Exception as exc:
             logger.debug("vetuste_batiment skip: %s", exc)
 
-    # ── Indice de qualité de vie (calcul interne, dépend B20+B21+B27+B28) ────
-    if not case.get("indice_qualite_vie"):
-        try:
-            qdv = compute_indice_qualite_vie(case)
-            if qdv:
-                case["indice_qualite_vie"] = qdv
-                logger.debug("indice_qualite_vie : %.2f/10 (%s)",
-                             qdv.get("indice_qualite_vie", 0), qdv.get("interpretation"))
-        except Exception as exc:
-            logger.debug("indice_qualite_vie skip: %s", exc)
+    # ── QdV / risque / valeur indicative / score global (hors périmètre OEAQ) ──
+    if _include_investment:
+        if not case.get("indice_qualite_vie"):
+            try:
+                qdv = compute_indice_qualite_vie(case)
+                if qdv:
+                    case["indice_qualite_vie"] = qdv
+                    logger.debug("indice_qualite_vie : %.2f/10 (%s)",
+                                 qdv.get("indice_qualite_vie", 0), qdv.get("interpretation"))
+            except Exception as exc:
+                logger.debug("indice_qualite_vie skip: %s", exc)
+        if not case.get("score_risque"):
+            try:
+                risque = compute_score_risque(case)
+                if risque:
+                    case["score_risque"] = risque
+                    logger.debug("score_risque : %.2f/10 (%s) — %d facteurs",
+                                 risque.get("score_risque", 0),
+                                 risque.get("categorie"),
+                                 len(risque.get("facteurs_risque", [])))
+            except Exception as exc:
+                logger.debug("score_risque skip: %s", exc)
+        if not case.get("score_global"):
+            try:
+                global_score = compute_score_global(case)
+                if global_score:
+                    case["score_global"] = global_score
+                    logger.debug("score_global : %.2f/10 grade=%s",
+                                 global_score.get("score_global", 0),
+                                 global_score.get("grade"))
+            except Exception as exc:
+                logger.debug("score_global skip: %s", exc)
 
-    # ── Score de risque global (calcul interne, dépend B8+B9+B21+B28+B37) ────
-    if not case.get("score_risque"):
-        try:
-            risque = compute_score_risque(case)
-            if risque:
-                case["score_risque"] = risque
-                logger.debug("score_risque : %.2f/10 (%s) — %d facteurs",
-                             risque.get("score_risque", 0),
-                             risque.get("categorie"),
-                             len(risque.get("facteurs_risque", [])))
-        except Exception as exc:
-            logger.debug("score_risque skip: %s", exc)
-
-    # ── Estimation de valeur indicative (calcul interne, dépend B5+B10+B36) ──
+    # ── Valeur indicative (garde : utilisée par AMU financièrement faisable) ───
     if not case.get("valeur_indicative"):
         try:
             valeur = compute_valeur_indicative(case)
@@ -5159,18 +5309,6 @@ def enrich_case(
                              valeur.get("fiabilite"))
         except Exception as exc:
             logger.debug("valeur_indicative skip: %s", exc)
-
-    # ── Score global de synthèse (calcul interne, dépend B33+B38+B39) ─────────
-    if not case.get("score_global"):
-        try:
-            global_score = compute_score_global(case)
-            if global_score:
-                case["score_global"] = global_score
-                logger.debug("score_global : %.2f/10 grade=%s",
-                             global_score.get("score_global", 0),
-                             global_score.get("grade"))
-        except Exception as exc:
-            logger.debug("score_global skip: %s", exc)
 
     # ── Coût estimé de rénovation (calcul interne, dépend B37 + surface) ──────
     if not case.get("cout_renovation"):
@@ -5185,26 +5323,27 @@ def enrich_case(
         except Exception as exc:
             logger.debug("cout_renovation skip: %s", exc)
 
-    # ── Projection de valeur à 5 ans (calcul interne, dépend B10+B40) ─────────
-    if not case.get("projection_valeur"):
-        try:
-            proj = compute_projection_valeur(case)
-            if proj:
-                case["projection_valeur"] = proj
-                logger.debug("projection_valeur : base=%d$ taux=%.2f%%/an",
-                             proj.get("valeur_base", 0),
-                             proj.get("taux_base_pct", 0))
-        except Exception as exc:
-            logger.debug("projection_valeur skip: %s", exc)
+    # ── Projection / alertes investissement (hors périmètre OEAQ — optionnel) ──
+    if _include_investment:
+        if not case.get("projection_valeur"):
+            try:
+                proj = compute_projection_valeur(case)
+                if proj:
+                    case["projection_valeur"] = proj
+                    logger.debug("projection_valeur : base=%d$ taux=%.2f%%/an",
+                                 proj.get("valeur_base", 0),
+                                 proj.get("taux_base_pct", 0))
+            except Exception as exc:
+                logger.debug("projection_valeur skip: %s", exc)
+        if not case.get("alertes"):
+            try:
+                alrt = compute_alertes(case)
+                if alrt:
+                    case["alertes"] = alrt
+                    logger.debug("alertes : %d critique(s) %d attention(s)",
+                                 alrt.get("nb_alertes_critiques", 0),
+                                 alrt.get("nb_alertes_attention", 0))
+            except Exception as exc:
+                logger.debug("alertes skip: %s", exc)
 
-    # ── Alertes consolidées (calcul interne, dépend tous B-sources) ───────────
-    if not case.get("alertes"):
-        try:
-            alrt = compute_alertes(case)
-            if alrt:
-                case["alertes"] = alrt
-                logger.debug("alertes : %d critique(s) %d attention(s)",
-                             alrt.get("nb_alertes_critiques", 0),
-                             alrt.get("nb_alertes_attention", 0))
-        except Exception as exc:
-            logger.debug("alertes skip: %s", exc)
+    attach_source_coverage(case)

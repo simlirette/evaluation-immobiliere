@@ -16,6 +16,8 @@ import logging
 import unicodedata
 from pathlib import Path
 
+from engine.source_diagnostics import append_source_diagnostic, make_source_diagnostic
+
 logger = logging.getLogger("comparables_builder")
 
 try:
@@ -151,6 +153,29 @@ def _filter_by_type_and_surface(
     return result
 
 
+def _diag(
+    diagnostics: list[dict] | None,
+    source: str,
+    status: str,
+    message: str,
+    *,
+    stage: str,
+    severity: str = "info",
+    details: dict | None = None,
+) -> None:
+    append_source_diagnostic(
+        diagnostics,
+        make_source_diagnostic(
+            source,
+            status,
+            message,
+            stage=stage,
+            severity=severity,
+            details=details,
+        ),
+    )
+
+
 def build_comparable_pool(
     subject_address: str,
     subject_surface_m2: float = 0.0,
@@ -159,6 +184,7 @@ def build_comparable_pool(
     radius_km: float = 2.0,
     cache_dir: Path | None = None,
     max_candidates: int = 50,
+    diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     """
     Point d'entrée principal. Retourne un pool de dicts prêts pour search_comparables().
@@ -170,11 +196,20 @@ def build_comparable_pool(
     prix_vente=0 et date_vente="" dans tous les cas — Phase 2 (SIRF) les remplira.
     """
     if cache_dir is None:
-        cache_dir = Path("data_cache")
+        from engine.data_enrichment import get_data_cache_dir
+        cache_dir = get_data_cache_dir()
 
     city_code = _detect_city_code(subject_address)
     if city_code is None:
         logger.info("Ville non reconnue dans '%s' — pool vide", subject_address)
+        _diag(
+            diagnostics,
+            "mamh",
+            "skipped",
+            "Ville non supportee par le pipeline de comparables publics",
+            stage="city_detection",
+            details={"address": subject_address},
+        )
         return []
 
     try:
@@ -182,13 +217,38 @@ def build_comparable_pool(
         coords = geocode_address(subject_address, cache_dir)
     except Exception as exc:
         logger.warning("geocode_address failed: %s", exc)
+        _diag(
+            diagnostics,
+            "geocoding",
+            "failed",
+            "Geocodage de l'adresse impossible",
+            stage="comparables",
+            severity="warning",
+            details={"error": f"{type(exc).__name__}: {exc}"},
+        )
         return []
 
     if coords is None:
+        _diag(
+            diagnostics,
+            "geocoding",
+            "empty",
+            "Aucune coordonnee geocodee pour l'adresse",
+            stage="comparables",
+            details={"address": subject_address},
+        )
         logger.info("Geocoding sans résultat pour '%s'", subject_address)
         return []
 
     subject_lat, subject_lon = coords
+    _diag(
+        diagnostics,
+        "geocoding",
+        "ok",
+        "Adresse geocodee pour le bassin de comparables",
+        stage="comparables",
+        details={"city_code": city_code},
+    )
 
     if city_code in _XML_CITIES:
         pool = _build_pool_xml(
@@ -200,6 +260,7 @@ def build_comparable_pool(
             radius_km=radius_km,
             cache_dir=cache_dir,
             max_candidates=max_candidates,
+            diagnostics=diagnostics,
         )
     elif city_code == "montreal":
         pool = _build_pool_montreal(
@@ -210,16 +271,51 @@ def build_comparable_pool(
             subject_type_bien=subject_type_bien,
             cache_dir=cache_dir,
             max_candidates=max_candidates,
+            diagnostics=diagnostics,
         )
     else:
+        _diag(
+            diagnostics,
+            "mamh",
+            "skipped",
+            "Ville sans source MAMH configuree",
+            stage="comparables",
+            details={"city_code": city_code},
+        )
         logger.info("city_code '%s' sans MAMH configuré — pool vide", city_code)
         return []
 
     if _SIRF_AVAILABLE and pool:
         try:
-            pool = _enrich_sirf(pool, cache_dir=cache_dir)
+            pool = _enrich_sirf(pool, cache_dir=cache_dir, diagnostics=diagnostics)
         except Exception as exc:
             logger.warning("enrich_pool_with_sirf failed (non-bloquant): %s", exc)
+            _diag(
+                diagnostics,
+                "sirf",
+                "failed",
+                "Enrichissement SIRF interrompu",
+                stage="comparables",
+                severity="warning",
+                details={"error": f"{type(exc).__name__}: {exc}"},
+            )
+    elif not _SIRF_AVAILABLE:
+        _diag(
+            diagnostics,
+            "sirf",
+            "skipped",
+            "Module SIRF indisponible",
+            stage="comparables",
+            severity="warning",
+        )
+    elif not pool:
+        _diag(
+            diagnostics,
+            "sirf",
+            "skipped",
+            "Aucun comparable avec lot a enrichir via SIRF",
+            stage="comparables",
+        )
 
     return pool
 
@@ -233,6 +329,7 @@ def _build_pool_xml(
     radius_km: float,
     cache_dir: Path,
     max_candidates: int,
+    diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     """Pipeline pour les 5 villes XML : Infolot → by_lot → filtrage."""
     try:
@@ -240,27 +337,67 @@ def _build_pool_xml(
         from engine.data_enrichment import lookup_role_by_lot
     except Exception as exc:
         logger.warning("Import error dans _build_pool_xml: %s", exc)
+        _diag(
+            diagnostics,
+            "mamh",
+            "failed",
+            "Import du pipeline Infolot/MAMH impossible",
+            stage="comparables_xml",
+            severity="warning",
+            details={"error": f"{type(exc).__name__}: {exc}"},
+        )
         return []
 
     index_path = cache_dir / f"role_{city_code}_index.json"
     if not index_path.exists():
+        _diag(
+            diagnostics,
+            "mamh",
+            "skipped",
+            "Index MAMH absent pour la ville",
+            stage="comparables_xml",
+            details={"city_code": city_code, "index_path": str(index_path)},
+        )
         logger.info("Index MAMH absent pour %s (%s) — pool vide", city_code, index_path)
         return []
 
-    lots = fetch_lots_in_radius(subject_lat, subject_lon, radius_km, cache_dir)
+    lots = fetch_lots_in_radius(subject_lat, subject_lon, radius_km, cache_dir, diagnostics=diagnostics)
     if not lots:
+        _diag(
+            diagnostics,
+            "mamh",
+            "skipped",
+            "Aucun lot Infolot disponible pour joindre le role MAMH",
+            stage="comparables_xml",
+            details={"city_code": city_code},
+        )
         return []
 
     pool: list[dict] = []
+    matched_lots = 0
     for lot in lots[:max_candidates * 3]:   # Surcharger pour compenser les filtres
         rec = lookup_role_by_lot(index_path, no_lot=lot["no_lot"])
         if not rec:
             continue
+        matched_lots += 1
         item = _pool_item_from_mamh_record(rec, lot)
         pool.append(item)
 
     pool = _filter_by_type_and_surface(pool, subject_surface_m2, subject_type_bien)
     pool.sort(key=lambda x: x["distance_km"])
+    _diag(
+        diagnostics,
+        "mamh",
+        "ok" if pool else ("partial" if matched_lots else "empty"),
+        "Comparables MAMH joints aux lots Infolot" if pool else "Aucun comparable MAMH retenu apres jointure/filtres",
+        stage="comparables_xml",
+        details={
+            "city_code": city_code,
+            "lot_count": len(lots),
+            "matched_lot_count": matched_lots,
+            "pool_count": len(pool),
+        },
+    )
     return pool[:max_candidates]
 
 
@@ -272,6 +409,7 @@ def _build_pool_montreal(
     subject_type_bien: str,
     cache_dir: Path,
     max_candidates: int,
+    diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     """
     Pipeline Montréal : heuristique civic number ±200 sur même rue.
@@ -282,18 +420,53 @@ def _build_pool_montreal(
         from engine.data_enrichment import lookup_role_mtl_by_civic, geocode_address
     except Exception as exc:
         logger.warning("Import error dans _build_pool_montreal: %s", exc)
+        _diag(
+            diagnostics,
+            "mamh",
+            "failed",
+            "Import du role municipal Montreal impossible",
+            stage="comparables_montreal",
+            severity="warning",
+            details={"error": f"{type(exc).__name__}: {exc}"},
+        )
         return []
 
     csv_path = cache_dir / "role_mtl.csv"
+    if not csv_path.exists():
+        _diag(
+            diagnostics,
+            "mamh",
+            "skipped",
+            "CSV du role municipal Montreal absent",
+            stage="comparables_montreal",
+            details={"csv_path": str(csv_path)},
+        )
+        return []
 
     # Extraire no_civique et nom_rue depuis l'adresse du sujet
     civic_ref, nom_rue = _parse_civic_address(subject_address)
     if civic_ref is None or not nom_rue:
         logger.info("Impossible d'extraire no_civique depuis '%s'", subject_address)
+        _diag(
+            diagnostics,
+            "mamh",
+            "empty",
+            "Adresse non exploitable pour la recherche civique Montreal",
+            stage="comparables_montreal",
+            details={"address": subject_address},
+        )
         return []
 
     rows = lookup_role_mtl_by_civic(csv_path, nom_rue_norm=nom_rue, civique_ref=civic_ref)
     if not rows:
+        _diag(
+            diagnostics,
+            "mamh",
+            "empty",
+            "Aucune entree du role Montreal autour de l'adresse",
+            stage="comparables_montreal",
+            details={"street": nom_rue, "civic": civic_ref},
+        )
         return []
 
     pool: list[dict] = []
@@ -315,6 +488,14 @@ def _build_pool_montreal(
 
     pool = _filter_by_type_and_surface(pool, subject_surface_m2, subject_type_bien)
     pool.sort(key=lambda x: x["distance_km"])
+    _diag(
+        diagnostics,
+        "mamh",
+        "ok" if pool else "empty",
+        "Comparables MAMH Montreal retenus" if pool else "Aucun comparable MAMH Montreal retenu apres filtres",
+        stage="comparables_montreal",
+        details={"row_count": len(rows), "pool_count": len(pool)},
+    )
     return pool[:max_candidates]
 
 

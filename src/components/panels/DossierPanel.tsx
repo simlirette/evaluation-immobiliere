@@ -10,14 +10,17 @@ import DocItem from '@/components/shared/DocItem'
 import ChatInput from '@/components/shared/ChatInput'
 import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
+import PanelError from '@/components/shared/PanelError'
 import PipelineProgress from '@/components/shared/PipelineProgress'
 import CheckpointReviewPanel from '@/components/panels/CheckpointReviewPanel'
 import CheckpointComparablePanel from '@/components/panels/CheckpointComparablePanel'
 import { usePipelinePolling, PIPELINE_TERMINAL_STATUSES } from '@/hooks/usePipelinePolling'
 import type { PipelineStep } from '@/hooks/usePipelinePolling'
-import { fetchAppState, fetchRuntimeEnrichment, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, fetchRuntimeInspection, createRuntimeDossier, fetchRuntimeDocuments, uploadRuntimeDocument, saveRuntimeFactOverrides, downloadLettreMandat } from '@/lib/runtime-api'
+import type { InspectionData } from '@/lib/runtime-api'
+import InspectionForm from '@/components/shared/InspectionForm'
 import { useAgentChat } from '@/hooks/useAgentChat'
-import type { Document, EnrichmentLocalisation, FactChip, ComparableInput } from '@/types'
+import type { Document, EnrichmentLocalisation, FactChip, ComparableInput, SourceCoverage } from '@/types'
 
 interface Props {
   isNew: boolean
@@ -174,27 +177,28 @@ function NewDossierForm() {
   }
 
   const inputStyle = {
-    background: 'var(--input-bg)',
-    border: '1px solid var(--input-border)',
+    background: 'var(--paper-hi)',
+    border: '1px solid var(--rule)',
   }
 
   const selectStyle = {
-    background: 'var(--input-bg)',
-    border: '1px solid var(--input-border)',
+    background: 'var(--paper-hi)',
+    border: '1px solid var(--rule)',
     appearance: 'none' as const,
     WebkitAppearance: 'none' as const,
   }
 
   return (
     <div className="w-full max-w-[520px] flex flex-col gap-6 pb-9">
-      <div className="text-center">
-        <div
-          className="text-[20px] font-medium text-[#1a1916] tracking-[-.01em]"
-          style={{ fontFamily: 'var(--font-serif)' }}
+      <div>
+        <div className="eyebrow mb-1">Étape 1 — Dossier</div>
+        <h2
+          className="text-[26px] font-medium"
+          style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)' }}
         >
           Nouveau dossier
-        </div>
-        <p className="mt-1 text-[13px] text-[#8a8780]">
+        </h2>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--ink-mute)' }}>
           {formStep === 1
             ? 'Lance un dossier pilote dans le backend runtime et ouvre les agents AI.'
             : formStep === 2
@@ -204,7 +208,10 @@ function NewDossierForm() {
       </div>
 
       {error && (
-        <div className="rounded-[10px] px-4 py-3 text-[13px] text-red-700 bg-red-50/80 border border-red-200/60">
+        <div
+          className="rounded-[var(--r-md)] px-4 py-3 text-[13px]"
+          style={{ color: 'var(--oxblood)', background: 'rgba(138,48,48,.08)', border: '1px solid rgba(138,48,48,.15)' }}
+        >
           {error}
         </div>
       )}
@@ -344,8 +351,7 @@ function NewDossierForm() {
                 setFormStep(2)
               }
             }}
-            className="mt-1 w-full rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-            style={{ background: '#334155' }}
+            className="btn accent btn-full mt-1"
           >
             Suivant →
           </button>
@@ -462,15 +468,14 @@ function NewDossierForm() {
             <button
               type="button"
               onClick={() => { setError(''); setFormStep(1) }}
-              className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+              className="btn ghost flex-1"
             >
               ← Retour
             </button>
             <button
               type="submit"
-              className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: '#334155' }}
+              className="btn accent"
+              style={{ flex: 2 }}
             >
               Suivant →
             </button>
@@ -631,15 +636,14 @@ function NewDossierForm() {
             <button
               type="button"
               onClick={() => { setError(''); setFormStep(2) }}
-              className="flex-1 rounded-[10px] py-2.5 text-[14px] font-medium text-[#8a8780] transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
+              className="btn ghost flex-1"
             >
               ← Retour
             </button>
             <button
               type="submit"
-              className="flex-[2] rounded-[10px] py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-              style={{ background: '#334155' }}
+              className="btn accent"
+              style={{ flex: 2 }}
             >
               Lancer l&apos;évaluation
             </button>
@@ -717,11 +721,43 @@ function LocalisationContexte({ loc }: { loc: EnrichmentLocalisation }) {
   )
 }
 
+function SourceCoverageSummary({ coverage }: { coverage: SourceCoverage }) {
+  const problemItems = coverage.diagnostics
+    .filter(d => ['failed', 'empty', 'skipped', 'partial'].includes(d.status))
+    .slice(-4)
+
+  if (coverage.status === 'unknown' || coverage.diagnostics.length === 0) return null
+
+  const tone = coverage.failed_count > 0
+    ? 'text-amber-700 bg-amber-50/80 border-amber-200/70 dark:text-amber-300 dark:bg-amber-950/20 dark:border-amber-800/50'
+    : 'text-[#5a5854] bg-black/[.03] border-black/[.06] dark:text-[#c8c4bc] dark:bg-white/[.04] dark:border-white/[.08]'
+
+  return (
+    <div className={`mt-3 rounded-[8px] border px-3 py-2 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] uppercase tracking-widest text-[#8a8780]">Sources publiques</span>
+        <span className="text-[11px] font-medium">{coverage.available_count}/{coverage.expected_sources.length}</span>
+      </div>
+      {problemItems.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {problemItems.map((d, i) => (
+            <div key={`${d.source}-${d.stage}-${i}`} className="text-[12px] leading-snug">
+              <span className="font-medium uppercase">{d.source}</span>
+              <span className="opacity-80"> - {d.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: Props) {
   const [chips, setChips] = useState<FactChip[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [showDropZone, setShowDropZone] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [uploads, setUploads] = useState<UploadStatus[]>([])
   const { replies, asking, ask } = useAgentChat(dossierId, 'data-facts')
 
@@ -736,9 +772,12 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   type ConflitData = { detecte: boolean; motif: string } | null
   const [conflit, setConflitData] = useState<ConflitData>(null)
   const [localisation, setLocalisation] = useState<EnrichmentLocalisation | null>(null)
+  const [sourceCoverage, setSourceCoverage] = useState<SourceCoverage | null>(null)
 
   type CommanditaireData = { nom: string; organisation: string; fin_evaluation: string } | null
   const [commanditaire, setCommanditaire] = useState<CommanditaireData>(null)
+  const [inspection, setInspection] = useState<InspectionData | null>(null)
+  const [showInspectionForm, setShowInspectionForm] = useState(false)
 
   const [editFacts, setEditFacts] = useState(false)
   const [draftSurface, setDraftSurface] = useState('')
@@ -760,17 +799,21 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   useEffect(() => {
     if (!dossierId) return
     setLoading(true)
+    setFetchError(false)
     Promise.all([
       fetchRuntimeDocuments(dossierId),
       fetchAppState(dossierId),
       fetchRuntimeEnrichment(dossierId),
-    ]).then(([docs, appState, enrichment]) => {
+      fetchRuntimeInspection(dossierId).catch(() => null),
+    ]).then(([docs, appState, enrichment, insp]) => {
       setDocuments(docs)
       setChips(appState.active?.fact_chips ?? [])
       setMandat(appState.active?.mandat ?? null)
       setConflitData(appState.active?.conflit ?? null)
       setCommanditaire(appState.active?.commanditaire ?? null)
       setLocalisation(enrichment?.localisation ?? null)
+      setSourceCoverage(enrichment?.source_coverage ?? null)
+      setInspection(insp ?? null)
       setLoading(false)
       // Démarrer le polling uniquement si le pipeline tourne encore
       if (!isNew) {
@@ -781,6 +824,9 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           setIsRunning(true)
         }
       }
+    }).catch(() => {
+      setFetchError(true)
+      setLoading(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, refreshKey])
@@ -824,6 +870,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
 
   if (!isNew && (!dossierId || loading)) return <PanelLoader />
+  if (!isNew && fetchError) return <PanelError />
 
   if (isNew && !dossierId) {
     return (
@@ -973,7 +1020,62 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
                 </div>
               </div>
             )}
+            {sourceCoverage && <SourceCoverageSummary coverage={sourceCoverage} />}
             {localisation && <LocalisationContexte loc={localisation} />}
+            {/* T3.3 — Inspection (élément 14 NPP) */}
+            {!isNew && dossierId && (
+              <div className="mt-3">
+                {inspection ? (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-[8px]"
+                    style={{ border: '1px solid var(--rule)', background: 'rgba(74,107,84,.05)' }}>
+                    <div>
+                      <span className="text-[11px] font-semibold" style={{ color: 'var(--verdigris)' }}>
+                        ✓ Inspection enregistrée
+                      </span>
+                      <span className="ml-2 text-[11px]" style={{ color: 'var(--ink-mute)' }}>
+                        {inspection.date_visite} · {inspection.type_inspection.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowInspectionForm(v => !v)}
+                      className="text-[11px]"
+                      style={{ color: 'var(--ink-mute)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      {showInspectionForm ? 'Fermer' : 'Modifier'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowInspectionForm(v => !v)}
+                    className="w-full flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-[12px] transition-colors"
+                    style={{
+                      border: '1px dashed var(--rule)',
+                      color: 'var(--ink-mute)',
+                      background: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>+ Saisir inspection (élément 14 NPP)</span>
+                  </button>
+                )}
+                {showInspectionForm && (
+                  <div className="mt-2">
+                    <InspectionForm
+                      dossierId={dossierId}
+                      initial={inspection}
+                      onSaved={insp => { setInspection(insp); setShowInspectionForm(false) }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </AgentMessage>
+        )}
+        {chips.length === 0 && sourceCoverage && (
+          <AgentMessage agentName="Agent Dossier">
+            <SourceCoverageSummary coverage={sourceCoverage} />
           </AgentMessage>
         )}
         {(mandat || commanditaire) && (
@@ -1014,16 +1116,31 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             + Ajouter un fichier local
           </button>
           {dossierId && (
-            <button
-              onClick={async () => {
-                setMandatDownloading(true)
-                try { await downloadLettreMandat(dossierId) } finally { setMandatDownloading(false) }
-              }}
-              disabled={mandatDownloading}
-              className="mt-1 text-[12px] text-[#8a8780] hover:text-[#1a1916] underline underline-offset-2 bg-transparent border-none cursor-pointer font-sans disabled:opacity-40"
+            <div
+              className="mt-3 rounded-[var(--r-md)] px-4 py-3 flex items-center justify-between gap-4"
+              style={{ background: 'var(--paper-2)', border: '1px solid var(--rule-soft)' }}
             >
-              {mandatDownloading ? 'Génération…' : '↓ Lettre de mandat (PDF)'}
-            </button>
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium" style={{ color: 'var(--ink)' }}>
+                  Lettre de mandat
+                </div>
+                <div className="text-[12px] mt-0.5" style={{ color: 'var(--ink-mute)' }}>
+                  {commanditaire
+                    ? `${commanditaire.nom}${commanditaire.organisation ? ` · ${commanditaire.organisation}` : ''}`
+                    : 'Document signé requis avant rapport'}
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  setMandatDownloading(true)
+                  try { await downloadLettreMandat(dossierId) } finally { setMandatDownloading(false) }
+                }}
+                disabled={mandatDownloading}
+                className="btn secondary btn-sm flex-shrink-0 disabled:opacity-40"
+              >
+                {mandatDownloading ? 'Génération…' : '↓ PDF'}
+              </button>
+            </div>
           )}
         </AgentMessage>
         {uploads.map((u, i) => (

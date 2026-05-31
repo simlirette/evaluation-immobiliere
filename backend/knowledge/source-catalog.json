@@ -1,0 +1,780 @@
+[
+  {
+    "source_id": "00-cuspap-nuppec-2026_2026-cuspap",
+    "relative_path": "00-cuspap-nuppec-2026/2026-cuspap.md",
+    "folder": "00-cuspap-nuppec-2026",
+    "domain": "cuspap_nuppec_professional_standards",
+    "source_family": "CUSPAP/NUPPEC 2026",
+    "official_source": "https://www.aicanada.ca/about-aic/cuspap/",
+    "sha256_original": "a637b1b575b9342586ef92d1999beb4a6c949a4915c85967db26389726ab80ab",
+    "text_char_count": 151171,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=1.46:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "01-mefq-manuel-2025_gui-manuel-evaluation-fonciere-2025",
+    "relative_path": "01-mefq-manuel-2025/gui-manuel-evaluation-fonciere-2025.md",
+    "folder": "01-mefq-manuel-2025",
+    "domain": "municipal_assessment_manual",
+    "source_family": "MEFQ 2025",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "6784a9f5993c4686559fd7e9ed1812a3d69677b477f67082d0a89c245780ca89",
+    "text_char_count": 6765642,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=46.62:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "01-mefq-manuel-2025_mefq-partie-1-2025",
+    "relative_path": "01-mefq-manuel-2025/mefq-partie-1-2025.md",
+    "folder": "01-mefq-manuel-2025",
+    "domain": "municipal_assessment_manual",
+    "source_family": "MEFQ 2025",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "cf3f73a32dc4fcdea99279a5dd978f6efd3357ec6a4f16cc5d280c18a7748d6e",
+    "text_char_count": 98094,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "01-mefq-manuel-2025_mefq-partie-2-2025",
+    "relative_path": "01-mefq-manuel-2025/mefq-partie-2-2025.md",
+    "folder": "01-mefq-manuel-2025",
+    "domain": "municipal_assessment_manual",
+    "source_family": "MEFQ 2025",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "6bded0e69498a448e97cf14e2878b5f278d6ace7b548934230e2f8f79f6c1efc",
+    "text_char_count": 2542325,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=24.14:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "01-mefq-manuel-2025_mefq-partie-3-2025",
+    "relative_path": "01-mefq-manuel-2025/mefq-partie-3-2025.md",
+    "folder": "01-mefq-manuel-2025",
+    "domain": "municipal_assessment_manual",
+    "source_family": "MEFQ 2025",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "a1ef44b91c22b0c800102df5bf3fdbdc0aaaa1517963f762e78a6d26c13fbaa4",
+    "text_char_count": 3011229,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=19.38:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "01-mefq-manuel-2025_mefq-partie-4-2025",
+    "relative_path": "01-mefq-manuel-2025/mefq-partie-4-2025.md",
+    "folder": "01-mefq-manuel-2025",
+    "domain": "municipal_assessment_manual",
+    "source_family": "MEFQ 2025",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "39108cd939916f027b88e1c685adc8be33424e314e7b5ce8ebc7cc5550aa155c",
+    "text_char_count": 765371,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=4.68:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "01-mefq-manuel-2025_mefq-partie-5-2025",
+    "relative_path": "01-mefq-manuel-2025/mefq-partie-5-2025.md",
+    "folder": "01-mefq-manuel-2025",
+    "domain": "municipal_assessment_manual",
+    "source_family": "MEFQ 2025",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "17bfe8a1f853f1becfe876b0e463ee6ad7b7607206aebf852e08eed6ee6f1364",
+    "text_char_count": 301036,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_coverage_low:101523/300643"
+    ]
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_addenda-chapitre-4-et-13",
+    "relative_path": "02-mefq-complements-et-outils/addenda-chapitre-4-et-13.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "6e6e8f58102f33a677cb63186bfa9a071d1a1ea50a3e453d5b7bd9b7f3ff17d6",
+    "text_char_count": 88737,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=1.42:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_depreciation-batiments-industriels",
+    "relative_path": "02-mefq-complements-et-outils/depreciation-batiments-industriels.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "fb0a533ed69244aed0f442187076db4f15354623e2928671dce725e3fe1c5151",
+    "text_char_count": 504226,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=1.55:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_faq-evaluation-fonciere",
+    "relative_path": "02-mefq-complements-et-outils/faq-evaluation-fonciere.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "de6efa9f27e6c1b2765e97dc631f1e3a76b900907089057e5cb470f2b72dc3c0",
+    "text_char_count": 47985,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_gui-consultation-mefq",
+    "relative_path": "02-mefq-complements-et-outils/gui-consultation-mefq.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "83e3775020fabb4589e9c3895a14446b15603c149449fa60bf8ddc6eb8b8be19",
+    "text_char_count": 3990,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=2.47:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_gui-etablissement-sous-categories-immeubles-secteurs",
+    "relative_path": "02-mefq-complements-et-outils/gui-etablissement-sous-categories-immeubles-secteurs.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "6439a727da1d5d4d8b71c5fc6442e4d320022250240989b59ca6e49c76cb48f7",
+    "text_char_count": 69512,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=2.72:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_guide-methode-etude-impact",
+    "relative_path": "02-mefq-complements-et-outils/guide-methode-etude-impact.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "0fdb9f834165d0d441fdcdb531ffb927de0ef9d5c30d54399f6c8cc0c8eaeb23",
+    "text_char_count": 74385,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_indicateurs-performance-mefq-2006",
+    "relative_path": "02-mefq-complements-et-outils/indicateurs-performance-mefq-2006.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "fada124a344282fc5ecd4c31413e1a0bae7df64ca93755fb814bdd41f0cd6220",
+    "text_char_count": 88466,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "02-mefq-complements-et-outils_mise-role-biens-immobiliers",
+    "relative_path": "02-mefq-complements-et-outils/mise-role-biens-immobiliers.md",
+    "folder": "02-mefq-complements-et-outils",
+    "domain": "municipal_assessment_tools",
+    "source_family": "MEFQ complements",
+    "official_source": "https://www.quebec.ca/habitation-territoire/information-fonciere/evaluation-fonciere/manuel/consulter",
+    "sha256_original": "21fb83ba58517b74ebe3e637bf4df99e9b1ec8b48201c728a61579e1f34529f5",
+    "text_char_count": 177063,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=2.91:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "03-loi-fiscalite-municipale_f-2-1-r-10",
+    "relative_path": "03-loi-fiscalite-municipale/f-2-1-r-10.md",
+    "folder": "03-loi-fiscalite-municipale",
+    "domain": "municipal_statute_regulation",
+    "source_family": "LegisQuebec F-2.1",
+    "official_source": "https://www.legisquebec.gouv.qc.ca/fr/tdm/lc/F-2.1",
+    "sha256_original": "75f40b7d4e4032375825313bff2be5cb47520f1c2fd096448a84028ab2cd69a5",
+    "text_char_count": 27555,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "03-loi-fiscalite-municipale_f-2-1-r-13",
+    "relative_path": "03-loi-fiscalite-municipale/f-2-1-r-13.md",
+    "folder": "03-loi-fiscalite-municipale",
+    "domain": "municipal_statute_regulation",
+    "source_family": "LegisQuebec F-2.1",
+    "official_source": "https://www.legisquebec.gouv.qc.ca/fr/tdm/lc/F-2.1",
+    "sha256_original": "65cabe4940aeff66b7377b895e81b9d1b1e5ffb514f718038cf27be9133792de",
+    "text_char_count": 28712,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "03-loi-fiscalite-municipale_f-2-1",
+    "relative_path": "03-loi-fiscalite-municipale/f-2-1.md",
+    "folder": "03-loi-fiscalite-municipale",
+    "domain": "municipal_statute_regulation",
+    "source_family": "LegisQuebec F-2.1",
+    "official_source": "https://www.legisquebec.gouv.qc.ca/fr/tdm/lc/F-2.1",
+    "sha256_original": "456f142ebeafde57ffb4ee7ce1c306afffab3299d1d164cc8a43eb40d1f5811e",
+    "text_char_count": 573083,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_coverage_low:99593/572750"
+    ]
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_annexe-a-version-20-mai-1998",
+    "relative_path": "04-oeaq-normes-pratique/annexe-a-version-20-mai-1998.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "7a4d4f54c017a46798bbaad20573de4394406698ca322683c613528171f4f928",
+    "text_char_count": 5320,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_annexe-b-version-20-mai-1998",
+    "relative_path": "04-oeaq-normes-pratique/annexe-b-version-20-mai-1998.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "79a32218fc75896d5bf8da772a3a188f13983aef8f10e176eb4b3ada7fef0fbd",
+    "text_char_count": 7939,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_annexe-d-version-30-mars-2007",
+    "relative_path": "04-oeaq-normes-pratique/annexe-d-version-30-mars-2007.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "26eb93bb063aa2679e057d15807e5a4f0d014ea1f987968234d0c3a40371c014",
+    "text_char_count": 3447,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_annexe-e-version-23-avril-2015",
+    "relative_path": "04-oeaq-normes-pratique/annexe-e-version-23-avril-2015.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "75728901eaa8d258c1136d7fb9daa3e91f7eed93d1d36a02080a215c5e39fd9c",
+    "text_char_count": 5755,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_annexe-f-npp-normes15-16",
+    "relative_path": "04-oeaq-normes-pratique/annexe-f-npp-normes15-16.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "5e07967e49d33f9933e2d9cf7f771bbe36ca7f3b73e4d4dd1e99505984281716",
+    "text_char_count": 6748,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_annexes-1-a-4-2025",
+    "relative_path": "04-oeaq-normes-pratique/annexes-1-a-4-2025.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "30c1d8d174781696e26badba408cbde9286d78bdaf50187c77780fef6f7bf01b",
+    "text_char_count": 16173,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_guide-appel-offres",
+    "relative_path": "04-oeaq-normes-pratique/guide-appel-offres.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "d3173f9a32b0907fabd7bf78e5b99b695c7192f512915655c74e751a6c0179ee",
+    "text_char_count": 108215,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=2.03:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_guide-jvm-modifie-26-06-2014",
+    "relative_path": "04-oeaq-normes-pratique/guide-jvm-modifie-26-06-2014.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "8953914602a648cbde6c3e780931ff79215df03c87966edd23cd427070ae595f",
+    "text_char_count": 85861,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_lignes-directrices-2014-04-08ld-stationnement",
+    "relative_path": "04-oeaq-normes-pratique/lignes-directrices-2014-04-08ld-stationnement.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "07b5802a353fed7fa94052dbd9fa7c10cab361a5ab086a930045c72a2f60ed19",
+    "text_char_count": 86097,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=4.22:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_npp-24-mars-2025",
+    "relative_path": "04-oeaq-normes-pratique/npp-24-mars-2025.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "38b80bbc2f86b68c5aaaceb60852989fe78fd6cb326dad099246557951e8b4cf",
+    "text_char_count": 228005,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=6.31:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "04-oeaq-normes-pratique_rapport-oeaq-version-2015-08-20",
+    "relative_path": "04-oeaq-normes-pratique/rapport-oeaq-version-2015-08-20.md",
+    "folder": "04-oeaq-normes-pratique",
+    "domain": "oeaq_professional_standards",
+    "source_family": "OEAQ NPP",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "257c180c0d063521c0f21acb01e134aa53bab9d7c35772c96899e61971f51b10",
+    "text_char_count": 22075,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-122-1-assurance-responsabilite-professionnelle",
+    "relative_path": "05-oeaq-reglements/c-26-r-122-1-assurance-responsabilite-professionnelle.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "494bd928da53922822e3696ae7e87d01467dc5e8bd459d396fa50fad92858bb0",
+    "text_char_count": 13275,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-123-code-de-deontologie",
+    "relative_path": "05-oeaq-reglements/c-26-r-123-code-de-deontologie.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "1cc7b066656a9d62af4386ccc1a17ef7ce3b869488ca5a6320a3af319a1b5274",
+    "text_char_count": 49888,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-124-comite-inspection-professionnelle",
+    "relative_path": "05-oeaq-reglements/c-26-r-124-comite-inspection-professionnelle.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "7e56953e52bf3a9e1b156ed0d6199060d41a00bdf8d91a3fb96cb835d61c8544",
+    "text_char_count": 19001,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-125-comite-formation",
+    "relative_path": "05-oeaq-reglements/c-26-r-125-comite-formation.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "81ce3ebfaae35aabb19e165a169dfa8a98df0806246d3fc4712c117ece430e7e",
+    "text_char_count": 5664,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-126-1-1-detention-sommes",
+    "relative_path": "05-oeaq-reglements/c-26-r-126-1-1-detention-sommes.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "ea44d05de48c797af9399b0ef40141e8a11ce69f5515d143df2e077c438012c5",
+    "text_char_count": 8105,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-126-1-permis-entente-quebec-france",
+    "relative_path": "05-oeaq-reglements/c-26-r-126-1-permis-entente-quebec-france.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "4585082722c3bd80b08da58de928e8a739365277e04492c36fe29f2ec2b039eb",
+    "text_char_count": 3448,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-126-2-exercice-en-societe",
+    "relative_path": "05-oeaq-reglements/c-26-r-126-2-exercice-en-societe.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "c91a48b678e18eeed6f9c7579eb3d2d15fdc423d83c30bac3c9ebd81c359465b",
+    "text_char_count": 19069,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-126-delivrance-permis",
+    "relative_path": "05-oeaq-reglements/c-26-r-126-delivrance-permis.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "5942c84490050bb52090edbc7e66b11d3084d4295c4ea5f53f33cd3e18f62dcd",
+    "text_char_count": 21072,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-127-1-formation-continue-obligatoire",
+    "relative_path": "05-oeaq-reglements/c-26-r-127-1-formation-continue-obligatoire.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "b26a65aa8a704302b1acb4b5c0375bb4fdf3382395037c02094bb8732d3c3ec2",
+    "text_char_count": 18201,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-129-2-organisation-elections",
+    "relative_path": "05-oeaq-reglements/c-26-r-129-2-organisation-elections.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "f0d589098171a25bc29c8b2599e3357e1808b4ee6a576a12609fb5c5993c6110",
+    "text_char_count": 35787,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-129-equivalence-diplome-formation",
+    "relative_path": "05-oeaq-reglements/c-26-r-129-equivalence-diplome-formation.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "086e515809cd097bd13f5dbb965d254ea89ae311bd61434c7baea6c416941e6c",
+    "text_char_count": 12464,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-130-1-procedure-indemnisation",
+    "relative_path": "05-oeaq-reglements/c-26-r-130-1-procedure-indemnisation.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "bd2f01d253e96273795828bdf39e2da5b9226427b8495582389b48a5cddf4acb",
+    "text_char_count": 5009,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-130-conciliation-arbitrage-comptes",
+    "relative_path": "05-oeaq-reglements/c-26-r-130-conciliation-arbitrage-comptes.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "fc609b778bfcf54d7e77b92350a3a1aeb63d28804baf69a3e351ffd67eca6d97",
+    "text_char_count": 14544,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-132-stages-perfectionnement",
+    "relative_path": "05-oeaq-reglements/c-26-r-132-stages-perfectionnement.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "1b2dab3cd346fb6004f2e9683e750ea220b73f4614c5de0c233461c8664be5b2",
+    "text_char_count": 7740,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_c-26-r-133-tenue-dossiers-cabinets-cessation",
+    "relative_path": "05-oeaq-reglements/c-26-r-133-tenue-dossiers-cabinets-cessation.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "9e08dc3eb2b41dc19fd02080cdb94c763e4580b31c3d336e4187a314b252ff17",
+    "text_char_count": 17266,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "05-oeaq-reglements_oeaq-reglement-election-2023-adopt",
+    "relative_path": "05-oeaq-reglements/oeaq-reglement-election-2023-adopt.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "3a7fb205f060007b1e15d142db1a0f6bd1ae7c8e9636c0de38eec832afba5295",
+    "text_char_count": 547,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_skipped:size_mb=4.47:limit_mb=1.2"
+    ]
+  },
+  {
+    "source_id": "05-oeaq-reglements_oeaq-reglement-interieur-comite-enquete-ethique-deontologie-2020-03-20",
+    "relative_path": "05-oeaq-reglements/oeaq-reglement-interieur-comite-enquete-ethique-deontologie-2020-03-20.md",
+    "folder": "05-oeaq-reglements",
+    "domain": "oeaq_regulation",
+    "source_family": "OEAQ regulations",
+    "official_source": "https://oeaq.qc.ca/lordre/reglements/",
+    "sha256_original": "93d8b59c13158f51fd4f8826ae2c3d88ea585d9ee6494f0ae5d85ce2ae08bb9b",
+    "text_char_count": 16426,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "06-aic-gouvernance_aic-bylaws-2024-06-07",
+    "relative_path": "06-aic-gouvernance/aic-bylaws-2024-06-07.md",
+    "folder": "06-aic-gouvernance",
+    "domain": "aic_governance",
+    "source_family": "AIC governance",
+    "official_source": "https://www.aicanada.ca/about-aic/professional-standards/",
+    "sha256_original": "0c0ddbf54be61471e3d44e30b321334add21d262ec5c5956f6428f1ff7917701",
+    "text_char_count": 50283,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "06-aic-gouvernance_aic-code-of-conduct",
+    "relative_path": "06-aic-gouvernance/aic-code-of-conduct.md",
+    "folder": "06-aic-gouvernance",
+    "domain": "aic_governance",
+    "source_family": "AIC governance",
+    "official_source": "https://www.aicanada.ca/about-aic/professional-standards/",
+    "sha256_original": "208fbb3bda2e87895a6900db0897993093f6ff44d58c6151ccfba8abc5d7514f",
+    "text_char_count": 4453,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "06-aic-gouvernance_aic-professional-practice-review-policy-2025-06-01",
+    "relative_path": "06-aic-gouvernance/aic-professional-practice-review-policy-2025-06-01.md",
+    "folder": "06-aic-gouvernance",
+    "domain": "aic_governance",
+    "source_family": "AIC governance",
+    "official_source": "https://www.aicanada.ca/about-aic/professional-standards/",
+    "sha256_original": "5e0bd23eee24e7868e260fd4e23c1279e2c9ddef37fa0a063cf034cbd273b744",
+    "text_char_count": 103299,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "06-aic-gouvernance_aic-professional-practice-seminar-2026",
+    "relative_path": "06-aic-gouvernance/aic-professional-practice-seminar-2026.md",
+    "folder": "06-aic-gouvernance",
+    "domain": "aic_governance",
+    "source_family": "AIC governance",
+    "official_source": "https://www.aicanada.ca/about-aic/professional-standards/",
+    "sha256_original": "e35837b80a73916f63785506e4c6d605db7398ab4875cf739c9a745b407e162c",
+    "text_char_count": 10272,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "06-aic-gouvernance_aic-professional-standards",
+    "relative_path": "06-aic-gouvernance/aic-professional-standards.md",
+    "folder": "06-aic-gouvernance",
+    "domain": "aic_governance",
+    "source_family": "AIC governance",
+    "official_source": "https://www.aicanada.ca/about-aic/professional-standards/",
+    "sha256_original": "a580ec3054d3c4c2fc4ccb8f45122229d6a776b1a9434f5536106ce5323ce894",
+    "text_char_count": 4571,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "07-aic-practice-notes_aic-cuspap-2026-resource-page",
+    "relative_path": "07-aic-practice-notes/aic-cuspap-2026-resource-page.md",
+    "folder": "07-aic-practice-notes",
+    "domain": "aic_cuspap_practice_notes",
+    "source_family": "AIC CUSPAP",
+    "official_source": "https://www.aicanada.ca/about-aic/cuspap/",
+    "sha256_original": "6e0b7c4a7015c094aabe75763ffbf24815c8da7205c4537c589ca433134538de",
+    "text_char_count": 6702,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "07-aic-practice-notes_aic-launch-cuspap-2020-practice-notes-context",
+    "relative_path": "07-aic-practice-notes/aic-launch-cuspap-2020-practice-notes-context.md",
+    "folder": "07-aic-practice-notes",
+    "domain": "aic_cuspap_practice_notes",
+    "source_family": "AIC CUSPAP",
+    "official_source": "https://www.aicanada.ca/about-aic/cuspap/",
+    "sha256_original": "e1083f7100a6036a42f91e77cded1f45c30d647c99b491a72a8e2d038e60a6ca",
+    "text_char_count": 13611,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "07-aic-practice-notes_readme",
+    "relative_path": "07-aic-practice-notes/readme.md",
+    "folder": "07-aic-practice-notes",
+    "domain": "aic_cuspap_practice_notes",
+    "source_family": "AIC CUSPAP",
+    "official_source": "https://www.aicanada.ca/about-aic/cuspap/",
+    "sha256_original": "cb5a5103644dff134204de1be88d14c1b5bfff52607b6ed60c4b2ef4611b97a0",
+    "text_char_count": 726,
+    "engine": "text_copy",
+    "warnings": []
+  },
+  {
+    "source_id": "08-oeaq-guides-lignes-directrices_readme",
+    "relative_path": "08-oeaq-guides-lignes-directrices/readme.md",
+    "folder": "08-oeaq-guides-lignes-directrices",
+    "domain": "oeaq_guidance_index",
+    "source_family": "OEAQ guidance",
+    "official_source": "https://oeaq.qc.ca/actualites-et-publications/normes-pratique-professionnelle/",
+    "sha256_original": "cc02f3efe7f9edb9f6039526d735281cecc63f1b83533ee4ce41504a25b47cbb",
+    "text_char_count": 839,
+    "engine": "text_copy",
+    "warnings": []
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_18-2023-083-ares-decision-culpabilite-2024-11-12",
+    "relative_path": "09-jurisprudence-discipline/18-2023-083-ares-decision-culpabilite-2024-11-12.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "329688cc611f4a353ff47c5269c7463ac9b5a9a1f73628f98082ee0933643149",
+    "text_char_count": 89343,
+    "engine": "pypdf",
+    "warnings": [
+      "docling_coverage_low:54764/88924"
+    ]
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_18-2023-083-ares-decision-sanction-2025-01-27",
+    "relative_path": "09-jurisprudence-discipline/18-2023-083-ares-decision-sanction-2025-01-27.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "421a934b8c2b59706140dacb9d419afcc259357f2e0b5544f308e0bfe2822acb",
+    "text_char_count": 34276,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_18-2024-084-poulin-culpabilite-sanction-2024-12-09",
+    "relative_path": "09-jurisprudence-discipline/18-2024-084-poulin-culpabilite-sanction-2024-12-09.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "82f1edcb52aaeedc152a6baf8d3941f46fa6a85f5bb807c8b055f6b1adaa4c98",
+    "text_char_count": 39624,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_18-2024-085-turgeon-decision-culpabilite-2025-02-14",
+    "relative_path": "09-jurisprudence-discipline/18-2024-085-turgeon-decision-culpabilite-2025-02-14.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "fbaf7cac7efacdc110dc8edcb7635366f094a0a6e9ca377a4af309e90f7972dc",
+    "text_char_count": 60954,
+    "engine": "docling",
+    "warnings": []
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_oeaq-decisions-disciplinaires",
+    "relative_path": "09-jurisprudence-discipline/oeaq-decisions-disciplinaires.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "acb2f35f521afc4c01feda596291640d16883dfa7a2d51833577182a49575bfc",
+    "text_char_count": 4654,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_oeaq-demander-une-enquete",
+    "relative_path": "09-jurisprudence-discipline/oeaq-demander-une-enquete.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "a255b46097a4e046f3fe4a1515d9455b8e4085e68d976fa05bed86d182c5cd4b",
+    "text_char_count": 10390,
+    "engine": "html_parser",
+    "warnings": []
+  },
+  {
+    "source_id": "09-jurisprudence-discipline_oeaq-index-decisions-disciplinaires",
+    "relative_path": "09-jurisprudence-discipline/oeaq-index-decisions-disciplinaires.md",
+    "folder": "09-jurisprudence-discipline",
+    "domain": "oeaq_discipline",
+    "source_family": "OEAQ discipline",
+    "official_source": "https://oeaq.qc.ca/protection-du-public/decisions-disciplinaires/",
+    "sha256_original": "7fabb0b06e47ffbf85ae0c0d8eb0043990fa4c73ebed475947be1e668294c1ef",
+    "text_char_count": 9525,
+    "engine": "html_parser",
+    "warnings": []
+  }
+]
