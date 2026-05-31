@@ -4,6 +4,7 @@ import unicodedata
 from datetime import date
 from typing import Any
 
+from engine.adjustments import compute_adjustment_grid, AdjustmentRates
 from engine.tools import is_usable_comparable, run_calculation, search_comparables
 
 
@@ -381,23 +382,39 @@ def _calculate_comparative_approach(case: dict) -> dict[str, object]:
     invalid_comparable_count = sum(1 for c in raw_pool if not is_usable_comparable(c))
     base_value = run_calculation(prices, method="weighted_mean", weights=weights)
     value = round(base_value + adjustment_total, 2) if prices else 0.0
+    # Grille d'ajustements par comparable (T2.1)
+    grille = compute_adjustment_grid(case)
+    prix_ajustes = grille["prix_ajustes"]
+    if prix_ajustes:
+        # Utiliser la valeur indiquée de la grille comme valeur principale
+        value = float(grille["valeur_indiquee"])
+    # Garder le calcul pondéré comme référence secondaire
+    valeur_pond = round(base_value + adjustment_total, 2) if prices else 0.0
+
     result: dict[str, object] = {
         "approach": "approche_comparative",
-        "method": "weighted_mean_score_v1",
-        "value": value,
+        "method": "grille_ajustements_v1",
+        "value": value if value > 0 else valeur_pond,
         "input_count": len(prices),
         "calculation_status": "OK" if prices else "INSUFFICIENT_COMPARABLES",
         "excluded_comparable_count": invalid_comparable_count,
         "trace": {
-            "base_value": round(base_value, 2) if prices else 0.0,
-            "adjustment_total_validated": round(adjustment_total, 2),
+            "valeur_indiquee_grille": grille["valeur_indiquee"],
+            "valeur_ponderee_fallback": valeur_pond,
+            "fourchette": grille["fourchette"],
+            "grille_ajustements": grille["grilles"],
+            "nb_grilles_completes": grille["nb_grilles_completes"],
+            "avertissements_grille": grille["avertissements"],
+            "rates_used": grille["rates_used"],
+            "adjustment_total_manuel": round(adjustment_total, 2),
             "selected_comparables": comparables,
             "weights_used": [round(weight, 4) for weight in weights],
             "calculation_policy": [
-                "Les comparables sans source_id sont exclus avant calcul.",
-                "Les comparables sans prix de vente positif ou date_vente ISO valide sont exclus avant calcul.",
-                "L'approche comparative utilise une moyenne ponderee par score explicable.",
-                "Seuls les ajustements avec validation_humaine=true sont appliques.",
+                "Valeur indiquée = médiane des prix ajustés par la grille.",
+                "Grille : 7 lignes par comparable (date, superficie, terrain, garage, état, sous-sol, localisation).",
+                "Lignes 'à_valider' = taux par défaut MEFQ/APCIQ — à confirmer par É.A.",
+                "Lignes 'données_manquantes' = champ absent dans les données comparables.",
+                "Seuil d'alerte : ajustements bruts > 25% du prix vendu (MEFQ).",
             ],
         },
     }
