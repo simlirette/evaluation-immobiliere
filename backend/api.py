@@ -763,6 +763,30 @@ def bureau_dashboard_summary(bureau_id: str, limit: int = 100) -> dict:
         by_evaluateur[ev]["statuts"][st] = by_evaluateur[ev]["statuts"].get(st, 0) + 1
         status_counts[st] = status_counts.get(st, 0) + 1
 
+    # T5.5 — Métriques usage LLM agrégées par bureau
+    usage_total = {"llm_calls": 0, "llm_tokens_in": 0, "llm_tokens_out": 0, "llm_cost_usd": 0.0}
+    usage_by_evaluateur: dict[str, dict] = {}
+    for path in SESSIONS_DIR.glob("*/session.json"):
+        try:
+            raw = read_json_dict(path)
+            if raw and str(raw.get("bureau_id", "")) == bureau_id:
+                usage = raw.get("usage") or {}
+                ev = str(raw.get("owner_evaluator_id", "inconnu") or "inconnu")
+                if ev not in usage_by_evaluateur:
+                    usage_by_evaluateur[ev] = {"llm_calls": 0, "llm_cost_usd": 0.0}
+                calls = int(usage.get("llm_calls", 0))
+                cost = float(usage.get("llm_cost_usd", 0.0))
+                usage_total["llm_calls"] += calls
+                usage_total["llm_tokens_in"] += int(usage.get("llm_tokens_in", 0))
+                usage_total["llm_tokens_out"] += int(usage.get("llm_tokens_out", 0))
+                usage_total["llm_cost_usd"] = round(usage_total["llm_cost_usd"] + cost, 6)
+                usage_by_evaluateur[ev]["llm_calls"] += calls
+                usage_by_evaluateur[ev]["llm_cost_usd"] = round(
+                    usage_by_evaluateur[ev]["llm_cost_usd"] + cost, 6
+                )
+        except OSError:
+            pass
+
     return {
         "bureau_id": bureau_id,
         "sessions": sessions,
@@ -770,6 +794,13 @@ def bureau_dashboard_summary(bureau_id: str, limit: int = 100) -> dict:
             "total": len(sessions),
             "by_status": status_counts,
             "by_evaluateur": list(by_evaluateur.values()),
+        },
+        "usage": {
+            **usage_total,
+            "by_evaluateur": [
+                {"evaluateur_id": ev, **u}
+                for ev, u in usage_by_evaluateur.items()
+            ],
         },
     }
 
@@ -6170,6 +6201,22 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             limit = bounded_limit(qs.get("limit", ["100"])[0])
             self._send_json(200, bureau_dashboard_summary(bureau_id, limit=limit))
+            return
+        if parsed.path == "/bureau/metrics":
+            # T5.5 — Métriques usage LLM par bureau
+            if not self._require_permission("runtime_read"):
+                return
+            qs = parse_qs(parsed.query)
+            bureau_id = str(qs.get("bureau_id", [""])[0]).strip()
+            if not bureau_id:
+                self._send_json(400, {"error": "bureau_id requis"})
+                return
+            summary = bureau_dashboard_summary(bureau_id, limit=0)
+            self._send_json(200, {
+                "bureau_id": bureau_id,
+                "usage": summary.get("usage", {}),
+                "stats": summary.get("stats", {}),
+            })
             return
         if parsed.path == "/sessions":
             if not self._require_permission("runtime_read"):
