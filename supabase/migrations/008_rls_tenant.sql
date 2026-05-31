@@ -50,19 +50,19 @@ create index if not exists sessions_bureau_idx on public.sessions(bureau_id)
 
 drop policy if exists "sessions_read_own" on public.sessions;
 
+-- sessions n'a pas de created_by — isolation par bureau_id seulement
 create policy "sessions_read_bureau"
     on public.sessions for select
     using (
-        created_by = auth.uid()
-        or (bureau_id = public.my_bureau_id() and public.is_bureau_admin())
+        (bureau_id = public.my_bureau_id() and public.is_bureau_admin())
         or bureau_id = public.my_bureau_id()
+        or bureau_id is null  -- sessions sans bureau = accès libre (transition)
     );
 
-create policy "sessions_write_own"
+create policy "sessions_write_all"
     on public.sessions for insert
     with check (
-        created_by = auth.uid()
-        and (bureau_id = public.my_bureau_id() or bureau_id is null)
+        bureau_id = public.my_bureau_id() or bureau_id is null
     );
 
 -- ── rapport_versions ────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ drop policy if exists "rapport_versions_read_own" on public.rapport_versions;
 create policy "rapport_versions_read_bureau"
     on public.rapport_versions for select
     using (
-        user_id = auth.uid()
+        created_by = auth.uid()
         or exists (
             select 1 from public.sessions s
             where s.id::text = rapport_versions.session_id

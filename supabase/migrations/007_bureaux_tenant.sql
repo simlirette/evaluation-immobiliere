@@ -14,7 +14,10 @@ create table if not exists public.bureaux (
 
 -- ── Table bureau_membres ───────────────────────────────────────────────────────
 
-create type if not exists public.bureau_role as enum ('bureau_admin', 'evaluateur', 'lecteur');
+do $$ begin
+    create type public.bureau_role as enum ('bureau_admin', 'evaluateur', 'lecteur');
+exception when duplicate_object then null;
+end $$;
 
 create table if not exists public.bureau_membres (
     id              uuid primary key default gen_random_uuid(),
