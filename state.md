@@ -1,38 +1,41 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 8bac70e (branch: docs/audit-et-plans-2026-05-31)_
+_Updated: 2026-05-31 | HEAD: 1f0ade0 (branch: docs/audit-et-plans-2026-05-31)_
 
 ## Current Goal
 
-Phase 4 Vague 4A+4C done. Vague 4B next (T4.5 immeubles revenus + T4.6 spécialisés).
+Phase 4 ✅ complète. Prochaine : Phase 5 (multi-bureau) ou T3.6 (démo bureau).
 
 ## Plan Status
 
-Plan : `docs/plans/2026-05-31-phase-4-couverture-metier.md`
+### Phase 4 ✅
 
-### Vague 4A ✅
+- [x] T4.1–T4.4 Mandats spéciaux : succession/donation/contestation/expropriation/liquidation (7ba8671)
+- [x] T4.5 Immeubles revenus : provision remplacement, baux, $/pi² (1f0ade0)
+- [x] T4.6 Types spécialisés : indivise, agricole CPTAQ, patrimonial, RPA (1f0ade0)
+- [x] T4.7 Outils assistant : search_comparables, run_calculation, rerun_step (8bac70e)
 
-- [x] T4.1–T4.2 — Routing mandats spéciaux + JVM/valeur réelle/liquidation (7ba8671)
-- [x] T4.3 — Expropriation avant-après (7ba8671)
-- [x] T4.4 — Liquidation avec décote (7ba8671)
+### Phase 5 — Multi-bureau & échelle (prochaine)
 
-### Vague 4C ✅
+Plan : `docs/plans/2026-05-31-phase-5-multi-bureau-echelle.md`
+- T5.1 — Modèle bureau_id (tenant) + colonne Supabase
+- T5.2 — RLS par bureau (bureau_admin lit ses É.A.)
+- T5.3 — Tableau directeur
+- T5.4 — Crédits/facturation
+- T5.5 — Scale (perf, pagination)
 
-- [x] T4.7 — Outils assistant : search_comparables, run_calculation, rerun_step (8bac70e)
+### T3.6 — Démo bureau (jalon)
 
-### Vague 4B (prochaine)
-
-- [ ] T4.5 — Immeubles à revenus 7+ / commercial : normalisation RBP→RBE→RNE complète, baux, vacance historique
-- [ ] T4.6 — Biens spécialisés (RPA, indivise, patrimonial, agricole)
+Dossier résidentiel réel anonymisé bout en bout + chrono.
 
 ## Evidence
 
-- 29 tests P4 verts (8bac70e)
-- _AGENT_TOOLS : 5 outils (fetch_artifact, search_knowledge, search_comparables, run_calculation, rerun_step)
-- rerun_step : gate checkpoint vérifié, déclenche _run_pipeline_segment en thread
+- 41 tests P4, 1002+ tests total verts (1f0ade0)
+- specialized_valuation.py : 4 analyseurs (indivise/agricole/patrimonial/RPA)
+- _income_inputs : provision_remplacement 3% défaut pour 7+ logements, baux_summary
 
 ## Open Issues
 
-- T3.6 : démo bureau (dossier réel anonymisé bout en bout)
+- Phase 5 dépend de P0 (migrations Supabase) — T0.5 à appliquer d'abord
+- T3.6 : dossier réel anonymisé requis
 - T0.5+T1.3 prod : migrations 002–006 + index_corpus()
-- T2.2 : unification TS/Python (architectural)
