@@ -165,14 +165,20 @@ class TestParseIndexHtml:
         assert result["source_doc"] == "20145678"
 
     def test_vendeur_via_rowspan(self):
-        from engine.registre_foncier import _parse_index_html
+        """Loi 25 : vendeur_hash présent (non vide), pas le nom brut."""
+        from engine.registre_foncier import _parse_index_html, _anonymize_party
         result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
-        assert "TREMBLAY" in result["vendeur"]
+        assert "vendeur" not in result, "Le nom brut vendeur ne doit pas être exposé (Loi 25)"
+        assert "vendeur_hash" in result
+        assert len(result["vendeur_hash"]) == 8  # SHA256[:8]
 
     def test_acheteur_via_rowspan(self):
+        """Loi 25 : acheteur_hash présent (non vide), pas le nom brut."""
         from engine.registre_foncier import _parse_index_html
         result = _parse_index_html(SIRF_HTML_VENTE_SIMPLE)
-        assert "GAGNON" in result["acheteur"]
+        assert "acheteur" not in result, "Le nom brut acheteur ne doit pas être exposé (Loi 25)"
+        assert "acheteur_hash" in result
+        assert len(result["acheteur_hash"]) == 8
 
     def test_prix_sans_cents(self):
         from engine.registre_foncier import _parse_index_html
@@ -192,9 +198,12 @@ class TestParseIndexHtml:
         assert result["date_vente"] == "2023-03-15"
 
     def test_vendeur_inline(self):
+        """Loi 25 : vendeur_hash non vide même pour les parties inline."""
         from engine.registre_foncier import _parse_index_html
         result = _parse_index_html(SIRF_HTML_VENTE_INLINE_PARTIES)
-        assert "DUMONT" in result["vendeur"]
+        assert "vendeur" not in result
+        assert "vendeur_hash" in result
+        assert len(result["vendeur_hash"]) == 8
 
 
 # ---------------------------------------------------------------------------

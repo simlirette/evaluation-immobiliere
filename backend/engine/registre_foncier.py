@@ -14,6 +14,7 @@ Non-bloquant : toute exception retourne {} / pool intact.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -137,18 +138,28 @@ def _parse_index_html(html: str) -> dict:
             source_doc = txt
             break
 
-    # --- Vendeur / Acheteur ---
-    # Structure : Qualité | Nom des parties (parfois sur 2 rangées via rowspan)
+    # --- Vendeur / Acheteur --- (T0.6 Loi 25 : noms masqués, hash seulement)
     vendeur, acheteur = _extract_parties(vente_tr)
 
     return {
-        "prix_vente": prix_vente,
-        "date_vente": date_vente,
-        "vendeur":    vendeur,
-        "acheteur":   acheteur,
-        "source_doc": source_doc,
-        "raw_text":   "",
+        "prix_vente":   prix_vente,
+        "date_vente":   date_vente,
+        "vendeur_hash": _anonymize_party(vendeur),    # hash 8 chars — identification impossible
+        "acheteur_hash": _anonymize_party(acheteur),  # hash 8 chars
+        "source_doc":   source_doc,
+        "raw_text":     "",
     }
+
+
+def _anonymize_party(nom: str) -> str:
+    """Loi 25 — remplace le nom d'une partie par son hash SHA256 tronqué à 8 chars.
+
+    Préserve la capacité de dédupliquer les transactions sans stocker les noms.
+    Un hash de 8 chars hexadécimaux n'est pas réversible.
+    """
+    if not nom:
+        return ""
+    return hashlib.sha256(nom.strip().upper().encode("utf-8")).hexdigest()[:8]
 
 
 def _extract_parties(vente_tr) -> tuple[str, str]:
@@ -249,13 +260,14 @@ def _supabase_cache_set(no_lot: int, data: dict, supabase_client) -> None:
         return
     try:
         supabase_client.table("sirf_cache").upsert({
-            "no_lot":     no_lot,
-            "prix_vente": data.get("prix_vente", 0),
-            "date_vente": data.get("date_vente", ""),
-            "vendeur":    data.get("vendeur", ""),
-            "acheteur":   data.get("acheteur", ""),
-            "source_doc": data.get("source_doc", ""),
-            "raw_text":   "",
+            "no_lot":       no_lot,
+            "prix_vente":   data.get("prix_vente", 0),
+            "date_vente":   data.get("date_vente", ""),
+            # Loi 25 : noms masqués (hash 8 chars, non réversible)
+            "vendeur":      data.get("vendeur_hash", ""),
+            "acheteur":     data.get("acheteur_hash", ""),
+            "source_doc":   data.get("source_doc", ""),
+            "raw_text":     "",
         }).execute()
     except Exception as exc:
         logger.warning("supabase sirf_cache set failed: %s", exc)
@@ -383,10 +395,11 @@ def enrich_pool_with_sirf(
 
         if cached:
             cache_hit_count += 1
-            item["prix_vente"]  = float(cached.get("prix_vente") or 0)
-            item["date_vente"]  = cached.get("date_vente") or ""
-            item["vendeur"]     = cached.get("vendeur") or ""
-            item["acheteur"]    = cached.get("acheteur") or ""
+            item["prix_vente"]    = float(cached.get("prix_vente") or 0)
+            item["date_vente"]    = cached.get("date_vente") or ""
+            # Loi 25 : hash seulement (jamais le nom brut)
+            item["vendeur_hash"]  = cached.get("vendeur") or cached.get("vendeur_hash") or ""
+            item["acheteur_hash"] = cached.get("acheteur") or cached.get("acheteur_hash") or ""
             if item["prix_vente"] > 0:
                 item["source_type"] = "registre_foncier"
                 enriched_count += 1
