@@ -2224,6 +2224,13 @@ def _build_rapport_prompt_v2(
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
 
+    # T4.6 — Mentions types spécialisés (indivise, agricole, patrimonial, RPA)
+    try:
+        from engine.specialized_valuation import specialized_mentions_for_prompt  # type: ignore
+        lines += specialized_mentions_for_prompt(case)
+    except Exception:
+        pass
+
     # T3.3 — Injecter les données d'inspection (élément 14)
     if inspection and inspection.get("date_visite"):
         type_insp = str(inspection.get("type_inspection", "interieure_exterieure")).replace("_", " ")

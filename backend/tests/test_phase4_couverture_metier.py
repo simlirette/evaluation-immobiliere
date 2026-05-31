@@ -253,3 +253,161 @@ def test_execute_search_comparables_no_session(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "SESSIONS_DIR", tmp_path)
     result = api._execute_search_comparables("session-inexistante", "D-000")
     assert "introuvable" in result.lower()
+
+
+# ── T4.5 : immeubles revenus complets ─────────────────────────────────────────
+
+from engine.valuation import _income_inputs
+
+
+def test_income_provision_remplacement_7plus():
+    """Immeuble 7+ logements → provision remplacement par défaut 3%."""
+    case = {
+        "type_bien": "immeuble_revenus",
+        "nb_logements": 8,
+        "revenus_depenses": {
+            "revenu_brut_potentiel": 120_000,
+            "depenses_exploitation": 30_000,
+        },
+    }
+    income = _income_inputs(case)
+    assert income["provision_remplacement"] > 0
+    assert "provision_remplacement_defaut_3pct_a_valider" in income["notes"]
+
+
+def test_income_provision_fournie():
+    """Provision fournie explicitement — pas de défaut."""
+    case = {
+        "type_bien": "immeuble_revenus",
+        "nb_logements": 10,
+        "revenus_depenses": {
+            "revenu_brut_potentiel": 200_000,
+            "depenses_exploitation": 60_000,
+            "provision_remplacement": 8_000,
+        },
+    }
+    income = _income_inputs(case)
+    assert income["provision_remplacement"] == 8_000
+    assert income["provision_remplacement_source"] == "fournie"
+    assert "provision_remplacement_defaut_3pct_a_valider" not in income["notes"]
+
+
+def test_income_baux_summary():
+    """Revenus depuis baux individuels."""
+    case = {
+        "type_bien": "triplex",
+        "nb_logements": 3,
+        "revenus_depenses": {
+            "baux": [
+                {"loyer_mensuel": 1200},
+                {"loyer_mensuel": 1350},
+                {"loyer_mensuel": 1100},
+            ],
+        },
+    }
+    income = _income_inputs(case)
+    assert "baux_summary" in income
+    assert income["baux_summary"]["nb_baux"] == 3
+    assert income["revenu_brut_potentiel"] == pytest.approx(3650 * 12, abs=1)
+
+
+def test_income_no_provision_for_small_building():
+    """Immeuble < 7 logements → pas de provision par défaut."""
+    case = {
+        "type_bien": "triplex",
+        "nb_logements": 3,
+        "revenus_depenses": {
+            "revenu_brut_potentiel": 48_000,
+        },
+    }
+    income = _income_inputs(case)
+    assert income.get("provision_remplacement", 0) == 0
+
+
+# ── T4.6 : types spécialisés ──────────────────────────────────────────────────
+
+from engine.specialized_valuation import (
+    analyze_copropriation_indivise,
+    analyze_agricole,
+    analyze_patrimonial,
+    analyze_rpa,
+    analyze_specialized_property,
+    specialized_mentions_for_prompt,
+)
+
+
+def test_indivise_applicable():
+    case = {"type_bien": "copropriation_indivise", "convention_indivision": {"part_pct": 40}}
+    note = analyze_copropriation_indivise(case)
+    assert note.statut == "applicable"
+    assert any("décote" in m.lower() for m in note.mentions)
+    assert len(note.ajustements) == 1
+    assert note.ajustements[0]["montant_relatif_pct"] < 0
+
+
+def test_indivise_not_applicable():
+    case = {"type_bien": "unifamiliale"}
+    note = analyze_copropriation_indivise(case)
+    assert note.statut == "non_applicable"
+
+
+def test_agricole_zone_verte():
+    case = {
+        "type_bien": "terrain_agricole",
+        "surface_terrain": 50_000,  # 5 ha
+        "zone_agricole": {"en_zone_verte": True, "type_zone": "zone_verte_cptaq"},
+        "prix_par_hectare": 20_000,
+    }
+    note = analyze_agricole(case)
+    assert note.statut == "applicable"
+    assert any("CPTAQ" in m or "zone verte" in m.lower() for m in note.mentions)
+    assert any("LPTA" in m or "autorisation" in m for m in note.mentions)
+
+
+def test_patrimonial_applicable():
+    case = {
+        "type_bien": "maison",
+        "patrimoine_culturel": {"statut": "cite_du_patrimoine_de_quebec"},
+    }
+    note = analyze_patrimonial(case)
+    assert note.statut == "applicable"
+    assert any("patrimonial" in m.lower() or "désignation" in m.lower() for m in note.mentions)
+    assert len(note.avertissements) > 0  # avertissement analyse requise
+
+
+def test_patrimonial_not_applicable():
+    case = {"type_bien": "unifamiliale"}
+    note = analyze_patrimonial(case)
+    assert note.statut == "non_applicable"
+
+
+def test_rpa_applicable():
+    case = {
+        "type_bien": "rpa",
+        "nb_unites": 80,
+        "certification_msss": True,
+    }
+    note = analyze_rpa(case)
+    assert note.statut == "applicable"
+    assert any("MSSS" in m for m in note.mentions)
+    assert any("achalandage" in m.lower() for m in note.mentions)
+
+
+def test_dispatch_multiple_notes():
+    case = {
+        "type_bien": "terrain_agricole",
+        "zone_agricole": {"en_zone_verte": True},
+        "patrimoine_culturel": {"statut": "site_patrimonial"},
+    }
+    notes = analyze_specialized_property(case)
+    types = {n.type_bien for n in notes}
+    assert "terrain_agricole" in types
+    assert "bien_patrimonial" in types
+
+
+def test_specialized_mentions_for_prompt_indivise():
+    case = {"type_bien": "copropriation_indivise", "convention_indivision": {"part_pct": 50}}
+    lines = specialized_mentions_for_prompt(case)
+    text = "\n".join(lines)
+    assert "TYPES DE BIENS SPÉCIALISÉS" in text
+    assert "COPROPRIATION_INDIVISE" in text or "indivise" in text.lower()

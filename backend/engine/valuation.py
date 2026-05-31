@@ -534,6 +534,56 @@ def _income_inputs(case: dict) -> dict[str, Any]:
     elif effective_revenue > 0:
         noi = effective_revenue - expenses_total
 
+    # T4.5 — Provision pour remplacement (CAPEX reserve)
+    provision_remplacement = _first_float(source, [
+        "provision_remplacement",
+        "provision_capex",
+        "reserve_remplacement",
+        "capex_reserve",
+    ])
+    provision_source = "fournie"
+    if provision_remplacement <= 0 and effective_revenue > 0:
+        nb_logements = _to_float(case.get("nb_logements") or source.get("nb_logements"), 0.0)
+        if nb_logements >= 7:  # T4.5 : immeuble revenus 7+
+            provision_remplacement = effective_revenue * 0.03  # 3% par défaut
+            provision_source = "defaut_3pct_a_valider"
+            notes.append("provision_remplacement_defaut_3pct_a_valider")
+
+    # Ajouter la provision aux dépenses si présente (non comptée si déjà dans depenses)
+    if provision_remplacement > 0 and _first_float(source, ["provision_remplacement", "provision_capex"]) <= 0:
+        expenses_total += provision_remplacement
+
+    # T4.5 — Baux (revenus par logement/local)
+    baux = source.get("baux") or []
+    baux_summary = None
+    if isinstance(baux, list) and baux:
+        loyers_baux = [_to_float(b.get("loyer_mensuel") or b.get("loyer")) for b in baux if isinstance(b, dict)]
+        loyers_baux = [l for l in loyers_baux if l > 0]
+        if loyers_baux:
+            rbp_from_baux = sum(loyers_baux) * 12
+            if potential_revenue <= 0:
+                potential_revenue = rbp_from_baux
+                notes.append("revenu_brut_potentiel_depuis_baux")
+            baux_summary = {
+                "nb_baux": len(loyers_baux),
+                "rbp_baux": round(rbp_from_baux, 2),
+                "loyer_moyen_mensuel": round(sum(loyers_baux) / len(loyers_baux), 2),
+                "loyer_min": round(min(loyers_baux), 2),
+                "loyer_max": round(max(loyers_baux), 2),
+            }
+
+    # T4.5 — $/pi² pour propriétés commerciales
+    revenu_par_pi2 = None
+    type_bien_norm = _normalize_type(case.get("type_bien", ""))
+    if type_bien_norm in {"commercial", "bureau", "bureaux", "local_commercial", "magasin"}:
+        surface_pi2 = _first_float(case.get("surface", {}) if isinstance(case.get("surface"), dict) else {}, ["value"])
+        if surface_pi2 > 0 and potential_revenue > 0:
+            revenu_par_pi2 = round(potential_revenue / (surface_pi2 * 12), 2)  # $/pi²/mois
+
+    # Recalculer NOI avec provision
+    if effective_revenue > 0 and noi <= 0:
+        noi = effective_revenue - expenses_total
+
     cap_rate_pct = _first_float(source, [
         "taux_capitalisation_pct",
         "tga_pct",
@@ -546,12 +596,14 @@ def _income_inputs(case: dict) -> dict[str, Any]:
         cap_rate_pct = _default_cap_rate_pct(case)
         notes.append("taux_capitalisation_defaut_a_valider")
 
-    return {
+    result = {
         "revenu_brut_potentiel": round(potential_revenue, 2) if potential_revenue else 0.0,
         "taux_vacance_pct": round(vacancy_pct, 2),
         "revenu_brut_effectif": round(effective_revenue, 2) if effective_revenue else 0.0,
         "depenses_exploitation": round(expenses_total, 2) if expenses_total else 0.0,
         "ratio_depenses_pct": round(expense_ratio_pct, 2) if expense_ratio_pct else None,
+        "provision_remplacement": round(provision_remplacement, 2) if provision_remplacement else 0.0,
+        "provision_remplacement_source": provision_source if provision_remplacement > 0 else None,
         "rne": round(noi, 2) if noi else 0.0,
         "taux_capitalisation_pct": round(cap_rate_pct, 3),
         "cap_rate": _rate(cap_rate_pct),
@@ -560,6 +612,11 @@ def _income_inputs(case: dict) -> dict[str, Any]:
         "input_count": input_count,
         "notes": notes,
     }
+    if baux_summary:
+        result["baux_summary"] = baux_summary
+    if revenu_par_pi2 is not None:
+        result["revenu_par_pi2_mensuel"] = revenu_par_pi2
+    return result
 
 
 def _expenses_total(source: dict[str, Any]) -> float:
