@@ -1,39 +1,39 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 1ed16b1 (branch: docs/audit-et-plans-2026-05-31)_
+_Updated: 2026-05-31 | HEAD: 7ba8671 (branch: docs/audit-et-plans-2026-05-31)_
 
 ## Current Goal
 
-Phase 3 ✅ (sauf T3.6 jalon démo). Prochaine : Phase 4 ou T3.6.
+Phase 4 Vague 4A done. Vague 4B (biens spécialisés) ou 4C (assistant actif) next.
 
 ## Plan Status
 
-### Phase 3 — Rapport expert ✅
-
-- [x] T3.1 — 16 éléments vérifiés post-génération (c0edc19)
-- [x] T3.2 — Grille ajustements dans rapport (c0edc19)
-- [x] T3.3 — Capture inspection /app/inspection, InspectionForm (9760cea)
-- [x] T3.4 — Repli déterministe 16 sections MODE DÉGRADÉ (c0edc19)
-- [x] T3.5 — Export certifiable : signature É.A., retrait filigrane, SignatureForm (1ed16b1)
-- [ ] T3.6 — Démo bureau (jalon opérationnel — dossier réel anonymisé bout en bout)
-
-### Phase 4 — Couverture métier (prochaine)
-
 Plan : `docs/plans/2026-05-31-phase-4-couverture-metier.md`
-- T4.1 — Mandat succession (date rétrospective/JVM)
-- T4.2 — Contestation LFM (date triennale)
-- T4.3 — Expropriation avant-après
-- T4.4 — Liquidation
-- T4.5 — Types de biens spécialisés
+
+### Vague 4A ✅
+
+- [x] T4.1 — Date rétrospective : classify_dossier depuis but_evaluation (7ba8671)
+- [x] T4.2 — JVM/valeur réelle/liquidation : _mandat_special_lines + PLANS-MANDATS-V0 (7ba8671)
+- [x] T4.3 — Expropriation avant-après : calculate_expropriation (7ba8671)
+- [x] T4.4 — Liquidation : calculate_liquidation_value + proxy-warning (7ba8671)
+
+### Vague 4B (prochaine)
+
+- [ ] T4.5 — Immeubles à revenus 7+ / commercial / industriel (normalisation complète)
+- [ ] T4.6 — Biens spécialisés (RPA, indivise, patrimonial, agricole)
+
+### Vague 4C
+
+- [ ] T4.7 — Outils assistant d'action (search_comparables, run_calculation, rerun_step)
 
 ## Evidence
 
-- 18 tests P3 verts, 0 TS errors (1ed16b1)
-- generate_certified_html/pdf/docx : sans filigrane, bloc signature complet
-- SignatureForm : signe + génère HTML/PDF certifié via /app/signature + /app/signature/export
+- 28 tests P4 verts + 46 total (7ba8671)
+- 6 nouveaux types de mandats dans PLANS-MANDATS-V0.yaml
+- calculate_expropriation : avant − après + préjudices; calculate_liquidation_value : VM × (1-décote)
 
 ## Open Issues
 
-- T3.6 : dossier réel anonymisé requis — jalon opérationnel
-- T2.2 : unification TS/Python (architectural, différable)
+- T3.6 : démo bureau (dossier réel anonymisé)
 - T0.5+T1.3 prod : migrations 002–006 + index_corpus()
+- T2.2 : unification TS/Python (architectural)
