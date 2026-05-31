@@ -5889,7 +5889,8 @@ class TestDataEnrichment_ScoreRisque:
         assert compute_score_risque(case) == {}
 
     def test_enrich_case_injects_score_risque(self, tmp_path):
-        """enrich_case injecte score_risque quand données disponibles."""
+        """enrich_case injecte score_risque quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -5900,7 +5901,8 @@ class TestDataEnrichment_ScoreRisque:
             "nuisances_environnementales": {"score_nuisances": 1},
             "crime_stats": {"taux_criminalite_total": 4_000},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         rsk = case.get("score_risque", {})
@@ -6033,7 +6035,8 @@ class TestDataEnrichment_ScoreGlobal:
         assert compute_score_global(case) == {}
 
     def test_enrich_case_injects_score_global(self, tmp_path):
-        """enrich_case injecte score_global quand B33+B38+B39 disponibles."""
+        """enrich_case injecte score_global quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -6044,7 +6047,8 @@ class TestDataEnrichment_ScoreGlobal:
             "indice_qualite_vie":   {"indice_qualite_vie": 6.5},
             "score_risque":         {"score_risque": 8.0},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         sg = case.get("score_global", {})
@@ -6171,7 +6175,8 @@ class TestDataEnrichment_ProjectionValeur:
         assert compute_projection_valeur({}) == {}
 
     def test_enrich_case_injects_projection(self, tmp_path):
-        """enrich_case injecte projection_valeur quand valeur disponible."""
+        """enrich_case injecte projection_valeur quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -6181,7 +6186,8 @@ class TestDataEnrichment_ProjectionValeur:
             "evaluation_municipale_totale": 450_000,
             "indice_prix_logement": {"variation_annuelle_pct": 3.5},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         pv = case.get("projection_valeur", {})
@@ -6260,7 +6266,8 @@ class TestDataEnrichment_Alertes:
         )
 
     def test_enrich_case_injects_alertes(self, tmp_path):
-        """enrich_case injecte alertes avec zone_inondable active → critique."""
+        """enrich_case injecte alertes quand INCLUDE_INVESTMENT_CONTEXT=1."""
+        import os
         import unittest.mock as mock
         from engine import data_enrichment as de
         from engine.data_enrichment import enrich_case
@@ -6269,7 +6276,8 @@ class TestDataEnrichment_Alertes:
             "dossier_id": "D-ALRT-TEST",
             "zone_inondable": {"en_zone_inondable": True, "recurrence_label": "20 ans"},
         }
-        with mock.patch.object(de, "detect_city", return_value="montreal"):
+        with mock.patch.object(de, "detect_city", return_value="montreal"), \
+             mock.patch.dict(os.environ, {"INCLUDE_INVESTMENT_CONTEXT": "1"}):
             enrich_case(case, display_name="", cache_dir=tmp_path)
 
         alrt = case.get("alertes", {})
