@@ -1,33 +1,35 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 2910d9a (branch: docs/audit-et-plans-2026-05-31)_
+_Updated: 2026-05-31 | HEAD: e45b3a7 (branch: docs/audit-et-plans-2026-05-31)_
 
 ## Current Goal
 
-Phase 1 — Connaissance active : T1.1 done, T1.2 next (rapatrier corpus normatif).
+Phase 1 — Connaissance active : T1.1–T1.3 done, T1.4 next (citations normatives rapport).
 
 ## Plan Status
 
 Plan : `docs/plans/2026-05-31-phase-1-connaissance-active.md`
 
-- [x] T1.1 — analysis.md injecté pipeline (`_enrich_artifact_llm`) + assistant (`_build_agent_full_prompt`)
-- [ ] T1.2 — Corpus normatif dans `backend/knowledge/` (68 sources depuis `C:\Users\simon\knowledge(-source)`)
-- [ ] T1.3 — RAG pgvector (`engine/knowledge_rag.py`, migration 006)
-- [ ] T1.4 — Citations normatives liées dans le rapport
-- [ ] T1.5 — Outil assistant `search_knowledge`
+- [x] T1.1 — analysis.md injecté pipeline + assistant (commit 2910d9a)
+- [x] T1.2 — Corpus 62 docs / 17MB dans `backend/knowledge/corpus/` (commit aef3dc1)
+- [x] T1.3 — RAG pgvector : `knowledge_rag.py`, migration 006, 8745 chunks, intégré `_enrich_artifact_llm` (commit e45b3a7)
+- [ ] T1.4 — Citations normatives dans rapport + `annexe_sources.md` (sources normatives pas juste données)
+- [ ] T1.5 — Outil assistant `search_knowledge` (tool-calling via RAG)
 
-Phase 0 status (pour mémoire) :
+Phase 0 (pour mémoire) :
 - [x] T0.1–T0.4 (commit 3731404)
-- [ ] T0.5 migrations Supabase prod 002–005 (accès requis)
-- [ ] T0.6 Loi 25 / masquage PII SIRF (non-technique)
+- [ ] T0.5 migrations Supabase prod 002–006 (accès requis — T0.5 + T1.3 se font ensemble)
+- [ ] T0.6 Loi 25 / masquage PII SIRF
 
 ## Evidence
 
-- 485 tests verts (2910d9a, 2026-05-31)
-- `load_skill_knowledge` : analysis.md prioritaire, budget 3000 chars pipeline / 5000 chars assistant
+- 27 tests P0+P1 verts (e45b3a7)
+- 910 tests totaux verts (2910d9a)
+- RAG dégradé-silencieux : '' si SUPABASE_URL/OPENAI_API_KEY absents
+- index_corpus() : ~8745 chunks, coût estimé ~$0.07 (text-embedding-3-small)
 
 ## Open Issues
 
-- T0.5 : migrations Supabase prod (002–005)
-- T0.6 : masquage noms vendeur/acheteur `registre_foncier.py`
-- T1.2 : décider quels fichiers de `knowledge-source/` importer (68 sources — markdown seulement, pas PDF bruts)
+- T0.5+T1.3 prod : appliquer migrations 002–006 + exécuter index_corpus() une fois
+- T1.4 : `annexe_sources.md` builder à étendre pour sources normatives (source_id du catalog)
+- T1.5 : ajouter tool `search_knowledge` à `_FETCH_ARTIFACT_TOOL` dans api.py
