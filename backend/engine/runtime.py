@@ -13,6 +13,7 @@ import uuid
 from engine.audit import append_audit_log
 from engine.amu import evaluate_amu
 from engine.compliance import run_compliance, check_conflit_interets
+from engine.report_check import check_rapport_elements, build_rapport_check_section
 from engine.llm_routing import get_llm_model, estimate_llm_cost
 from engine.schema_contracts import validate_artifact_schema
 from engine.skills import DEFAULT_SKILLS_BY_AGENT, load_agent_config_skills, load_agent_system_prompt, load_skill_knowledge
@@ -2122,6 +2123,39 @@ def _build_rapport_prompt_v2(
         for h in hypotheses[:3]:
             lines.append(f"  - {h}")
 
+    # T3.2 — Injecter la grille d'ajustements calculée (évite les [ADJ] vides)
+    grille_data = case.get("_grille_ajustements")  # injecté par run_case_data si disponible
+    if not grille_data:
+        from engine.adjustments import compute_adjustment_grid  # type: ignore
+        grille_result = compute_adjustment_grid(case)
+        grille_data = grille_result.get("grilles", [])
+    if grille_data:
+        grille_lines = ["", "GRILLE D'AJUSTEMENTS (à utiliser dans la table comparative du rapport) :"]
+        for g in grille_data[:5]:
+            prix_ajuste = g.get("prix_ajuste", 0)
+            prix_vendu = g.get("prix_vendu", 0)
+            total_adj = g.get("total_ajustements", 0)
+            pct = g.get("pct_total_brut", 0)
+            grille_lines.append(
+                f"  Comparable {g.get('comparable_id', '?')} : "
+                f"prix vendu {_fmt_cad(prix_vendu)} | "
+                f"ajustements {_fmt_cad(total_adj)} ({pct:.1f}%) | "
+                f"prix ajusté {_fmt_cad(prix_ajuste)}"
+            )
+            for adj in g.get("ajustements", []):
+                if adj.get("montant", 0) != 0:
+                    grille_lines.append(
+                        f"    • {adj['caracteristique']}: {_fmt_cad(adj['montant'])} "
+                        f"({adj.get('taux_info', '—')}) [{adj.get('statut', '?')}]"
+                    )
+        fourchette = grille_result.get("fourchette", {}) if not case.get("_grille_ajustements") else {}
+        if fourchette:
+            grille_lines.append(
+                f"  Fourchette : {_fmt_cad(fourchette.get('min', 0))} – {_fmt_cad(fourchette.get('max', 0))} "
+                f"(écart {fourchette.get('ecart_pct', 0):.1f}%)"
+            )
+        lines += grille_lines
+
     # Inject normative references so LLM cites them in the report
     normative = _normative_sources_for_case(case)
     if normative:
@@ -2192,19 +2226,46 @@ def _generate_rapport_llm(prompt: str, format: str = "abrege") -> dict | None:
 
 
 def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: str, blocking: list, warnings: list) -> str:
-    """Template déterministe avec vraies données — utilisé si aucun LLM disponible."""
+    """Repli déterministe — 16 éléments structurels, mode dégradé honnête (T3.4).
+
+    Produit quand OpenAI est indisponible. Les sections nécessitant la prose É.A. sont
+    marquées explicitement « À RÉDIGER PAR L'É.A. ». Jamais un faux rapport complet.
+    """
     dossier_id = case.get("dossier_id", "—")
     date_ref = case.get("date_reference", "—")
-    type_bien = case.get("type_bien", "—").replace("_", " ").capitalize()
+    type_bien = str(case.get("type_bien", "—")).replace("_", " ").capitalize()
     zone = case.get("zone", "—")
     surface = case.get("surface", {})
     surface_str = f"{surface.get('value', '—')} {surface.get('unit', '')}" if isinstance(surface, dict) else str(surface)
+    adresse = str(case.get("adresse") or case.get("display_name") or "Non fournie")
+    annee_constr = case.get("annee_construction") or "—"
+    nb_logements = case.get("nb_logements") or "—"
+    surface_terrain = case.get("surface_terrain") or "—"
     today = date.today().isoformat()
 
-    # Valeur principale = approche comparative si disponible
+    cmd = case.get("commanditaire", {}) or {}
+    cmd_nom = cmd.get("nom", "[COMMANDITAIRE]") if isinstance(cmd, dict) else "[COMMANDITAIRE]"
+    cmd_org = cmd.get("organisation", "") if isinstance(cmd, dict) else ""
+    cmd_label = f"{cmd_nom} — {cmd_org}" if cmd_org else cmd_nom
+    fin_eval = str((cmd.get("fin_evaluation", "non spécifié") if isinstance(cmd, dict) else "non spécifié")).replace("_", " ")
+
+    # Valeur principale
     val_principale = valuation_values.get("approche_comparative") or next(iter(valuation_values.values()), None)
     val_str = _fmt_cad(val_principale) if val_principale else "—"
 
+    # AMU / UMPP
+    umpp_data = (case.get("umpp") or {})
+    if isinstance(umpp_data, dict):
+        usage_retenu = umpp_data.get("usage_retenu", type_bien)
+        umpp_conclusion = umpp_data.get("conclusion", "À compléter par l'É.A.")
+        conformite_zonage = umpp_data.get("conformite_zonage")
+        zone_conf_str = "Oui" if conformite_zonage is True else ("Non" if conformite_zonage is False else "Données manquantes")
+    else:
+        usage_retenu = type_bien
+        umpp_conclusion = "À compléter par l'É.A."
+        zone_conf_str = "Données manquantes"
+
+    # Comparables + grille
     comparables = case.get("comparables", [])[:5]
     comp_rows = ""
     for i, c in enumerate(comparables, 1):
@@ -2214,6 +2275,24 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
         score_str = f"{float(score):.2f}" if isinstance(score, float) else str(score)
         comp_rows += f"| {i} | {c.get('source_id', '—')} | {price_str} | {c.get('date_vente', '—')} | {score_str} |\n"
 
+    # Grille d'ajustements (T3.2)
+    from engine.adjustments import compute_adjustment_grid  # type: ignore
+    grille_result = compute_adjustment_grid(case)
+    grilles = grille_result.get("grilles", [])
+    grille_rows = ""
+    for g in grilles[:5]:
+        for adj in g.get("ajustements", []):
+            montant = adj.get("montant", 0)
+            montant_str = _fmt_cad(montant) if montant != 0 else "0"
+            statut = adj.get("statut", "?")
+            grille_rows += (
+                f"| {g.get('comparable_id', '?')} | {adj['caracteristique']} | "
+                f"{montant_str} | {adj.get('taux_info', '—')} | {statut} |\n"
+            )
+    valeur_indiquee = grille_result.get("valeur_indiquee", 0)
+    fourchette = grille_result.get("fourchette", {})
+
+    # Approches
     approach_rows = ""
     labels = {
         "approche_comparative": "Approche comparative",
@@ -2228,85 +2307,216 @@ def _generate_rapport_deterministic(case: dict, valuation_values: dict, status: 
     if blocking:
         items = "\n".join(f"- {b}" for b in blocking)
         blocking_section = f"\n**Blocages ({len(blocking)}) :**\n{items}\n"
-
     warnings_section = ""
     if warnings:
         items = "\n".join(f"- {w}" for w in warnings)
         warnings_section = f"\n**Avertissements ({len(warnings)}) :**\n{items}\n"
 
-    if len(valuation_values) > 1:
-        valuation_sentence = (
-            "Cette valeur est etablie principalement par l'approche comparative, "
-            "avec indications secondaires calculees selon les intrants disponibles."
-        )
-    else:
-        valuation_sentence = (
-            "Cette valeur est etablie principalement par l'approche comparative; "
-            "les autres approches doivent etre documentees ou justifiees par l'evaluateur si applicables."
-        )
-
     return f"""\
-# BROUILLON DE RAPPORT D'ÉVALUATION
+# RAPPORT D'ÉVALUATION IMMOBILIÈRE — MODE DÉGRADÉ
 
-> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA le {today}.
-> Validation et signature d'un évaluateur agréé requises avant toute diffusion.
+> **⚠ MODE DÉGRADÉ — Service IA indisponible au moment de la génération.**
+> Ce rapport contient la structure des 16 éléments obligatoires avec les données calculées.
+> Les sections marquées « À RÉDIGER PAR L'É.A. » requièrent la prose de l'évaluateur agréé.
+> **Ce document ne constitue pas un rapport certifié sans révision et signature É.A.**
 
 ---
 
-## 1. Identification du bien
+## 1. Identification et but du mandat
 
 | Champ | Valeur |
-|-------|--------|
+|---|---|
 | Dossier | {dossier_id} |
+| Adresse | {adresse} |
 | Type de bien | {type_bien} |
-| Zone | {zone} |
-| Surface | {surface_str} |
+| Zone / secteur | {zone} |
+| Surface habitable | {surface_str} |
+| Surface terrain | {surface_terrain} m² |
+| Année construction | {annee_constr} |
+| Nb logements | {nb_logements} |
+| Commanditaire | {cmd_label} |
+| But et fin de l'évaluation | {fin_eval} |
 | Date de référence | {date_ref} |
-| Statut conformité | {status} |
+
+**Droits évalués :** Pleine propriété (à confirmer par É.A.)
+**Définition de la valeur :** Valeur marchande au sens de NPP OEAQ et CUSPAP 2026
+**Historique des transactions :** À RÉDIGER PAR L'É.A.
 
 ---
 
-## 2. Conclusion de valeur marchande proposée
+## 2. Étendue du travail
 
-**Valeur estimée : {val_str}**
-
-{valuation_sentence} Elle n'est pas certifiee et ne constitue pas une opinion formelle
-d'un evaluateur agree.
+- Collecte de données : sources structurées du dossier ({dossier_id})
+- Inspection du bien : **voir section 14**
+- Vérifications effectuées : données cadastrales, zonage, marché (sources automatisées)
+- Analyses : approche comparative (grille d'ajustements), approche par le coût (si applicable)
 
 ---
 
-## 3. Réconciliation des approches
+## 3. Réserves et hypothèses
+
+1. L'analyse est fondée exclusivement sur les données fournies et vérifiées.
+2. Aucune inspection de structure cachée n'a été effectuée.
+3. L'évaluateur suppose l'absence de contamination environnementale sauf mention contraire.
+4. Les données de registre foncier sont présumées exactes.
+5. Les droits réels et servitudes sont ceux déclarés au dossier.
+6. La valeur est exprimée en dollars canadiens courants à la date de référence.
+7. Cette évaluation est préparée pour l'usage identifié ci-dessus seulement.
+8. Les comparables sont issus de sources validées (source_id traçable).
+9. Les taux d'ajustement marqués « à_valider » sont des défauts à confirmer par l'É.A.
+10. Les sections en mode dégradé nécessitent la révision d'un évaluateur agréé.
+11. À RÉDIGER PAR L'É.A. : hypothèses extraordinaires si applicable.
+
+---
+
+## 4. Informations générales et marché
+
+**Ville / Secteur :** {zone}
+**Marché immobilier :** À RÉDIGER PAR L'É.A. (données de marché disponibles dans le dossier)
+**Données municipales :** À RÉDIGER PAR L'É.A.
+**Conformité au zonage :** {zone_conf_str}
+
+---
+
+## 5. Description du terrain
+
+**Superficie :** {surface_terrain} m²
+**Zone :** {zone}
+**Accès / Services :** À RÉDIGER PAR L'É.A.
+**Caractéristiques particulières :** À RÉDIGER PAR L'É.A.
+
+---
+
+## 6. Meilleur usage (UMPP/AMU)
+
+**Usage actuel :** {type_bien}
+**Usage retenu (UMPP) :** {usage_retenu}
+**Conformité au zonage :** {zone_conf_str}
+
+**Conclusion AMU :** {umpp_conclusion}
+
+*Les 4 critères (légalement permis, physiquement possible, financièrement faisable, maximalement productif) sont évalués dans l'artefact umpp_conclusion.json du dossier.*
+
+---
+
+## 7. Description du bâtiment
+
+**Type :** {type_bien}
+**Surface habitable :** {surface_str}
+**Année de construction :** {annee_constr}
+**Nombre de logements :** {nb_logements}
+**État général :** À RÉDIGER PAR L'É.A.
+**Composantes principales :** À RÉDIGER PAR L'É.A.
+
+---
+
+## 8. Approches de valeur — Présentation et justification
+
+| Méthode | Statut |
+|---|---|
+| Approche comparative | Appliquée |
+| Approche par le coût | {'Appliquée' if 'approche_cout' in valuation_values else 'Non appliquée — terrain ou coûts indisponibles'} |
+| Approche par le revenu | {'Appliquée' if 'approche_revenu' in valuation_values else 'Non appliquée — bien non locatif ou données manquantes'} |
+
+**Justification des méthodes rejetées :** À RÉDIGER PAR L'É.A.
+
+---
+
+## 9. Approche comparative — Grille d'ajustements
+
+**{len(comparables)} comparable(s) retenu(s)** | Valeur indiquée : **{_fmt_cad(valeur_indiquee) if valeur_indiquee else '—'}**
+{f"Fourchette : {_fmt_cad(fourchette.get('min', 0))} – {_fmt_cad(fourchette.get('max', 0))} (écart {fourchette.get('ecart_pct', 0):.1f}%)" if fourchette.get('min') else ""}
+
+| # | Source | Prix de vente | Date | Score |
+|---|---|---|---|---|
+{comp_rows if comp_rows else "| — | Aucun comparable disponible | — | — | — |\n"}
+
+**Grille d'ajustements par comparable :**
+
+| Comparable | Caractéristique | Ajustement | Taux | Statut |
+|---|---|---|---|---|
+{grille_rows if grille_rows else "| — | Données insuffisantes | — | — | — |\n"}
+
+*Lignes « a_valider » = taux par défaut MEFQ/APCIQ, à confirmer par É.A.*
+*Lignes « donnees_manquantes » = champ absent dans les données comparables.*
+
+---
+
+## 10. Approche par le coût
+
+{'*Non appliquée dans ce dossier — données de coûts insuffisantes.*' if 'approche_cout' not in valuation_values else f"Valeur indiquée : {_fmt_cad(valuation_values['approche_cout'])}"}
+
+---
+
+## 11. Approche par le revenu
+
+{'*Non appliquée dans ce dossier — bien non locatif ou données de revenus manquantes.*' if 'approche_revenu' not in valuation_values else f"Valeur indiquée : {_fmt_cad(valuation_values['approche_revenu'])}"}
+
+---
+
+## 12. Réconciliation et valeur finale
 
 | Méthode | Valeur indiquée |
-|---------|-----------------|
-{approach_rows}
+|---|---|
+{approach_rows if approach_rows else "| — | Aucune approche disponible |\n"}
+
+**Valeur finale retenue : {val_str}**
+
+Réconciliation (jugement pondéré) : À RÉDIGER PAR L'É.A.
+La valeur comparative est la méthode prépondérante pour ce type de bien résidentiel.
+
 ---
 
-## 4. Soutien du marché — comparables retenus
+## 13. Attestation
 
-{len(comparables)} comparable(s) retenu(s) pour l'analyse comparative :
+> **BROUILLON NON CERTIFIÉ — Signatures requises avant toute utilisation.**
 
-| # | Référence source | Prix de vente | Date de vente | Score similarité |
-|---|------------------|---------------|---------------|-----------------|
-{comp_rows}
----
+Je/Nous soussigné(e)(s), évaluateur(s) agréé(s) membre(s) de l'OEAQ, atteste(ons) :
 
-## 5. Hypothèses et conditions limitatives
+1. Les affirmations contenues dans ce rapport sont exactes et véridiques selon ma connaissance.
+2. Les analyses, opinions et conclusions sont limitées aux hypothèses et conditions stipulées.
+3. Je n'ai aucun intérêt personnel actuel ou futur dans le bien évalué.
+4. L'indemnisation n'est aucunement liée à la valeur estimée.
+5. L'évaluation a été effectuée en conformité avec les normes professionnelles OEAQ/CUSPAP.
+6. J'ai inspecté personnellement le bien évalué (voir section 14).
+7. Les règles de conduite et normes OEAQ ont été respectées.
 
-- L'analyse est basée exclusivement sur les données et sources référencées dans ce dossier.
-- Aucune inspection physique du bien n'a été effectuée par le système IA.
-- Les valeurs des approches par le cout et par le revenu sont des indications calculees
-  a partir des intrants disponibles et doivent etre validees par un evaluateur agree.
-- Toute donnée manquante ou incomplète est signalée dans la section conformité ci-dessous.
+**Valeur marchande au {date_ref} : {val_str}**
+*(Montant en lettres : À RÉDIGER PAR L'É.A.)*
+
+_[SIGNATURE É.A. — N° PERMIS OEAQ]_
+_[DATE DE SIGNATURE]_
+_[SCEAU PROFESSIONNEL]_
 {blocking_section}{warnings_section}
+
 ---
 
-## 6. Mention légale
+## 14. Information sur l'inspection
 
-Ce document est un brouillon produit par un assistant IA à titre d'aide à la rédaction.
-Il **ne constitue pas** un rapport d'évaluation certifié au sens des normes professionnelles
-applicables et ne peut être utilisé à des fins de transaction, de financement ou de litige
-sans validation et signature d'un évaluateur agréé autorisé.
+**Date de visite :** À compléter par l'É.A.
+**Étendue de l'inspection :** À compléter par l'É.A.
+**Type d'inspection :** Intérieure et extérieure (à confirmer)
+**Observations :** À RÉDIGER PAR L'É.A.
+
+*⚠ Section 14 non complétée — Attestation conditionnelle à la saisie d'inspection.*
+
+---
+
+## 15. Annexes
+
+- [ ] Plan du terrain (à joindre)
+- [ ] Photos du bien (à joindre)
+- [ ] Extrait du rôle municipal
+- [ ] Certificat de localisation
+- [ ] Données comparables (source_ids : {', '.join(c.get('source_id', '?') for c in comparables[:3]) if comparables else '—'})
+
+---
+
+## 16. Statut de conformité
+
+**Statut :** {status}
+{blocking_section}{warnings_section}
+*Produit le {today} en mode dégradé (sans LLM). Révision É.A. obligatoire.*
 """
 
 
@@ -2329,8 +2539,14 @@ def generate_brouillon_rapport(
             "> **BROUILLON NON CERTIFIÉ** — Produit par assistant IA.\n"
             "> Validation et signature d'un évaluateur agréé requises avant toute diffusion.\n\n---\n\n"
         )
-        return disclaimer + llm_result["text"]
-    return _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+        rapport = disclaimer + llm_result["text"]
+    else:
+        rapport = _generate_rapport_deterministic(case, valuation_values, status, blocking, warnings)
+
+    # T3.1 — Validation post-génération des 16 éléments CUSPAP/NPP
+    check = check_rapport_elements(rapport)
+    rapport += build_rapport_check_section(check)
+    return rapport
 
 
 def write_artifact_payload(path: Path, payload: dict) -> None:
