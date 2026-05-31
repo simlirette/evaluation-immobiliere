@@ -240,7 +240,7 @@ def retrieve(
     supabase_client,
     openai_client,
     top_k: int = 5,
-    threshold: float = 0.70,
+    threshold: float = 0.35,  # calibré 2026-05-31 : corpus pypdf, scores typiques 0.28-0.55
     domain: str | None = None,
 ) -> list[KnowledgeChunk]:
     """Recherche sémantique dans knowledge_chunks.
