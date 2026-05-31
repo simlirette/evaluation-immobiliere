@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchComparableCandidates,
+  fetchRuntimeEnrichment,
   uploadJlrCsv,
   confirmComparables,
   resumeCheckpoint,
   type ComparableCandidate,
 } from '@/lib/runtime-api'
 import { formatCAD } from '@/lib/format-number'
+import SourceDiagnosticPanel from '@/components/shared/SourceDiagnosticPanel'
+import type { SourceCoverage } from '@/types'
 
 interface Props {
   dossierId: string
@@ -96,15 +99,20 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [subjectAddress, setSubjectAddress] = useState<string | null>(null)
+  const [sourceCoverage, setSourceCoverage] = useState<SourceCoverage | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const loadCandidates = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchComparableCandidates(dossierId)
+      const [result, enrichment] = await Promise.all([
+        fetchComparableCandidates(dossierId),
+        fetchRuntimeEnrichment(dossierId).catch(() => null),
+      ])
       setCandidates(result.candidates)
       setSubjectAddress(result.subject_address)
+      setSourceCoverage(enrichment?.source_coverage ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -326,10 +334,19 @@ export default function CheckpointComparablePanel({ dossierId, checkpoint, onCon
         </>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — show source diagnostics if available */}
       {!loading && candidates.length === 0 && !error && (
-        <div className="py-6 text-center text-[13px]" style={{ color: 'var(--ink-mute)' }}>
-          Importez un export CSV JLR pour afficher les comparables.
+        <div className="flex flex-col gap-3">
+          {sourceCoverage ? (
+            <SourceDiagnosticPanel coverage={sourceCoverage} />
+          ) : (
+            <div className="py-4 text-center text-[13px]" style={{ color: 'var(--ink-mute)' }}>
+              Aucun comparable disponible depuis les sources automatiques.
+            </div>
+          )}
+          <p className="text-center text-[12px]" style={{ color: 'var(--ink-faint)' }}>
+            Importez un export CSV JLR ci-dessus pour compléter le pool.
+          </p>
         </div>
       )}
     </div>
