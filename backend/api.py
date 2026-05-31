@@ -4692,7 +4692,113 @@ _SEARCH_KNOWLEDGE_TOOL = {
     },
 }
 _TOOL_MAX_ROUNDS = 3
-_AGENT_TOOLS = [_FETCH_ARTIFACT_TOOL, _SEARCH_KNOWLEDGE_TOOL]
+_SEARCH_COMPARABLES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_comparables",
+        "description": (
+            "Recherche et filtre les comparables disponibles dans le dossier. "
+            "Utilise cet outil pour trouver des ventes selon des critères précis : "
+            "fourchette de prix, distance, période, type de bien. "
+            "Permet d'explorer le pool de comparables de la session."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prix_min": {
+                    "type": "number",
+                    "description": "Prix de vente minimum en $ (optionnel)",
+                },
+                "prix_max": {
+                    "type": "number",
+                    "description": "Prix de vente maximum en $ (optionnel)",
+                },
+                "distance_max_km": {
+                    "type": "number",
+                    "description": "Distance maximale du sujet en km (optionnel)",
+                },
+                "date_min": {
+                    "type": "string",
+                    "description": "Date de vente minimale ISO 8601, ex: 2024-01-01 (optionnel)",
+                },
+                "date_max": {
+                    "type": "string",
+                    "description": "Date de vente maximale ISO 8601, ex: 2026-12-31 (optionnel)",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Nombre maximum de résultats (défaut: 10)",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+_RUN_CALCULATION_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "run_calculation",
+        "description": (
+            "Recalcule la valeur par une approche d'évaluation avec des paramètres optionnels. "
+            "Utilise cet outil pour tester l'impact d'un TGA différent, d'une décote de liquidation, "
+            "ou pour vérifier la valeur comparative avec les comparables actuels. "
+            "Le calcul est temporaire et ne modifie pas le dossier."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "approche": {
+                    "type": "string",
+                    "enum": ["approche_comparative", "approche_cout", "approche_revenu",
+                             "approche_liquidation", "approche_avant_apres"],
+                    "description": "L'approche d'évaluation à calculer",
+                },
+                "overrides": {
+                    "type": "object",
+                    "description": (
+                        "Paramètres à surcharger pour ce calcul. Exemples : "
+                        "{taux_capitalisation_pct: 5.5} pour l'approche revenu, "
+                        "{decote_pct: 18} pour la liquidation."
+                    ),
+                },
+            },
+            "required": ["approche"],
+        },
+    },
+}
+
+_RERUN_STEP_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "rerun_step",
+        "description": (
+            "Déclenche la ré-exécution d'une étape du pipeline d'évaluation. "
+            "IMPORTANT : nécessite que le checkpoint précédent soit confirmé par l'É.A. "
+            "Utilise cet outil quand l'É.A. demande de relancer une étape spécifique, "
+            "ex: 'relance la recherche de comparables', 'recalcule la valeur'. "
+            "Retourne une erreur si le checkpoint gate n'est pas satisfait."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "step": {
+                    "type": "string",
+                    "enum": ["comps-market", "valuation-draft", "compliance-qa", "redaction"],
+                    "description": "L'étape à ré-exécuter (checkpoint gate vérifié automatiquement)",
+                },
+                "raison": {
+                    "type": "string",
+                    "description": "Raison de la ré-exécution (pour le log d'audit)",
+                },
+            },
+            "required": ["step"],
+        },
+    },
+}
+
+_AGENT_TOOLS = [_FETCH_ARTIFACT_TOOL, _SEARCH_KNOWLEDGE_TOOL,
+                _SEARCH_COMPARABLES_TOOL, _RUN_CALCULATION_TOOL, _RERUN_STEP_TOOL]
 
 
 def _execute_search_knowledge(query: str, domain: str | None = None) -> str:
@@ -4703,6 +4809,202 @@ def _execute_search_knowledge(query: str, domain: str | None = None) -> str:
         return result if result else "Aucun résultat trouvé dans la base de connaissances."
     except Exception as exc:
         return f"Erreur recherche knowledge: {exc}"
+
+
+def _execute_search_comparables(
+    session_id: str,
+    dossier_id: str,
+    prix_min: float | None = None,
+    prix_max: float | None = None,
+    distance_max_km: float | None = None,
+    date_min: str | None = None,
+    date_max: str | None = None,
+    top_n: int = 10,
+) -> str:
+    """Filtre les comparables disponibles dans le dossier selon les critères."""
+    from engine.tools import search_comparables as _search_comps  # type: ignore
+
+    # Charger le case de la session
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        return f"Session introuvable: {session_id}"
+    session_dir = Path(str(session["session_dir"]))
+    case_key = safe_path_id(str(session.get("dossier_id") or session_id))
+    input_path = session_dir / f"{case_key}.input.json"
+    if not input_path.exists():
+        return "Données du dossier non trouvées dans la session."
+
+    case = read_json_dict(input_path)
+    comparables = case.get("comparables", [])
+    if not comparables:
+        return "Aucun comparable disponible dans le dossier."
+
+    # Filtrer selon les critères
+    filtered = []
+    for c in comparables:
+        prix = float(c.get("prix_vente") or c.get("sale_price") or 0)
+        dist = float(c.get("distance_km") or 0)
+        date = str(c.get("date_vente") or "")
+
+        if prix_min is not None and prix < prix_min:
+            continue
+        if prix_max is not None and prix > prix_max:
+            continue
+        if distance_max_km is not None and dist > distance_max_km:
+            continue
+        if date_min and date and date < date_min:
+            continue
+        if date_max and date and date > date_max:
+            continue
+        filtered.append(c)
+
+    filtered = filtered[:top_n]
+    if not filtered:
+        criteria_desc = []
+        if prix_min: criteria_desc.append(f"prix ≥ {prix_min:,.0f}$")
+        if prix_max: criteria_desc.append(f"prix ≤ {prix_max:,.0f}$")
+        if distance_max_km: criteria_desc.append(f"distance ≤ {distance_max_km} km")
+        if date_min: criteria_desc.append(f"date ≥ {date_min}")
+        if date_max: criteria_desc.append(f"date ≤ {date_max}")
+        return f"Aucun comparable ne correspond aux critères : {', '.join(criteria_desc) or 'aucun filtre'}"
+
+    lines = [f"{len(filtered)} comparable(s) trouvé(s) :"]
+    for i, c in enumerate(filtered, 1):
+        prix = c.get("prix_vente") or c.get("sale_price")
+        prix_str = f"{float(prix):,.0f}$" if prix else "—"
+        lines.append(
+            f"  {i}. {c.get('source_id', '?')} | {c.get('adresse', '—')} | "
+            f"{prix_str} | {c.get('date_vente', '—')} | {c.get('distance_km', '—')} km | "
+            f"score {c.get('score', '—')}"
+        )
+    return "\n".join(lines)
+
+
+def _execute_run_calculation(
+    session_id: str,
+    dossier_id: str,
+    approche: str,
+    overrides: dict | None = None,
+) -> str:
+    """Recalcule la valeur par une approche avec des paramètres optionnels (lecture seule)."""
+    from engine.valuation import (  # type: ignore
+        calculate_valuation_trace,
+        calculate_expropriation,
+        calculate_liquidation_value,
+    )
+
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        return f"Session introuvable: {session_id}"
+    session_dir = Path(str(session["session_dir"]))
+    case_key = safe_path_id(str(session.get("dossier_id") or session_id))
+    input_path = session_dir / f"{case_key}.input.json"
+    if not input_path.exists():
+        return "Données du dossier non trouvées."
+
+    case = dict(read_json_dict(input_path))
+
+    # Appliquer les overrides dans le case (copie temporaire)
+    if overrides and isinstance(overrides, dict):
+        for key, value in overrides.items():
+            # Injecter dans revenus_depenses si clé reconnue
+            if key in ("taux_capitalisation_pct", "taux_vacance_pct", "revenu_brut_potentiel"):
+                rd = dict(case.get("revenus_depenses") or {})
+                rd[key] = value
+                case["revenus_depenses"] = rd
+            elif key == "decote_pct":
+                liq = dict(case.get("liquidation") or {})
+                liq["decote_pct"] = value
+                case["liquidation"] = liq
+            else:
+                case[key] = value
+
+    try:
+        if approche == "approche_avant_apres":
+            result = calculate_expropriation(case)
+        elif approche == "approche_liquidation":
+            result = calculate_liquidation_value(case)
+        else:
+            result = calculate_valuation_trace(case, approche)
+    except Exception as exc:
+        return f"Erreur calcul {approche}: {exc}"
+
+    value = result.get("value")
+    status = result.get("calculation_status", "?")
+    avert = result.get("AVERTISSEMENT", "")
+
+    if value is None:
+        return f"Approche {approche} : {status}. {avert}"
+
+    value_str = f"{float(value):,.0f}$"
+    overrides_str = f" [overrides: {overrides}]" if overrides else ""
+    avert_str = f"\n⚠ {avert}" if avert else ""
+    return f"Approche {approche}{overrides_str} → {value_str} ({status}){avert_str}"
+
+
+def _execute_rerun_step(
+    session_id: str,
+    dossier_id: str,
+    step: str,
+    raison: str = "",
+) -> str:
+    """Déclenche la ré-exécution d'une étape — vérifie le checkpoint gate."""
+    from engine.checkpoints import assert_checkpoint_confirmed  # type: ignore
+
+    _STEP_TO_CHECKPOINT = {
+        "comps-market": 1,       # CP1 doit être confirmé pour relancer CP2
+        "valuation-draft": 2,    # CP2 pour CP3
+        "compliance-qa": 2,
+        "redaction": 3,          # CP3 pour CP4
+    }
+
+    required_cp = _STEP_TO_CHECKPOINT.get(step)
+    if required_cp is None:
+        return f"Étape '{step}' ne peut pas être ré-exécutée via cet outil."
+
+    session = load_session(safe_path_id(session_id))
+    if not session:
+        return f"Session introuvable: {session_id}"
+    session_dir = Path(str(session["session_dir"]))
+
+    try:
+        assert_checkpoint_confirmed(session_dir, required_cp)
+    except Exception as exc:
+        return (
+            f"❌ Gate checkpoint non satisfait — impossible de relancer '{step}'.\n"
+            f"Raison : {exc}\n"
+            f"L'É.A. doit confirmer le checkpoint {required_cp} avant de relancer cette étape."
+        )
+
+    # Gate OK → déclencher le segment correspondant
+    _STEP_TO_SEGMENT = {
+        "comps-market": 2,
+        "valuation-draft": 3,
+        "compliance-qa": 3,
+        "redaction": 4,
+    }
+    segment = _STEP_TO_SEGMENT[step]
+
+    try:
+        import threading as _th
+        case_key = safe_path_id(str(session.get("dossier_id") or session_id))
+        input_path = session_dir / f"{case_key}.input.json"
+        case = read_json_dict(input_path)
+
+        result_holder: list[dict] = []
+
+        def _run():
+            result_holder.append(_run_pipeline_segment(session, case, segment))
+
+        _th.Thread(target=_run, daemon=True).start()
+
+        raison_str = f" (raison : {raison})" if raison else ""
+        return (
+            f"✓ Ré-exécution de l'étape '{step}' (segment {segment}) déclenchée{raison_str}.\n"
+            f"Le pipeline s'exécute en arrière-plan. Rafraîchir le statut dans quelques instants."
+        )
+    except Exception as exc:
+        return f"Erreur lors du déclenchement de '{step}': {exc}"
 
 
 def _execute_tool_call(name: str, args: dict, session_id: str, dossier_id: str) -> str:
@@ -4717,6 +5019,28 @@ def _execute_tool_call(name: str, args: dict, session_id: str, dossier_id: str) 
         return _execute_search_knowledge(
             str(args.get("query", "")),
             args.get("domain"),
+        )
+    if name == "search_comparables":
+        return _execute_search_comparables(
+            session_id, dossier_id,
+            prix_min=args.get("prix_min"),
+            prix_max=args.get("prix_max"),
+            distance_max_km=args.get("distance_max_km"),
+            date_min=args.get("date_min"),
+            date_max=args.get("date_max"),
+            top_n=int(args.get("top_n", 10)),
+        )
+    if name == "run_calculation":
+        return _execute_run_calculation(
+            session_id, dossier_id,
+            approche=str(args.get("approche", "approche_comparative")),
+            overrides=args.get("overrides"),
+        )
+    if name == "rerun_step":
+        return _execute_rerun_step(
+            session_id, dossier_id,
+            step=str(args.get("step", "")),
+            raison=str(args.get("raison", "")),
         )
     return f"Outil inconnu : {name}"
 

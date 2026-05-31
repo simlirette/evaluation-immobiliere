@@ -183,3 +183,73 @@ def test_liquidation_trace_decote_pct():
     assert trace["decote_source"] == "fournie"
     assert trace["type_liquidation"] == "ordonnee"
     assert "30 jours" in trace["justification"]
+
+
+# ── T4.7 : outils assistant d'action ─────────────────────────────────────────
+
+def test_agent_tools_list():
+    """Les 5 outils doivent être dans _AGENT_TOOLS."""
+    import api  # type: ignore
+    tool_names = {t["function"]["name"] for t in api._AGENT_TOOLS}
+    assert "fetch_artifact" in tool_names
+    assert "search_knowledge" in tool_names
+    assert "search_comparables" in tool_names
+    assert "run_calculation" in tool_names
+    assert "rerun_step" in tool_names
+    assert len(api._AGENT_TOOLS) == 5
+
+
+def test_search_comparables_tool_schema():
+    import api  # type: ignore
+    tool = next(t for t in api._AGENT_TOOLS if t["function"]["name"] == "search_comparables")
+    params = tool["function"]["parameters"]["properties"]
+    assert "prix_min" in params
+    assert "prix_max" in params
+    assert "distance_max_km" in params
+    assert "date_min" in params
+    assert "date_max" in params
+
+
+def test_run_calculation_tool_schema():
+    import api  # type: ignore
+    tool = next(t for t in api._AGENT_TOOLS if t["function"]["name"] == "run_calculation")
+    params = tool["function"]["parameters"]["properties"]
+    assert "approche" in params
+    assert "overrides" in params
+    approaches = tool["function"]["parameters"]["properties"]["approche"]["enum"]
+    assert "approche_comparative" in approaches
+    assert "approche_revenu" in approaches
+    assert "approche_liquidation" in approaches
+
+
+def test_rerun_step_tool_schema():
+    import api  # type: ignore
+    tool = next(t for t in api._AGENT_TOOLS if t["function"]["name"] == "rerun_step")
+    params = tool["function"]["parameters"]["properties"]
+    assert "step" in params
+    assert "raison" in params
+    steps = tool["function"]["parameters"]["properties"]["step"]["enum"]
+    assert "comps-market" in steps
+    assert "valuation-draft" in steps
+    assert "redaction" in steps
+
+
+def test_execute_tool_call_dispatch_unknown():
+    import api  # type: ignore
+    result = api._execute_tool_call("outil_inexistant", {}, "s-001", "D-001")
+    assert "inconnu" in result.lower()
+
+
+def test_execute_run_calculation_no_session(tmp_path, monkeypatch):
+    """Sans session valide, run_calculation retourne un message d'erreur."""
+    import api  # type: ignore
+    monkeypatch.setattr(api, "SESSIONS_DIR", tmp_path)
+    result = api._execute_run_calculation("session-inexistante", "D-000", "approche_comparative")
+    assert "introuvable" in result.lower() or "non trouvée" in result.lower()
+
+
+def test_execute_search_comparables_no_session(tmp_path, monkeypatch):
+    import api  # type: ignore
+    monkeypatch.setattr(api, "SESSIONS_DIR", tmp_path)
+    result = api._execute_search_comparables("session-inexistante", "D-000")
+    assert "introuvable" in result.lower()
