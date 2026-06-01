@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 interface Props {
   placeholder: string
@@ -10,48 +10,77 @@ interface Props {
 
 export default function ChatInput({ placeholder, onSend, disabled }: Props) {
   const [value, setValue] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const ready = value.trim().length > 0 && !disabled
 
   function handleSend() {
     if (!ready) return
     onSend?.(value.trim())
     setValue('')
+    inputRef.current?.focus()
   }
 
   return (
-    <div className="w-full max-w-[640px]">
-      <div
-        className="flex items-center gap-1.5 rounded-full px-2 py-2 border transition-[border-color,box-shadow] duration-200"
-        style={{
-          background: 'linear-gradient(180deg, rgba(242,237,230,.72) 0%, rgba(232,226,216,.62) 100%)',
-          backdropFilter: 'var(--glass-blur)',
-          WebkitBackdropFilter: 'var(--glass-blur)',
-          border: '1px solid var(--input-border)',
-          boxShadow: 'var(--shadow-glass)',
-        }}
-      >
-        <button aria-label="Joindre un fichier" className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-[#b5b2ac] hover:text-[#8a8780] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-          </svg>
-        </button>
-        <input
-          className="flex-1 bg-transparent border-none outline-none text-sm font-light text-[#1a1916] placeholder:text-[#b5b2ac] min-w-0 disabled:opacity-50"
+    <div
+      className="w-full rounded-[18px] border transition-[border-color,box-shadow] duration-150"
+      style={{
+        background: 'var(--paper-hi)',
+        border: '1px solid var(--rule)',
+        boxShadow: '0 2px 8px rgba(0,0,0,.06)',
+      }}
+      onFocus={() => {}}
+    >
+      {/* Input row */}
+      <div className="flex items-end gap-2 px-4 pt-3.5 pb-3">
+        <textarea
+          ref={inputRef}
+          rows={1}
+          className="flex-1 bg-transparent border-none outline-none text-[14px] font-light text-[var(--ink)] placeholder:text-[var(--ink-faint)] min-w-0 resize-none leading-6 disabled:opacity-50"
+          style={{ fontFamily: 'var(--font-sans)', maxHeight: '160px', overflowY: 'auto' }}
           value={value}
           disabled={disabled}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          onChange={e => {
+            setValue(e.target.value)
+            // Auto-resize
+            const el = e.target
+            el.style.height = 'auto'
+            el.style.height = el.scrollHeight + 'px'
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSend()
+            }
+          }}
           placeholder={disabled ? 'En cours…' : placeholder}
         />
+      </div>
+
+      {/* Bottom bar — attachement + send */}
+      <div className="flex items-center justify-between px-3 pb-2.5">
+        <button
+          aria-label="Joindre un fichier"
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors border-none bg-transparent cursor-pointer"
+          style={{ color: 'var(--ink-faint)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--paper-2)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+            <path d="M7.5 1v13M1 7.5h13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+
         <button
           onClick={handleSend}
           aria-label="Envoyer"
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border-none cursor-pointer transition-[background,transform] duration-200 hover:scale-[1.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]"
-          style={{ background: ready ? '#334155' : 'var(--send-idle)' }}
+          disabled={!ready}
+          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border-none cursor-pointer transition-[background,opacity] duration-150 disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{
+            background: ready ? 'var(--ink)' : 'var(--rule)',
+          }}
         >
-          <svg width="16" height="16" fill="none" stroke="white" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M12 5l7 7-7 7"/>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M2 7h10M8 3l4 4-4 4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
       </div>
