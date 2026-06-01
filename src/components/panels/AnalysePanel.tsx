@@ -244,7 +244,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden">
-      <div className="flex flex-col flex-1 w-full max-w-[760px] mx-auto overflow-hidden">
+      <div className="flex flex-col flex-1 w-full max-w-[900px] mx-auto overflow-hidden">
       <div ref={scrollRef} className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">

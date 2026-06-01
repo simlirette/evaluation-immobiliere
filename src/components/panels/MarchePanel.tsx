@@ -162,7 +162,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden">
-      <div className="flex flex-col flex-1 w-full max-w-[760px] mx-auto overflow-hidden">
+      <div className="flex flex-col flex-1 w-full max-w-[900px] mx-auto overflow-hidden">
       <div ref={scrollRef} className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
         <AgentMessage agentName="Agent Marché">

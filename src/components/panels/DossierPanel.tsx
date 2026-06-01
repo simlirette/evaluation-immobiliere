@@ -915,7 +915,7 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden">
       {/* Colonne centrée — messages ET input dans le même conteneur (comme Claude) */}
-      <div className="flex flex-col flex-1 w-full max-w-[760px] mx-auto overflow-hidden">
+      <div className="flex flex-col flex-1 w-full max-w-[900px] mx-auto overflow-hidden">
       {/* Messages scroll */}
       <div className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         {isRunning && (

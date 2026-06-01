@@ -195,10 +195,8 @@ function DossierShellInner() {
             </div>
           </div>
 
-          {/* Stepper — centré avec max-w-[760px] mx-auto, même que la conversation */}
-          <div className="w-full max-w-[760px] mx-auto px-8">
-            <Stepper activeTab={activeTab} onTabChange={setTab} />
-          </div>
+          {/* Stepper centré par CSS (justify-content: center dans .stepper) */}
+          <Stepper activeTab={activeTab} onTabChange={setTab} />
         </div>
 
         {/* Body — overflow-hidden sur onglet dossier (DossierPanel gère son propre scroll + ChatInput fixe) */}
