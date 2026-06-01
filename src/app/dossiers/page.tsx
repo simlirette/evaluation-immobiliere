@@ -130,10 +130,10 @@ export default function MesDossiersPage() {
 
         {/* Toolbar */}
         <div
-          className="flex items-center gap-3 px-10 py-3 flex-shrink-0"
+          className="flex items-center gap-3 px-8 py-3 flex-shrink-0"
         >
           {/* Search */}
-          <div className="relative flex-1 max-w-[360px]">
+          <div className="relative flex-1 max-w-[560px]">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
               width="14" height="14" viewBox="0 0 14 14" fill="none"
@@ -233,7 +233,7 @@ export default function MesDossiersPage() {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto scroll-fade-top">
-          <div className="px-10 pt-6 pb-16">
+          <div className="px-8 pt-6 pb-16">
             {error ? (
               <div className="flex flex-col items-center justify-center mt-20">
                 <EmptyState
