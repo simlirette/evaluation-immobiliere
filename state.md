@@ -1,26 +1,30 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: f2a3727 (master)_
+_Updated: 2026-05-31 | HEAD: 8df43aa (master)_
 
 ## Current Goal
 
-Prod live + bugs UI corrigés. Prochaine : E.A. bêta.
+Session corrections UI — 10/11 fixes appliqués. Loading agent a discuter.
 
-## Fixes récents (cette session)
+## Fixes déployés (8df43aa)
 
-- Sidebar layout : .sidebar.open ~ .main-content { margin-left: 260px } (06f89bf)
-- Double input : AgentChat flottant non branché supprimé (f2a3727)
-- Tokens Railway-Vercel synchronisés (blissful-reverence = Python backend)
-- Migration 009 profiles ea fields appliquée prod
+- #1 Ligne sous toolbar retirée + scroll-fade-top
+- #2 Stepper : fond seul, plus de underline bleu
+- #4 Counts faux retirés (Bibliothèque 348, Archives 142)
+- #5 Modèles cards : layout colonne lisible
+- #6 Archives : clic ouvre /dossier/[id]
+- #7 Apparence : toggle Clair/Sombre
+- #8 Paramètres : icône engrenage
+- #9/11 Paramètres/Aide layout : retiré flex-direction:column de .main-content
+- #10 Aide : icône ?
+
+## Fix en attente
+
+- #3 Loading agents : streaming token-by-token (llm_assistant_stream déjà en backend)
+  ou typing dots — décision utilisateur requise
 
 ## État prod
 
-- Frontend : https://eval-immo.vercel.app (Vercel)
-- Backend : https://blissful-reverence-production-ef1d.up.railway.app (Railway Python)
-- DB : vsarxgbzwxludarjhrnf.supabase.co (13 tables + 8745 RAG chunks)
-
-## Prochaines étapes
-
-1. E.A. bêta — tester avec un vrai dossier
-2. Onboarding / inscription E.A.
-3. Stripe facturation (metering deja en place)
+- eval-immo.vercel.app
+- blissful-reverence-production-ef1d.up.railway.app
+- Supabase prod 13 tables + 8745 RAG chunks
