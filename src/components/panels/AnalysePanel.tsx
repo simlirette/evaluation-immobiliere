@@ -244,7 +244,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
 
   return (
     <div className="flex flex-col flex-1 h-full px-6 overflow-hidden">
-      <div ref={scrollRef} className="w-full max-w-[760px] mx-auto flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
+      <div ref={scrollRef} className="w-full max-w-[960px] mx-auto flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
@@ -762,7 +762,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <div className="w-full max-w-[760px] mx-auto flex-shrink-0 pb-6 pt-2">
+      <div className="w-full max-w-[960px] mx-auto flex-shrink-0 pb-6 pt-2">
         <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={ask} disabled={asking} />
       </div>
     </div>
