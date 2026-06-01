@@ -200,18 +200,18 @@ function DossierShellInner() {
 
         {/* Body — overflow-hidden sur onglet dossier (DossierPanel gère son propre scroll + ChatInput fixe) */}
         <div
-          className={`flex-1 transition-[opacity,transform] duration-200 ${activeTab === 'dossier' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          className={`flex-1 transition-[opacity,transform] duration-200 ${['dossier','marche','analyse','rapport'].includes(activeTab) ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{
             opacity: visible ? 1 : 0,
             transform: visible ? 'translateY(0)' : 'translateY(5px)',
           }}
         >
           <div
-            className={`gap-7 px-10 pt-6 ${activeTab === 'dossier' ? 'h-full flex' : 'grid pb-36'}`}
-            style={{ gridTemplateColumns: activeTab !== 'dossier' ? 'minmax(0,1fr) 340px' : undefined }}
+            className={`gap-7 px-8 pt-6 ${['dossier','marche','analyse','rapport'].includes(activeTab) ? 'h-full flex' : 'grid pb-36'}`}
+            style={{ gridTemplateColumns: !['dossier','marche','analyse','rapport'].includes(activeTab) ? 'minmax(0,1fr) 300px' : undefined }}
           >
             {/* Main panel column */}
-            <div className={activeTab === 'dossier' ? 'flex-1 min-w-0 h-full overflow-hidden' : ''}>
+            <div className={['dossier','marche','analyse','rapport'].includes(activeTab) ? 'flex-1 min-w-0 h-full overflow-hidden' : ''}>
               {/* DossierPanel always mounted — keeps pipeline polling alive */}
               <div className={activeTab === 'dossier' ? 'h-full flex flex-col' : 'hidden'}>
                 <DossierPanel
@@ -228,8 +228,8 @@ function DossierShellInner() {
                   }}
                 />
               </div>
-              {activeTab === 'marche'   && <MarchePanel dossierId={dossierId} address={currentDossierName} />}
-              {activeTab === 'analyse'  && <AnalysePanel dossierId={dossierId} address={currentDossierName} />}
+              {activeTab === 'marche'   && <div className="h-full flex flex-col"><MarchePanel dossierId={dossierId} address={currentDossierName} /></div>}
+              {activeTab === 'analyse'  && <div className="h-full flex flex-col"><AnalysePanel dossierId={dossierId} address={currentDossierName} /></div>}
               {activeTab === 'synthese' && (
                 <SynthesePanel
                   dossierId={dossierId}
@@ -238,7 +238,9 @@ function DossierShellInner() {
                 />
               )}
               {activeTab === 'rapport'  && (
-                <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />
+                <div className="h-full flex flex-col">
+                  <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />
+                </div>
               )}
             </div>
 

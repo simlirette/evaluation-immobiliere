@@ -243,8 +243,8 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   if (error) return <PanelError onRetry={load} />
 
   return (
-    <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
-      <div ref={scrollRef} className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
+    <div className="flex flex-col flex-1 h-full px-6 overflow-hidden">
+      <div ref={scrollRef} className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
         <AgentMessage agentName="Agent Analyse">
           {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
@@ -762,7 +762,9 @@ export default function AnalysePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={ask} disabled={asking} />
+      <div className="w-full flex-shrink-0 pb-6 pt-2">
+        <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={ask} disabled={asking} />
+      </div>
     </div>
   )
 }

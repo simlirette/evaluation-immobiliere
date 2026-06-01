@@ -226,13 +226,13 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   if (error) return <PanelError onRetry={() => { setError(false); setLoading(true); reload().catch(() => { setError(true); setLoading(false) }) }} />
 
   return (
-    <div className={`relative flex flex-1 overflow-hidden ${split ? 'flex-row' : 'flex-col items-center justify-end'}`}>
+    <div className={`relative flex flex-1 h-full overflow-hidden ${split ? 'flex-row' : 'flex-col'}`}>
       <Toast message={toast} onDismiss={() => setToast(null)} />
       <div
-        className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full items-center justify-end'}`}
+        className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full flex-1 overflow-hidden'}`}
         style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0 } : undefined}
       >
-        <div ref={scrollRef} className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full max-w-[640px] px-6'}`}>
+        <div ref={scrollRef} className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full px-6'}`}>
           <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
           <AgentMessage agentName="Agent Rapport">
             {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}
