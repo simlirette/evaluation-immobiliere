@@ -1,18 +1,19 @@
 # State — eval-immo
 
-_Updated: 2026-06-01 | HEAD: 9244184 (master)_
+_Updated: 2026-06-01 | HEAD: 25a930b (master)_
 
 ## Current Goal
 
-Session corrections UI — layout Claude répliqué.
+Session UI — layout conversation style Claude complété.
 
 ## Derniers fixes
 
-- Pattern Claude : messages + ChatInput dans même max-w-[760px] mx-auto → alignement parfait
-- Stepper aligné avec max-w-[760px] mx-auto
-- Dégradé bas : contenu s'estompe avant input (comme Claude desktop)
-- Fix TS : gradient/ChatInput dans colonne centrée (MarchePanel, AnalysePanel)
+- Stepper centré naturellement (CSS justify-content:center, sans wrapper forcé)
+- Conversation 760→900px (remplit quasi toute la colonne)
+- ChatInput redesigné style Claude (rounded-18, paper-hi, textarea auto-resize)
+- Messages + ChatInput dans même conteneur max-w centrée
+- Dégradé bas : contenu s'estompe avant input
 
 ## Fix #3 en attente
 
-- Loading streaming token-by-token (backend prêt : llm_assistant_stream)
+- Loading streaming token-by-token (backend prêt)
