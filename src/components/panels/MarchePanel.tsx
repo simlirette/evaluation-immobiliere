@@ -5,6 +5,7 @@ import AgentMessage from '@/components/shared/AgentMessage'
 import UserMessage from '@/components/shared/UserMessage'
 import ComparableItem from '@/components/shared/ComparableItem'
 import ChatInput from '@/components/shared/ChatInput'
+import TypingDots from '@/components/shared/TypingDots'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchRuntimeEnrichment, fetchRuntimeComparables, fetchRuntimeAdjustments } from '@/lib/runtime-api'
@@ -341,7 +342,7 @@ export default function MarchePanel({ dossierId, address }: Props) {
         ))}
         {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Marché" last>
-            <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
+            <TypingDots />
           </AgentMessage>
         )}
       </div>

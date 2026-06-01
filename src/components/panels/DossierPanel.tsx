@@ -8,6 +8,7 @@ import UserMessage from '@/components/shared/UserMessage'
 import Chip from '@/components/shared/Chip'
 import DocItem from '@/components/shared/DocItem'
 import ChatInput from '@/components/shared/ChatInput'
+import TypingDots from '@/components/shared/TypingDots'
 import DropZone from '@/components/shared/DropZone'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
@@ -1163,14 +1164,14 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
             <AgentMessage agentName={r.agentLabel || 'Agent Dossier'} last={i === replies.length - 1 && !asking}>
               <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
                 {r.text}
-                {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
+                {r.streaming && <span className="inline-block w-[6px] h-[13px] bg-[#b5b2ac] rounded-[2px] align-text-bottom ml-0.5" style={{ animation: 'typing-bounce 0.8s ease-in-out infinite' }} />}
               </pre>
             </AgentMessage>
           </Fragment>
         ))}
         {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Dossier" last>
-            <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
+            <TypingDots />
           </AgentMessage>
         )}
       </div>

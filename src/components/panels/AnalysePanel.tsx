@@ -6,6 +6,7 @@ import UserMessage from '@/components/shared/UserMessage'
 import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
 import ValeurCard from '@/components/shared/ValeurCard'
 import ChatInput from '@/components/shared/ChatInput'
+import TypingDots from '@/components/shared/TypingDots'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import { fetchAppState, fetchRuntimeEnrichment, fetchRuntimeComparables, fetchRuntimeAdjustments, saveRuntimeAdjustments, saveRuntimeComparables } from '@/lib/runtime-api'
@@ -730,7 +731,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
         ))}
         {asking && replies.length === 0 && (
           <AgentMessage agentName="Agent Analyse" last>
-            <span className="text-[#b5b2ac] text-[13px] animate-pulse">···</span>
+            <TypingDots />
           </AgentMessage>
         )}
       </div>
