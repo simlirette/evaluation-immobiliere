@@ -7,7 +7,6 @@ import Stepper from '@/components/layout/Stepper'
 import Toast from '@/components/shared/Toast'
 import ShortcutHelp from '@/components/shared/ShortcutHelp'
 import SideCard from '@/components/dossier/SideCard'
-import AgentChat from '@/components/dossier/AgentChat'
 import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
@@ -321,8 +320,6 @@ function DossierShellInner() {
           </div>
         </div>
       </div>
-
-      <AgentChat activeTab={activeTab} />
 
       <Toast message={toast} onDismiss={dismissToast} />
       <ShortcutHelp open={showHelp} onClose={() => setShowHelp(false)} />
