@@ -198,22 +198,22 @@ function DossierShellInner() {
           <Stepper activeTab={activeTab} onTabChange={setTab} />
         </div>
 
-        {/* Body */}
+        {/* Body — overflow-hidden sur onglet dossier (DossierPanel gère son propre scroll + ChatInput fixe) */}
         <div
-          className="flex-1 overflow-y-auto transition-[opacity,transform] duration-200"
+          className={`flex-1 transition-[opacity,transform] duration-200 ${activeTab === 'dossier' ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{
             opacity: visible ? 1 : 0,
             transform: visible ? 'translateY(0)' : 'translateY(5px)',
           }}
         >
           <div
-            className="grid gap-7 px-10 pt-6 pb-36"
-            style={{ gridTemplateColumns: 'minmax(0,1fr) 340px' }}
+            className={`gap-7 px-10 pt-6 ${activeTab === 'dossier' ? 'h-full flex' : 'grid pb-36'}`}
+            style={{ gridTemplateColumns: activeTab !== 'dossier' ? 'minmax(0,1fr) 340px' : undefined }}
           >
             {/* Main panel column */}
-            <div>
+            <div className={activeTab === 'dossier' ? 'flex-1 min-w-0 h-full overflow-hidden' : ''}>
               {/* DossierPanel always mounted — keeps pipeline polling alive */}
-              <div className={activeTab === 'dossier' ? 'block' : 'hidden'}>
+              <div className={activeTab === 'dossier' ? 'h-full flex flex-col' : 'hidden'}>
                 <DossierPanel
                   isNew={isNew}
                   dossierId={dossierId}

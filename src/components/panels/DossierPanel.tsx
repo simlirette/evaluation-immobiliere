@@ -913,8 +913,9 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
   }
 
   return (
-    <div className="flex flex-col items-center justify-end flex-1 px-6 pb-9">
-      <div className="w-full max-w-[640px] flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade">
+    <div className="flex flex-col items-center flex-1 h-full px-6 overflow-hidden">
+      {/* Messages — scroll interne, ChatInput reste fixe en bas */}
+      <div className="w-full max-w-[640px] flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         {isRunning && (
           <PipelineProgress
             steps={pipelineSteps}
@@ -1171,7 +1172,10 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           </AgentMessage>
         )}
       </div>
-      <ChatInput placeholder="Questionner l'Agent Dossier..." onSend={ask} disabled={asking} />
+      {/* ChatInput fixe au bas — ne scroll pas avec les messages */}
+      <div className="w-full max-w-[640px] flex-shrink-0 pb-6 pt-2">
+        <ChatInput placeholder="Questionner l'Agent Dossier..." onSend={ask} disabled={asking} />
+      </div>
     </div>
   )
 }

@@ -366,6 +366,27 @@
 .topbar {
   padding: 28px 40px 0;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  /* Liquid glass : backdrop-blur pour que le contenu qui passe dessous soit flou */
+  background: rgba(250, 249, 245, 0.82);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+[data-theme="dark"] .topbar {
+  background: rgba(26, 24, 20, 0.82);
+}
+/* Fondu bas de topbar */
+.topbar::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -20px;
+  height: 20px;
+  background: linear-gradient(to bottom, rgba(250, 249, 245, 0.55), transparent);
+  pointer-events: none;
+}
+[data-theme="dark"] .topbar::after {
+  background: linear-gradient(to bottom, rgba(26, 24, 20, 0.55), transparent);
 }
 .page-h1 {
   font-family: var(--font-serif);
