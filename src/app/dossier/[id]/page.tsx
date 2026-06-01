@@ -195,8 +195,11 @@ function DossierShellInner() {
             </div>
           </div>
 
-          {/* Stepper centré par CSS (justify-content: center dans .stepper) */}
-          <Stepper activeTab={activeTab} onTabChange={setTab} />
+          {/* Stepper dans le même grid que le body → centré dans la colonne 1fr (même axe que la conversation) */}
+          <div className="grid gap-7 px-8" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
+            <div><Stepper activeTab={activeTab} onTabChange={setTab} /></div>
+            <div />
+          </div>
         </div>
 
         {/* Body — overflow-hidden sur onglet dossier (DossierPanel gère son propre scroll + ChatInput fixe) */}
