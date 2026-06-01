@@ -1,30 +1,26 @@
 # State — eval-immo
 
-_Updated: 2026-05-31 | HEAD: 8df43aa (master)_
+_Updated: 2026-05-31 | HEAD: c5948c4 (master)_
 
 ## Current Goal
 
-Session corrections UI — 10/11 fixes appliqués. Loading agent a discuter.
+Session corrections UI — fixes visuels déployés.
 
-## Fixes déployés (8df43aa)
+## Derniers fixes (c5948c4)
 
-- #1 Ligne sous toolbar retirée + scroll-fade-top
-- #2 Stepper : fond seul, plus de underline bleu
-- #4 Counts faux retirés (Bibliothèque 348, Archives 142)
-- #5 Modèles cards : layout colonne lisible
-- #6 Archives : clic ouvre /dossier/[id]
-- #7 Apparence : toggle Clair/Sombre
-- #8 Paramètres : icône engrenage
-- #9/11 Paramètres/Aide layout : retiré flex-direction:column de .main-content
-- #10 Aide : icône ?
+- ChatInput fixe au bas (onglet Dossier overflow-hidden, DossierPanel h-full)
+- Liquid glass sous stepper : backdrop-filter blur(20px) + fondu 20px
 
-## Fix en attente
+## Fixes session précédente (8df43aa)
 
-- #3 Loading agents : streaming token-by-token (llm_assistant_stream déjà en backend)
-  ou typing dots — décision utilisateur requise
+- Stepper : fond seul, plus de underline bleu
+- Sidebar counts faux retirés
+- Modèles cards : layout colonne lisible
+- Archives : clic ouvre dossier
+- Apparence : toggle Clair/Sombre
+- Icons : engrenage Paramètres, ? Aide
+- Layout Paramètres/Aide : flex-direction fix
 
-## État prod
+## Fix #3 en attente
 
-- eval-immo.vercel.app
-- blissful-reverence-production-ef1d.up.railway.app
-- Supabase prod 13 tables + 8745 RAG chunks
+- Loading streaming token-by-token (backend prêt : llm_assistant_stream)
