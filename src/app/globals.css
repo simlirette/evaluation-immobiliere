@@ -146,9 +146,14 @@
   height: 100%;
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  /* flex-direction définie par Tailwind sur chaque page (flex-col ou row) */
   margin-left: 0;
   transition: margin-left .22s cubic-bezier(.4,0,.2,1);
+}
+/* Fade-out au scroll sous la topbar */
+.scroll-fade-top {
+  mask-image: linear-gradient(to bottom, transparent 0, black 28px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px);
 }
 /* Quand la sidebar est ouverte, pousser le contenu à droite */
 .sidebar.open ~ .main-content {
@@ -202,13 +207,6 @@
   padding: 14px 0 0;
   position: relative;
 }
-.stepper::after {
-  content: '';
-  position: absolute;
-  bottom: -1px; left: 0; right: 0;
-  height: 1px;
-  background: var(--rule-soft);
-}
 .stepper .step {
   display: flex;
   align-items: center;
@@ -218,26 +216,23 @@
   font-size: 14px;
   color: var(--ink-mute);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color .15s, border-color .15s;
+  border: none;
+  transition: color .15s, background .15s;
   background: none;
-  border-top: none; border-left: none; border-right: none;
-  margin-bottom: -1px;
   position: relative;
   z-index: 1;
   white-space: nowrap;
+  border-radius: var(--r-md);
 }
-.stepper .step:hover { color: var(--ink); }
+.stepper .step:hover { color: var(--ink); background: rgba(31,30,28,.04); }
 .stepper .step.done { color: var(--ink-2); }
 .stepper .step.done .step-num { color: var(--verdigris); }
 .stepper .step.now {
   color: var(--ink);
   font-weight: 500;
-  background: rgba(31,30,28,.06);
-  border-radius: var(--r-md);
-  border-bottom-color: var(--navy);
+  background: rgba(31,30,28,.07);
 }
-[data-theme="dark"] .stepper .step.now { background: rgba(255,255,255,.07); }
+[data-theme="dark"] .stepper .step.now { background: rgba(255,255,255,.10); }
 .step-num {
   font-size: 13px;
   color: var(--ink-faint);

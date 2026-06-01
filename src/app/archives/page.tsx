@@ -47,9 +47,14 @@ function TableHeader() {
 }
 
 function ArchiveRow({ dossier, isLast }: { dossier: DossierArchive; isLast: boolean }) {
+  const router = useRouter()
   return (
     <div
-      className="grid items-center px-5 py-3 cursor-default transition-colors"
+      className="grid items-center px-5 py-3 cursor-pointer transition-colors"
+      role="button"
+      tabIndex={0}
+      onClick={() => router.push(`/dossier/${dossier.id}`)}
+      onKeyDown={e => e.key === 'Enter' && router.push(`/dossier/${dossier.id}`)}
       style={{
         gridTemplateColumns: COL_TEMPLATE,
         gap: '1rem',

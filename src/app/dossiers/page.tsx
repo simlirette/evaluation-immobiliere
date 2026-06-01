@@ -130,8 +130,7 @@ export default function MesDossiersPage() {
 
         {/* Toolbar */}
         <div
-          className="flex items-center gap-3 px-10 py-3 flex-shrink-0 border-b"
-          style={{ borderBottomColor: 'var(--rule-soft)' }}
+          className="flex items-center gap-3 px-10 py-3 flex-shrink-0"
         >
           {/* Search */}
           <div className="relative flex-1 max-w-[360px]">
@@ -233,7 +232,7 @@ export default function MesDossiersPage() {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scroll-fade-top">
           <div className="px-10 pt-6 pb-16">
             {error ? (
               <div className="flex flex-col items-center justify-center mt-20">

@@ -122,69 +122,35 @@ function ModeleCard({
       className="panel card-hover"
       style={{ display: 'flex', flexDirection: 'column', gap: 0 }}
     >
-      <div className="panel-head" style={{ paddingBottom: 0, borderBottom: 'none' }}>
+      {/* Header — colonne */}
+      <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Badges row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-          <span
-            style={{
-              display: 'inline-block',
-              fontSize: 11,
-              fontFamily: 'var(--font-sans)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'var(--ink-faint)',
-              border: '1px solid var(--ink-faint)',
-              borderRadius: 'var(--r-pill)',
-              padding: '2px 8px',
-              lineHeight: 1.5,
-            }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontSize: 10, fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
+            letterSpacing: '0.06em', color: 'var(--ink-faint)',
+            border: '1px solid var(--ink-faint)', borderRadius: 'var(--r-pill)', padding: '2px 7px',
+          }}>
             {modele.categorie}
           </span>
           {modele.oeaqConforme && (
-            <span
-              style={{
-                display: 'inline-block',
-                fontSize: 11,
-                fontFamily: 'var(--font-sans)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: 'var(--navy)',
-                border: '1px solid var(--navy)',
-                borderRadius: 'var(--r-pill)',
-                padding: '2px 8px',
-                lineHeight: 1.5,
-              }}
-            >
+            <span style={{
+              fontSize: 10, fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--navy)',
+              border: '1px solid var(--navy)', borderRadius: 'var(--r-pill)', padding: '2px 7px',
+            }}>
               OEAQ ✓
             </span>
           )}
         </div>
 
         {/* Title */}
-        <h3
-          className="panel-title"
-          style={{
-            fontSize: 17,
-            fontWeight: 500,
-            fontFamily: 'var(--font-serif)',
-            color: 'var(--ink)',
-            margin: 0,
-          }}
-        >
+        <h3 style={{ fontSize: 16, fontWeight: 500, fontFamily: 'var(--font-serif)', color: 'var(--ink)', margin: 0, lineHeight: 1.3 }}>
           {modele.titre}
         </h3>
 
         {/* Description */}
-        <p
-          style={{
-            fontSize: 13,
-            fontFamily: 'var(--font-sans)',
-            color: 'var(--ink-mute)',
-            marginTop: 8,
-            lineHeight: 1.55,
-          }}
-        >
+        <p style={{ fontSize: 12.5, fontFamily: 'var(--font-sans)', color: 'var(--ink-mute)', margin: 0, lineHeight: 1.55 }}>
           {modele.description}
         </p>
       </div>

@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
   { href: '/dossiers',     label: 'Dossiers',     icon: FolderIcon,  count: null as number | null },
-  { href: '/bibliotheque', label: 'Bibliothèque', icon: LibraryIcon, count: 348 },
+  { href: '/bibliotheque', label: 'Bibliothèque', icon: LibraryIcon, count: null },
   { href: '/modeles',      label: 'Modèles',      icon: TemplateIcon,count: 6 },
-  { href: '/archives',     label: 'Archives',     icon: ArchiveIcon, count: 142 },
+  { href: '/archives',     label: 'Archives',     icon: ArchiveIcon, count: null },
 ]
 
 export default function SidebarNav() {
