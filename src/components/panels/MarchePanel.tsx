@@ -372,13 +372,12 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      </div>
       <div className="h-8 flex-shrink-0 -mt-8 pointer-events-none"
         style={{ background: 'linear-gradient(to bottom, transparent, var(--paper))' }} />
       <div className="w-full flex-shrink-0 pb-6 pt-1" style={{ background: 'var(--paper)' }}>
         <ChatInput placeholder="Questionner l'Agent Marché..." onSend={ask} disabled={asking} />
       </div>
-      </div>
+      </div>{/* fin colonne centrée */}
     </div>
   )
 }
