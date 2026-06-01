@@ -195,15 +195,9 @@ function DossierShellInner() {
             </div>
           </div>
 
-          {/* Stepper aligné sur la colonne conversation (même grid que le body) */}
-          <div
-            className="grid gap-7 px-8"
-            style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}
-          >
-            <div>
-              <Stepper activeTab={activeTab} onTabChange={setTab} />
-            </div>
-            <div /> {/* placeholder side-cards */}
+          {/* Stepper — centré avec max-w-[760px] mx-auto, même que la conversation */}
+          <div className="w-full max-w-[760px] mx-auto px-8">
+            <Stepper activeTab={activeTab} onTabChange={setTab} />
           </div>
         </div>
 

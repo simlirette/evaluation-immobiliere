@@ -162,7 +162,8 @@ export default function MarchePanel({ dossierId, address }: Props) {
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden">
-      <div ref={scrollRef} className="w-full max-w-[960px] mx-auto flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
+      <div className="flex flex-col flex-1 w-full max-w-[760px] mx-auto overflow-hidden">
+      <div ref={scrollRef} className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         <UserMessage>Comparer les ventes retenues et expliquer leur pertinence.</UserMessage>
         <AgentMessage agentName="Agent Marché">
           {'J\u2019ai charg\u00e9 '}<strong>{comparables.length} comparable{comparables.length !== 1 ? 's' : ''}</strong>{' depuis les art\u00e9facts du backend.'}
@@ -371,8 +372,12 @@ export default function MarchePanel({ dossierId, address }: Props) {
           </button>
         </div>
       )}
-      <div className="w-full max-w-[960px] mx-auto flex-shrink-0 pb-6 pt-2">
+      </div>
+      <div className="h-8 flex-shrink-0 -mt-8 pointer-events-none"
+        style={{ background: 'linear-gradient(to bottom, transparent, var(--paper))' }} />
+      <div className="w-full flex-shrink-0 pb-6 pt-1" style={{ background: 'var(--paper)' }}>
         <ChatInput placeholder="Questionner l'Agent Marché..." onSend={ask} disabled={asking} />
+      </div>
       </div>
     </div>
   )

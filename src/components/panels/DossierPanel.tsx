@@ -914,8 +914,10 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden">
-      {/* Messages — scroll interne, ChatInput reste fixe en bas */}
-      <div className="w-full max-w-[960px] mx-auto flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
+      {/* Colonne centrée — messages ET input dans le même conteneur (comme Claude) */}
+      <div className="flex flex-col flex-1 w-full max-w-[760px] mx-auto overflow-hidden">
+      {/* Messages scroll */}
+      <div className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
         {isRunning && (
           <PipelineProgress
             steps={pipelineSteps}
@@ -1172,10 +1174,14 @@ export default function DossierPanel({ isNew, dossierId, onPipelineComplete }: P
           </AgentMessage>
         )}
       </div>
-      {/* ChatInput fixe au bas — ne scroll pas avec les messages */}
-      <div className="w-full max-w-[960px] mx-auto flex-shrink-0 pb-6 pt-2">
+      {/* Dégradé bas — contenu disparait sous l'input (comme Claude) */}
+      <div className="h-8 flex-shrink-0 -mt-8 pointer-events-none"
+        style={{ background: 'linear-gradient(to bottom, transparent, var(--paper))' }} />
+      {/* ChatInput — même colonne centrée que les messages */}
+      <div className="w-full flex-shrink-0 pb-6 pt-1" style={{ background: 'var(--paper)' }}>
         <ChatInput placeholder="Questionner l'Agent Dossier..." onSend={ask} disabled={asking} />
       </div>
+      </div>{/* fin colonne centrée */}
     </div>
   )
 }
