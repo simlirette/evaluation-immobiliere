@@ -4534,6 +4534,460 @@ def _int_or_zero(value: object) -> int:
         return 0
 
 
+def _read_session_input_case(session: dict) -> tuple[dict, str]:
+    session_dir = Path(str(session.get("session_dir") or ""))
+    if not session_dir.exists():
+        return {}, ""
+    candidates: list[Path] = []
+    dossier_id = str(session.get("dossier_id") or "").strip()
+    if dossier_id:
+        candidates.append(session_dir / f"{safe_path_id(dossier_id)}.input.json")
+    for path in sorted(session_dir.glob("*.input.json")):
+        if path not in candidates:
+            candidates.append(path)
+    for path in candidates:
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(session_dir.resolve())
+        except (OSError, ValueError):
+            continue
+        payload = read_json_dict(resolved)
+        if payload:
+            return payload, str(resolved)
+    return {}, ""
+
+
+def _first_present(mapping: dict, keys: list[str]) -> object:
+    for key in keys:
+        value = mapping.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _nested_present(mapping: dict, path: list[str]) -> object:
+    current: object = mapping
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current if current not in (None, "", [], {}) else None
+
+
+def _collect_case_source_ids(case: dict) -> list[str]:
+    source_ids: list[str] = []
+    for key in ("source_id", "source_ids"):
+        value = case.get(key)
+        if isinstance(value, list):
+            source_ids.extend(str(item).strip() for item in value if str(item).strip())
+        elif value:
+            source_ids.append(str(value).strip())
+    for comparable in case.get("comparables", []) if isinstance(case.get("comparables"), list) else []:
+        if isinstance(comparable, dict) and comparable.get("source_id"):
+            source_ids.append(str(comparable["source_id"]).strip())
+    for adjustment in case.get("ajustements", []) if isinstance(case.get("ajustements"), list) else []:
+        if isinstance(adjustment, dict) and adjustment.get("source_id"):
+            source_ids.append(str(adjustment["source_id"]).strip())
+    for hypothesis in case.get("hypotheses", []) if isinstance(case.get("hypotheses"), list) else []:
+        if not isinstance(hypothesis, dict):
+            continue
+        value = hypothesis.get("source_ids")
+        if isinstance(value, list):
+            source_ids.extend(str(item).strip() for item in value if str(item).strip())
+    for event in case.get("timeline", []) if isinstance(case.get("timeline"), list) else []:
+        if isinstance(event, dict) and event.get("source_id"):
+            source_ids.append(str(event["source_id"]).strip())
+    return sorted(dict.fromkeys(item for item in source_ids if item))
+
+
+def _source_index_items(*payloads: dict) -> list[dict]:
+    items: list[dict] = []
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            continue
+        for key in ("sources", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                items.extend(item for item in value if isinstance(item, dict))
+    return items
+
+
+def _professional_check(
+    check_id: str,
+    ok: bool,
+    label: str,
+    detail: str,
+    action: str,
+    *,
+    severity: str = "blocking",
+    evidence: dict | None = None,
+) -> dict:
+    item: dict[str, object] = {
+        "id": check_id,
+        "label": label,
+        "status": "ok" if ok else severity,
+        "ok": ok,
+        "detail": detail,
+        "action": "" if ok else action,
+    }
+    if evidence:
+        item["evidence"] = evidence
+    return item
+
+
+def source_provenance_report(session: dict) -> dict:
+    session_id = str(session.get("session_id") or "")
+    artifact_index = session_artifacts(session_id)
+    case, case_path = _read_session_input_case(session)
+    facts_source_index = read_artifact_json_from_index(session, artifact_index, "data-facts", "source_index.json")
+    comps_source_index = read_artifact_json_from_index(session, artifact_index, "comps-market", "source_index.json")
+    comparables_payload = read_artifact_json_from_index(session, artifact_index, "comps-market", "comparables_proposes.json")
+    source_items = _source_index_items(facts_source_index, comps_source_index)
+    by_id: dict[str, dict] = {}
+    for item in source_items:
+        source_id = str(item.get("source_id") or item.get("id") or "").strip()
+        if not source_id:
+            continue
+        by_id[source_id] = {
+            "source_id": source_id,
+            "source_type": item.get("source_type") or item.get("type") or "",
+            "filename": item.get("filename") or item.get("path") or "",
+            "retrieved_at": item.get("retrieved_at") or item.get("created_at") or "",
+            "validated_by_ea": bool(item.get("validated_by_ea") or item.get("validation_humaine")),
+        }
+    for source_id in _collect_case_source_ids(case):
+        by_id.setdefault(
+            source_id,
+            {
+                "source_id": source_id,
+                "source_type": "case_input",
+                "filename": case_path,
+                "retrieved_at": "",
+                "validated_by_ea": False,
+            },
+        )
+    comparable_rows: list[dict] = []
+    for item in comparables_payload.get("comparables", []) if isinstance(comparables_payload.get("comparables"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        comparable_rows.append(
+            {
+                "comparable_id": item.get("comparable_id") or item.get("id") or "",
+                "source_id": item.get("source_id") or "",
+                "score": item.get("score"),
+                "decision": "retenu" if item.get("source_id") else "source_manquante",
+            }
+        )
+    source_ids = sorted(by_id)
+    return {
+        "schema_version": "source_provenance_report_v1",
+        "session_id": session_id,
+        "dossier_id": session.get("dossier_id", ""),
+        "case_input_path": case_path,
+        "sources_count": len(source_ids),
+        "source_ids": source_ids,
+        "sources": [by_id[key] for key in source_ids],
+        "comparables_count": len(comparable_rows),
+        "comparables": comparable_rows,
+        "limitations": [
+            "Les references sans chemin documentaire detaille proviennent du dossier d'entree ou d'une fixture.",
+            "La validation E.A. finale demeure requise avant signature.",
+        ],
+    }
+
+
+def npp_compliance_matrix(session: dict) -> dict:
+    session_id = str(session.get("session_id") or "")
+    artifact_index = session_artifacts(session_id)
+    case, case_path = _read_session_input_case(session)
+    review = session_review_payload(session)
+    conflict = read_artifact_json_from_index(session, artifact_index, "mandat-intake", "conflit_interets.json")
+    umpp = read_artifact_json_from_index(session, artifact_index, "amu-analyst", "umpp_conclusion.json")
+    source_report = source_provenance_report(session)
+    comparables_payload = read_artifact_json_from_index(session, artifact_index, "comps-market", "comparables_proposes.json")
+    justifications = read_artifact_json_from_index(session, artifact_index, "comps-market", "justifications_comparables.json")
+    report_preview = read_artifact_text_from_index(session, artifact_index, "redaction", "brouillon_rapport.md", limit=256)
+    hypotheses = case.get("hypotheses", []) if isinstance(case.get("hypotheses"), list) else []
+    timeline = case.get("timeline", []) if isinstance(case.get("timeline"), list) else []
+    comparables = comparables_payload.get("comparables", []) if isinstance(comparables_payload.get("comparables"), list) else []
+    sourced_comparables = [item for item in comparables if isinstance(item, dict) and item.get("source_id")]
+    approaches: list[dict] = []
+    for artifact_name in (
+        "calculs_approche_comparative.json",
+        "calculs_approche_cout.json",
+        "calculs_approche_revenu.json",
+    ):
+        payload = read_artifact_json_from_index(session, artifact_index, "valuation-draft", artifact_name)
+        if payload:
+            approaches.append(
+                {
+                    "artifact": artifact_name,
+                    "approach": payload.get("approach", ""),
+                    "applicable": payload.get("applicable", True),
+                    "status": payload.get("calculation_status", ""),
+                    "input_count": payload.get("input_count", 0),
+                }
+            )
+
+    rows = [
+        {
+            "id": "mandate_scope",
+            "label": "Mandate, scope, intended use, report format",
+            "status": "complete"
+            if case and _first_present(case, ["mandat_type"]) and _nested_present(case, ["commanditaire", "fin_evaluation"])
+            else "missing",
+            "evidence": case_path,
+        },
+        {
+            "id": "subject_identification",
+            "label": "Subject property identification",
+            "status": "complete" if _first_present(case, ["adresse_anonymisee", "adresse_complete", "adresse", "zone"]) else "missing",
+            "evidence": case_path,
+        },
+        {
+            "id": "effective_date",
+            "label": "Effective date",
+            "status": "complete" if _first_present(case, ["date_reference", "date_achat"]) else "missing",
+            "evidence": case_path,
+        },
+        {
+            "id": "conflict_check",
+            "label": "Conflict check",
+            "status": "complete" if conflict.get("verification_completee") and not conflict.get("conflit_detecte") else "missing",
+            "evidence": "mandat-intake.conflit_interets.json" if conflict else "",
+        },
+        {
+            "id": "highest_best_use",
+            "label": "Highest and best use / UMPP",
+            "status": "complete" if umpp else "missing",
+            "evidence": "amu-analyst.umpp_conclusion.json" if umpp else "",
+        },
+        {
+            "id": "inspection_evidence",
+            "label": "Inspection / physical condition evidence",
+            "status": "complete" if any(isinstance(item, dict) and "inspection" in str(item.get("type", "")).lower() for item in timeline) else "warning",
+            "evidence": case_path,
+        },
+        {
+            "id": "source_provenance",
+            "label": "Source provenance",
+            "status": "complete" if int(source_report.get("sources_count", 0) or 0) > 0 else "missing",
+            "evidence": "source_provenance.json",
+        },
+        {
+            "id": "comparable_selection",
+            "label": "Comparable selection and exclusion evidence",
+            "status": "complete" if len(sourced_comparables) >= 3 and justifications else "missing",
+            "evidence": "comps-market.comparables_proposes.json",
+        },
+        {
+            "id": "valuation_approaches",
+            "label": "Valuation approach applicability and calculations",
+            "status": "complete" if approaches else "missing",
+            "evidence": "valuation-draft.*",
+        },
+        {
+            "id": "assumptions_limitations",
+            "label": "Assumptions and limiting conditions",
+            "status": "complete" if hypotheses else "warning",
+            "evidence": case_path,
+        },
+        {
+            "id": "human_review",
+            "label": "Human E.A. review before reliance",
+            "status": "complete" if review.get("decision") == "VALIDE" else "missing",
+            "evidence": str(session.get("review_path") or ""),
+        },
+        {
+            "id": "draft_report",
+            "label": "Draft report artifact",
+            "status": "complete" if report_preview.strip() else "missing",
+            "evidence": "redaction.brouillon_rapport.md",
+        },
+    ]
+    missing = [row["id"] for row in rows if row["status"] == "missing"]
+    warnings = [row["id"] for row in rows if row["status"] == "warning"]
+    return {
+        "schema_version": "npp_compliance_matrix_v1",
+        "session_id": session_id,
+        "dossier_id": session.get("dossier_id", ""),
+        "status": "COMPLETE" if not missing else "INCOMPLETE",
+        "rows": rows,
+        "missing": missing,
+        "warnings": warnings,
+        "limits": {
+            "clause_mapping_requires_professional_review": True,
+            "certification_automatic": False,
+            "requires_human_validation": True,
+        },
+    }
+
+
+def professional_workfile_gate(session: dict, *, require_review: bool = False, require_report: bool = True) -> dict:
+    session_id = str(session.get("session_id") or "")
+    artifact_index = session_artifacts(session_id)
+    case, case_path = _read_session_input_case(session)
+    review = session_review_payload(session)
+    conflict = read_artifact_json_from_index(session, artifact_index, "mandat-intake", "conflit_interets.json")
+    comparables_payload = read_artifact_json_from_index(session, artifact_index, "comps-market", "comparables_proposes.json")
+    justifications = read_artifact_json_from_index(session, artifact_index, "comps-market", "justifications_comparables.json")
+    comparative = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "calculs_approche_comparative.json")
+    cost = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "calculs_approche_cout.json")
+    income = read_artifact_json_from_index(session, artifact_index, "valuation-draft", "calculs_approche_revenu.json")
+    report_preview = read_artifact_text_from_index(session, artifact_index, "redaction", "brouillon_rapport.md", limit=512)
+    source_report = source_provenance_report(session)
+    npp_matrix = npp_compliance_matrix(session)
+
+    comparables = comparables_payload.get("comparables", []) if isinstance(comparables_payload.get("comparables"), list) else []
+    sourced_comparables = [item for item in comparables if isinstance(item, dict) and item.get("source_id")]
+    timeline = case.get("timeline", []) if isinstance(case.get("timeline"), list) else []
+    adjustments = case.get("ajustements", []) if isinstance(case.get("ajustements"), list) else []
+    validated_adjustments = [
+        item for item in adjustments if isinstance(item, dict) and item.get("source_id") and item.get("validation_humaine") is True
+    ]
+    checks = [
+        _professional_check(
+            "case_input_available",
+            bool(case),
+            "Input case persisted",
+            case_path or "input case missing",
+            "Persist the original/anonymized case input in the runtime session.",
+            evidence={"case_input_path": case_path},
+        ),
+        _professional_check(
+            "mandate_scope_complete",
+            bool(case)
+            and bool(_first_present(case, ["dossier_id"]))
+            and bool(_first_present(case, ["mandat_type"]))
+            and bool(_nested_present(case, ["commanditaire", "fin_evaluation"]))
+            and bool(_first_present(case, ["format_rapport"])),
+            "Mandate and scope complete",
+            "mandat_type/format_rapport/fin_evaluation present"
+            if case
+            else "case unavailable",
+            "Complete mandate type, report format, intended use, and commanditaire context.",
+        ),
+        _professional_check(
+            "effective_date_present",
+            bool(_first_present(case, ["date_reference", "date_achat"])),
+            "Effective date present",
+            str(_first_present(case, ["date_reference", "date_achat"]) or ""),
+            "Set the effective date before professional reliance.",
+        ),
+        _professional_check(
+            "subject_identification_present",
+            bool(_first_present(case, ["adresse_anonymisee", "adresse_complete", "adresse", "zone"])),
+            "Subject property identifiable",
+            str(_first_present(case, ["adresse_anonymisee", "adresse_complete", "adresse", "zone"]) or ""),
+            "Record a controlled subject identifier: anonymized address, civic address, or sector.",
+        ),
+        _professional_check(
+            "conflict_check_clear",
+            bool(conflict.get("verification_completee")) and not bool(conflict.get("conflit_detecte")),
+            "Conflict check clear",
+            str(conflict.get("commentaire") or "conflict artifact missing"),
+            "Complete and clear the conflict check before review/package.",
+        ),
+        _professional_check(
+            "source_provenance_present",
+            int(source_report.get("sources_count", 0) or 0) > 0,
+            "Source provenance present",
+            f"{source_report.get('sources_count', 0)} source(s)",
+            "Attach source ids and source index entries for material facts and comparables.",
+        ),
+        _professional_check(
+            "sourced_comparables_minimum",
+            len(sourced_comparables) >= 3,
+            "At least 3 sourced comparables",
+            f"{len(sourced_comparables)} sourced comparable(s)",
+            "Provide at least three usable, sourced comparables or mark the dossier as blocked/insufficient.",
+        ),
+        _professional_check(
+            "comparable_selection_documented",
+            bool(justifications),
+            "Comparable selection documented",
+            "justifications_comparables.json present" if justifications else "selection justification missing",
+            "Persist inclusion/exclusion reasons for the comparable search universe.",
+        ),
+        _professional_check(
+            "comparative_approach_traceable",
+            bool(comparative) and _int_or_zero(comparative.get("input_count")) >= 3 and _float_or_none(comparative.get("value")) is not None,
+            "Comparative approach traceable",
+            f"input_count={comparative.get('input_count', 0) if comparative else 0}",
+            "Generate a comparative valuation trace with sourced inputs.",
+        ),
+        _professional_check(
+            "adjustments_human_validated",
+            not adjustments or len(validated_adjustments) == len(adjustments),
+            "Adjustments human-validated",
+            f"{len(validated_adjustments)}/{len(adjustments)} validated",
+            "Every adjustment must have a source_id and validation_humaine=true.",
+        ),
+        _professional_check(
+            "inspection_evidence_present",
+            any(isinstance(item, dict) and "inspection" in str(item.get("type", "")).lower() for item in timeline),
+            "Inspection/condition evidence present",
+            "inspection timeline present" if timeline else "inspection evidence missing",
+            "Add inspection date, condition notes, measurements, and photo/document evidence.",
+            severity="warning",
+        ),
+        _professional_check(
+            "cost_income_scope_explicit",
+            bool(cost) and bool(income),
+            "Cost/income approach scope explicit",
+            "cost and income artifacts present" if cost and income else "cost/income scope incomplete",
+            "Mark cost/income approaches as completed, not applicable, or insufficient with reasons.",
+            severity="warning",
+        ),
+        _professional_check(
+            "npp_matrix_complete",
+            npp_matrix.get("status") == "COMPLETE",
+            "Professional compliance matrix complete",
+            f"missing={len(npp_matrix.get('missing', []))}",
+            "Close missing professional matrix items before final professional reliance.",
+            severity="warning",
+        ),
+        _professional_check(
+            "report_draft_present",
+            (not require_report) or bool(report_preview.strip()),
+            "Draft report present",
+            "brouillon_rapport.md present" if report_preview.strip() else "draft report missing",
+            "Generate a draft report before package/export.",
+        ),
+        _professional_check(
+            "human_review_validated",
+            (not require_review) or review.get("decision") == "VALIDE",
+            "Human review validated",
+            str(review.get("decision") or "A_SAISIR"),
+            "Record a VALIDE internal E.A. review before package generation.",
+        ),
+    ]
+    blocking = [item for item in checks if item["status"] == "blocking"]
+    warnings = [item for item in checks if item["status"] == "warning"]
+    return {
+        "schema_version": "professional_workfile_gate_v1",
+        "ok": not blocking,
+        "status": "READY_FOR_EA_REVIEW" if not blocking else "BLOCKED",
+        "session_id": session_id,
+        "dossier_id": session.get("dossier_id", ""),
+        "requires_human_validation": True,
+        "certification_automatic": False,
+        "required_review_decision": "VALIDE" if require_review else "",
+        "actual_review_decision": review.get("decision", "A_SAISIR"),
+        "blocking_errors_count": len(blocking),
+        "warning_count": len(warnings),
+        "blocking_errors": [str(item["id"]) for item in blocking],
+        "warnings": [str(item["id"]) for item in warnings],
+        "blocking_messages": [str(item["action"]) for item in blocking],
+        "checks": checks,
+        "npp_compliance_matrix": npp_matrix,
+        "source_provenance": {
+            "sources_count": source_report.get("sources_count", 0),
+            "comparables_count": source_report.get("comparables_count", 0),
+        },
+    }
+
+
 def _gate_message(code: str, context: dict) -> str:
     if code == "runtime_result_missing":
         return "Resultat runtime introuvable."
@@ -4570,6 +5024,10 @@ def _gate_message(code: str, context: dict) -> str:
         return "Repertoire d'artefacts runtime introuvable."
     if code == "artifact_dir_outside_session":
         return "Repertoire d'artefacts runtime hors session refuse."
+    if code == "professional_workfile_blocking":
+        blocking = _string_list(context.get("professional_workfile_blocking"))
+        suffix = f": {'; '.join(blocking[:3])}" if blocking else ""
+        return f"Dossier professionnel incomplet{suffix}."
     return code
 
 
@@ -4606,6 +5064,11 @@ def certifiability_gate(
         "redaction",
         "brouillon_rapport.md",
         limit=1024,
+    )
+    professional_gate = professional_workfile_gate(
+        session,
+        require_review=require_review,
+        require_report=require_report,
     )
 
     runtime_blocking = _string_list(result.get("blocking_failures"))
@@ -4645,6 +5108,8 @@ def certifiability_gate(
 
     if require_report and not report_preview.strip():
         errors.append("report_draft_missing")
+    if professional_gate.get("blocking_errors"):
+        errors.append("professional_workfile_blocking")
 
     if require_artifact_dir:
         if not artifact_dir_raw or not artifact_dir.exists() or not artifact_dir.is_dir():
@@ -4663,6 +5128,7 @@ def certifiability_gate(
         "compliance_status": compliance_status,
         "comparative_input_count": comparative_input_count,
         "integrity_errors": integrity.get("errors", []),
+        "professional_workfile_blocking": professional_gate.get("blocking_errors", []),
     }
     return {
         "schema_version": "certifiability_gate_v1",
@@ -4683,6 +5149,7 @@ def certifiability_gate(
         "comparative_input_count": comparative_input_count,
         "comparative_value": comparative_value,
         "comparative_calculation_status": comparative_status,
+        "professional_workfile_gate": professional_gate,
         "report_available": bool(report_preview.strip()),
         "artifact_dir": artifact_dir_raw,
         "blocking_errors_count": len(errors),
@@ -4760,6 +5227,11 @@ def generate_v1_package_for_session(session_id: str) -> dict:
     gate = validate_v1_package_source(session)
     if not gate["ok"]:
         raise ValueError("paquet V1 refuse: " + "; ".join(gate["blocking_errors"]))
+    workfile_gate = gate.get("professional_workfile_gate")
+    if not isinstance(workfile_gate, dict) or not workfile_gate:
+        workfile_gate = professional_workfile_gate(session, require_review=True, require_report=True)
+    npp_matrix = npp_compliance_matrix(session)
+    provenance = source_provenance_report(session)
 
     result = read_json_dict(Path(str(session.get("result_path") or "")))
     review = session_review_payload(session)
@@ -4773,6 +5245,9 @@ def generate_v1_package_for_session(session_id: str) -> dict:
         integrity=integrity,
         package_origin="validated_runtime_session",
         certifiability_gate=gate,
+        professional_workfile_gate=workfile_gate,
+        npp_compliance_matrix=npp_matrix,
+        source_provenance=provenance,
         require_report_md=True,
         require_report_pdf=True,
     )

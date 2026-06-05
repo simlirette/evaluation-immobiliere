@@ -4,26 +4,38 @@ Objectif: permettre a un evaluateur agree invite d'utiliser eval-immo sur un lie
 
 ## Definition de pret
 
-Le lien beta peut etre transmis seulement si `GET /beta/readiness` retourne `status=PRET_LIEN_EA`.
+Le lien beta peut etre transmis seulement si:
+
+- `GET /beta/readiness` retourne `status=PRET_LIEN_EA`.
+- `python scripts/check_closed_beta_launch.py <evidence.json>` retourne `READY_FOR_CLOSED_BETA`.
 
 Controles bloquants:
 
 - `hosted_url_configured`: `EVAL_IMMO_BETA_HOSTED_URL` pointe vers l'URL HTTPS partagee.
 - `token_auth_enabled`: `EVAL_RUNTIME_API_TOKEN` est defini et transmis hors canal a l'invite.
-- `release_candidate_gate`: le gate release candidate retourne `PRET_GO_LIVE_CONTROLE`.
-- `product_review_package_workflow`: le produit reste bloque production mais utilisable en beta controlee.
-- `anonymization_gate`: l'audit anonymisation ne contient aucun finding bloquant.
+- `allowed_origin_configured`: `EVAL_RUNTIME_ALLOWED_ORIGIN` est l'origine HTTPS exacte du frontend.
+- `openai_configured`: `OPENAI_API_KEY` est configuree.
+- `deploy_readiness_gate`: le gate `/readiness` ne contient aucun controle critique.
+- `anonymized_acceptance_fixture`: la fixture d'acceptation anonymisee reste valide.
 - `live_ai_provider_policy`: le runtime live Anthropic reste desactive par defaut avant contrat.
+- `closed_beta_launch_evidence`: la preuve production/privacy/E.A./dossiers/source/launch est complete.
+- `professional_workfile_gate`: aucun blocage dans le paquet du dossier pilote.
 
 ## Variables d'environnement beta
 
 ```text
+APP_ENV=production
 EVAL_RUNTIME_API_TOKEN=<token fort transmis hors canal>
-EVAL_IMMO_BETA_HOSTED_URL=https://<domaine-beta>
+EVAL_RUNTIME_ALLOWED_ORIGIN=https://<frontend-vercel>
+EVAL_IMMO_BETA_HOSTED_URL=https://<frontend-vercel-ou-domaine-beta>
 EVAL_IMMO_BETA_RETENTION_DAYS=14
+OPENAI_API_KEY=<cle configuree dans Railway>
+OPENAI_MODEL=<modele retenu>
+SESSIONS_DIR=/data/sessions
+DATA_CACHE_DIR=/data/data_cache
 ```
 
-Ne pas definir ces variables pour une beta sans contrat:
+Ne pas definir ces variables pour une beta sans contrat ou sans decision operateur:
 
 ```text
 EVAL_IMMO_ALLOW_ANTHROPIC_SDK_RUNTIME
@@ -32,13 +44,14 @@ EVAL_IMMO_RUN_LIVE_SMOKE
 
 ## Parcours invite
 
-1. Ouvrir `/product`.
-2. Saisir le role `evaluator` ou `supervisor` et le token fourni.
-3. Lire les limites beta dans le bloc `Beta E.A.`.
-4. Cocher les deux attestations: conditions beta et anonymisation.
-5. Lancer une fixture synthetique ou coller un dossier JSON anonymise.
-6. Inspecter `Dossier`, `Knowledge`, `Evaluateur AI` et `Paquet V1`.
-7. Saisir une revue interne si le dossier doit generer un paquet V1.
+1. Ouvrir le lien Vercel beta.
+2. Se connecter via Supabase si l'auth production est active.
+3. Verifier que l'utilisateur est nomme dans la beta et que le role attendu est applique.
+4. Creer ou ouvrir un dossier anonymise.
+5. Lire les limites beta et accepter les conditions.
+6. Inspecter les faits, sources, comparables, ajustements, checkpoints, rapport et paquet.
+7. Saisir une revue interne avant toute generation de paquet V1.
+8. Ne signer aucun rapport sans validation humaine E.A. hors outil.
 
 ## Regles donnees
 
@@ -49,52 +62,74 @@ EVAL_IMMO_RUN_LIVE_SMOKE
 
 ## Verification avant invitation
 
-```bash
-python evaluation-immobiliere/outils/verifier_release_candidate_v1.py --strict
-python evaluation-immobiliere/outils/verifier_statut_phases_projet_v1.py
-python evaluation-immobiliere/outils/auditer_anonymisation_v0.py
-python evaluation-immobiliere/outils/verifier_beta_ea_readiness_v1.py --strict-link
-python -m unittest discover -s evaluation-immobiliere/tests -p "test_*.py" -v
-```
-
-Puis demarrer l'API:
+Depuis `backend/`:
 
 ```bash
-python evaluation-immobiliere/outils/lancer_api_v0.py --host 127.0.0.1 --port 8787
+python scripts/check_deploy_readiness.py --production --json
+python scripts/verifier_beta_ea_readiness_v1.py --strict-link
+python scripts/run_ea_acceptance.py tests/fixtures/acceptance/ea_acceptance_anonymized_residential.json --json
+python scripts/smoke_beta_ea_link_v1.py --base-url https://<frontend-vercel> --token <token-runtime> --role supervisor --require-external-ready
+python scripts/check_closed_beta_launch.py ..\_audit\2026-06-02\closed_beta_launch_evidence.json --json
+python -m pytest tests/ -q
 ```
 
-Verifier:
+Verifier aussi:
 
 ```text
+GET /health
+GET /readiness
 GET /beta/readiness
-GET /product/summary
 GET /auth/status
+GET /product
 ```
 
-Smoke HTTP complet:
+Le smoke HTTP verifie `/health`, `/auth/status`, `/product`, `/beta/readiness`, `/beta/intake` et la presence de `beta_intake` dans `/session/summary`.
 
-```bash
-python evaluation-immobiliere/outils/smoke_beta_ea_link_v1.py --base-url https://<domaine-beta> --token <token> --role supervisor --require-external-ready
+## Evidence de lancement
+
+Copier le template:
+
+```powershell
+copy _audit\2026-06-02\closed_beta_launch_evidence.template.json _audit\2026-06-02\closed_beta_launch_evidence.json
 ```
 
-Le smoke verifie `/health`, `/auth/status`, `/product`, `/beta/readiness`,
-`/beta/intake` et la presence de `beta_intake` dans `/session/summary`.
+Remplir uniquement des informations non secretes:
 
-## Deploiement minimal
+- URLs HTTPS Vercel/Railway.
+- Statuts de readiness/smoke.
+- Approbations privacy/legal sous forme booleenne.
+- Id E.A. non identifiant.
+- Ids de dossiers anonymises.
+- Chemins vers manifestes ou rapports d'acceptance.
+- Decisions explicites sur SIRF, JLR, approche cout et donnees insuffisantes.
 
-Le repo fournit un `Procfile` compatible avec les plateformes qui exposent
-`PORT`:
+Pour chaque paquet E.A., verifier aussi:
 
 ```text
-web: python outils/lancer_api_v0.py --host 0.0.0.0
+package_v1/professional_workfile_gate.json
+package_v1/npp_compliance_matrix.json
+package_v1/source_provenance.json
 ```
 
-Le serveur lit aussi `EVAL_IMMO_API_HOST`, `EVAL_IMMO_API_PORT` ou `PORT` si
-les arguments CLI ne sont pas fournis. Le proxy HTTPS/IAM reste a porter par la
-plateforme de deploiement.
+Les warnings acceptes doivent etre notes comme limites beta. Les blocages ne
+peuvent pas rester ouverts avant partage du lien.
+
+Le fichier ne doit pas contenir de token, cle API, nom client, adresse civique brute, telephone ou courriel.
 
 ## Decision
 
-- `PRET_LIEN_EA`: le lien beta ferme peut etre partage.
+- `PRET_LIEN_EA` + `READY_FOR_CLOSED_BETA`: le lien beta ferme peut etre partage aux utilisateurs nommes.
 - `BETA_LIEN_BLOQUE`: ne pas partager; fermer les controles listes dans `blocking_checks`.
-- `ready_for_local_anonymized_beta=true`: utilisable localement pour un dry-run anonymise, mais pas encore pret comme lien externe si l'URL ou l'auth manque.
+- `BLOCKED`: ne pas partager; fermer les controles listes par `check_closed_beta_launch.py`.
+- `ready_for_local_anonymized_beta=true`: utilisable localement pour un dry-run anonymise, mais pas encore pret comme lien externe si l'URL, l'auth ou l'evidence externe manque.
+
+## Stop conditions
+
+Arreter ou ne pas lancer la beta si:
+
+- Un P0 securite, privacy, professionnel ou workflow reste ouvert.
+- Les sessions ne persistent pas apres redeploiement.
+- Le BFF Vercel ne peut pas joindre Railway.
+- Le runtime est accessible sans token.
+- Un dossier contient des identifiants directs.
+- Le pilote E.A. ne valide pas l'utilite du workflow.

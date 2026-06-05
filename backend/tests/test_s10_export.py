@@ -103,6 +103,52 @@ class TestExportFilenameUsesDossierId:
             json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}),
             encoding="utf-8",
         )
+        (session_dir / f"{dossier_id}.input.json").write_text(
+            json.dumps({
+                "dossier_id": dossier_id,
+                "mandat_type": "residentiel_standard",
+                "format_rapport": "abrege",
+                "type_bien": "unifamiliale",
+                "date_reference": "2026-04-30",
+                "adresse_anonymisee": "Adresse anonymisee - export",
+                "zone": "SECTEUR-EXPORT",
+                "commanditaire": {"nom": "Commanditaire test", "fin_evaluation": "financement"},
+                "comparables": [
+                    {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "prix_vente": 410000},
+                    {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "prix_vente": 420000},
+                    {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "prix_vente": 430000},
+                ],
+                "hypotheses": [{"hypothese_id": "H-1", "texte": "Hypothese test", "source_ids": ["SRC-INSPECTION-1"]}],
+                "timeline": [{"type": "inspection_anonymisee", "date": "2026-04-18", "source_id": "SRC-INSPECTION-1"}],
+            }),
+            encoding="utf-8",
+        )
+        conflict_path = artifacts_dir / "mandat-intake.conflit_interets.json"
+        conflict_path.write_text(
+            json.dumps({"conflit_detecte": False, "verification_completee": True, "commentaire": "Aucun conflit detecte."}),
+            encoding="utf-8",
+        )
+        source_index_path = artifacts_dir / "data-facts.source_index.json"
+        source_index_path.write_text(
+            json.dumps({"sources": [{"source_id": f"SRC-COMP-{i}", "source_type": "registre_foncier"} for i in range(1, 4)]}),
+            encoding="utf-8",
+        )
+        comparables_path = artifacts_dir / "comps-market.comparables_proposes.json"
+        comparables_path.write_text(
+            json.dumps({
+                "comparables": [
+                    {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "prix_vente": 410000, "score": 0.91},
+                    {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "prix_vente": 420000, "score": 0.89},
+                    {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "prix_vente": 430000, "score": 0.87},
+                ]
+            }),
+            encoding="utf-8",
+        )
+        justifications_path = artifacts_dir / "comps-market.justifications_comparables.json"
+        justifications_path.write_text(
+            json.dumps({"justifications": [{"comparable_id": f"COMP-{i}", "source_id": f"SRC-COMP-{i}", "decision": "retenu"} for i in range(1, 4)]}),
+            encoding="utf-8",
+        )
         result_path = session_dir / "result.json"
         result_path.write_text(
             json.dumps({
@@ -120,6 +166,10 @@ class TestExportFilenameUsesDossierId:
             encoding="utf-8",
         )
         events = [
+            ("evt_s10_conflict", "mandat-intake", "conflit_interets.json", conflict_path),
+            ("evt_s10_source_index", "data-facts", "source_index.json", source_index_path),
+            ("evt_s10_comparables", "comps-market", "comparables_proposes.json", comparables_path),
+            ("evt_s10_justifications", "comps-market", "justifications_comparables.json", justifications_path),
             ("evt_s10_report", "redaction", "brouillon_rapport.md", rapport_path),
             ("evt_s10_compliance", "compliance-qa", "statut_sortie.json", compliance_path),
             ("evt_s10_comparative", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
@@ -144,6 +194,34 @@ class TestExportFilenameUsesDossierId:
         )
         artifact_index = {
             "artifacts": [
+                {
+                    "step": "mandat-intake",
+                    "artifact": "conflit_interets.json",
+                    "event_id": "evt_s10_conflict",
+                    "path": str(conflict_path),
+                    "exists": True,
+                },
+                {
+                    "step": "data-facts",
+                    "artifact": "source_index.json",
+                    "event_id": "evt_s10_source_index",
+                    "path": str(source_index_path),
+                    "exists": True,
+                },
+                {
+                    "step": "comps-market",
+                    "artifact": "comparables_proposes.json",
+                    "event_id": "evt_s10_comparables",
+                    "path": str(comparables_path),
+                    "exists": True,
+                },
+                {
+                    "step": "comps-market",
+                    "artifact": "justifications_comparables.json",
+                    "event_id": "evt_s10_justifications",
+                    "path": str(justifications_path),
+                    "exists": True,
+                },
                 {
                     "step": "redaction",
                     "artifact": "brouillon_rapport.md",

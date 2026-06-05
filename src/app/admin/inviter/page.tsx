@@ -62,7 +62,7 @@ export default function InviterPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-[12px] text-[#8a8780] font-medium">
-              Adresse e-mail de l'évaluateur
+              Adresse e-mail de l&apos;évaluateur
             </label>
             <input
               id="email"

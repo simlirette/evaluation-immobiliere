@@ -54,6 +54,9 @@ The generated package must keep:
 - `requires_human_validation: true`
 - `certification_automatic: false`
 - `external_evaluator_responses_included: false`
+- `professional_workfile_gate.status` must not be `BLOCKED`
+- `npp_compliance_matrix` must be present for E.A. review
+- `source_provenance` must be present for source traceability
 
 ## Evidence To Keep
 
@@ -66,6 +69,9 @@ For each acceptance run, retain:
 - `review.json`
 - `artifact_index.json`
 - `package_v1/manifest_v1.json`
+- `package_v1/professional_workfile_gate.json`
+- `package_v1/npp_compliance_matrix.json`
+- `package_v1/source_provenance.json`
 - `package_v1/paquet_v1.zip`
 
 ## Failure Handling
@@ -76,6 +82,7 @@ If status is `BLOCKED`, do not proceed to bureau pilot. Fix the blocking check f
 - `runtime_ready`: inspect `result.json` blocking failures
 - `certifiability_gate`: inspect gate blocking errors and missing artifacts
 - `package_ready`: inspect PDF/report/package generation
+- `professional_workfile_gate`: complete mandate, conflict, source, comparable, review, or report evidence
 
 ## Scope Limit
 

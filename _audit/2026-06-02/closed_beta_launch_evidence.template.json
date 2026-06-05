@@ -1,0 +1,74 @@
+{
+  "schema_version": "closed_beta_launch_evidence_v1",
+  "production": {
+    "frontend_url": "https://<vercel-production-domain>",
+    "backend_url": "https://<railway-runtime-domain>",
+    "railway_readiness_ok": false,
+    "vercel_bff_smoke_ok": false,
+    "runtime_token_set": false,
+    "cors_strict": false,
+    "persistent_sessions": false,
+    "persistent_data_cache": false,
+    "mamh_cache_provisioned": false,
+    "openai_configured": false
+  },
+  "privacy": {
+    "data_inventory_approved": false,
+    "retention_days": 14,
+    "deletion_workflow_approved": false,
+    "access_logging_reviewable": false,
+    "backup_restore_defined": false,
+    "incident_response_defined": false,
+    "professional_disclaimer_approved": false,
+    "raw_client_files_allowed": false,
+    "raw_client_file_contract_signed": false
+  },
+  "pilot_ea": {
+    "pilot_ea_id": "",
+    "terms_accepted": false,
+    "workflow_signoff": false
+  },
+  "real_dossiers": [
+    {
+      "id": "D-BETA-001",
+      "type": "standard_residential",
+      "anonymized": false,
+      "acceptance_status": "",
+      "package_or_block_evidence": "",
+      "p0_open_count": 0
+    },
+    {
+      "id": "D-BETA-002",
+      "type": "edge_or_low_confidence",
+      "anonymized": false,
+      "acceptance_status": "",
+      "package_or_block_evidence": "",
+      "p0_open_count": 0
+    },
+    {
+      "id": "D-BETA-003",
+      "type": "correction_or_blocked",
+      "anonymized": false,
+      "acceptance_status": "",
+      "package_or_block_evidence": "",
+      "p0_open_count": 0
+    }
+  ],
+  "data_sources": {
+    "mamh_validated": false,
+    "infolot_validated": false,
+    "sirf_status": "",
+    "jlr_policy": "",
+    "cost_approach_status": "",
+    "insufficient_data_blocking_policy": false
+  },
+  "launch": {
+    "named_users_only": false,
+    "max_named_users": 1,
+    "support_owner": "",
+    "daily_review_owner": "",
+    "week1_review_schedule": false,
+    "rollback_plan": false,
+    "p0_open_count": 0
+  }
+}

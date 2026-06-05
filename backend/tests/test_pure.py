@@ -1331,6 +1331,72 @@ class TestGenerateHtml_TablesRendered:
         assert "val1" in html
 
 
+def _write_export_professional_artifacts(session_dir: Path, artifacts_dir: Path, dossier_id: str):
+    import json
+
+    (session_dir / f"{dossier_id}.input.json").write_text(
+        json.dumps({
+            "dossier_id": dossier_id,
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+            "type_bien": "unifamiliale",
+            "date_reference": "2026-04-30",
+            "adresse_anonymisee": "Adresse anonymisee - export",
+            "zone": "SECTEUR-EXPORT",
+            "commanditaire": {"nom": "Commanditaire test", "fin_evaluation": "financement"},
+            "comparables": [
+                {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "prix_vente": 410000},
+                {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "prix_vente": 420000},
+                {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "prix_vente": 430000},
+            ],
+            "hypotheses": [{"hypothese_id": "H-1", "texte": "Hypothese test", "source_ids": ["SRC-INSPECTION-1"]}],
+            "timeline": [{"type": "inspection_anonymisee", "date": "2026-04-18", "source_id": "SRC-INSPECTION-1"}],
+        }),
+        encoding="utf-8",
+    )
+    artifacts = []
+    payloads = [
+        (
+            "evt_prof_conflict",
+            "mandat-intake",
+            "conflit_interets.json",
+            artifacts_dir / "mandat-intake.conflit_interets.json",
+            {"conflit_detecte": False, "verification_completee": True, "commentaire": "Aucun conflit detecte."},
+        ),
+        (
+            "evt_prof_source_index",
+            "data-facts",
+            "source_index.json",
+            artifacts_dir / "data-facts.source_index.json",
+            {"sources": [{"source_id": f"SRC-COMP-{i}", "source_type": "registre_foncier"} for i in range(1, 4)]},
+        ),
+        (
+            "evt_prof_comparables",
+            "comps-market",
+            "comparables_proposes.json",
+            artifacts_dir / "comps-market.comparables_proposes.json",
+            {
+                "comparables": [
+                    {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "prix_vente": 410000, "score": 0.91},
+                    {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "prix_vente": 420000, "score": 0.89},
+                    {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "prix_vente": 430000, "score": 0.87},
+                ]
+            },
+        ),
+        (
+            "evt_prof_justifications",
+            "comps-market",
+            "justifications_comparables.json",
+            artifacts_dir / "comps-market.justifications_comparables.json",
+            {"justifications": [{"comparable_id": f"COMP-{i}", "source_id": f"SRC-COMP-{i}", "decision": "retenu"} for i in range(1, 4)]},
+        ),
+    ]
+    for event_id, step, artifact, path, payload in payloads:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        artifacts.append((event_id, step, artifact, path))
+    return artifacts
+
+
 class TestExportRapport_DocxEndpoint:
     def test_docx_export_returns_base64_with_correct_fields(self, tmp_path, monkeypatch):
         import sys, json, base64
@@ -1351,18 +1417,24 @@ class TestExportRapport_DocxEndpoint:
         compliance_path.write_text(json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}), encoding="utf-8")
         comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
         comparative_path.write_text(json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}), encoding="utf-8")
+        professional_events = _write_export_professional_artifacts(session_dir, artifacts_dir, "D-EXPORT")
         result_path = session_dir / "result.json"
         result_path.write_text(json.dumps({"dossier_id": "D-EXPORT", "status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": [], "artifact_dir": str(artifacts_dir)}), encoding="utf-8")
         review_path = session_dir / "review.json"
         review_path.write_text(json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}), encoding="utf-8")
         events_path = session_dir / "events.jsonl"
         events = [
+            *professional_events,
             ("evt_001", "redaction", "brouillon_rapport.md", rapport_path),
             ("evt_002", "compliance-qa", "statut_sortie.json", compliance_path),
             ("evt_003", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
         ]
         events_path.write_text("\n".join(json.dumps({"event_id": event_id, "session_id": session_id, "run_id": run_id, "sequence": index, "event": "artifact_written", "step": step, "artifact": artifact, "path": str(path), "artifact_path": str(path)}) for index, (event_id, step, artifact, path) in enumerate(events, start=1)) + "\n", encoding="utf-8")
         artifact_index = {"artifacts": [
+            *[
+                {"step": step, "artifact": artifact, "event_id": event_id, "path": str(path), "exists": True}
+                for event_id, step, artifact, path in professional_events
+            ],
             {"step": "redaction", "artifact": "brouillon_rapport.md", "event_id": "evt_001", "path": str(rapport_path), "exists": True},
             {"step": "compliance-qa", "artifact": "statut_sortie.json", "event_id": "evt_002", "path": str(compliance_path), "exists": True},
             {"step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "event_id": "evt_003", "path": str(comparative_path), "exists": True},
@@ -1401,18 +1473,24 @@ class TestExportRapport_HtmlEndpoint:
         compliance_path.write_text(json.dumps({"status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": []}), encoding="utf-8")
         comparative_path = artifacts_dir / "valuation-draft.calculs_approche_comparative.json"
         comparative_path.write_text(json.dumps({"value": 400000, "input_count": 3, "calculation_status": "OK"}), encoding="utf-8")
+        professional_events = _write_export_professional_artifacts(session_dir, artifacts_dir, "D-HTML")
         result_path = session_dir / "result.json"
         result_path.write_text(json.dumps({"dossier_id": "D-HTML", "status": "PRET_REVISION_FINALE", "blocking_failures": [], "warnings": [], "artifact_dir": str(artifacts_dir)}), encoding="utf-8")
         review_path = session_dir / "review.json"
         review_path.write_text(json.dumps({"decision": "VALIDE", "reviewer": "EA test", "notes": "ok"}), encoding="utf-8")
         events_path = session_dir / "events.jsonl"
         events = [
+            *professional_events,
             ("evt_001", "redaction", "brouillon_rapport.md", rapport_path),
             ("evt_002", "compliance-qa", "statut_sortie.json", compliance_path),
             ("evt_003", "valuation-draft", "calculs_approche_comparative.json", comparative_path),
         ]
         events_path.write_text("\n".join(json.dumps({"event_id": event_id, "session_id": session_id, "run_id": run_id, "sequence": index, "event": "artifact_written", "step": step, "artifact": artifact, "path": str(path), "artifact_path": str(path)}) for index, (event_id, step, artifact, path) in enumerate(events, start=1)) + "\n", encoding="utf-8")
         artifact_index = {"artifacts": [
+            *[
+                {"step": step, "artifact": artifact, "event_id": event_id, "path": str(path), "exists": True}
+                for event_id, step, artifact, path in professional_events
+            ],
             {"step": "redaction", "artifact": "brouillon_rapport.md", "event_id": "evt_001", "path": str(rapport_path), "exists": True},
             {"step": "compliance-qa", "artifact": "statut_sortie.json", "event_id": "evt_002", "path": str(compliance_path), "exists": True},
             {"step": "valuation-draft", "artifact": "calculs_approche_comparative.json", "event_id": "evt_003", "path": str(comparative_path), "exists": True},
