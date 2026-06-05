@@ -167,6 +167,19 @@ curl -X POST $BACKEND/app/create \
 
 ---
 
+## 5. Gate beta ferme
+
+Avant de partager le lien beta, suivre `docs/CLOSED-BETA-LAUNCH.md`, remplir l'evidence non secrete, puis executer:
+
+```bash
+cd backend
+python scripts/check_closed_beta_launch.py ..\_audit\2026-06-02\closed_beta_launch_evidence.json --json
+```
+
+Le lien beta ne doit pas etre partage tant que le statut n'est pas `READY_FOR_CLOSED_BETA`.
+
+---
+
 ## Dev local
 
 ```bash

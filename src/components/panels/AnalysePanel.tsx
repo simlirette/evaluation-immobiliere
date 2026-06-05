@@ -628,7 +628,7 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                 <div className="flex items-start gap-2">
                   <span className="text-amber-600 text-[11px] font-semibold flex-shrink-0 mt-0.5">⚠</span>
                   <span className="text-[11px] text-amber-800 dark:text-amber-300">
-                    Biais d'ajustement — {fmtNum(dirPct, 0)} % des comparables reçoivent des ajustements nets {dirLabel} · possible biais {balance.direction === 'upward' ? 'haussier' : 'baissier'}.
+                    Biais d&apos;ajustement - {fmtNum(dirPct, 0)} % des comparables reçoivent des ajustements nets {dirLabel} · possible biais {balance.direction === 'upward' ? 'haussier' : 'baissier'}.
                   </span>
                 </div>
               </div>

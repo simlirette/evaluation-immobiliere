@@ -10,6 +10,9 @@ PACKAGE_FILES = {
     "manifest": "manifest_v1.json",
     "rapport_pdf": "rapport.pdf",
     "rapport_md": "rapport.md",
+    "professional_workfile_gate": "professional_workfile_gate.json",
+    "npp_compliance_matrix": "npp_compliance_matrix.json",
+    "source_provenance": "source_provenance.json",
     "zip": "paquet_v1.zip",
 }
 
@@ -102,6 +105,9 @@ def generate_package_from_case(
     integrity: dict,
     package_origin: str = "validated_runtime_session",
     certifiability_gate: dict | None = None,
+    professional_workfile_gate: dict | None = None,
+    npp_compliance_matrix: dict | None = None,
+    source_provenance: dict | None = None,
     require_report_md: bool = False,
     require_report_pdf: bool = False,
 ) -> dict:
@@ -149,7 +155,20 @@ def generate_package_from_case(
         dst.write_bytes(src_path.read_bytes())
         files.append({"name": filename, "size": src_path.stat().st_size})
 
-    # ── 4. Manifest ────────────────────────────────────────────────────────────
+    # 4. Professional E.A. evidence
+    evidence_payloads = {
+        PACKAGE_FILES["professional_workfile_gate"]: professional_workfile_gate or {},
+        PACKAGE_FILES["npp_compliance_matrix"]: npp_compliance_matrix or {},
+        PACKAGE_FILES["source_provenance"]: source_provenance or {},
+    }
+    for filename, payload in evidence_payloads.items():
+        if not payload:
+            continue
+        path = out_dir / filename
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        files.append({"name": filename, "size": path.stat().st_size})
+
+    # 5. Manifest
     status = "PRET_REVUE_EVALUATEUR_AGREE"
     manifest = {
         "schema_version": "package_v1",
@@ -167,6 +186,9 @@ def generate_package_from_case(
         },
         "integrity_ok": bool(integrity.get("ok")),
         "certifiability_gate": certifiability_gate or {},
+        "professional_workfile_gate": professional_workfile_gate or {},
+        "npp_compliance_matrix": npp_compliance_matrix or {},
+        "source_provenance": source_provenance or {},
         "requires_human_validation": True,
         "certification_automatic": False,
         "external_evaluator_responses_included": False,
@@ -177,7 +199,7 @@ def generate_package_from_case(
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     files.append({"name": PACKAGE_FILES["manifest"], "size": manifest_path.stat().st_size})
 
-    # ── 5. ZIP archive ─────────────────────────────────────────────────────────
+    # 6. ZIP archive
     zip_path = out_dir / PACKAGE_FILES["zip"]
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for f in files:

@@ -16,7 +16,7 @@ const AUTH_ENABLED =
 const PUBLIC_PATHS = ['/login', '/auth/']
 const ADMIN_PATHS = ['/admin']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (!AUTH_ENABLED) return NextResponse.next()
 
   const { pathname } = request.nextUrl

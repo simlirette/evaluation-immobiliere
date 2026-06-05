@@ -36,6 +36,79 @@ def _make_gate_session(
     artifacts_dir.mkdir(parents=True)
 
     artifacts: list[tuple[str, str, str, Path]] = []
+    _write_json(
+        session_dir / f"{dossier_id}.input.json",
+        {
+            "dossier_id": dossier_id,
+            "mandat_type": "residentiel_standard",
+            "format_rapport": "abrege",
+            "type_bien": "unifamiliale",
+            "date_reference": "2026-04-30",
+            "adresse_anonymisee": "Adresse anonymisee - secteur test",
+            "zone": "SECTEUR-TEST",
+            "commanditaire": {"nom": "Commanditaire test", "fin_evaluation": "financement"},
+            "comparables": [
+                {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "prix_vente": 410000, "date_vente": "2026-01-01"},
+                {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "prix_vente": 420000, "date_vente": "2026-01-15"},
+                {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "prix_vente": 430000, "date_vente": "2026-02-01"},
+            ],
+            "ajustements": [],
+            "hypotheses": [{"hypothese_id": "H-1", "texte": "Hypothese test", "source_ids": ["SRC-INSPECTION-1"]}],
+            "timeline": [{"type": "inspection_anonymisee", "date": "2026-04-18", "source_id": "SRC-INSPECTION-1"}],
+        },
+    )
+
+    conflict_path = artifacts_dir / "mandat-intake.conflit_interets.json"
+    _write_json(
+        conflict_path,
+        {
+            "conflit_detecte": False,
+            "verification_completee": True,
+            "commentaire": "Aucun conflit detecte.",
+        },
+    )
+    artifacts.append(("evt_conflict", "mandat-intake", "conflit_interets.json", conflict_path))
+
+    source_index_path = artifacts_dir / "data-facts.source_index.json"
+    _write_json(
+        source_index_path,
+        {
+            "sources": [
+                {"source_id": "SRC-COMP-1", "source_type": "registre_foncier", "filename": "comps.json", "validation_humaine": True},
+                {"source_id": "SRC-COMP-2", "source_type": "registre_foncier", "filename": "comps.json", "validation_humaine": True},
+                {"source_id": "SRC-COMP-3", "source_type": "registre_foncier", "filename": "comps.json", "validation_humaine": True},
+                {"source_id": "SRC-INSPECTION-1", "source_type": "inspection", "filename": "inspection.md", "validation_humaine": True},
+            ]
+        },
+    )
+    artifacts.append(("evt_source_index", "data-facts", "source_index.json", source_index_path))
+
+    comparables_path = artifacts_dir / "comps-market.comparables_proposes.json"
+    _write_json(
+        comparables_path,
+        {
+            "comparables": [
+                {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "prix_vente": 410000, "score": 0.91},
+                {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "prix_vente": 420000, "score": 0.89},
+                {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "prix_vente": 430000, "score": 0.87},
+            ]
+        },
+    )
+    artifacts.append(("evt_comparables", "comps-market", "comparables_proposes.json", comparables_path))
+
+    justifications_path = artifacts_dir / "comps-market.justifications_comparables.json"
+    _write_json(
+        justifications_path,
+        {
+            "justifications": [
+                {"comparable_id": "COMP-1", "source_id": "SRC-COMP-1", "decision": "retenu", "raison": "source presente"},
+                {"comparable_id": "COMP-2", "source_id": "SRC-COMP-2", "decision": "retenu", "raison": "source presente"},
+                {"comparable_id": "COMP-3", "source_id": "SRC-COMP-3", "decision": "retenu", "raison": "source presente"},
+            ]
+        },
+    )
+    artifacts.append(("evt_justifications", "comps-market", "justifications_comparables.json", justifications_path))
+
     if report:
         rapport_path = artifacts_dir / "redaction.brouillon_rapport.md"
         rapport_path.write_text("## Rapport\n\nContenu pret.", encoding="utf-8")
@@ -186,4 +259,39 @@ def test_package_generation_embeds_gate_and_requires_report_pdf(tmp_path):
     assert package["gate"]["ok"] is True
     assert package["manifest"]["certifiability_gate"]["ok"] is True
     assert any(item["name"] == "rapport.pdf" for item in package["files"])
+
+
+def test_professional_workfile_gate_blocks_missing_mandate_input(tmp_path):
+    original = api.SESSIONS_DIR
+    api.SESSIONS_DIR = tmp_path
+    try:
+        session = _make_gate_session(tmp_path, review=True)
+        Path(session["session_dir"], "D-GATE-0001.input.json").unlink()
+        gate = api.professional_workfile_gate(session, require_review=True)
+    finally:
+        api.SESSIONS_DIR = original
+
+    assert gate["ok"] is False
+    assert "case_input_available" in gate["blocking_errors"]
+    assert "mandate_scope_complete" in gate["blocking_errors"]
+
+
+def test_package_generation_includes_professional_ea_evidence_files(tmp_path):
+    original = api.SESSIONS_DIR
+    api.SESSIONS_DIR = tmp_path
+    try:
+        _make_gate_session(tmp_path, review=True)
+        with patch("engine.report_export._generate_pdf", return_value=b"%PDF-gate"):
+            package = api.generate_v1_package_for_session("gate-session")
+    finally:
+        api.SESSIONS_DIR = original
+
+    manifest = package["manifest"]
+    file_names = {item["name"] for item in package["files"]}
+    assert manifest["professional_workfile_gate"]["ok"] is True
+    assert manifest["npp_compliance_matrix"]["schema_version"] == "npp_compliance_matrix_v1"
+    assert manifest["source_provenance"]["schema_version"] == "source_provenance_report_v1"
+    assert "professional_workfile_gate.json" in file_names
+    assert "npp_compliance_matrix.json" in file_names
+    assert "source_provenance.json" in file_names
 
