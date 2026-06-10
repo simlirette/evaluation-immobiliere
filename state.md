@@ -1,10 +1,10 @@
 # State — eval-immo
 
-_Updated: 2026-06-10 | HEAD: 2af03f3 (master)_
+_Updated: 2026-06-10 | HEAD: db74fc7 (master)_
 
 ## Current Goal
 
-Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Phases 1 et 2 faites.**
+Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Phases 1, 2 et 3 faites.**
 
 ## Fait
 
@@ -16,7 +16,7 @@ Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Pha
 
 ## Phases restantes
 
-3. **Mes-dossiers** : toolbar handoff (search 360 + kbd esc, pills counts, sort-select, view-toggle), DossierCard/Row handoff (status-chip, pin hover, facts 3 col, stage-bar), 5 états (skeleton/empty/error/partial/no-results). Classes CSS déjà portées dans globals.css — reste le DOM de la page + composants dossiers/.
+3. ✅ **Mes-dossiers (db74fc7)** : DossierCard/Row + page DOM handoff, pin bouton + context menu conservés, états design. Champs année/superficie/valeur/client absents de la liste backend → « — » muted (endpoint à enrichir plus tard pour les facts réels).
 4. **Wizard nouveau dossier** 4 étapes (nouveau-dossier.jsx/css) + flux vision 1.2 (suggestion agent → confirmation É.A.).
 5. **Workspace dossier panel-first** (dossier.jsx + dossier-stages.jsx + dossier.css) : panels par étape + aside 340px (Faits saillants/Mandat/Activité/Documents) + chat capsule — préserver streaming/checkpoints/pipeline existants.
 6. QA pixel par écran vs HTML handoff (browse, port 3100 sans auth : `NEXT_PUBLIC_SUPABASE_URL="" npx next dev -p 3100`).
