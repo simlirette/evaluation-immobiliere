@@ -1,7 +1,10 @@
 'use client'
 
+/* Rangée dossier (vue liste) — DOM 1:1 du design handoff (components.jsx → DossierRow). */
+
+import { Icon } from '@/components/shared/Icon'
+import { formatPropertyType } from './DossierCard'
 import type { Dossier, DossierStatus } from '@/types'
-import { formatRelativeDate } from '@/lib/format-date'
 
 const STATUS_META: Record<DossierStatus, { label: string; cls: string }> = {
   'en-cours': { label: 'En cours',  cls: 'encours' },
@@ -12,47 +15,47 @@ const STATUS_META: Record<DossierStatus, { label: string; cls: string }> = {
 interface Props {
   dossier: Dossier
   onClick: () => void
+  onPin?: (dossier: Dossier) => void
+  onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export default function DossierRow({ dossier, onClick }: Props) {
-  const meta = STATUS_META[dossier.status]
+export default function DossierRow({ dossier: d, onClick, onPin, onContextMenu }: Props) {
+  const meta = STATUS_META[d.status]
   return (
-    <div
-      role="row"
+    <article
+      className="dossier-row"
+      role="button"
       tabIndex={0}
+      aria-label={`Ouvrir le dossier ${d.address}`}
       onClick={onClick}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
-      className="grid items-center gap-4 px-5 py-3.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--navy)]"
-      style={{
-        gridTemplateColumns: '2fr 140px 100px 80px 1fr 140px',
-        borderTop: '1px solid var(--rule-soft)',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--paper-2)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+      onContextMenu={onContextMenu}
     >
-      {/* Address */}
-      <div>
-        <div className="text-[15px] font-medium" style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)' }}>
-          {dossier.address}
+      <div className="col-addr">
+        <div className="addr-line">
+          <span className={`status-dot ${meta.cls}`} title={meta.label}/>
+          <span className="addr">{d.address}</span>
         </div>
-        {dossier.neighborhood && (
-          <div className="text-[12px]" style={{ color: 'var(--ink-faint)' }}>{dossier.neighborhood}</div>
-        )}
+        <div className="city">{d.neighborhood}</div>
       </div>
-      {/* Type */}
-      <div className="text-[13px]" style={{ color: 'var(--ink-3)', fontStyle: 'italic', fontFamily: 'var(--font-serif)' }}>
-        {dossier.property_type}
+      <div className="col-type">{formatPropertyType(d.property_type)}</div>
+      <div className="col-year numeric">—</div>
+      <div className="col-area numeric">—</div>
+      <div className="col-stage">
+        {d.status === 'brouillon'
+          ? <span className="v muted">Saisie</span>
+          : <span className="v muted">—</span>}
       </div>
-      {/* Status */}
-      <div><span className={`status-chip ${meta.cls}`}>{meta.label}</span></div>
-      {/* Stage */}
-      <div className="text-[13px]" style={{ color: 'var(--ink-mute)', fontVariantNumeric: 'tabular-nums' }}>1/5</div>
-      {/* Client */}
-      <div className="text-[13px] truncate" style={{ color: 'var(--ink-3)' }}>—</div>
-      {/* Modified */}
-      <div className="text-[12px] text-right" style={{ color: 'var(--ink-faint)' }}>
-        {formatRelativeDate(dossier.updatedAt)}
+      <div className="col-client">{d.neighborhood}</div>
+      <div className="col-modified">{d.updatedAt}</div>
+      <div className="col-actions">
+        <button
+          className={`pin ${d.pinned ? 'active' : ''}`}
+          title={d.pinned ? 'Désépingler' : 'Épingler'}
+          onClick={e => { e.stopPropagation(); onPin?.(d) }}>
+          <Icon.Pin/>
+        </button>
       </div>
-    </div>
+    </article>
   )
 }

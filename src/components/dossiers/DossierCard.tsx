@@ -1,8 +1,10 @@
 'use client'
 
+/* Carte dossier — DOM 1:1 du design handoff (components.jsx → DossierCard).
+   Champs absents du backend (année, superficie, valeur, client) : « — » muted. */
+
+import { Icon } from '@/components/shared/Icon'
 import type { Dossier, DossierStatus } from '@/types'
-import { formatRelativeDate } from '@/lib/format-date'
-import StageBar from './StageBar'
 
 const STATUS_META: Record<DossierStatus, { label: string; cls: string }> = {
   'en-cours': { label: 'En cours',  cls: 'encours' },
@@ -10,89 +12,77 @@ const STATUS_META: Record<DossierStatus, { label: string; cls: string }> = {
   brouillon:  { label: 'Brouillon', cls: 'brouillon' },
 }
 
+export function formatPropertyType(pt: string): string {
+  const map: Record<string, string> = {
+    residentiel_unifamilial: 'Unifamiliale',
+    condo: 'Condo',
+    duplex: 'Duplex',
+    triplex: 'Triplex',
+    quadruplex: 'Quadruplex',
+    commercial: 'Commercial',
+    terrain: 'Terrain',
+    autre: 'Autre',
+  }
+  return map[pt] ?? pt
+}
+
 interface Props {
   dossier: Dossier
   onClick: () => void
+  onPin?: (dossier: Dossier) => void
   onContextMenu?: (e: React.MouseEvent) => void
-  index?: number
 }
 
-export default function DossierCard({ dossier, onClick, onContextMenu, index = 0 }: Props) {
-  const meta = STATUS_META[dossier.status]
+export default function DossierCard({ dossier: d, onClick, onPin, onContextMenu }: Props) {
+  const meta = STATUS_META[d.status]
   return (
-    <div
+    <article
+      className="dossier-card"
       role="button"
       tabIndex={0}
+      aria-label={`Ouvrir le dossier ${d.address}`}
       onClick={onClick}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
-      aria-label={`Ouvrir le dossier ${dossier.address}`}
-      className={`card-enter card-hover group relative rounded-[var(--r-lg)] cursor-pointer border border-[var(--rule)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--navy)] ${dossier.pinned ? 'card-pinned' : ''}`}
-      style={{ background: 'var(--paper-hi)', animationDelay: `${index * 45}ms` }}
+      onContextMenu={onContextMenu}
     >
-      {/* Header */}
-      <div className="px-5 pt-5 pb-3">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <span className={`status-chip ${meta.cls}`}>{meta.label}</span>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {dossier.pinned && (
-              <span
-                className="text-[11px] font-medium px-2 py-0.5 rounded-[var(--r-pill)]"
-                style={{ background: 'rgba(184,138,62,.12)', color: 'var(--ochre)' }}
-              >
-                Épinglé
-              </span>
-            )}
-            {onContextMenu && (
-              <button
-                className="w-6 h-6 flex items-center justify-center rounded-[var(--r-sm)] hover:bg-[var(--paper-2)] transition-colors cursor-pointer bg-transparent border-none"
-                onClick={e => { e.stopPropagation(); onContextMenu(e) }}
-                aria-label="Options"
-                style={{ color: 'var(--ink-mute)' }}
-              >
-                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="5" r="1.5"/>
-                  <circle cx="12" cy="12" r="1.5"/>
-                  <circle cx="12" cy="19" r="1.5"/>
-                </svg>
-              </button>
-            )}
+      <div className="card-head">
+        <span className={`status-chip ${meta.cls}`}>
+          <span>{meta.label}</span>
+        </span>
+        <button
+          className={`pin ${d.pinned ? 'active' : ''}`}
+          title={d.pinned ? 'Désépingler' : 'Épingler'}
+          onClick={e => { e.stopPropagation(); onPin?.(d) }}>
+          <Icon.Pin/>
+        </button>
+      </div>
+
+      <div className="addr">
+        {d.address}
+        <span className="city">{d.neighborhood} &nbsp;·&nbsp; <em>{formatPropertyType(d.property_type)}</em></span>
+      </div>
+
+      <div className="facts">
+        <div className="fact">
+          <div className="k">Année</div>
+          <div className="v muted">—</div>
+        </div>
+        <div className="fact">
+          <div className="k">Superficie</div>
+          <div className="v muted">—</div>
+        </div>
+        <div className="fact">
+          <div className="k">{d.status === 'complet' ? 'Valeur' : 'Stade'}</div>
+          <div className="v">
+            {d.status === 'brouillon' ? <span className="muted">Saisie</span> : <span className="muted">—</span>}
           </div>
         </div>
-
-        <div
-          className="text-[19px] font-medium leading-[1.2] pr-2 mb-0.5"
-          style={{ fontFamily: 'var(--font-serif)', letterSpacing: '-.005em', color: 'var(--ink)' }}
-        >
-          {dossier.address}
-        </div>
-        <div
-          className="text-[13px]"
-          style={{ color: 'var(--ink-mute)', fontStyle: 'italic', fontFamily: 'var(--font-serif)' }}
-        >
-          {dossier.property_type}
-          {dossier.neighborhood && (
-            <span style={{ color: 'var(--ink-faint)' }}> · {dossier.neighborhood}</span>
-          )}
-        </div>
       </div>
 
-      {/* Stage bar */}
-      <div className="px-5 pb-3">
-        <StageBar stage={1} />
+      <div className="foot">
+        <span className="client">{d.neighborhood}</span>
+        <span className="stamp">Mod. {d.updatedAt}</span>
       </div>
-
-      {/* Footer */}
-      <div
-        className="px-5 pb-4 flex items-center justify-between border-t pt-3"
-        style={{ borderTopColor: 'var(--rule-soft)' }}
-      >
-        <span className="text-[12px] truncate mr-2" style={{ color: 'var(--ink-faint)', fontFamily: 'var(--font-sans)' }}>
-          —
-        </span>
-        <span className="text-[11.5px] flex-shrink-0" style={{ color: 'var(--ink-faint)', fontFamily: 'var(--font-sans)' }}>
-          Mod. {formatRelativeDate(dossier.updatedAt)}
-        </span>
-      </div>
-    </div>
+    </article>
   )
 }

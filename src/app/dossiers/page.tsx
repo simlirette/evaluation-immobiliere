@@ -1,48 +1,32 @@
 'use client'
 
-import { useEffect, useCallback, useState } from 'react'
+/* Dossiers — port 1:1 du design handoff (mes-dossiers.jsx).
+   Données réelles (runtime) ; tri valeur/année/superficie sans effet tant que
+   la liste backend n'expose pas ces champs. */
+
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
-import DossierCard from '@/components/dossiers/DossierCard'
+import DossierCard, { formatPropertyType } from '@/components/dossiers/DossierCard'
 import DossierRow from '@/components/dossiers/DossierRow'
-import EmptyState from '@/components/shared/EmptyState'
 import ContextMenu from '@/components/layout/ContextMenu'
 import Toast from '@/components/shared/Toast'
+import { Icon } from '@/components/shared/Icon'
 import { fetchRuntimeDossiers, deleteRuntimeDossier, renameRuntimeDossier, toggleRuntimePin, createRuntimeDossier } from '@/lib/runtime-api'
 import { useContextMenu } from '@/hooks/useContextMenu'
-import { sortDossiers, type SortKey } from '@/lib/sort-dossiers'
-import { filterDossiers, type StatusFilter } from '@/lib/filter-dossiers'
 import { createClient } from '@/lib/supabase/client'
-import type { Dossier } from '@/types'
+import type { Dossier, DossierStatus } from '@/types'
 
-const SORT_LABELS: Record<SortKey, string> = {
-  recent: 'Modifié récemment',
-  oldest: 'Plus ancien',
-  az: 'Adresse (A–Z)',
-  za: 'Adresse (Z–A)',
-}
-
-const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
-  all: 'Tous',
-  brouillon: 'Brouillons',
-  'en-cours': 'En cours',
-  complet: 'Complets',
-}
-
-function SkeletonCard() {
-  return (
-    <div
-      className="skeleton-shimmer rounded-[var(--r-lg)] border border-[var(--rule)] h-[196px]"
-    />
-  )
-}
+type StatusFilter = 'all' | DossierStatus
+type SortKey = 'modified' | 'created' | 'alpha' | 'value' | 'type' | 'year' | 'area' | 'stage' | 'client'
 
 export default function MesDossiersPage() {
   const router = useRouter()
-  const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortKey>('recent')
+  const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [sort, setSort] = useState<SortKey>('modified')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [view, setView] = useState<'grid' | 'rows'>('grid')
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -50,18 +34,75 @@ export default function MesDossiersPage() {
   const dismissToast = useCallback(() => setToast(null), [])
   const ctx = useContextMenu()
 
-  useEffect(() => {
+  function load() {
+    setError(false)
+    setLoading(true)
     fetchRuntimeDossiers()
       .then(data => { setDossiers(data); setLoading(false) })
       .catch(() => { setError(true); setLoading(false) })
-  }, [])
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [])
+
+  const counts = useMemo(() => {
+    const c = { all: dossiers.length, brouillon: 0, 'en-cours': 0, complet: 0 }
+    for (const d of dossiers) c[d.status]++
+    return c
+  }, [dossiers])
+
+  const filtered = useMemo(() => {
+    let arr = dossiers.slice()
+    if (statusFilter !== 'all') arr = arr.filter(d => d.status === statusFilter)
+    if (query.trim()) {
+      const q = query.trim().toLowerCase()
+      arr = arr.filter(d =>
+        d.address.toLowerCase().includes(q) ||
+        d.neighborhood.toLowerCase().includes(q) ||
+        formatPropertyType(d.property_type).toLowerCase().includes(q) ||
+        d.id.toLowerCase().includes(q)
+      )
+    }
+    arr.sort((a, b) => {
+      // épinglés d'abord, quel que soit le tri (comportement design)
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const dir = sortDir === 'asc' ? 1 : -1
+      const cmpStr = (x: string, y: string) => (x || '').localeCompare(y || '', 'fr-CA')
+      switch (sort) {
+        case 'alpha':  return cmpStr(a.address, b.address) * (sortDir === 'asc' ? 1 : -1)
+        case 'type':   return cmpStr(a.property_type, b.property_type) * (sortDir === 'asc' ? 1 : -1)
+        case 'client': return cmpStr(a.neighborhood, b.neighborhood) * (sortDir === 'asc' ? 1 : -1)
+        case 'modified':
+        case 'created':
+        case 'value':
+        case 'year':
+        case 'area':
+        case 'stage':
+        default:       return cmpStr(a.updatedAt, b.updatedAt) * dir
+      }
+    })
+    return arr
+  }, [dossiers, query, statusFilter, sort, sortDir])
+
+  function onSort(key: SortKey) {
+    if (sort === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSort(key)
+      setSortDir(['alpha', 'type', 'client'].includes(key) ? 'asc' : 'desc')
+    }
+  }
+
+  function onPin(d: Dossier) {
+    setDossiers(ds => ds.map(x => x.id === d.id ? { ...x, pinned: !x.pinned } : x))
+    toggleRuntimePin(d.slug, d.pinned)
+    setToast(d.pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
+  }
 
   function handlePin(name: string, pinned: boolean) {
     const d = dossiers.find(x => x.address === name)
-    if (!d) return
-    setDossiers(prev => prev.map(x => x.address === name ? { ...x, pinned: !pinned } : x))
-    toggleRuntimePin(d.slug, pinned)
-    setToast(pinned ? 'Dossier désépinglé' : 'Dossier épinglé')
+    if (d) onPin(d)
+    void pinned
   }
 
   function handleRename(name: string, newName: string) {
@@ -98,235 +139,127 @@ export default function MesDossiersPage() {
     setToast('Dossier supprimé')
   }
 
+  function clearFilters() {
+    setQuery('')
+    setStatusFilter('all')
+  }
+
   async function handleSignOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
   }
 
-  const hasActiveFilter = sort !== 'recent' || statusFilter !== 'all' || search.trim() !== ''
-  const filtered = sortDossiers(filterDossiers(dossiers, search, statusFilter), sort)
+  const todayStr = new Date().toLocaleDateString('fr-CA', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
 
   return (
-    <div className="relative w-full h-screen overflow-hidden flex" style={{ background: 'var(--paper)' }}>
+    <div className="app">
       <Sidebar onSignOut={handleSignOut} />
 
-      <div className="main-content flex flex-col overflow-hidden">
-        {/* Topbar */}
-        <div className="topbar pb-4">
-          <div className="flex items-end justify-between">
-            <h1 className="page-h1">Dossiers</h1>
-            <div className="flex gap-2 pb-1">
-              <button className="btn secondary btn-sm">Importer</button>
-              <button
-                className="btn accent btn-sm"
-                onClick={() => router.push('/dossier/nouveau')}
-              >
-                + Nouveau dossier
+      <div className="main">
+        {/* Page head */}
+        <div className="topbar">
+          <div className="crumbs">
+            <span className="today">{todayStr}</span>
+          </div>
+          <div className="pagehead">
+            <div>
+              <h1>Dossiers</h1>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn secondary">Importer un dossier</button>
+              <button className="btn accent" onClick={() => router.push('/dossier/nouveau')}>
+                <Icon.Plus/> Nouveau dossier
               </button>
             </div>
           </div>
         </div>
 
         {/* Toolbar */}
-        <div
-          className="flex items-center gap-3 px-8 py-3 flex-shrink-0"
-        >
-          {/* Search */}
-          <div className="relative flex-1 max-w-[560px]">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-              width="14" height="14" viewBox="0 0 14 14" fill="none"
-              aria-hidden="true" style={{ color: 'var(--ink-faint)' }}
-            >
-              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M9.5 9.5l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
+        <div className="toolbar">
+          <div className="search">
+            <Icon.Glass/>
             <input
-              type="search"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher par adresse…"
-              className="w-full pl-9 pr-4 py-2 text-[13.5px] border focus:outline-none transition-colors"
-              style={{
-                borderRadius: 'var(--r-pill)',
-                borderColor: 'var(--rule)',
-                fontFamily: 'var(--font-sans)',
-                color: 'var(--ink)',
-                background: 'var(--paper-hi)',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'var(--ink-mute)')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'var(--rule)')}
+              type="text"
+              placeholder="Rechercher par adresse, quartier, client ou nº de dossier…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
             />
+            {query && <span className="kbd" onClick={() => setQuery('')} style={{ cursor: 'pointer' }}>esc</span>}
           </div>
 
-          {/* Filter pills */}
-          <div className="flex gap-1">
-            {(Object.keys(STATUS_FILTER_LABELS) as StatusFilter[]).map(f => (
-              <button
-                key={f}
-                onClick={() => setStatusFilter(f)}
-                className={`pill text-[12px] py-1.5 px-3 ${statusFilter === f ? 'active' : ''}`}
-              >
-                {STATUS_FILTER_LABELS[f]}
-              </button>
-            ))}
+          <div className="filter-pills">
+            <button className={`pill ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>
+              <span>Tous</span><span className="count">{counts.all}</span>
+            </button>
+            <button className={`pill ${statusFilter === 'en-cours' ? 'active' : ''}`} onClick={() => setStatusFilter('en-cours')}>
+              <span>En cours</span><span className="count">{counts['en-cours']}</span>
+            </button>
+            <button className={`pill ${statusFilter === 'complet' ? 'active' : ''}`} onClick={() => setStatusFilter('complet')}>
+              <span>Complets</span><span className="count">{counts.complet}</span>
+            </button>
+            <button className={`pill ${statusFilter === 'brouillon' ? 'active' : ''}`} onClick={() => setStatusFilter('brouillon')}>
+              <span>Brouillons</span><span className="count">{counts.brouillon}</span>
+            </button>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            {/* Sort */}
-            <select
-              value={sort}
-              onChange={e => setSort(e.target.value as SortKey)}
-              className="text-[13px] px-3 py-1.5 border cursor-pointer focus:outline-none"
-              style={{
-                borderRadius: 'var(--r-md)',
-                borderColor: 'var(--rule)',
-                color: 'var(--ink-3)',
-                fontFamily: 'var(--font-sans)',
-                background: 'var(--paper-hi)',
-              }}
-            >
-              {(Object.keys(SORT_LABELS) as SortKey[]).map(k => (
-                <option key={k} value={k}>{SORT_LABELS[k]}</option>
-              ))}
+          <div className="sort-select">
+            <span className="label">Trier par</span>
+            <select value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+              <option value="modified">Modifié récemment</option>
+              <option value="created">Créé récemment</option>
+              <option value="alpha">Adresse (A–Z)</option>
+              <option value="value">Valeur (décroissant)</option>
             </select>
+          </div>
 
-            {/* View toggle */}
-            <div
-              className="flex border overflow-hidden"
-              style={{ borderRadius: 'var(--r-md)', borderColor: 'var(--rule)' }}
-            >
-              <button
-                onClick={() => setView('grid')}
-                aria-pressed={view === 'grid'}
-                className="px-3 py-1.5 cursor-pointer border-none transition-colors"
-                style={{
-                  background: view === 'grid' ? 'var(--ink)' : 'var(--paper-hi)',
-                  color: view === 'grid' ? 'var(--paper-hi)' : 'var(--ink-mute)',
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor" aria-hidden="true">
-                  <rect x="0" y="0" width="5.5" height="5.5"/>
-                  <rect x="7.5" y="0" width="5.5" height="5.5"/>
-                  <rect x="0" y="7.5" width="5.5" height="5.5"/>
-                  <rect x="7.5" y="7.5" width="5.5" height="5.5"/>
-                </svg>
-              </button>
-              <button
-                onClick={() => setView('list')}
-                aria-pressed={view === 'list'}
-                className="px-3 py-1.5 cursor-pointer border-none border-l transition-colors"
-                style={{
-                  borderLeftColor: 'var(--rule)',
-                  background: view === 'list' ? 'var(--ink)' : 'var(--paper-hi)',
-                  color: view === 'list' ? 'var(--paper-hi)' : 'var(--ink-mute)',
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                  <path d="M0 2h13M0 6.5h13M0 11h13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
+          <div className="view-toggle">
+            <button className={view === 'grid' ? 'active' : ''} title="Vue en grille" onClick={() => setView('grid')}>
+              <Icon.Grid/>
+            </button>
+            <button className={view === 'rows' ? 'active' : ''} title="Vue en liste" onClick={() => setView('rows')}>
+              <Icon.Rows/>
+            </button>
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto scroll-fade-top">
-          <div className="px-8 pt-6 pb-16">
-            {error ? (
-              <div className="flex flex-col items-center justify-center mt-20">
-                <EmptyState
-                  title="Erreur de chargement"
-                  subtitle="Impossible de récupérer les dossiers. Vérifiez votre connexion."
-                />
-                <button
-                  onClick={() => {
-                    setError(false); setLoading(true)
-                    fetchRuntimeDossiers()
-                      .then(data => { setDossiers(data); setLoading(false) })
-                      .catch(() => { setError(true); setLoading(false) })
-                  }}
-                  className="btn accent btn-sm mt-5"
-                >
-                  Réessayer
-                </button>
-              </div>
-            ) : loading ? (
-              <div className="dossier-card-grid">
-                {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center mt-20">
-                <EmptyState
-                  title={hasActiveFilter ? 'Aucun résultat' : 'Aucun dossier'}
-                  subtitle={hasActiveFilter
-                    ? 'Aucun dossier ne correspond aux filtres actifs.'
-                    : 'Créez votre premier dossier pour commencer.'}
-                />
-                {!hasActiveFilter && (
-                  <button
-                    onClick={() => router.push('/dossier/nouveau')}
-                    className="btn accent btn-sm mt-5"
-                  >
-                    Nouveau dossier
-                  </button>
-                )}
-                {hasActiveFilter && (
-                  <button
-                    onClick={() => { setSearch(''); setSort('recent'); setStatusFilter('all') }}
-                    className="btn ghost btn-sm mt-4"
-                  >
-                    Réinitialiser les filtres
-                  </button>
-                )}
-              </div>
-            ) : view === 'grid' ? (
-              <div className="dossier-card-grid">
-                {filtered.map((d, i) => (
-                  <DossierCard
-                    key={d.id}
-                    dossier={d}
-                    onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
-                    onContextMenu={e => ctx.open(e, d.address, d.pinned)}
-                    index={i}
-                  />
-                ))}
-              </div>
+        <div className="grid-wrap">
+          {loading && <LoadingState/>}
+          {!loading && error && <ErrorState onRetry={load}/>}
+          {!loading && !error && dossiers.length === 0 && (
+            <EmptyState onNew={() => router.push('/dossier/nouveau')}/>
+          )}
+          {!loading && !error && dossiers.length > 0 && (
+            filtered.length === 0 ? (
+              <NoResultsState query={query} onClear={clearFilters}/>
             ) : (
-              /* List view */
-              <div
-                className="rounded-[var(--r-lg)] border border-[var(--rule)] overflow-hidden"
-                style={{ background: 'var(--paper-hi)' }}
-              >
-                {/* List header */}
-                <div
-                  className="grid px-5 py-2.5 text-[11px] font-medium uppercase tracking-[.04em]"
-                  style={{
-                    gridTemplateColumns: '2fr 140px 100px 80px 1fr 140px',
-                    gap: '1rem',
-                    color: 'var(--ink-faint)',
-                    borderBottom: '1px solid var(--rule-soft)',
-                    background: 'var(--paper)',
-                  }}
-                >
-                  <span>Adresse</span>
-                  <span>Type</span>
-                  <span>Statut</span>
-                  <span>Stade</span>
-                  <span>Client</span>
-                  <span className="text-right">Modifié</span>
-                </div>
-                {filtered.map(d => (
-                  <DossierRow
-                    key={d.id}
-                    dossier={d}
-                    onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
-                  />
-                ))}
+              <div className={view === 'grid' ? 'card-grid' : 'card-list'}>
+                {view === 'rows' && (
+                  <div className="list-head">
+                    <SortHead k="alpha"    sort={sort} dir={sortDir} onSort={onSort}>Adresse</SortHead>
+                    <SortHead k="type"     sort={sort} dir={sortDir} onSort={onSort}>Type</SortHead>
+                    <SortHead k="year"     sort={sort} dir={sortDir} onSort={onSort}>Année</SortHead>
+                    <SortHead k="area"     sort={sort} dir={sortDir} onSort={onSort}>Superficie</SortHead>
+                    <SortHead k="stage"    sort={sort} dir={sortDir} onSort={onSort}>Stade / Valeur</SortHead>
+                    <SortHead k="client"   sort={sort} dir={sortDir} onSort={onSort}>Client</SortHead>
+                    <SortHead k="modified" sort={sort} dir={sortDir} onSort={onSort}>Modifié</SortHead>
+                    <div></div>
+                  </div>
+                )}
+                {filtered.map(d => view === 'grid'
+                  ? <DossierCard key={d.id} dossier={d} onPin={onPin}
+                      onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
+                      onContextMenu={e => ctx.open(e, d.address, d.pinned)}/>
+                  : <DossierRow key={d.id} dossier={d} onPin={onPin}
+                      onClick={() => router.push(`/dossier/${d.slug}?tab=dossier`)}
+                      onContextMenu={e => ctx.open(e, d.address, d.pinned)}/>
+                )}
               </div>
-            )}
-          </div>
+            )
+          )}
         </div>
       </div>
 
@@ -339,6 +272,100 @@ export default function MesDossiersPage() {
         onDelete={handleDelete}
       />
       <Toast message={toast} onDismiss={dismissToast} />
+    </div>
+  )
+}
+
+/* ── Sortable list-head cell ── */
+function SortHead({ k, sort, dir, onSort, children }: {
+  k: SortKey
+  sort: SortKey
+  dir: 'asc' | 'desc'
+  onSort: (k: SortKey) => void
+  children: React.ReactNode
+}) {
+  const active = sort === k
+  return (
+    <button
+      type="button"
+      className={`sort-head ${active ? 'active' : ''}`}
+      onClick={() => onSort(k)}>
+      <span>{children}</span>
+      <span className={`caret ${active ? (dir === 'asc' ? 'asc' : 'desc') : ''}`}>
+        <svg viewBox="0 0 10 6" width="9" height="6" aria-hidden="true">
+          <path d="M0 1l5 4 5-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+    </button>
+  )
+}
+
+/* ── State views (design handoff) ── */
+function LoadingState() {
+  return (
+    <div className="skeleton-grid">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="skeleton-card">
+          <div className="body">
+            <div className="line w2"/>
+            <div className="line w1"/>
+            <div className="line w3"/>
+            <div style={{ height: 8 }}/>
+            <div className="line w2"/>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="state">
+      <div className="seal" style={{ background: 'rgba(138,48,48,.08)', color: 'var(--oxblood)' }}>!</div>
+      <h2>Connexion <em style={{ color: 'var(--oxblood)' }}>interrompue</em></h2>
+      <p>
+        Le serveur d&apos;évaluation n&apos;a pas répondu. Vos dossiers locaux sont
+        intacts ; seule la synchronisation est en pause.
+      </p>
+      <div className="actions">
+        <button className="btn" onClick={onRetry}>Réessayer la connexion</button>
+        <button className="btn secondary">Travailler hors ligne</button>
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="state">
+      <div className="seal">É.A.</div>
+      <h2>Aucun dossier <em>ouvert</em>.</h2>
+      <p>
+        Commencez votre premier dossier d&apos;évaluation. Vous pourrez importer les
+        données du rôle d&apos;évaluation ou saisir manuellement les caractéristiques de la propriété.
+      </p>
+      <div className="actions">
+        <button className="btn accent" onClick={onNew}><Icon.Plus/> Nouveau dossier</button>
+        <button className="btn secondary">Importer depuis le rôle</button>
+      </div>
+    </div>
+  )
+}
+
+function NoResultsState({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="state" style={{ padding: '60px 40px' }}>
+      <div className="seal" style={{ width: 72, height: 72, fontSize: 14 }}>—</div>
+      <h2>Aucun résultat</h2>
+      <p>
+        Aucun dossier ne correspond à
+        {query ? <> «&nbsp;<i style={{ color: 'var(--ink)' }}>{query}</i>&nbsp;»</> : ' ces filtres'}.
+        Essayez d&apos;élargir votre recherche ou de retirer un filtre.
+      </p>
+      <div className="actions">
+        <button className="btn secondary" onClick={onClear}>Réinitialiser les filtres</button>
+      </div>
     </div>
   )
 }
