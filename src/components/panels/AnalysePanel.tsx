@@ -1,16 +1,12 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState } from 'react'
-import AgentMessage from '@/components/shared/AgentMessage'
-import UserMessage from '@/components/shared/UserMessage'
+import { useEffect, useState } from 'react'
 import AdjustmentsTable from '@/components/shared/AdjustmentsTable'
 import ValeurCard from '@/components/shared/ValeurCard'
-import ChatInput from '@/components/shared/ChatInput'
-import TypingDots from '@/components/shared/TypingDots'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
+import { Icon } from '@/components/shared/Icon'
 import { fetchAppState, fetchRuntimeEnrichment, fetchRuntimeComparables, fetchRuntimeAdjustments, saveRuntimeAdjustments, saveRuntimeComparables } from '@/lib/runtime-api'
-import { useAgentChat } from '@/hooks/useAgentChat'
 import { printWindow } from '@/lib/print-window'
 import { buildAnalyseHtml } from '@/lib/analyse-html'
 import { summarizeAdjustments } from '@/lib/summarize-adjustments'
@@ -139,10 +135,11 @@ function FinancierContexte({ f }: { f: EnrichmentFinancier }) {
 }
 
 export default function AnalysePanel({ dossierId, address }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null)
   const [comparables, setComparables] = useState<Comparable[]>([])
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [conclusion, setConclusion] = useState<number | null>(null)
+  const [valuationValues, setValuationValues] = useState<Record<string, number>>({})
+  const [methodePreponderante, setMethodePreponderante] = useState<string | null>(null)
   const [status, setStatus] = useState('A_VALIDER_PAR_EVALUATEUR_AGREE')
   const [financier, setFinancier] = useState<EnrichmentFinancier | null>(null)
   const [loading, setLoading] = useState(true)
@@ -153,7 +150,6 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   const [editComps, setEditComps] = useState(false)
   const [draftComps, setDraftComps] = useState<Comparable[]>([])
   const [compsSaving, setCompsSaving] = useState(false)
-  const { replies, asking, ask } = useAgentChat(dossierId, 'valuation-draft')
 
   function load() {
     if (!dossierId) return
@@ -168,6 +164,8 @@ export default function AnalysePanel({ dossierId, address }: Props) {
       setAdjustments(rows)
       setComparables(comps)
       setConclusion(state.active?.valuation.conclusion.value ?? null)
+      setValuationValues(state.active?.valuation.values ?? {})
+      setMethodePreponderante(state.active?.mandat?.methode_preponderante ?? null)
       setStatus(state.active?.valuation.status ?? 'A_VALIDER_PAR_EVALUATEUR_AGREE')
       setFinancier(enrichment?.financier ?? null)
       setLoading(false)
@@ -175,10 +173,6 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   }
 
   useEffect(() => { load() }, [dossierId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [replies, asking])
 
   function enterEditMode() {
     setDraftAdj(adjustments.map(a => ({ ...a })))
@@ -243,15 +237,105 @@ export default function AnalysePanel({ dossierId, address }: Props) {
   if (!dossierId || loading) return <PanelLoader />
   if (error) return <PanelError onRetry={load} />
 
-  return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden">
-      <div className="flex flex-col flex-1 w-full max-w-[900px] mx-auto overflow-hidden">
-      <div ref={scrollRef} className="w-full flex flex-col gap-0 flex-1 overflow-y-auto pt-5 pb-2 scroll-fade">
-        <UserMessage>{'Afficher la valeur propos\u00e9e et la trace d\u2019ajustements.'}</UserMessage>
-        <AgentMessage agentName="Agent Analyse">
-          {'Voici la trace d\u2019analyse issue du runtime. Elle n\u2019est pas une certification.'}
+  const approachMeta: Record<string, { title: string; sub: string }> = {
+    approche_comparative: { title: 'Comparaison', sub: 'Ventes récentes ajustées' },
+    approche_cout:        { title: 'Coût', sub: 'Reconstitution − dépréciation + terrain' },
+    approche_revenu:      { title: 'Revenus', sub: 'Capitalisation des revenus nets' },
+  }
+  const approachKeys: Array<keyof typeof approachMeta> = ['approche_comparative', 'approche_cout', 'approche_revenu']
 
-          {/* ── Comparables section ── */}
+  return (
+    <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
+      <div className="flex flex-col gap-5 pb-10">
+
+      {/* Réconciliation des approches (design handoff) */}
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Étape 3 — Analyse</div>
+            <h2>Réconciliation des approches</h2>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {adjustments.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const csv = buildAdjustmentsCsv(adjustments)
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `ajustements${address ? '-' + address.slice(0, 30).replace(/\s+/g, '-') : ''}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className="btn ghost btn-sm"
+              >
+                Export CSV
+              </button>
+            )}
+            {(adjustments.length > 0 || conclusion !== null) && (
+              <button
+                type="button"
+                onClick={() => printWindow(buildAnalyseHtml(adjustments, conclusion, status, financier, address, comparables), address ?? 'Analyse')}
+                className="btn secondary btn-sm"
+              >
+                <Icon.Print/> Imprimer
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="approach-grid">
+          {approachKeys.map(key => {
+            const meta = approachMeta[key]
+            const value = valuationValues[key]
+            const applies = value != null && value > 0
+            const dominant = methodePreponderante === key
+            return (
+              <div key={key} className={`approach ${applies ? '' : 'na'}`}>
+                <div className="approach-head">
+                  <div>
+                    <div className="approach-title">{meta.title}</div>
+                    <div className="approach-sub">{meta.sub}</div>
+                  </div>
+                  {applies && dominant && (
+                    <div className="approach-weight">Prépondérante</div>
+                  )}
+                </div>
+                <div className="approach-value numeric">
+                  {applies ? formatPrice(value) : '—'}
+                </div>
+                <div className="approach-notes">
+                  {applies
+                    ? (dominant ? 'Méthode prépondérante du mandat' : 'Méthode de validation')
+                    : 'Non applicable ou non calculée'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {conclusion !== null && (
+          <div className="recon recon-weighted">
+            <div className="recon-row recon-final">
+              <div className="recon-k">
+                Valeur réconciliée
+                <span className="recon-sub">{statusLabel(status)}</span>
+              </div>
+              <div className="recon-v numeric strong huge">{formatPrice(conclusion)}</div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Comparables + grille d'ajustements */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Comparables &amp; grille d&apos;ajustements</h2>
+        </div>
+        <div>
+          {/* Comparables section */}
           {editComps ? (
             <div className="mt-2.5 flex flex-col gap-2">
               {draftComps.map((comp, idx) => (
@@ -657,16 +741,18 @@ export default function AnalysePanel({ dossierId, address }: Props) {
               </div>
             )
           })()}
-        </AgentMessage>
-        {adjustments.length > 0 && (() => {
+        </div>
+      </section>
+
+      {adjustments.length > 0 && (() => {
           const vc = computeValuationConclusion(adjustments, comparables)
           if (!vc) return null
           const reliabilityColor = vc.reliability === 'élevée' ? 'text-emerald-600 dark:text-emerald-400'
             : vc.reliability === 'modérée' ? 'text-amber-600 dark:text-amber-400'
             : 'text-red-500'
           return (
-            <AgentMessage agentName="Agent Analyse">
-              <div className="rounded-xl bg-[rgba(0,0,0,.03)] dark:bg-[rgba(255,255,255,.04)] px-4 py-3 flex flex-col gap-2">
+            <section className="panel">
+              <div className="flex flex-col gap-2">
                 <div className="text-[11px] uppercase tracking-widest text-[#8a8780]">Conclusion structurée</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
                   <span className="text-[#6a6763]">Valeur réconciliée</span>
@@ -693,17 +779,17 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                   )}
                 </div>
               </div>
-            </AgentMessage>
+            </section>
           )
         })()}
-        {adjustments.length > 0 && (() => {
+      {adjustments.length > 0 && (() => {
           const risk = computeAppraisalRiskScore(adjustments, comparables)
           if (!risk) return null
           const riskColor = risk.riskLevel === 'faible' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-900/20'
             : risk.riskLevel === 'modéré' ? 'text-amber-600 dark:text-amber-400 bg-amber-50/80 dark:bg-amber-900/20'
             : 'text-red-600 dark:text-red-400 bg-red-50/80 dark:bg-red-900/20'
           return (
-            <AgentMessage agentName="Agent Analyse">
+            <section className="panel">
               <div className="flex items-start gap-2 flex-wrap">
                 <span className={`text-[10px] font-semibold rounded-full px-2.5 py-1 whitespace-nowrap ${riskColor}`}>
                   Risque dossier&nbsp;: {risk.riskLevel} ({risk.score}/100)
@@ -712,64 +798,13 @@ export default function AnalysePanel({ dossierId, address }: Props) {
                   <span className="text-[10px] text-[#8a8780]">{risk.factors.join(' · ')}</span>
                 )}
               </div>
-            </AgentMessage>
+            </section>
           )
         })()}
-        <AgentMessage agentName="Agent Analyse" last={replies.length === 0 && !asking}>
-          {'Statut\u00a0: '}<strong>{statusLabel(status)}</strong>{'. La validation d\u2019un \u00e9valuateur agr\u00e9\u00e9 reste obligatoire avant toute diffusion.'}
-        </AgentMessage>
-        {replies.map((r, i) => (
-          <Fragment key={i}>
-            {r.userMessage && <UserMessage>{r.userMessage}</UserMessage>}
-            <AgentMessage agentName={r.agentLabel || 'Agent Analyse'} last={i === replies.length - 1 && !asking}>
-              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
-                {r.text}
-                {r.streaming && <span className="text-[#b5b2ac] animate-pulse">▊</span>}
-              </pre>
-            </AgentMessage>
-          </Fragment>
-        ))}
-        {asking && replies.length === 0 && (
-          <AgentMessage agentName="Agent Analyse" last>
-            <TypingDots />
-          </AgentMessage>
-        )}
+      <p className="text-center text-[11px] pb-2" style={{ color: 'var(--ink-faint)' }}>
+        Statut : {statusLabel(status)} — la validation d’un évaluateur agréé reste obligatoire avant toute diffusion.
+      </p>
       </div>
-      {(adjustments.length > 0 || conclusion !== null) && (
-        <div className="w-full max-w-[640px] flex justify-end gap-2 mb-3">
-          {adjustments.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                const csv = buildAdjustmentsCsv(adjustments)
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `ajustements${address ? '-' + address.slice(0, 30).replace(/\s+/g, '-') : ''}.csv`
-                a.click()
-                URL.revokeObjectURL(url)
-              }}
-              className="btn ghost btn-sm"
-            >
-              Export CSV
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => printWindow(buildAnalyseHtml(adjustments, conclusion, status, financier, address, comparables), address ?? 'Analyse')}
-            className="btn ghost btn-sm"
-          >
-            {`Imprimer l'analyse`}
-          </button>
-        </div>
-      )}
-      <div className="h-8 flex-shrink-0 -mt-8 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, transparent, var(--paper))' }} />
-      <div className="w-full flex-shrink-0 pb-6 pt-1" style={{ background: 'var(--paper)' }}>
-        <ChatInput placeholder="Questionner l'Agent Analyse..." onSend={ask} disabled={asking} />
-      </div>
-      </div>{/* fin colonne centrée */}
     </div>
   )
 }

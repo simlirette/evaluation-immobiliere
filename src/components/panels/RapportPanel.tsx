@@ -1,14 +1,18 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState } from 'react'
-import AgentMessage from '@/components/shared/AgentMessage'
-import UserMessage from '@/components/shared/UserMessage'
-import RapportArtifact from '@/components/shared/RapportArtifact'
+/* Rapport — vue document-first du design handoff (StageRapport) :
+   rapport-hero (cover + stats + actions) et checklist des sections,
+   en conservant revue interne / paquet V1 / éditeur TipTap / versions.
+   Le chat passe par la capsule globale. */
+
+import { useEffect, useState } from 'react'
 import RapportDoc from '@/components/shared/RapportDoc'
-import ChatInput from '@/components/shared/ChatInput'
 import PanelLoader from '@/components/shared/PanelLoader'
 import PanelError from '@/components/shared/PanelError'
 import Toast from '@/components/shared/Toast'
+import RapportVersionHistory from '@/components/shared/RapportVersionHistory'
+import DragHandle from '@/components/shared/DragHandle'
+import { Icon } from '@/components/shared/Icon'
 import {
   fetchAppState,
   generateRuntimePackage,
@@ -17,11 +21,8 @@ import {
   saveRapport,
   generateRapport,
 } from '@/lib/runtime-api'
-import { useAgentChat } from '@/hooks/useAgentChat'
 import { saveVersion, loadVersions } from '@/lib/rapport-versions'
-import RapportVersionHistory from '@/components/shared/RapportVersionHistory'
 import type { Comparable, Adjustment, FactChip } from '@/types'
-import DragHandle from '@/components/shared/DragHandle'
 
 interface Props {
   dossierId: string | null
@@ -57,9 +58,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     if (typeof window === 'undefined') return 400
     return Number(localStorage.getItem('rapport-panel-width') ?? '400') || 400
   })
-  const scrollRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<RapportState | null>(null)
-  const { replies, asking, ask } = useAgentChat(dossierId, 'redaction')
   const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -100,14 +99,7 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
         setState(prev => prev ? { ...prev, versionCount: versions.length } : prev)
         if (versions.length === 0) {
           const realId = app.active?.dossier?.id ?? dossierId
-          await saveVersion(
-            dossierId,
-            realId,
-            preview,
-            'abrege',
-            'Génération initiale',
-            true
-          )
+          await saveVersion(dossierId, realId, preview, 'abrege', 'Génération initiale', true)
           setState(prev => prev ? { ...prev, versionCount: 1 } : prev)
         }
       } catch {
@@ -132,14 +124,6 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
     reload().catch(() => { setError(true); setLoading(false) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId])
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [replies, asking])
-
-  async function handleAsk(value: string) {
-    await ask(value)
-  }
 
   async function handleValidate() {
     if (!dossierId) return
@@ -225,129 +209,144 @@ export default function RapportPanel({ dossierId, dossierAddress }: Props) {
   if (!dossierId || loading || !state) return <PanelLoader />
   if (error) return <PanelError onRetry={() => { setError(false); setLoading(true); reload().catch(() => { setError(true); setLoading(false) }) }} />
 
+  const completedSteps = state.steps.filter(s => s.complete).length
+
+  const docView = (
+    <div className="flex flex-col gap-5 pb-10">
+      {/* ── Hero — cover + stats + actions (design) ── */}
+      <section className="panel rapport-hero">
+        <div className="rapport-cover">
+          <div className="cover-eyebrow">Rapport d&apos;évaluation</div>
+          <div className="cover-addr">{dossierAddress}</div>
+          <div className="cover-bottom">
+            <div>
+              <div className="cover-meta-k">Conclusion</div>
+              <div className="cover-meta-v numeric">{state.conclusion ?? '—'}</div>
+            </div>
+            <div>
+              <div className="cover-meta-k">Dossier</div>
+              <div className="cover-meta-v numeric">{state.realDossierId}</div>
+            </div>
+          </div>
+          <div className="cover-seal">É.A.</div>
+        </div>
+        <div className="rapport-side">
+          <div className="rs-stat">
+            <div className="rs-num numeric">{completedSteps}/{state.steps.length || '—'}</div>
+            <div className="rs-lbl">étapes complètes</div>
+          </div>
+          <div className="rs-stat">
+            <div className="rs-num" style={{ fontSize: 15 }}>{state.packageStatus.replace(/_/g, ' ').toLowerCase()}</div>
+            <div className="rs-lbl">paquet V1</div>
+          </div>
+          <div className="rs-actions">
+            <button
+              className="btn accent btn-full disabled:opacity-40"
+              onClick={handlePackage}
+              disabled={!state.canPackage || busy !== ''}
+            >
+              {busy === 'package' ? 'Génération…' : 'Générer paquet V1'}
+            </button>
+            <button
+              className="btn secondary btn-full disabled:opacity-40"
+              onClick={handleValidate}
+              disabled={!state.canValidate || busy !== ''}
+            >
+              {busy === 'review' ? 'Validation…' : 'Valider revue interne'}
+            </button>
+            {state.packageStatus === 'PRET_REVUE_EVALUATEUR_AGREE' && (
+              <button
+                className="btn secondary btn-full disabled:opacity-40"
+                onClick={handleDownload}
+                disabled={busy !== ''}
+              >
+                {busy === 'download' ? 'Téléchargement…' : 'Télécharger le paquet'}
+              </button>
+            )}
+            {!isMobile && (
+              <button className="btn ghost btn-full" onClick={() => setSplit(s => !s)}>
+                {split ? 'Fermer l’éditeur' : 'Ouvrir l’éditeur'}
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Sections / étapes du pipeline ── */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Étapes du rapport</h2>
+          <button
+            type="button"
+            className="btn ghost btn-sm"
+            onClick={() => setShowHistory(s => !s)}
+          >
+            {showHistory ? 'Fermer historique' : `Historique (${state.versionCount})`}
+          </button>
+        </div>
+        {state.steps.length > 0 ? (
+          <ul className="rapport-sections">
+            {state.steps.map((s, i) => (
+              <li key={s.id} className={s.complete ? 'done' : 'pending'}>
+                <span className="sec-icon">
+                  {s.complete ? <Icon.Check/> : <Icon.Clock/>}
+                </span>
+                <span className="sec-num numeric">{String(i + 1).padStart(2, '0')}</span>
+                <span className="sec-name">{s.label}</span>
+                <span className="sec-pages">{s.status}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="notes-body">
+            Pipeline non démarré. Créez un dossier et lancez l&apos;analyse depuis
+            l&apos;onglet Dossier pour générer le rapport.
+          </p>
+        )}
+        {showHistory && dossierId && (
+          <div className="mt-3 rounded-[var(--r-md)] overflow-hidden" style={{ border: '1px solid var(--rule)' }}>
+            <RapportVersionHistory sessionId={dossierId} onRestore={handleRestoreVersion} />
+          </div>
+        )}
+      </section>
+
+      {/* ── Blocages / conditions ── */}
+      {(state.blockingFailures.length > 0 || state.gateMessages.length > 0) && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Conditions avant certification</h2>
+          </div>
+          <div className="flex flex-col gap-2">
+            {state.blockingFailures.map((f, i) => (
+              <div key={`b${i}`} className="rounded-[8px] px-3 py-2 text-[12.5px]"
+                style={{ color: 'var(--oxblood)', background: 'rgba(138,48,48,.08)', border: '1px solid rgba(138,48,48,.15)' }}>
+                · {f}
+              </div>
+            ))}
+            {state.gateMessages.map((m, i) => (
+              <div key={`g${i}`} className="rounded-[8px] px-3 py-2 text-[12.5px]"
+                style={{ color: 'var(--ochre)', background: 'rgba(184,138,62,.10)', border: '1px solid rgba(184,138,62,.2)' }}>
+                · {m}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <p className="text-center text-[11px] pb-2" style={{ color: 'var(--ink-faint)' }}>
+        Brouillon non certifié — paquet&nbsp;: {state.packageStatus}
+      </p>
+    </div>
+  )
+
   return (
     <div className={`relative flex flex-1 h-full overflow-hidden ${split ? 'flex-row' : 'flex-col'}`}>
       <Toast message={toast} onDismiss={() => setToast(null)} />
       <div
-        className={`flex flex-col ${split ? 'border-r border-black/[.07] overflow-hidden' : 'w-full flex-1 overflow-hidden'}`}
-        style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0 } : undefined}
+        className={`flex flex-col overflow-y-auto ${split ? '' : 'w-full flex-1'}`}
+        style={split ? { flexBasis: `${leftWidth}px`, flexGrow: 0, flexShrink: 0, borderRight: '1px solid var(--rule-soft)', paddingRight: 16 } : { minHeight: 0 }}
       >
-        <div ref={scrollRef} className={`flex flex-col gap-0 mb-5 flex-1 overflow-y-auto pt-5 scroll-fade ${split ? 'px-5' : 'w-full px-6'}`}>
-          <UserMessage>{'Pr\u00e9parer la revue interne et le paquet V1 sans inventer de certification.'}</UserMessage>
-          <AgentMessage agentName="Agent Rapport">
-            {'Brouillon runtime charg\u00e9. Statut workflow\u00a0: '}<strong>{state.workflowStatus}</strong>{'.'}
-            {state.conclusion && (
-              <div className="mt-3 rounded-[10px] px-4 py-3" style={{ background: 'rgba(31,122,92,.07)', border: '1px solid rgba(31,122,92,.18)' }}>
-                <div className="text-[10px] uppercase tracking-[.07em] font-medium mb-1" style={{ color: '#1f7a5c' }}>
-                  {'Conclusion de valeur propos\u00e9e'}
-                </div>
-                <div className="text-[22px] font-semibold leading-tight" style={{ fontFamily: 'var(--font-serif)', color: '#0f3d2e' }}>
-                  {state.conclusion}
-                </div>
-                {state.complianceStatus && (
-                  <div className="text-[11px] mt-1" style={{ color: '#1f7a5c' }}>{state.complianceStatus}</div>
-                )}
-              </div>
-            )}
-            {state.steps.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                {state.steps.map(step => (
-                  <div key={step.id} className="rounded-[9px] bg-black/[.035] px-3 py-2 text-[12px]">
-                    <div className="text-[#1a1916]">{step.label}</div>
-                    <div className="text-[11px] text-[#8a8780]">{step.status}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-3 rounded-[10px] px-4 py-4 text-center" style={{ background: 'var(--input-bg)', border: '1px dashed var(--input-border)' }}>
-                <div className="text-[13px] text-[#8a8780] mb-1">Pipeline non démarré</div>
-                <div className="text-[12px] text-[#b5b2ac]">Créez un dossier et lancez l&apos;analyse depuis l&apos;onglet Dossier pour générer le rapport.</div>
-              </div>
-            )}
-            {state.blockingFailures.length > 0 && (
-              <div className="mt-3 rounded-[9px] bg-red-50/80 border border-red-200/60 px-3 py-2">
-                <div className="text-[11px] font-medium text-red-700 mb-1">
-                  {state.blockingFailures.length} blocage{state.blockingFailures.length > 1 ? 's' : ''} — revue impossible
-                </div>
-                <ul className="text-[11px] text-red-600 list-disc list-inside space-y-0.5">
-                  {state.blockingFailures.slice(0, 5).map((f, i) => <li key={i}>{f}</li>)}
-                </ul>
-              </div>
-            )}
-            {state.gateMessages.length > 0 && (
-              <div className="mt-3 rounded-[9px] bg-amber-50/80 border border-amber-200/70 px-3 py-2">
-                <div className="text-[11px] font-medium text-amber-800 mb-1">
-                  {state.gateMessages.length} condition{state.gateMessages.length > 1 ? 's' : ''} restante{state.gateMessages.length > 1 ? 's' : ''} avant export/revue
-                </div>
-                <ul className="text-[11px] text-amber-700 list-disc list-inside space-y-0.5">
-                  {state.gateMessages.slice(0, 5).map((message, i) => <li key={i}>{message}</li>)}
-                </ul>
-              </div>
-            )}
-            <div className="flex gap-2 mt-3 flex-wrap">
-              <button
-                onClick={handleValidate}
-                disabled={!state.canValidate || busy !== ''}
-                className="btn secondary btn-sm disabled:opacity-40"
-              >
-                {busy === 'review' ? 'Validation...' : 'Valider revue interne'}
-              </button>
-              <button
-                onClick={handlePackage}
-                disabled={!state.canPackage || busy !== ''}
-                className="btn accent btn-sm disabled:opacity-40"
-              >
-                {busy === 'package' ? 'G\u00e9n\u00e9ration...' : 'G\u00e9n\u00e9rer paquet V1'}
-              </button>
-              {state.packageStatus === 'PRET_REVUE_EVALUATEUR_AGREE' && (
-                <button
-                  onClick={handleDownload}
-                  disabled={busy !== ''}
-                  className="btn secondary btn-sm disabled:opacity-40"
-                >
-                  {busy === 'download' ? 'Téléchargement...' : '↓ Télécharger paquet'}
-                </button>
-              )}
-            </div>
-            <RapportArtifact
-              title="Brouillon de rapport"
-              subtitle={`Non certifi\u00e9 \u2014 paquet\u00a0: ${state.packageStatus}`}
-              label={split ? 'Fermer' : 'Ouvrir'}
-              onClick={isMobile ? undefined : () => setSplit(s => !s)}
-              disabled={isMobile}
-            />
-            {split && (
-              <button
-                type="button"
-                onClick={() => setShowHistory(s => !s)}
-                className="mt-2 rounded-full px-3 py-1.5 text-[11px] bg-black/[.05] text-[#5a5854] hover:bg-black/[.09] transition-colors"
-              >
-                {showHistory ? 'Fermer historique' : `Historique (${state.versionCount})`}
-              </button>
-            )}
-            {showHistory && dossierId && (
-              <div className="mt-2 rounded-[10px] border border-black/[.07] overflow-hidden">
-                <RapportVersionHistory
-                  sessionId={dossierId}
-                  onRestore={handleRestoreVersion}
-                />
-              </div>
-            )}
-          </AgentMessage>
-          {replies.map((r, i) => (
-            <Fragment key={i}>
-              {r.userMessage && <UserMessage>{r.userMessage}</UserMessage>}
-              <AgentMessage agentName={r.agentLabel || 'Agent Rapport'} last={i === replies.length - 1 && !asking}>
-                <pre className="whitespace-pre-wrap font-sans text-[13px] leading-6">
-                  {r.text}{r.streaming ? '▊' : ''}
-                </pre>
-              </AgentMessage>
-            </Fragment>
-          ))}
-        </div>
-        <div className={`${split ? 'px-4 pb-5' : 'px-6 pb-9 w-full flex justify-center'}`}>
-          <ChatInput placeholder="Questionner l'Agent Rapport..." onSend={handleAsk} disabled={asking} />
-        </div>
+        {docView}
       </div>
 
       {split && (

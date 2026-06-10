@@ -14,6 +14,7 @@ import Toast from '@/components/shared/Toast'
 import ShortcutHelp from '@/components/shared/ShortcutHelp'
 import { Icon } from '@/components/shared/Icon'
 import DossierPanel from '@/components/panels/DossierPanel'
+import AgentChatCapsule from '@/components/dossier/AgentChatCapsule'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import SynthesePanel from '@/components/panels/SynthesePanel'
@@ -337,6 +338,12 @@ function DossierShellInner() {
           </aside>
         </div>
       </div>
+
+      {/* Capsule agent (design) — sur les onglets convertis document-first ;
+          les autres gardent leur ChatInput interne jusqu'à conversion */}
+      {['marche', 'analyse', 'synthese', 'rapport'].includes(activeTab) && (
+        <AgentChatCapsule dossierId={dossierId} stage={activeTab} />
+      )}
 
       <Toast message={toast} onDismiss={dismissToast} />
       <ShortcutHelp open={showHelp} onClose={() => setShowHelp(false)} />

@@ -1,14 +1,20 @@
 'use client'
 
+/* Synthèse — vue document-first du design handoff (StageSynthese) :
+   hero valeur marchande + méta, narratif, attestation (signature É.A. réelle),
+   suivi du tableau de bord d'alertes et de scores du runtime. */
+
 import { useEffect, useState } from 'react'
 import PanelSkeleton from '@/components/shared/PanelSkeleton'
 import PanelError from '@/components/shared/PanelError'
 import EmptyState from '@/components/shared/EmptyState'
 import ValuationTrace from '@/components/shared/ValuationTrace'
-import { fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import SignatureForm from '@/components/shared/SignatureForm'
+import { Icon } from '@/components/shared/Icon'
+import { fetchRuntimeEnrichment, fetchAppState, fetchRuntimeSignature, type SignatureData } from '@/lib/runtime-api'
 import { printWindow } from '@/lib/print-window'
 import { buildSyntheseHtml } from '@/lib/synthese-html'
-import { formatCAD, fmtNum, formatPct } from '@/lib/format-number'
+import { formatCAD, fmtNum } from '@/lib/format-number'
 import type { Enrichment, EnrichmentAlerte } from '@/types'
 
 interface Props {
@@ -17,51 +23,27 @@ interface Props {
   onCritiqueFound?: (count: number) => void
 }
 
-function fmt(n: number | null | undefined, digits = 0): string { return fmtNum(n, digits) }
-function fmtMoney(n: number | null | undefined): string {
-  if (n == null) return '—'
-  return formatCAD(n)
+const METHODE_LABELS: Record<string, string> = {
+  approche_comparative: 'Comparaison directe',
+  approche_cout: 'Coût',
+  approche_revenu: 'Revenu',
+  approche_fta: 'Flux de trésorerie actualisés',
 }
 
-// ── Score global badge ────────────────────────────────────────────────────────
-
-const GRADE_COLORS: Record<string, { bg: string; text: string; ring: string }> = {
-  A: { bg: 'bg-emerald-50 dark:bg-emerald-950', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-300 dark:ring-emerald-700' },
-  B: { bg: 'bg-sky-50 dark:bg-sky-950',         text: 'text-sky-700 dark:text-sky-300',         ring: 'ring-sky-300 dark:ring-sky-700' },
-  C: { bg: 'bg-amber-50 dark:bg-amber-950',     text: 'text-amber-700 dark:text-amber-300',     ring: 'ring-amber-300 dark:ring-amber-700' },
-  D: { bg: 'bg-orange-50 dark:bg-orange-950',   text: 'text-orange-700 dark:text-orange-300',   ring: 'ring-orange-300 dark:ring-orange-700' },
-  F: { bg: 'bg-red-50 dark:bg-red-950',         text: 'text-red-700 dark:text-red-300',         ring: 'ring-red-300 dark:ring-red-700' },
-}
-
-function ScoreGlobalCard({ sg }: { sg: NonNullable<Enrichment['score_global']> }) {
-  const colors = GRADE_COLORS[sg.grade] ?? GRADE_COLORS['C']
-  return (
-    <div className={`rounded-[var(--r-lg)] ring-1 ${colors.ring} ${colors.bg} px-4 py-2 flex items-center gap-3`}>
-      <div className={`text-4xl font-semibold leading-none ${colors.text}`}>{sg.grade}</div>
-      <div className="min-w-0">
-        <div className="text-[18px] font-semibold" style={{ color: 'var(--ink)' }}>
-          {fmt(sg.score, 2)} <span className="text-[13px] font-normal" style={{ color: 'var(--ink-mute)' }}>/ 10</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Alertes ───────────────────────────────────────────────────────────────────
-
-const ALERTE_STYLES: Record<string, { dot: string; badge: string; text: string }> = {
-  critique: { dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',    text: 'CRITIQUE' },
-  attention: { dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300', text: 'ATTENTION' },
-  info:      { dot: 'bg-sky-400',   badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',    text: 'INFO' },
+const ALERTE_STYLES: Record<string, { color: string; bg: string; text: string }> = {
+  critique:  { color: 'var(--oxblood)', bg: 'rgba(138,48,48,.08)', text: 'CRITIQUE' },
+  attention: { color: 'var(--ochre)',   bg: 'rgba(184,138,62,.10)', text: 'ATTENTION' },
+  info:      { color: 'var(--navy)',    bg: 'var(--navy-tint)',     text: 'INFO' },
 }
 
 function AlerteRow({ alerte }: { alerte: EnrichmentAlerte }) {
   const s = ALERTE_STYLES[alerte.niveau] ?? ALERTE_STYLES['info']
   return (
     <div className="flex items-start gap-3 py-2.5" style={{ borderBottom: '1px solid var(--rule-soft)' }}>
-      <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
+      <span className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
       <div className="flex-1 min-w-0">
-        <span className={`inline-block text-[10px] font-semibold tracking-wider px-1.5 py-0.5 rounded mr-2 ${s.badge}`}>
+        <span className="inline-block text-[10px] font-semibold tracking-wider px-1.5 py-0.5 rounded mr-2"
+          style={{ color: s.color, background: s.bg }}>
           {s.text}
         </span>
         <span className="text-[12px] capitalize" style={{ color: 'var(--ink-mute)' }}>
@@ -75,56 +57,12 @@ function AlerteRow({ alerte }: { alerte: EnrichmentAlerte }) {
   )
 }
 
-// ── Score chip ────────────────────────────────────────────────────────────────
-
-function ScoreChip({ label, score, sub }: { label: string; score: number | null | undefined; sub?: string }) {
-  const pct = score != null ? Math.round((score / 10) * 100) : 0
-  const color = pct >= 70 ? '#1f7a5c' : pct >= 50 ? '#c77e00' : '#c0392b'
-  return (
-    <div className="panel flex flex-col gap-1.5">
-      <div className="eyebrow">{label}</div>
-      <div className="text-[22px] font-medium" style={{ fontFamily: 'var(--font-serif)', color }}>
-        {score != null ? fmt(score, 1) : '—'}
-        {score != null && <span className="text-[13px] font-normal" style={{ color: 'var(--ink-mute)' }}> / 10</span>}
-      </div>
-      {sub && <div className="text-[12px] leading-snug" style={{ color: 'var(--ink-mute)' }}>{sub}</div>}
-      {score != null && (
-        <div className="h-1 rounded-full overflow-hidden mt-1" style={{ background: 'var(--rule)' }}>
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Projection table ──────────────────────────────────────────────────────────
-
-function ProjectionTable({ pv }: { pv: NonNullable<Enrichment['projection_valeur']> }) {
-  return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2 className="panel-title">Projection (scénario de base)</h2>
-      </div>
-      <div className="text-[13px] mb-4" style={{ color: 'var(--ink-mute)' }}>
-        Base&nbsp;: <span className="font-medium" style={{ color: 'var(--ink)' }}>{fmtMoney(pv.valeur_base)}</span>
-        &nbsp;· Taux&nbsp;: {formatPct(pv.taux_base_pct, 2)}/an
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        {([['1 an', pv.an1], ['3 ans', pv.an3], ['5 ans', pv.an5]] as [string, number][]).map(([label, val]) => (
-          <div key={label}>
-            <div className="eyebrow mb-1">{label}</div>
-            <div className="text-[17px] font-medium" style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)' }}>{fmtMoney(val)}</div>
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-// ── Main panel ────────────────────────────────────────────────────────────────
-
 export default function SynthesePanel({ dossierId, address, onCritiqueFound }: Props) {
   const [enrichment, setEnrichment] = useState<Enrichment | null>(null)
+  const [conclusion, setConclusion] = useState<number | null>(null)
+  const [conclusionStatus, setConclusionStatus] = useState<string>('')
+  const [methode, setMethode] = useState<string | null>(null)
+  const [signature, setSignature] = useState<SignatureData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -132,8 +70,16 @@ export default function SynthesePanel({ dossierId, address, onCritiqueFound }: P
     if (!dossierId) { setLoading(false); return }
     setLoading(true)
     setError(false)
-    fetchRuntimeEnrichment(dossierId).then(data => {
+    Promise.all([
+      fetchRuntimeEnrichment(dossierId),
+      fetchAppState(dossierId),
+      fetchRuntimeSignature(dossierId).catch(() => null),
+    ]).then(([data, state, sig]) => {
       setEnrichment(data)
+      setConclusion(state.active?.valuation.conclusion.value ?? null)
+      setConclusionStatus(state.active?.valuation.status ?? '')
+      setMethode(state.active?.mandat?.methode_preponderante ?? null)
+      setSignature(sig)
       setLoading(false)
       const nb = data?.alertes?.nb_critiques ?? 0
       if (nb > 0) onCritiqueFound?.(nb)
@@ -143,39 +89,61 @@ export default function SynthesePanel({ dossierId, address, onCritiqueFound }: P
   if (loading) return <PanelSkeleton />
   if (error) return <PanelError />
 
-  if (!enrichment || !enrichment.score_global) {
+  if (!enrichment && conclusion == null) {
     return (
       <EmptyState
         title="Synthèse non disponible"
-        subtitle="Lancez le pipeline pour générer le tableau de bord de synthèse."
+        subtitle="Lancez le pipeline pour générer la synthèse de valeur."
       />
     )
   }
 
-  const { score_global, alertes, score_investissement, indice_qualite_vie, score_risque, projection_valeur, rendement_locatif, valeur_indicative, taxes_municipales, ratio_prix_loyer, vetuste_batiment, cout_renovation, marche } = enrichment
+  const heroValue = conclusion ?? enrichment?.valeur_indicative?.valeur ?? null
+  const confiance = enrichment?.score_global?.grade
+    ? (['A', 'B'].includes(enrichment.score_global.grade) ? 'Élevé'
+      : enrichment.score_global.grade === 'C' ? 'Moyen' : 'À revoir')
+    : null
+  const alertes = enrichment?.alertes ?? null
 
   return (
     <div className="flex flex-col gap-5 pb-10">
 
-      {/* Score global */}
-      {score_global && (
+      {/* ── Hero — design handoff ── */}
+      <section className="panel synthese-hero">
+        <div className="eyebrow">Étape 4 — Synthèse</div>
+        <div className="syn-label">Valeur marchande estimée</div>
+        <div className="syn-value numeric">{heroValue != null ? formatCAD(heroValue) : '—'}</div>
+        {enrichment?.valeur_indicative?.fiabilite && (
+          <div className="syn-range">{enrichment.valeur_indicative.fiabilite}</div>
+        )}
+        <div className="syn-meta">
+          {methode && (
+            <div><span className="k">Méthode dominante</span><span className="v">{METHODE_LABELS[methode] ?? methode}</span></div>
+          )}
+          {confiance && (
+            <div><span className="k">Niveau de confiance</span><span className={`v ${confiance === 'Élevé' ? 'conf' : ''}`}>{confiance}</span></div>
+          )}
+          {conclusionStatus && (
+            <div><span className="k">Statut</span><span className="v">{conclusionStatus.replace(/_/g, ' ').toLowerCase()}</span></div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Narratif ── */}
+      {enrichment?.score_global?.recommandation && (
         <section className="panel">
           <div className="panel-head">
-            <div>
-              <div className="eyebrow">Étape 4 — Synthèse</div>
-              <h2 className="panel-title">Score global</h2>
-            </div>
-            <ScoreGlobalCard sg={score_global} />
+            <h2>Narratif de synthèse</h2>
           </div>
-          <p className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>{score_global.recommandation}</p>
+          <p className="notes-body">{enrichment.score_global.recommandation}</p>
         </section>
       )}
 
-      {/* Alertes */}
+      {/* ── Alertes ── */}
       {alertes && alertes.liste.length > 0 && (
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Alertes</h2>
+            <h2>Alertes</h2>
             <div className="flex gap-2">
               {alertes.nb_critiques > 0 && (
                 <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
@@ -197,86 +165,48 @@ export default function SynthesePanel({ dossierId, address, onCritiqueFound }: P
         </section>
       )}
 
-      {/* Scores grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <ScoreChip label="Investissement" score={score_investissement?.score} sub={score_investissement?.recommandation} />
-        <ScoreChip label="Marché" score={marche?.score_marche} sub={marche?.marche_interpretation ?? marche?.tension_locative ?? undefined} />
-        <ScoreChip label="Qualité de vie" score={indice_qualite_vie?.score} sub={indice_qualite_vie?.interpretation} />
-        <ScoreChip label="Risque" score={score_risque?.score} sub={score_risque?.categorie} />
-      </div>
-
-      {/* Valeur + rendement */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {valeur_indicative && (
-          <section className="panel">
-            <div className="eyebrow mb-1">Valeur indicative</div>
-            <div className="text-[22px] font-medium" style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)' }}>
-              {fmtMoney(valeur_indicative.valeur)}
+      {/* ── Attestation — design signoff + signature É.A. réelle ── */}
+      <section className="panel signoff">
+        <div className="panel-head">
+          <h2>Attestation</h2>
+          <div className="status-pill">
+            {signature ? <><Icon.Check/> Signée</> : <><Icon.Clock/> En attente de signature</>}
+          </div>
+        </div>
+        <div className="signoff-body">
+          <div className="signoff-text">
+            Je certifie que la présente évaluation a été préparée conformément aux
+            normes de l&apos;Ordre des évaluateurs agréés du Québec (OEAQ) et qu&apos;elle
+            reflète mon opinion professionnelle indépendante de la valeur marchande
+            de l&apos;immeuble à la date de valeur indiquée.
+          </div>
+          {signature && (
+            <div className="signoff-sig">
+              <div className="sig-line"/>
+              <div className="sig-name">{signature.nom_ea}, É.A.</div>
+              <div className="sig-cred">OEAQ {signature.no_permis_oeaq} · Évaluateur agréé</div>
             </div>
-            <div className="text-[12px] mt-1" style={{ color: 'var(--ink-mute)' }}>{valeur_indicative.fiabilite}</div>
-          </section>
+          )}
+        </div>
+        {!signature && dossierId && (
+          <div style={{ marginTop: 16 }}>
+            <SignatureForm dossierId={dossierId} initial={signature} onSigned={setSignature} />
+          </div>
         )}
-        {rendement_locatif && (
-          <section className="panel">
-            <div className="eyebrow mb-1">Rendement locatif</div>
-            <div className="text-[22px] font-medium" style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)' }}>
-              {formatPct(rendement_locatif.taux_brut_pct, 2)}
-              <span className="text-[14px] font-normal" style={{ color: 'var(--ink-mute)' }}> brut</span>
-            </div>
-            <div className="text-[12px] mt-1" style={{ color: 'var(--ink-mute)' }}>
-              Net estimé&nbsp;: {formatPct(rendement_locatif.taux_net_pct, 2)}
-            </div>
-          </section>
-        )}
-      </div>
-
-      {/* Projection */}
-      {projection_valeur && <ProjectionTable pv={projection_valeur} />}
-
-      {/* Secondary metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {taxes_municipales && (
-          <section className="panel">
-            <div className="eyebrow mb-1">Taxes mun.</div>
-            <div className="font-semibold text-[15px]" style={{ color: 'var(--ink)' }}>{fmtMoney(taxes_municipales.annuel)}/an</div>
-            <div className="text-[12px] mt-0.5" style={{ color: 'var(--ink-mute)' }}>{fmt(taxes_municipales.taux_pct, 3)}&nbsp;%</div>
-          </section>
-        )}
-        {ratio_prix_loyer && (
-          <section className="panel">
-            <div className="eyebrow mb-1">Ratio P/L</div>
-            <div className="font-semibold text-[15px]" style={{ color: 'var(--ink)' }}>{fmt(ratio_prix_loyer.ratio, 1)}×</div>
-            <div className="text-[12px] mt-0.5" style={{ color: 'var(--ink-mute)' }}>{ratio_prix_loyer.signal}</div>
-          </section>
-        )}
-        {vetuste_batiment && (
-          <section className="panel">
-            <div className="eyebrow mb-1">Vétusté</div>
-            <div className="font-semibold text-[15px]" style={{ color: 'var(--ink)' }}>{vetuste_batiment.age_ans} ans</div>
-            <div className="text-[12px] mt-0.5" style={{ color: 'var(--ink-mute)' }}>{vetuste_batiment.categorie}</div>
-          </section>
-        )}
-        {cout_renovation && (
-          <section className="panel">
-            <div className="eyebrow mb-1">Rénovation estimée</div>
-            <div className="font-semibold text-[13px]" style={{ color: 'var(--ink)' }}>
-              {fmtMoney(cout_renovation.cout_min)}–{fmtMoney(cout_renovation.cout_max)}
-            </div>
-            <div className="text-[12px] mt-0.5" style={{ color: 'var(--ink-mute)' }}>{cout_renovation.type_travaux}</div>
-          </section>
-        )}
-      </div>
+      </section>
 
       {dossierId && <ValuationTrace sessionId={dossierId} />}
 
       <div className="flex justify-center gap-2">
-        <button
-          type="button"
-          onClick={() => printWindow(buildSyntheseHtml(enrichment, address), address ?? 'Synthèse')}
-          className="btn ghost btn-sm"
-        >
-          Imprimer la synthèse
-        </button>
+        {enrichment && (
+          <button
+            type="button"
+            onClick={() => printWindow(buildSyntheseHtml(enrichment, address), address ?? 'Synthèse')}
+            className="btn ghost btn-sm"
+          >
+            <Icon.Print/> Imprimer la synthèse
+          </button>
+        )}
       </div>
       <p className="text-center text-[11px] pb-2" style={{ color: 'var(--ink-faint)' }}>
         {`Données calculées à titre indicatif — validation d'un évaluateur agréé requise.`}
