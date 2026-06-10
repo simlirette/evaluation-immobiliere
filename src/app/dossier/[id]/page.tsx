@@ -1,12 +1,18 @@
 'use client'
 
+/* Workspace dossier — phase 5a de la refonte handoff :
+   topbar (adresse + ID + méta + actions), grid 1fr/340px, aside design
+   (Faits saillants / Mandat & client / Activité / Documents) sur données
+   réelles. Les panels existants (checkpoints, pipeline, streaming) occupent
+   la colonne principale ; leur conversion document-first = phase 5b. */
+
 import { useState, useEffect, Suspense, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import Stepper from '@/components/layout/Stepper'
 import Toast from '@/components/shared/Toast'
 import ShortcutHelp from '@/components/shared/ShortcutHelp'
-import SideCard from '@/components/dossier/SideCard'
+import { Icon } from '@/components/shared/Icon'
 import DossierPanel from '@/components/panels/DossierPanel'
 import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
@@ -14,7 +20,8 @@ import SynthesePanel from '@/components/panels/SynthesePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
 import { fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
 import { createClient } from '@/lib/supabase/client'
-import type { TabId } from '@/types'
+import type { TabId, Document, FactChip } from '@/types'
+import './dossier.css'
 
 const VALID_TABS: TabId[] = ['dossier', 'marche', 'analyse', 'synthese', 'rapport']
 
@@ -45,25 +52,27 @@ function formatFinEval(fe: string): string {
   return map[fe] ?? fe
 }
 
-function formatMandatType(mt: string): string {
-  const map: Record<string, string> = {
-    residentiel_standard: 'Résidentiel standard',
-    residentiel_rural: 'Résidentiel rural',
-    commercial: 'Commercial',
-    multilogement: 'Multilogement',
-    terrain: 'Terrain',
-    industriel: 'Industriel',
-    special: 'Propriété spéciale',
-  }
-  return map[mt] ?? mt
+function docExt(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? 'doc'
+  return ['pdf', 'zip', 'csv'].includes(ext) ? ext : 'doc'
+}
+
+/* Les fact_chips arrivent en « Libellé : valeur » — découpage k/v pour
+   les fact-rows du design. */
+function chipToRow(chip: FactChip): { k: string; v: string } {
+  const idx = chip.label.indexOf(':')
+  if (idx === -1) return { k: chip.label, v: '' }
+  return { k: chip.label.slice(0, idx).trim(), v: chip.label.slice(idx + 1).trim() }
 }
 
 interface DossierMeta {
+  dossierId: string
   propertyType: string
   neighborhood: string
   commanditaire: { nom: string; organisation: string; fin_evaluation: string } | null
   mandat: { mandat_type: string } | null
-  docCount: number
+  documents: Document[]
+  factChips: FactChip[]
 }
 
 function DossierShellInner() {
@@ -77,17 +86,15 @@ function DossierShellInner() {
   const [activeDossierId, setActiveDossierId] = useState(params.id)
   const [currentDossierName, setCurrentDossierName] = useState(params.id)
   const [dossierId, setDossierId] = useState<string | null>(null)
-  const [isNew] = useState(params.id === 'nouveau')
   const [visible, setVisible] = useState(true)
   const [reportReady, setReportReady] = useState(false)
-  const [syntheseCritiques, setSyntheseCritiques] = useState(0)
+  const [, setSyntheseCritiques] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const dismissToast = useCallback(() => setToast(null), [])
   const [showHelp, setShowHelp] = useState(false)
-  const [dossierMeta, setDossierMeta] = useState<DossierMeta | null>(null)
+  const [meta, setMeta] = useState<DossierMeta | null>(null)
 
   useEffect(() => {
-    if (params.id === 'nouveau') return
     setActiveDossierId(params.id)
     fetchAppState(params.id)
       .then(app => {
@@ -95,14 +102,16 @@ function DossierShellInner() {
         if (d) {
           setCurrentDossierName(d.address)
           setDossierId(d.id)
-          setDossierMeta({
+          setMeta({
+            dossierId: d.slug,
             propertyType: d.property_type,
             neighborhood: d.neighborhood,
             commanditaire: app.active?.commanditaire ?? null,
             mandat: app.active?.mandat
               ? { mandat_type: app.active.mandat.mandat_type }
               : null,
-            docCount: app.active?.documents?.length ?? 0,
+            documents: app.active?.documents ?? [],
+            factChips: app.active?.fact_chips ?? [],
           })
         } else {
           router.push('/dossiers')
@@ -145,185 +154,187 @@ function DossierShellInner() {
     router.push('/login')
   }
 
-  const dossierLabel = isNew ? 'Nouveau dossier' : (currentDossierName || params.id)
+  const dossierLabel = currentDossierName || params.id
+  const factRows = (meta?.factChips ?? []).map(chipToRow).filter(r => r.v)
+  const chatTab = ['dossier', 'marche', 'analyse', 'rapport'].includes(activeTab)
 
   return (
-    <div className="relative w-full h-screen overflow-hidden flex" style={{ background: 'var(--paper)' }}>
+    <div className="app">
       <Sidebar
         onSignOut={handleSignOut}
-        currentDossierAddress={isNew ? null : currentDossierName}
+        currentDossierAddress={dossierLabel}
+        currentDossierCity={meta?.neighborhood ?? null}
       />
 
-      <div className="main-content flex flex-col overflow-hidden">
-        {/* Topbar */}
-        <div className="topbar pb-0">
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <div>
-              <h1 className="dossier-h1">{dossierLabel}</h1>
-              <div
-                className="text-[13.5px] mt-1"
-                style={{ color: 'var(--ink-mute)', fontFamily: 'var(--font-sans)' }}
-              >
-                {dossierMeta
-                  ? `${dossierMeta.neighborhood} · ${formatPropertyType(dossierMeta.propertyType)}`
-                  : '\u00a0'}
+      <div className="main" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Topbar — design handoff */}
+        <div className="topbar dossier-topbar" style={{ flexShrink: 0 }}>
+          <div className="pagehead dossier-head">
+            <div className="head-left">
+              <h1>
+                {dossierLabel}
+                {meta && <span className="head-id numeric">{meta.dossierId}</span>}
+              </h1>
+              <div className="head-meta">
+                <span>{meta?.neighborhood ?? ' '}</span>
+                {meta && <>
+                  <span className="dot-sep">·</span>
+                  <span>{formatPropertyType(meta.propertyType)}</span>
+                </>}
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0 pt-1">
+            <div className="head-actions">
+              <button className="btn ghost" onClick={() => window.print()}><Icon.Print/> Imprimer</button>
               <button
-                className="btn ghost btn-sm"
-                onClick={() => window.print()}
-              >
-                Imprimer
-              </button>
-              <button
-                className="btn secondary btn-sm"
+                className="btn secondary"
                 onClick={() => {
                   navigator.clipboard.writeText(window.location.href)
                     .then(() => setToast('Lien copié dans le presse-papiers'))
                     .catch(() => setToast('Impossible de copier le lien'))
                 }}
               >
-                Partager
+                <Icon.Share/> Partager
               </button>
-              <button
-                className="btn accent btn-sm"
-                onClick={() => setTab('dossier')}
-              >
-                Reprendre
-              </button>
+              <button className="btn accent" onClick={() => setTab('dossier')}>Reprendre</button>
             </div>
           </div>
 
-          {/* Stepper dans le même grid que le body → centré dans la colonne 1fr (même axe que la conversation) */}
-          <div className="grid gap-7 px-8" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
-            <div><Stepper activeTab={activeTab} onTabChange={setTab} /></div>
-            <div />
-          </div>
+          <Stepper activeTab={activeTab} onTabChange={setTab} />
         </div>
 
-        {/* Body — overflow-hidden sur onglet dossier (DossierPanel gère son propre scroll + ChatInput fixe) */}
+        {/* Body — grid 1fr / 340px (design) */}
         <div
-          className={`flex-1 transition-[opacity,transform] duration-200 ${['dossier','marche','analyse','rapport'].includes(activeTab) ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          className="dossier-body"
           style={{
+            flex: 1,
+            minHeight: 0,
+            paddingBottom: 24,
             opacity: visible ? 1 : 0,
             transform: visible ? 'translateY(0)' : 'translateY(5px)',
+            transition: 'opacity .2s, transform .2s',
           }}
         >
-          <div
-            className={`gap-7 px-8 pt-6 ${['dossier','marche','analyse','rapport'].includes(activeTab) ? 'h-full flex' : 'grid pb-36'}`}
-            style={{ gridTemplateColumns: !['dossier','marche','analyse','rapport'].includes(activeTab) ? 'minmax(0,1fr) 300px' : undefined }}
-          >
-            {/* Main panel column */}
-            <div className={['dossier','marche','analyse','rapport'].includes(activeTab) ? 'flex-1 min-w-0 h-full overflow-hidden' : ''}>
-              {/* DossierPanel always mounted — keeps pipeline polling alive */}
-              <div className={activeTab === 'dossier' ? 'h-full flex flex-col' : 'hidden'}>
-                <DossierPanel
-                  isNew={isNew}
-                  dossierId={dossierId}
-                  onPipelineComplete={() => {
-                    setReportReady(true)
-                    setToast('Analyse terminée — rapport disponible')
-                    if (dossierId) {
-                      fetchRuntimeEnrichment(dossierId).then(e => {
-                        setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)
-                      }).catch(() => undefined)
-                    }
-                  }}
-                />
-              </div>
-              {activeTab === 'marche'   && <div className="h-full flex flex-col"><MarchePanel dossierId={dossierId} address={currentDossierName} /></div>}
-              {activeTab === 'analyse'  && <div className="h-full flex flex-col"><AnalysePanel dossierId={dossierId} address={currentDossierName} /></div>}
-              {activeTab === 'synthese' && (
-                <SynthesePanel
-                  dossierId={dossierId}
-                  address={currentDossierName}
-                  onCritiqueFound={setSyntheseCritiques}
-                />
-              )}
-              {activeTab === 'rapport'  && (
-                <div className="h-full flex flex-col">
-                  <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />
-                </div>
-              )}
-            </div>
-
-            {/* Aside column */}
-            <div className="flex flex-col gap-4">
-              <SideCard
-                title="Faits saillants"
-                facts={[
-                  { label: 'Adresse', value: dossierLabel },
-                  { label: 'Type', value: dossierMeta ? formatPropertyType(dossierMeta.propertyType) : '—' },
-                  { label: 'Quartier', value: dossierMeta?.neighborhood ?? '—' },
-                  { label: 'Stade', value: `${reportReady ? 5 : 1}/5` },
-                ]}
+          {/* Colonne principale — panels existants (conversion design = 5b) */}
+          <div className={`dossier-main ${chatTab ? 'h-full overflow-hidden' : 'overflow-y-auto'}`} style={{ minHeight: 0 }}>
+            {/* DossierPanel toujours monté — garde le polling pipeline vivant */}
+            <div className={activeTab === 'dossier' ? 'h-full flex flex-col' : 'hidden'}>
+              <DossierPanel
+                isNew={false}
+                dossierId={dossierId}
+                onPipelineComplete={() => {
+                  setReportReady(true)
+                  setToast('Analyse terminée — rapport disponible')
+                  if (dossierId) {
+                    fetchRuntimeEnrichment(dossierId).then(e => {
+                      setSyntheseCritiques(e?.alertes?.nb_critiques ?? 0)
+                    }).catch(() => undefined)
+                  }
+                }}
               />
-              <SideCard title="Mandat & client">
-                {dossierMeta?.commanditaire ? (
-                  <div className="flex flex-col">
-                    <div
-                      className="flex items-baseline justify-between py-2.5"
-                      style={{ borderBottom: '1px dashed var(--rule-soft)' }}
-                    >
-                      <span className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>Client</span>
-                      <span className="text-[13px] font-medium text-right ml-3" style={{ color: 'var(--ink)' }}>
-                        {dossierMeta.commanditaire.nom}
-                      </span>
-                    </div>
-                    {dossierMeta.commanditaire.organisation && (
-                      <div
-                        className="flex items-baseline justify-between py-2.5"
-                        style={{ borderBottom: '1px dashed var(--rule-soft)' }}
-                      >
-                        <span className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>Organisation</span>
-                        <span className="text-[13px] font-medium text-right ml-3" style={{ color: 'var(--ink)' }}>
-                          {dossierMeta.commanditaire.organisation}
-                        </span>
-                      </div>
-                    )}
-                    <div
-                      className="flex items-baseline justify-between py-2.5"
-                      style={{ borderBottom: dossierMeta.mandat ? '1px dashed var(--rule-soft)' : 'none' }}
-                    >
-                      <span className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>Mandat</span>
-                      <span className="text-[13px] font-medium text-right ml-3" style={{ color: 'var(--ink)' }}>
-                        {formatFinEval(dossierMeta.commanditaire.fin_evaluation)}
-                      </span>
-                    </div>
-                    {dossierMeta.mandat && (
-                      <div className="flex items-baseline justify-between py-2.5">
-                        <span className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>Type</span>
-                        <span className="text-[13px] font-medium text-right ml-3" style={{ color: 'var(--ink)' }}>
-                          {formatMandatType(dossierMeta.mandat.mandat_type)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>—</p>
-                )}
-              </SideCard>
-              <SideCard title="Activité">
-                <p className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>—</p>
-              </SideCard>
-              <SideCard title="Documents">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>
-                    {dossierMeta && dossierMeta.docCount > 0
-                      ? `${dossierMeta.docCount} document${dossierMeta.docCount > 1 ? 's' : ''}`
-                      : 'Aucun document joint'}
-                  </p>
-                  <button
-                    className="btn ghost btn-sm"
-                    onClick={() => setTab('dossier')}
-                  >
-                    {dossierMeta && dossierMeta.docCount > 0 ? 'Gérer' : '+ Ajouter'}
-                  </button>
-                </div>
-              </SideCard>
             </div>
+            {activeTab === 'marche'   && <div className="h-full flex flex-col"><MarchePanel dossierId={dossierId} address={currentDossierName} /></div>}
+            {activeTab === 'analyse'  && <div className="h-full flex flex-col"><AnalysePanel dossierId={dossierId} address={currentDossierName} /></div>}
+            {activeTab === 'synthese' && (
+              <SynthesePanel
+                dossierId={dossierId}
+                address={currentDossierName}
+                onCritiqueFound={setSyntheseCritiques}
+              />
+            )}
+            {activeTab === 'rapport'  && (
+              <div className="h-full flex flex-col">
+                <RapportPanel dossierId={dossierId} dossierAddress={currentDossierName} />
+              </div>
+            )}
+            {reportReady && null}
           </div>
+
+          {/* Aside — design handoff, données réelles */}
+          <aside className="dossier-aside" style={{ overflowY: 'auto', minHeight: 0 }}>
+            <section className="side-card">
+              <h3>Faits saillants</h3>
+              <div className="side-card-body">
+                {factRows.length > 0 ? factRows.map((r, i) => (
+                  <div className="fact-row" key={i}>
+                    <div className="k">{r.k}</div>
+                    <div className="v numeric">{r.v}</div>
+                  </div>
+                )) : (
+                  <>
+                    <div className="fact-row">
+                      <div className="k">Type</div>
+                      <div className="v">{meta ? formatPropertyType(meta.propertyType) : '—'}</div>
+                    </div>
+                    <div className="fact-row">
+                      <div className="k">Quartier</div>
+                      <div className="v">{meta?.neighborhood ?? '—'}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+
+            <section className="side-card">
+              <h3>Mandat &amp; client</h3>
+              <div className="side-card-body">
+                {meta?.commanditaire ? (
+                  <>
+                    <div className="client-block">
+                      <div className="client-org">{meta.commanditaire.organisation || meta.commanditaire.nom}</div>
+                      <div className="client-person">{meta.commanditaire.nom}</div>
+                      {meta.mandat && (
+                        <div className="client-role">{meta.mandat.mandat_type.replace(/_/g, ' ')}</div>
+                      )}
+                    </div>
+                    <div className="mandate-tag">
+                      <span className="dot"/> {formatFinEval(meta.commanditaire.fin_evaluation)}
+                    </div>
+                  </>
+                ) : (
+                  <div className="fact-row"><div className="k">Client</div><div className="v muted">—</div></div>
+                )}
+              </div>
+            </section>
+
+            <section className="side-card tight">
+              <h3>Activité</h3>
+              <div className="side-card-body">
+                <ul className="activity">
+                  <li>
+                    <div className="when">—</div>
+                    <div className="what">Le journal d&apos;activité arrive avec la phase 5b.</div>
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            <section className="side-card tight">
+              <h3>Documents ({meta?.documents.length ?? 0})</h3>
+              <div className="side-card-body">
+                <ul className="docs">
+                  {(meta?.documents ?? []).map(doc => (
+                    <li key={doc.id}>
+                      <div className={`doc-icon doc-${docExt(doc.filename)}`}>{docExt(doc.filename).toUpperCase()}</div>
+                      <div className="doc-info">
+                        <div className="doc-name">{doc.name}</div>
+                        <div className="doc-meta">{doc.sizeLabel}</div>
+                      </div>
+                    </li>
+                  ))}
+                  {(meta?.documents.length ?? 0) === 0 && (
+                    <li>
+                      <div className="doc-info">
+                        <div className="doc-meta">Aucun document joint</div>
+                      </div>
+                    </li>
+                  )}
+                </ul>
+                <button className="btn ghost btn-full" onClick={() => setTab('dossier')}>
+                  <Icon.Plus/> Ajouter un document
+                </button>
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
 
