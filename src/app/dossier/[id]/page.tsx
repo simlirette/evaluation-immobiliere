@@ -211,7 +211,6 @@ function DossierShellInner() {
           style={{
             flex: 1,
             minHeight: 0,
-            paddingBottom: 24,
             opacity: visible ? 1 : 0,
             transform: visible ? 'translateY(0)' : 'translateY(5px)',
             transition: 'opacity .2s, transform .2s',

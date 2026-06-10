@@ -47,9 +47,11 @@ export default function AgentChatCapsule({ dossierId, stage }: Props) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const { replies, asking, ask } = useAgentChat(dossierId, STAGE_AGENTS[stage])
 
+  // Ouvre le tiroir seulement quand l'utilisateur envoie (asking) — pas au
+  // mount quand le transcript historique est restauré.
   useEffect(() => {
-    if (replies.length > 0 || asking) setOpen(true)
-  }, [replies.length, asking])
+    if (asking) setOpen(true)
+  }, [asking])
 
   useEffect(() => {
     drawerRef.current?.scrollTo({ top: drawerRef.current.scrollHeight, behavior: 'smooth' })
@@ -121,6 +123,16 @@ export default function AgentChatCapsule({ dossierId, stage }: Props) {
             {STAGE_SUGGESTIONS[stage].map((s, i) => (
               <button key={i} type="button" className="suggestion" onClick={() => pick(s)}>{s}</button>
             ))}
+            {!open && replies.length > 0 && (
+              <button
+                type="button"
+                className="suggestion"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => setOpen(true)}
+              >
+                Conversation ({replies.length})
+              </button>
+            )}
           </div>
           <form className="agent-input" onSubmit={submit}>
             <button type="button" className="attach" aria-label="Joindre un fichier" title="Joindre une pièce jointe">
