@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<title>Éval Immo — Système visuel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,400..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Paper — bright, warm ivory */
+    --paper:        #fbf8ef;
+    --paper-2:      #f5f0e0;
+    --paper-3:      #ece5d0;
+    --paper-hi:     #ffffff;
+    /* Ink — deep warm near-black */
+    --ink:          #1a140d;
+    --ink-2:        #2c2418;
+    --ink-3:        #4a4031;
+    --ink-mute:     #6b6151;
+    --ink-faint:    #9a907c;
+    /* Rule lines */
+    --rule:         #d8cdb2;
+    --rule-soft:    #e4dcc4;
+    --rule-strong:  #a89c80;
+    /* Accents — navy is the seal */
+    --navy:         #1c3559;
+    --navy-hi:      #284a7a;
+    --navy-deep:    #12233d;
+    --sienna:       #8a4a1f;       /* warm secondary */
+    --verdigris:    #3f5a47;       /* "complet" */
+    --ochre:        #b08a3e;       /* "en cours" */
+    --oxblood:      #7a2a2a;       /* alert / à réviser */
+
+    --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+    --serif-text: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+
+    --shadow-card: 0 1px 0 rgba(26,20,13,.04), 0 8px 24px -16px rgba(26,20,13,.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 15px;
+    line-height: 1.55;
+    font-feature-settings: "liga", "kern";
+    -webkit-font-smoothing: antialiased;
+    /* Subtle paper warmth */
+    background-image:
+      radial-gradient(circle at 22% 18%, rgba(28,53,89,.020), transparent 55%),
+      radial-gradient(circle at 78% 82%, rgba(138,74,31,.025), transparent 55%);
+  }
+
+  /* Eyebrow / label — serif small caps in place of mono */
+  .eyebrow, .meta, .specimen-label, .palette-label, .colophon, .stamp,
+  .badge, .field label, .ai-specimen .label, .tab .num {
+    font-variant: small-caps;
+    font-variant-numeric: lining-nums;
+    letter-spacing: .12em;
+  }
+  /* Tabular figures everywhere numbers matter */
+  .num, .t-mono, .v[data-num], td.num, .dossier-card .stamp,
+  input[type="text"], input:not([type]) {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Masthead */
+  .masthead {
+    border-bottom: 1px solid var(--rule);
+    padding: 28px 56px 22px;
+    display: grid; grid-template-columns: 1fr auto; align-items: end;
+    gap: 24px;
+  }
+  .wordmark {
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  .wordmark .mono {
+    font-size: 12px; letter-spacing: .18em; font-style: italic;
+    color: var(--ink-mute); font-variant: small-caps;
+  }
+  .wordmark .name {
+    font-family: var(--serif); font-weight: 400; font-size: 36px;
+    letter-spacing: -.01em; line-height: 1;
+  }
+  .wordmark .name em {
+    font-style: italic; font-weight: 300; color: var(--navy);
+  }
+  .colophon {
+    text-align: right; font-size: 12px;
+    color: var(--ink-mute); letter-spacing: .14em;
+    font-variant: small-caps;
+  }
+  .colophon b { color: var(--ink); font-weight: 500; }
+
+  /* Page chrome */
+  main { padding: 40px 56px 96px; max-width: 1320px; margin: 0 auto; }
+
+  .section {
+    border-top: 1px solid var(--rule);
+    padding: 36px 0 8px;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 56px;
+  }
+  .section:first-of-type { border-top: 0; padding-top: 8px; }
+  .section-head .num {
+    font-size: 12px; letter-spacing: .18em;
+    color: var(--ink-faint); font-variant: small-caps;
+    font-feature-settings: "lnum";
+  }
+  .section-head h2 {
+    font-family: var(--serif); font-weight: 400; font-size: 26px;
+    margin: 6px 0 10px; letter-spacing: -.01em; line-height: 1.15;
+  }
+  .section-head h2 em { font-style: italic; color: var(--navy); font-weight: 400; }
+  .section-head p {
+    margin: 0; color: var(--ink-mute); font-size: 13px; max-width: 200px;
+  }
+
+  /* Type specimen */
+  .type-row {
+    display: grid; grid-template-columns: 150px 1fr; align-items: baseline;
+    border-bottom: 1px dashed var(--rule-soft); padding: 14px 0;
+  }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row .meta {
+    font-size: 11px; letter-spacing: .16em; font-style: italic;
+    color: var(--ink-faint); font-variant: small-caps;
+  }
+  .type-row .sample { font-family: var(--serif); }
+  .t-display  { font-size: 64px; font-weight: 300; line-height: 1.0; letter-spacing: -.018em; }
+  .t-h1       { font-size: 40px; font-weight: 400; line-height: 1.08; letter-spacing: -.012em; }
+  .t-h2       { font-size: 24px; font-weight: 500; line-height: 1.2; letter-spacing: -.005em; }
+  .t-h3       { font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: 0; }
+  .t-body     { font-size: 15px; line-height: 1.6; color: var(--ink-2); max-width: 62ch; }
+  .t-small    { font-size: 13px; line-height: 1.5; color: var(--ink-mute); }
+  .t-eyebrow  { font-size: 12px; letter-spacing: .18em; font-variant: small-caps; color: var(--ink-mute); font-style: italic; }
+  .t-mono     { font-size: 15px; color: var(--ink-2); font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum", "lnum"; }
+
+  /* Color blocks */
+  .palette {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+  }
+  .swatch {
+    border: 1px solid var(--rule-soft); background: var(--paper-hi);
+    padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .swatch .chip {
+    height: 78px; border: 1px solid rgba(26,20,13,.08);
+  }
+  .swatch .name {
+    font-weight: 500; font-size: 13px; color: var(--ink);
+  }
+  .swatch .hex {
+    font-size: 11px; color: var(--ink-mute);
+    letter-spacing: .08em; font-variant-numeric: tabular-nums lining-nums;
+    font-style: italic;
+  }
+  .palette-group + .palette-group { margin-top: 18px; }
+  .palette-label {
+    font-size: 12px; letter-spacing: .18em; font-style: italic;
+    color: var(--ink-faint); margin-bottom: 8px; font-variant: small-caps;
+  }
+
+  /* Components */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .specimen {
+    background: var(--paper-hi);
+    border: 1px solid var(--rule-soft);
+    padding: 20px 22px;
+  }
+  .specimen-label {
+    font-size: 12px; letter-spacing: .18em; font-style: italic;
+    color: var(--ink-faint); margin-bottom: 14px; font-variant: small-caps;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--serif); font-size: 14px; font-weight: 500;
+    padding: 9px 18px; border: 1px solid var(--ink); background: var(--ink);
+    color: var(--paper-hi); cursor: pointer; letter-spacing: .005em;
+    transition: transform .05s, background .15s;
+  }
+  .btn:hover { background: var(--ink-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn.secondary { background: transparent; color: var(--ink); }
+  .btn.secondary:hover { background: var(--paper-3); }
+  .btn.accent { background: var(--navy); border-color: var(--navy); color: #f3eedd; }
+  .btn.accent:hover { background: var(--navy-hi); border-color: var(--navy-hi); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); padding-left: 6px; padding-right: 6px; }
+  .btn.ghost:hover { color: var(--ink); }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* Inputs */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 12px; letter-spacing: .16em; font-style: italic;
+    color: var(--ink-mute); font-variant: small-caps;
+  }
+  .field input, .field select {
+    font-family: var(--serif); font-size: 15px;
+    background: var(--paper-hi); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 0;
+    padding: 9px 12px; outline: 0;
+    transition: border-color .15s, background .15s;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--ink); background: #fff;
+  }
+  .field .hint {
+    font-size: 12px; color: var(--ink-faint); font-style: italic;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11px; letter-spacing: .14em; font-style: italic;
+    padding: 3px 9px 2px;
+    border: 1px solid currentColor; color: var(--ink-mute);
+    background: transparent; font-variant: small-caps;
+  }
+  .badge::before {
+    content: ""; width: 5px; height: 5px; background: currentColor; border-radius: 50%;
+  }
+  .badge.brouillon { color: var(--ink-faint); }
+  .badge.encours   { color: var(--ochre); }
+  .badge.complet   { color: var(--verdigris); }
+  .badge.alerte    { color: var(--oxblood); }
+
+  /* Cards */
+  .dossier-card {
+    background: var(--paper-hi);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow-card);
+    display: grid; grid-template-rows: 130px 1fr;
+    transition: border-color .15s, transform .15s;
+  }
+  .dossier-card:hover { border-color: var(--ink-3); }
+  .dossier-card .thumb {
+    background:
+      linear-gradient(180deg, rgba(26,20,13,0) 60%, rgba(26,20,13,.14)),
+      repeating-linear-gradient(45deg, #e4dcc4 0 2px, #dcd3b6 2px 4px);
+    position: relative; overflow: hidden;
+    border-bottom: 1px solid var(--rule);
+  }
+  .dossier-card .thumb svg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    color: rgba(26,20,13,.32);
+  }
+  .dossier-card .thumb .ribbon {
+    position: absolute; top: 10px; left: 10px;
+    font-size: 11px; letter-spacing: .14em; font-style: italic;
+    padding: 3px 9px 2px; font-variant: small-caps;
+    background: var(--ink); color: var(--paper-hi);
+  }
+  .dossier-card .body { padding: 14px 16px 16px; display: grid; gap: 10px; }
+  .dossier-card .addr {
+    font-family: var(--serif); font-size: 19px; line-height: 1.2;
+    letter-spacing: -.005em; font-weight: 500;
+  }
+  .dossier-card .addr .city {
+    font-size: 13px; font-weight: 400; font-style: italic;
+    color: var(--ink-mute); display: block; margin-top: 3px; letter-spacing: .01em;
+  }
+  .dossier-card .facts {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border-top: 1px dashed var(--rule-soft);
+    padding-top: 10px;
+  }
+  .dossier-card .fact .k {
+    font-size: 10px; letter-spacing: .16em; font-style: italic;
+    color: var(--ink-faint); font-variant: small-caps;
+  }
+  .dossier-card .fact .v {
+    font-size: 14px; color: var(--ink-2); font-weight: 500;
+    margin-top: 1px;
+  }
+  .dossier-card .foot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 8px; border-top: 1px solid var(--rule-soft);
+  }
+  .dossier-card .foot .stamp {
+    font-size: 11px; color: var(--ink-faint); letter-spacing: .14em;
+    font-style: italic; font-variant: small-caps;
+  }
+
+  /* Tab nav */
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--rule);
+    gap: 0;
+  }
+  .tab {
+    font-family: var(--serif); font-size: 15px; font-weight: 500;
+    padding: 12px 20px; color: var(--ink-mute); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .tab:hover { color: var(--ink-2); }
+  .tab.active { color: var(--ink); border-bottom-color: var(--navy); }
+  .tab .num {
+    font-size: 11px; color: var(--ink-faint); font-style: italic;
+    font-variant-numeric: lining-nums;
+  }
+
+  /* Table preview */
+  table.specimen-table {
+    width: 100%; border-collapse: collapse; font-size: 14px;
+  }
+  table.specimen-table th, table.specimen-table td {
+    text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule-soft);
+  }
+  table.specimen-table th {
+    font-size: 11px; letter-spacing: .16em; font-style: italic;
+    color: var(--ink-faint); font-weight: 500; font-variant: small-caps;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.specimen-table td.num {
+    text-align: right; font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum", "lnum";
+  }
+  table.specimen-table tr:hover td { background: var(--paper-2); }
+
+  /* States */
+  .state-card {
+    border: 1px solid var(--rule); padding: 22px;
+    background: var(--paper-hi); min-height: 140px;
+    display: grid; gap: 8px; align-content: center; justify-items: start;
+  }
+  .state-card .title {
+    font-family: var(--serif); font-size: 17px; font-weight: 500;
+  }
+  .state-card .meta {
+    font-size: 11px; letter-spacing: .18em; font-style: italic;
+    color: var(--ink-faint); font-variant: small-caps;
+  }
+  .state-card .desc {
+    font-size: 13px; color: var(--ink-mute); font-style: italic;
+  }
+  .state-card.loading .bar {
+    width: 100%; height: 6px; background: var(--paper-3); overflow: hidden;
+  }
+  .state-card.loading .bar > i {
+    display: block; height: 100%; width: 38%; background: var(--ink);
+    animation: progress 1.4s ease-in-out infinite;
+  }
+  @keyframes progress {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(260%); }
+  }
+  .state-card.error    { border-color: var(--oxblood); }
+  .state-card.error .title { color: var(--oxblood); }
+
+  /* AI box specimen — on paper, with a navy margin-rule */
+  .ai-specimen {
+    background: var(--paper-hi);
+    color: var(--ink);
+    padding: 18px 22px 18px 24px;
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--navy);
+    display: grid; gap: 12px;
+    position: relative;
+  }
+  .ai-specimen .head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px dashed var(--rule-soft); padding-bottom: 10px;
+  }
+  .ai-specimen .label {
+    font-size: 12px; letter-spacing: .18em; font-style: italic;
+    color: var(--navy); font-variant: small-caps;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .ai-specimen .label .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--navy);
+    box-shadow: 0 0 0 3px rgba(28,53,89,.12);
+  }
+  .ai-specimen .meta-right {
+    font-size: 11px; letter-spacing: .16em; font-style: italic;
+    color: var(--ink-faint); font-variant: small-caps;
+  }
+  .ai-specimen .msg {
+    font-family: var(--serif); font-size: 16px; line-height: 1.55; max-width: 64ch;
+    color: var(--ink-2);
+  }
+  .ai-specimen .msg b {
+    color: var(--navy); font-weight: 500; font-style: italic;
+  }
+  .ai-specimen .input {
+    display: flex; gap: 10px; align-items: center;
+    border-top: 1px dashed var(--rule-soft); padding-top: 12px;
+  }
+  .ai-specimen .input span {
+    color: var(--navy); font-size: 18px; line-height: 1;
+    font-family: var(--serif); font-style: italic;
+  }
+  .ai-specimen .input i {
+    color: var(--ink-faint); font-size: 14px; font-style: italic;
+  }
+  .ai-specimen .input .send {
+    margin-left: auto; font-size: 12px; letter-spacing: .14em;
+    font-style: italic; font-variant: small-caps; color: var(--navy);
+  }
+
+  /* Pull quote / intent */
+  .intent {
+    grid-column: 1 / -1;
+    border-left: 2px solid var(--navy);
+    padding: 4px 0 4px 20px;
+    font-family: var(--serif); font-size: 19px; line-height: 1.5;
+    color: var(--ink-2); font-style: italic; max-width: 820px;
+    margin-bottom: 8px;
+  }
+
+  /* footer */
+  .footer {
+    margin-top: 60px; padding-top: 18px; border-top: 1px solid var(--rule);
+    display: flex; justify-content: space-between;
+    font-size: 12px; letter-spacing: .16em; font-style: italic;
+    color: var(--ink-faint); font-variant: small-caps;
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wordmark">
+    <div class="name">Éval&nbsp;<em>Immo</em></div>
+    <div class="mono">Système visuel · v0.1</div>
+  </div>
+  <div class="colophon">
+    <div>Spécimen typographique</div>
+    <div><b>OEAQ — Québec</b></div>
+  </div>
+</header>
+
+<main>
+
+  <p class="intent">
+    Un outil pour des professionnels qui engagent leur signature. Le ton est posé, précis, presque
+    notarial — la mise en page emprunte au document officiel, pas au tableau de bord.
+  </p>
+
+  <!-- 01 — Type -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">01 — Typographie</div>
+      <h2>La voix <em>écrite</em>.</h2>
+      <p>Une seule famille, Source Serif 4, en plusieurs poids et tailles optiques. Italiques, petites capitales et chiffres tabulaires portent les rôles habituellement confiés à un sans-sérif.</p>
+    </div>
+    <div>
+      <div class="type-row">
+        <div class="meta">Source Serif · 64 · 300</div>
+        <div class="sample t-display">Rapport d'évaluation</div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Source Serif · 40 · 400</div>
+        <div class="sample t-h1">Maison unifamiliale, Outremont</div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Source Serif · 24 · 500</div>
+        <div class="sample t-h2">Ventes comparables retenues (5)</div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Source Serif · 17 · 600</div>
+        <div class="sample t-h3">Caractéristiques de la propriété</div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Source Serif · 15 · 400</div>
+        <div class="sample t-body">Le bien évalué est situé dans un secteur résidentiel établi, à proximité immédiate des principales artères commerciales du quartier. La valeur indiquée par l'approche par comparaison directe est jugée pertinente compte tenu de l'abondance et de la qualité des données transactionnelles.</div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Source Serif · 13 · italique</div>
+        <div class="sample t-small"><em>Dernière modification le 24 mai 2026 par M. Tremblay, É.A. — Dossier n<sup>o</sup>&nbsp;2026-0418.</em></div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Petites capitales · .18em</div>
+        <div class="sample t-eyebrow">Dossier — en cours — stade 3 sur 5</div>
+      </div>
+      <div class="type-row">
+        <div class="meta">Chiffres tabulaires</div>
+        <div class="sample t-mono">628 500,00 $ &nbsp;·&nbsp; 1 842 pi² &nbsp;·&nbsp; 2026-05-18</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 — Color -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">02 — Palette</div>
+      <h2>Papier, encre, <em>sceau</em>.</h2>
+      <p>Une base ivoire claire, une encre profonde. Le bleu marine sert de sceau — usage rare, réservé au geste officiel.</p>
+    </div>
+    <div>
+      <div class="palette-group">
+        <div class="palette-label">Papier — fonds</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip" style="background:#ffffff"></div><span class="name">Paper hi</span><span class="hex">#FFFFFF</span></div>
+          <div class="swatch"><div class="chip" style="background:#fbf8ef"></div><span class="name">Paper</span><span class="hex">#FBF8EF</span></div>
+          <div class="swatch"><div class="chip" style="background:#f5f0e0"></div><span class="name">Paper 2</span><span class="hex">#F5F0E0</span></div>
+          <div class="swatch"><div class="chip" style="background:#ece5d0"></div><span class="name">Paper 3</span><span class="hex">#ECE5D0</span></div>
+          <div class="swatch"><div class="chip" style="background:#e4dcc4"></div><span class="name">Rule soft</span><span class="hex">#E4DCC4</span></div>
+          <div class="swatch"><div class="chip" style="background:#a89c80"></div><span class="name">Rule strong</span><span class="hex">#A89C80</span></div>
+        </div>
+      </div>
+      <div class="palette-group">
+        <div class="palette-label">Encre — texte</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip" style="background:#1a140d"></div><span class="name">Ink</span><span class="hex">#1A140D</span></div>
+          <div class="swatch"><div class="chip" style="background:#2c2418"></div><span class="name">Ink 2</span><span class="hex">#2C2418</span></div>
+          <div class="swatch"><div class="chip" style="background:#4a4031"></div><span class="name">Ink 3</span><span class="hex">#4A4031</span></div>
+          <div class="swatch"><div class="chip" style="background:#6b6151"></div><span class="name">Ink mute</span><span class="hex">#6B6151</span></div>
+          <div class="swatch"><div class="chip" style="background:#8b8170"></div><span class="name">Ink faint</span><span class="hex">#8B8170</span></div>
+          <div class="swatch"><div class="chip" style="background:#c8bca0"></div><span class="name">Rule</span><span class="hex">#C8BCA0</span></div>
+        </div>
+      </div>
+      <div class="palette-group">
+        <div class="palette-label">Sceaux — accents (usage rare)</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip" style="background:#6e1f1f"></div><span class="name">Oxblood</span><span class="hex">#6E1F1F</span></div>
+          <div class="swatch"><div class="chip" style="background:#8a2a2a"></div><span class="name">Oxblood hi</span><span class="hex">#8A2A2A</span></div>
+          <div class="swatch"><div class="chip" style="background:#8a4a1f"></div><span class="name">Sienna</span><span class="hex">#8A4A1F</span></div>
+          <div class="swatch"><div class="chip" style="background:#b08a3e"></div><span class="name">Ochre</span><span class="hex">#B08A3E</span></div>
+          <div class="swatch"><div class="chip" style="background:#3f5a47"></div><span class="name">Verdigris</span><span class="hex">#3F5A47</span></div>
+          <div class="swatch"><div class="chip" style="background:linear-gradient(135deg,#6e1f1f 0 50%,#1a140d 50% 100%)"></div><span class="name">Combos</span><span class="hex">Encre + sceau</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 — Components -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">03 — Primitives</div>
+      <h2>Composants <em>de base</em>.</h2>
+      <p>Boutons carrés, champs sans arrondis, séparateurs hairline. Aucune ombre flottante.</p>
+    </div>
+    <div>
+      <div class="grid-2">
+        <div class="specimen">
+          <div class="specimen-label">Boutons</div>
+          <div class="btn-row" style="margin-bottom:12px">
+            <button class="btn">Enregistrer le dossier</button>
+            <button class="btn secondary">Annuler</button>
+            <button class="btn accent">Générer le rapport</button>
+            <button class="btn ghost">+ Nouveau dossier</button>
+          </div>
+          <div class="specimen-label" style="margin-top:18px">Badges de statut</div>
+          <div class="btn-row">
+            <span class="badge brouillon">Brouillon</span>
+            <span class="badge encours">En cours</span>
+            <span class="badge complet">Complet</span>
+            <span class="badge alerte">À réviser</span>
+          </div>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen-label">Champs de saisie</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field">
+              <label>Adresse civique</label>
+              <input value="245, av. Wiseman">
+              <span class="hint">Outremont, Montréal (Québec)</span>
+            </div>
+            <div class="field">
+              <label>Superficie habitable</label>
+              <input value="1 842 pi²">
+              <span class="hint">Mesurée selon norme OEAQ</span>
+            </div>
+            <div class="field">
+              <label>Type d'immeuble</label>
+              <select><option>Maison unifamiliale isolée</option></select>
+            </div>
+            <div class="field">
+              <label>Année de construction</label>
+              <input value="1948">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:20px"></div>
+
+      <div class="grid-2">
+        <div class="specimen">
+          <div class="specimen-label">Onglets — pipeline de dossier</div>
+          <div class="tabs">
+            <div class="tab active"><span class="num">01</span> Dossier</div>
+            <div class="tab"><span class="num">02</span> Marché</div>
+            <div class="tab"><span class="num">03</span> Analyse</div>
+            <div class="tab"><span class="num">04</span> Synthèse</div>
+            <div class="tab"><span class="num">05</span> Rapport</div>
+          </div>
+          <div style="padding:18px 4px 4px;color:var(--ink-mute);font-size:13px;font-style:italic">
+            L'onglet actif est marqué d'un trait bleu marine. Le numéro de stade reste visible à tout moment.
+          </div>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen-label">Tableau de données — extrait</div>
+          <table class="specimen-table">
+            <thead>
+              <tr><th>Adresse</th><th>Vendu</th><th class="num">Prix</th><th class="num">Pi²</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>312, av. Bloomfield</td><td>2026-04-12</td><td class="num">685 000 $</td><td class="num">1 920</td></tr>
+              <tr><td>118, av. McEachran</td><td>2026-03-28</td><td class="num">612 500 $</td><td class="num">1 760</td></tr>
+              <tr><td>87, av. Wiseman</td><td>2026-02-19</td><td class="num">648 000 $</td><td class="num">1 815</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="height:20px"></div>
+
+      <!-- Dossier card preview -->
+      <div class="specimen">
+        <div class="specimen-label">Aperçu — fiche de dossier (utilisée sur « Dossiers »)</div>
+        <div class="grid-3">
+          <!-- Card 1 -->
+          <article class="dossier-card">
+            <div class="thumb">
+              <span class="ribbon">En cours · 3 / 5</span>
+              <!-- abstract map -->
+              <svg viewBox="0 0 240 130" preserveAspectRatio="none" aria-hidden="true">
+                <g stroke="currentColor" stroke-width="0.6" fill="none">
+                  <path d="M0,40 L240,40 M0,80 L240,80 M40,0 L40,130 M120,0 L120,130 M180,0 L180,130"/>
+                  <path d="M0,20 Q60,30 120,18 T240,32" stroke-width="1.2"/>
+                </g>
+                <rect x="48" y="48" width="24" height="22" fill="currentColor" opacity=".55"/>
+                <rect x="80" y="42" width="18" height="28" fill="currentColor" opacity=".35"/>
+                <rect x="104" y="50" width="14" height="20" fill="currentColor" opacity=".45"/>
+                <circle cx="60" cy="59" r="3" fill="#1c3559"/>
+              </svg>
+            </div>
+            <div class="body">
+              <div class="addr">245, av. Wiseman<span class="city">Outremont, Montréal · Maison unifamiliale</span></div>
+              <div class="facts">
+                <div class="fact"><div class="k">Année</div><div class="v">1948</div></div>
+                <div class="fact"><div class="k">Superficie</div><div class="v">1 842 pi²</div></div>
+                <div class="fact"><div class="k">Stade</div><div class="v">Analyse</div></div>
+              </div>
+              <div class="foot">
+                <span class="badge encours">En cours</span>
+                <span class="stamp">MOD. 24 MAI</span>
+              </div>
+            </div>
+          </article>
+          <!-- Card 2 -->
+          <article class="dossier-card">
+            <div class="thumb">
+              <span class="ribbon" style="background:var(--verdigris)">Complet</span>
+              <svg viewBox="0 0 240 130" preserveAspectRatio="none" aria-hidden="true">
+                <g stroke="currentColor" stroke-width="0.6" fill="none">
+                  <path d="M0,30 L240,30 M0,70 L240,70 M0,100 L240,100 M70,0 L70,130 M150,0 L150,130"/>
+                </g>
+                <rect x="80" y="38" width="40" height="28" fill="currentColor" opacity=".5"/>
+                <rect x="124" y="38" width="20" height="28" fill="currentColor" opacity=".35"/>
+                <circle cx="100" cy="52" r="3" fill="#3f5a47"/>
+              </svg>
+            </div>
+            <div class="body">
+              <div class="addr">4218, rue Cartier<span class="city">Plateau-Mont-Royal · Duplex</span></div>
+              <div class="facts">
+                <div class="fact"><div class="k">Année</div><div class="v">1923</div></div>
+                <div class="fact"><div class="k">Superficie</div><div class="v">2 410 pi²</div></div>
+                <div class="fact"><div class="k">Valeur</div><div class="v">895 000 $</div></div>
+              </div>
+              <div class="foot">
+                <span class="badge complet">Complet</span>
+                <span class="stamp">RAPPORT · 18 MAI</span>
+              </div>
+            </div>
+          </article>
+          <!-- Card 3 -->
+          <article class="dossier-card">
+            <div class="thumb">
+              <span class="ribbon" style="background:var(--ink-faint)">Brouillon</span>
+              <svg viewBox="0 0 240 130" preserveAspectRatio="none" aria-hidden="true">
+                <g stroke="currentColor" stroke-width="0.6" fill="none">
+                  <path d="M0,50 L240,50 M0,90 L240,90 M60,0 L60,130 M140,0 L140,130 M200,0 L200,130"/>
+                </g>
+                <rect x="70" y="60" width="60" height="24" fill="currentColor" opacity=".4"/>
+                <circle cx="100" cy="72" r="3" fill="#8b8170"/>
+              </svg>
+            </div>
+            <div class="body">
+              <div class="addr">1180, boul. Saint-Joseph<span class="city">Rosemont · Triplex (à venir)</span></div>
+              <div class="facts">
+                <div class="fact"><div class="k">Année</div><div class="v">—</div></div>
+                <div class="fact"><div class="k">Superficie</div><div class="v">—</div></div>
+                <div class="fact"><div class="k">Stade</div><div class="v">Saisie</div></div>
+              </div>
+              <div class="foot">
+                <span class="badge brouillon">Brouillon</span>
+                <span class="stamp">CRÉÉ · 26 MAI</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 — Five states -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">04 — États</div>
+      <h2>Les cinq <em>états</em>.</h2>
+      <p>Chaque vue gère le chargement, l'erreur, le vide, le succès, et le partiel.</p>
+    </div>
+    <div>
+      <div class="grid-3" style="grid-template-columns:repeat(5,1fr);gap:10px">
+        <div class="state-card loading">
+          <div class="meta">01 — Chargement</div>
+          <div class="title">Lecture du registre…</div>
+          <div class="bar"><i></i></div>
+        </div>
+        <div class="state-card error">
+          <div class="meta">02 — Erreur</div>
+          <div class="title">Connexion interrompue</div>
+          <div class="desc">Le serveur OEAQ n'a pas répondu. Réessayer.</div>
+        </div>
+        <div class="state-card">
+          <div class="meta">03 — Vide</div>
+          <div class="title">Aucun dossier</div>
+          <div class="desc">Créez votre premier dossier d'évaluation pour commencer.</div>
+        </div>
+        <div class="state-card">
+          <div class="meta">04 — Succès</div>
+          <div class="title">12 dossiers chargés</div>
+          <div class="desc">Tri par date de modification, descendant.</div>
+        </div>
+        <div class="state-card">
+          <div class="meta">05 — Partiel</div>
+          <div class="title">Données partielles</div>
+          <div class="desc">3 comparables enrichis sur 5. L'IA travaille…</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 — AI assistant strip -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">05 — Assistant</div>
+      <h2>L'IA <em>en marge</em>.</h2>
+      <p>Une note de bas de page sur papier, marquée d'une marge bleue étroite. Présente sans s'imposer. Visible uniquement à l'intérieur d'un dossier.</p>
+    </div>
+    <div>
+      <div class="ai-specimen">
+        <div class="head">
+          <div class="label"><span class="dot"></span> Assistant — recherche de comparables</div>
+          <div class="meta-right">Confidentiel — session locale</div>
+        </div>
+        <div class="msg">
+          J'ai identifié sept ventes comparables dans Outremont entre mai 2025 et avril 2026. Trois
+          correspondent étroitement au bien évalué selon la superficie et l'année de construction.
+          <b>Voulez-vous les examiner&#8239;?</b>
+        </div>
+        <div class="input">
+          <span>›</span>
+          <i>Demander à l'assistant — p. ex. « élargir au quartier limitrophe »…</i>
+          <span class="send">Envoyer ↵</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer" style="padding-left:56px;padding-right:56px;padding-bottom:32px">
+  <span>Éval Immo — système visuel — 2026</span>
+  <span>Page 01 / 01</span>
+</footer>
+
+</body>
+</html>

@@ -1,6 +1,9 @@
 'use client'
 
+/* Stepper — markup 1:1 du design handoff (num → Check verdigris quand done). */
+
 import { TABS } from '@/constants/app'
+import { Icon } from '@/components/shared/Icon'
 import type { TabId } from '@/types'
 
 interface Props {
@@ -27,16 +30,8 @@ export default function Stepper({ activeTab, onTabChange, completedTabs = [] }: 
             className={`step ${isDone ? 'done' : ''} ${isNow ? 'now' : ''}`}
             onClick={() => onTabChange(tab.id)}
           >
-            <span className="step-num">
-              {isDone ? (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d="M2.5 7l3 3 6-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              ) : (
-                i + 1
-              )}
-            </span>
-            {tab.label}
+            {isDone ? <Icon.Check/> : <span className="num numeric">{i + 1}</span>}
+            <span className="label">{tab.label}</span>
           </button>
         )
       })}

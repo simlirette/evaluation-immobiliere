@@ -1,47 +1,8 @@
-@import "tailwindcss";
-
-/* ── DARK MODE ── */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
-/* ── TAILWIND THEME MAPPING ── */
-@theme {
-  --font-serif: var(--font-source-serif), "Iowan Old Style", Georgia, serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-
-  --color-paper:     var(--paper);
-  --color-paper-2:   var(--paper-2);
-  --color-paper-3:   var(--paper-3);
-  --color-paper-hi:  var(--paper-hi);
-  --color-ink:       var(--ink);
-  --color-ink-2:     var(--ink-2);
-  --color-ink-3:     var(--ink-3);
-  --color-ink-mute:  var(--ink-mute);
-  --color-ink-faint: var(--ink-faint);
-  --color-rule:      var(--rule);
-  --color-rule-soft: var(--rule-soft);
-  --color-navy:      var(--navy);
-  --color-navy-hi:   var(--navy-hi);
-  --color-navy-deep: var(--navy-deep);
-  --color-navy-tint: var(--navy-tint);
-  --color-verdigris: var(--verdigris);
-  --color-ochre:     var(--ochre);
-  --color-oxblood:   var(--oxblood);
-
-  --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
-  --radius-pill: 999px;
-}
-
 /* ============================================================
-   Éval Immo — Shared visual system (port 1:1 du design handoff)
+   Éval Immo — Shared visual system
    Claude-inspired: warm off-white, rounded, sans-first
    ============================================================ */
 :root {
-  /* Legacy aliases for backward-compat with panel components */
-  --input-bg:     var(--paper-hi);
-  --input-border: var(--rule);
-
   /* Paper — Claude's warm cream */
   --paper:        #faf9f5;
   --paper-2:      #f3f1ea;
@@ -69,7 +30,7 @@
 
   /* Typography */
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-  --serif: var(--font-source-serif), "Iowan Old Style", Georgia, serif;
+  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
 
   /* Radii */
   --r-sm: 6px;
@@ -83,65 +44,22 @@
   --shadow-float:  0 12px 32px -16px rgba(31,30,28,.18);
 }
 
-/* ============================================================
-   DARK MODE — tokens (handoff [data-theme="dark"])
-   ============================================================ */
-[data-theme="dark"] {
-  /* Paper / surfaces — warm dark browns rather than pure black */
-  --paper:        #1a1814;
-  --paper-2:      #221f1a;
-  --paper-3:      #2c2922;
-  --paper-hi:     #26231d;
-  /* Ink — warm cream tones */
-  --ink:          #f3eddc;
-  --ink-2:        #e6dfca;
-  --ink-3:        #c4bda5;
-  --ink-mute:     #948c79;
-  --ink-faint:    #645e51;
-  /* Rules — subtle warm dark dividers */
-  --rule:         #393530;
-  --rule-soft:    #2e2b25;
-  --rule-strong:  #4f4a40;
-  /* Accents — softened for dark backgrounds */
-  --navy:         #7da4d6;
-  --navy-hi:      #9bbce5;
-  --navy-deep:    #5d83b8;
-  --navy-tint:    rgba(125,164,214,.14);
-  --sienna:       #c98a5a;
-  --verdigris:    #8bb89a;
-  --ochre:        #d8a85e;
-  --oxblood:      #d27878;
-
-  --shadow-card:   none;
-  --shadow-hover:  0 2px 8px -4px rgba(0,0,0,.32), 0 8px 24px -16px rgba(0,0,0,.42);
-  --shadow-float:  0 12px 32px -16px rgba(0,0,0,.55);
-}
-
-/* ── BASE ── */
-@layer base {
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body {
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--sans);
-    font-size: 14px;
-    line-height: 1.5;
-    font-feature-settings: "kern", "ss01";
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    transition: background .3s, color .3s;
-    overflow: hidden;
-  }
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(31,30,28,.14); border-radius: 999px; }
-  [data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "kern", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-width: 1280px;
 }
 
 /* ----- Type roles ----- */
 .eyebrow {
-  font-family: var(--sans);
   font-size: 11px; letter-spacing: .04em; font-weight: 500;
   color: var(--ink-faint); text-transform: uppercase;
 }
@@ -164,18 +82,14 @@
 }
 
 /* ============================================================
-   Sidebar — statique 260px (anatomie handoff)
+   Sidebar
    ============================================================ */
 .sidebar {
   background: var(--paper);
   border-right: 1px solid var(--rule-soft);
   padding: 18px 12px;
   display: flex; flex-direction: column;
-  width: 260px;
-  flex: 0 0 260px;
-  height: 100vh;
-  position: sticky; top: 0;
-  overflow-y: auto;
+  position: sticky; top: 0; height: 100vh;
 }
 .sidebar .brand {
   padding: 6px 10px 18px;
@@ -375,21 +289,10 @@
    ============================================================ */
 .main { display: flex; flex-direction: column; min-width: 0; }
 
-/* Compat : pages existantes utilisent .main-content comme enfant flex */
-.main-content {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  display: flex;
-}
-
 .topbar {
   padding: 28px 40px 0;
   background: var(--paper);
   position: sticky; top: 0; z-index: 5;
-  flex-shrink: 0;
 }
 .topbar .crumbs {
   font-size: 12px;
@@ -524,12 +427,9 @@
   transition: transform .05s, background .15s, border-color .15s;
   display: inline-flex; align-items: center; gap: 8px;
   border-radius: var(--r-md);
-  text-decoration: none;
-  white-space: nowrap;
 }
 .btn:hover { background: var(--ink-2); }
 .btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: .35; cursor: not-allowed; }
 .btn.secondary {
   background: transparent; color: var(--ink);
   border-color: var(--rule);
@@ -721,20 +621,19 @@
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px;
 }
-.status-chip {
+.dossier-card .status-chip {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 12px; font-weight: 500;
-  font-family: var(--sans);
   color: var(--ink-mute);
 }
-.status-chip::before {
+.dossier-card .status-chip::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
   background: var(--ink-faint);
 }
-.status-chip.encours::before { background: var(--ochre); }
-.status-chip.complet::before { background: var(--verdigris); }
-.status-chip.brouillon::before { background: var(--ink-faint); }
-.status-chip .stage {
+.dossier-card .status-chip.encours::before { background: var(--ochre); }
+.dossier-card .status-chip.complet::before { background: var(--verdigris); }
+.dossier-card .status-chip.brouillon::before { background: var(--ink-faint); }
+.dossier-card .status-chip .stage {
   color: var(--ink-faint); font-weight: 400;
 }
 
@@ -905,6 +804,36 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: .35; }
+}
+
+/* ============================================================
+   State switcher (dev affordance)
+   ============================================================ */
+.state-switcher {
+  position: fixed; bottom: 18px; left: 280px;
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--r-pill);
+  padding: 6px 10px;
+  display: flex; gap: 2px; align-items: center;
+  font-size: 12px; z-index: 100;
+}
+.state-switcher .label {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-right: 8px; padding-left: 6px;
+}
+.state-switcher button {
+  background: transparent; border: 0; cursor: pointer;
+  font-family: var(--sans); font-size: 12.5px;
+  padding: 4px 10px; color: var(--ink-mute);
+  border-radius: var(--r-pill);
+  transition: background .12s, color .12s;
+}
+.state-switcher button:hover { background: var(--paper-2); color: var(--ink-2); }
+.state-switcher button.active {
+  background: var(--ink); color: var(--paper-hi);
 }
 
 /* ============================================================
@@ -1110,63 +1039,42 @@
 .icon { display: inline-block; vertical-align: middle; }
 
 /* ============================================================
-   Theme toggle styles (Sidebar firm menu + Login corner)
+   DARK MODE
+   Triggered by data-theme="dark" on <html>. Token-driven so every
+   page picks it up automatically; per-page CSS rarely needs overrides.
    ============================================================ */
-.theme-toggle-row {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  font-family: var(--sans);
-  font-size: 13.5px;
-  color: var(--ink-2);
-}
-.theme-toggle-row .theme-pill { flex-shrink: 0; }
-.theme-toggle-row .ttr-label {
-  display: flex; align-items: center; gap: 10px;
-}
-.theme-toggle-row .ttr-label .icon {
-  width: 16px; height: 16px;
-  color: var(--ink-mute);
-}
-.theme-pill {
-  display: inline-flex; align-items: center;
-  background: var(--paper-2);
-  border-radius: var(--r-pill);
-  padding: 2px;
-  gap: 0;
-}
-.theme-pill button {
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--r-pill);
-  font-family: var(--sans);
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--ink-mute);
-  display: inline-flex; align-items: center;
-  gap: 4px;
-  transition: background .12s, color .12s;
-  white-space: nowrap;
-}
-.theme-pill button.active {
-  background: var(--paper-hi);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgba(0,0,0,.06);
-}
-.theme-pill button .icon { width: 12px; height: 12px; }
+[data-theme="dark"] {
+  /* Paper / surfaces — warm dark browns rather than pure black */
+  --paper:        #1a1814;
+  --paper-2:      #221f1a;
+  --paper-3:      #2c2922;
+  --paper-hi:     #26231d;
+  /* Ink — warm cream tones */
+  --ink:          #f3eddc;
+  --ink-2:        #e6dfca;
+  --ink-3:        #c4bda5;
+  --ink-mute:     #948c79;
+  --ink-faint:    #645e51;
+  /* Rules — subtle warm dark dividers */
+  --rule:         #393530;
+  --rule-soft:    #2e2b25;
+  --rule-strong:  #4f4a40;
+  /* Accents — softened for dark backgrounds */
+  --navy:         #7da4d6;
+  --navy-hi:      #9bbce5;
+  --navy-deep:    #5d83b8;
+  --navy-tint:    rgba(125,164,214,.14);
+  --sienna:       #c98a5a;
+  --verdigris:    #8bb89a;
+  --ochre:        #d8a85e;
+  --oxblood:      #d27878;
 
-/* Login corner toggle (small) */
-.login-theme-corner {
-  position: absolute;
-  top: 24px; left: 32px;
-  z-index: 3;
+  --shadow-card:   none;
+  --shadow-hover:  0 2px 8px -4px rgba(0,0,0,.32), 0 8px 24px -16px rgba(0,0,0,.42);
+  --shadow-float:  0 12px 32px -16px rgba(0,0,0,.55);
 }
 
-/* ============================================================
-   DARK MODE — overrides des rgba(31,30,28,…) hardcodés (handoff)
-   ============================================================ */
+/* ----- Overrides for hardcoded rgba(31,30,28,…) values ----- */
 [data-theme="dark"] .sidebar .nav a:hover { background: rgba(243,237,220,.05); }
 [data-theme="dark"] .sidebar .nav a.active { background: rgba(243,237,220,.08); }
 [data-theme="dark"] .sidebar .firm:hover { background: rgba(243,237,220,.05); }
@@ -1188,7 +1096,6 @@
 [data-theme="dark"] .pill {
   background: var(--paper-hi);
 }
-[data-theme="dark"] .pill.active { background: var(--ink); border-color: var(--ink); }
 
 /* Pin button hover */
 [data-theme="dark"] .dossier-card .pin:hover,
@@ -1212,144 +1119,96 @@
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0l5 6 5-6' fill='none' stroke='%23948c79' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
+/* ----- Page-specific dark adjustments ----- */
+/* Login brand panel: soften radial accents */
+[data-theme="dark"] .login-brand::before {
+  background: radial-gradient(circle, rgba(125,164,214,.10) 0%, transparent 60%);
+}
+[data-theme="dark"] .login-brand::after {
+  background: radial-gradient(circle, rgba(201,138,90,.08) 0%, transparent 60%);
+}
+[data-theme="dark"] .lb-seal {
+  background: rgba(255,255,255,.04);
+}
+[data-theme="dark"] .lb-marks { color: var(--navy); opacity: .18; }
+
+/* Login Microsoft button keeps its colored squares — no override needed */
+/* Sent-step pulse — keep ochre energy */
+[data-theme="dark"] .ss-row.active .ss-dot.ss-pulse {
+  animation: ss-pulse-dark 1.3s ease-in-out infinite;
+}
+@keyframes ss-pulse-dark {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(216,168,94,.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(216,168,94,0); }
+}
+
+/* Rapport mock cover — keep paper-tone, not jet-black */
+[data-theme="dark"] .rapport-cover { background: #2b2820; }
+
+/* Cabinet logo tile, integration logo, doc icons — darken */
+[data-theme="dark"] .lp-logo,
+[data-theme="dark"] .int-logo,
+[data-theme="dark"] .mt-avatar { background: var(--paper-3); }
+
+/* Sessions device tile */
+[data-theme="dark"] .sess-icon,
+[data-theme="dark"] .sess-tag.current { background: var(--paper-3); }
+
+/* Document type chips stay visible on dark */
+[data-theme="dark"] .docs .doc-pdf { background: #a04a3a; }
+[data-theme="dark"] .docs .doc-zip { background: #8a7a4f; }
+[data-theme="dark"] .docs .doc-csv { background: #4f7a5e; }
+
+/* Brand swatches keep their literal hex values — no override (they're brand colors) */
+
 /* ============================================================
-   COMPAT — classes existantes utilisées par les pages/panels
-   actuels, conservées jusqu'à leur migration vers le handoff.
+   Theme toggle styles (Sidebar firm menu + Login corner)
    ============================================================ */
-
-/* Fade-out au scroll sous la topbar */
-.scroll-fade-top {
-  mask-image: linear-gradient(to bottom, transparent 0, black 28px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px);
-}
-.scroll-fade {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 48px), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 48px), transparent 100%);
-}
-
-/* Dossier grid (ancienne classe — pages dossiers) */
-.dossier-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.card-hover {
-  transition: border-color .15s, box-shadow .15s;
-}
-.card-hover:hover {
-  border-color: var(--rule-strong) !important;
-  box-shadow: var(--shadow-hover) !important;
-}
-
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.card-enter { animation: cardIn 260ms cubic-bezier(.22,.68,0,1.2) both; }
-
-.skeleton-shimmer {
-  background: linear-gradient(90deg, var(--paper-2) 25%, var(--paper-3) 50%, var(--paper-2) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.6s linear infinite;
-}
-
-.card-pinned { border-left: 2.5px solid var(--navy) !important; }
-
-/* Champ formulaire générique (panels) */
-.field {
+.theme-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
   font-family: var(--sans);
-  font-size: 14px;
-  color: var(--ink);
-  background: var(--paper-hi);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-md);
-  padding: 9px 12px;
-  width: 100%;
-  transition: border-color .15s, box-shadow .15s;
+  font-size: 13.5px;
+  color: var(--ink-2);
 }
-.field:focus {
-  outline: none;
-  border-color: var(--ink-mute);
-  box-shadow: 0 0 0 3px rgba(31,30,28,.04);
+.theme-toggle-row .ttr-label {
+  display: flex; align-items: center; gap: 10px;
 }
-[data-theme="dark"] .field:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.04); }
-
-/* Panels (workspace dossier actuel) */
-.panel {
-  background: var(--paper-hi);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-lg);
-  padding: 22px 24px 24px;
+.theme-toggle-row .ttr-label .icon {
+  width: 16px; height: 16px;
+  color: var(--ink-mute);
 }
-.panel-head {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 18px;
+.theme-pill {
+  display: inline-flex; align-items: center;
+  background: var(--paper-2);
+  border-radius: var(--r-pill);
+  padding: 2px;
+  gap: 0;
 }
-.panel-title {
-  font-family: var(--serif);
-  font-size: 22px; font-weight: 500;
-  letter-spacing: -.005em;
-  color: var(--ink);
-}
-
-/* Side cards */
-.side-card {
-  background: var(--paper-hi);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-lg);
-  padding: 16px 18px 18px;
-}
-.side-card-head {
+.theme-pill button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
   font-family: var(--sans);
-  font-size: 11px; font-weight: 500;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin-bottom: 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-mute);
+  display: inline-flex; align-items: center;
+  gap: 5px;
+  transition: background .12s, color .12s;
 }
-
-/* Titres de page (anciennes classes) */
-.page-h1 {
-  font-family: var(--serif);
-  font-size: 36px; font-weight: 500;
-  letter-spacing: -.015em;
-  line-height: 1.1;
+.theme-pill button.active {
+  background: var(--paper-hi);
   color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
 }
-.dossier-h1 {
-  font-family: var(--serif);
-  font-size: 32px; font-weight: 500;
-  letter-spacing: -.015em;
-  line-height: 1.15;
-  color: var(--ink);
-}
+.theme-pill button .icon { width: 12px; height: 12px; }
 
-/* Agent chat (workspace dossier actuel) */
-.agent-chat-wrap {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  pointer-events: none;
-  z-index: 30;
-}
-.agent-chat-wrap.sidebar-open { left: 260px; }
-.agent-chat-inner {
-  pointer-events: auto;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 0 40px 24px;
-}
-.agent-chat-gradient {
+/* Login corner toggle (small) */
+.login-theme-corner {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 120px;
-  background: linear-gradient(180deg, transparent 0%, var(--paper) 60%);
-  pointer-events: none;
-}
-.agent-chat-box {
-  position: relative;
-  background: var(--paper-hi);
-  border: 1px solid var(--rule);
-  border-radius: 18px;
-  overflow: hidden;
+  top: 24px; left: 32px;
+  z-index: 3;
 }

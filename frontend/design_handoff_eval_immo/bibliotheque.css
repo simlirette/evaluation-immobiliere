@@ -1,0 +1,397 @@
+/* ============================================================
+   Éval Immo — Bibliothèque
+   ============================================================ */
+
+/* ----- Topbar ----- */
+.biblio-topbar { padding-bottom: 0; position: static; }
+.biblio-head {
+  padding-bottom: 22px;
+}
+.biblio-head h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: 36px; letter-spacing: -.015em; line-height: 1.1;
+  margin: 0; color: var(--ink);
+}
+.biblio-head .subtitle {
+  margin-top: 8px; font-size: 14px; color: var(--ink-mute);
+  max-width: 64ch;
+  line-height: 1.55;
+}
+
+/* ----- Top tabs (underlined) ----- */
+.biblio-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 0;
+  margin-bottom: -1px; /* sit on the topbar border */
+  border-bottom: 1px solid var(--rule);
+}
+.biblio-tab {
+  background: transparent; border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 12px 18px 14px;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink-mute);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .12s, border-color .12s;
+}
+.biblio-tab .count {
+  font-size: 12px;
+  color: var(--ink-faint);
+  background: var(--paper-2);
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+}
+.biblio-tab:hover { color: var(--ink); }
+.biblio-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.biblio-tab.active .count { color: var(--ink); background: var(--paper-3); }
+
+/* ----- Body container ----- */
+.biblio-body {
+  padding: 28px 40px 80px;
+  display: flex; flex-direction: column;
+  gap: 22px;
+}
+
+/* ============================================================
+   VENTES tab
+   ============================================================ */
+.biblio-toolbar {
+  display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap;
+}
+.biblio-toolbar .search {
+  flex: 1; min-width: 280px; max-width: 420px;
+}
+
+/* ----- Stats row ----- */
+.biblio-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.biblio-stats .stat {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 14px 18px;
+}
+.biblio-stats .stat-k {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+.biblio-stats .stat-v {
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.biblio-stats .stat-v.small { font-size: 14.5px; font-family: var(--sans); font-weight: 600; }
+.biblio-stats .stat-v .dash { color: var(--ink-faint); margin: 0 3px; }
+
+/* ----- Table ----- */
+.biblio-table-wrap {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.biblio-table .bt-head,
+.biblio-table .bt-row {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 2fr)   /* address */
+    minmax(150px, 1.1fr) /* district */
+    minmax(140px, 1.2fr) /* type */
+    72px                 /* year */
+    100px                /* area */
+    110px                /* sold */
+    120px                /* price */
+    80px                 /* ppsf */
+    72px;                /* used */
+  align-items: center;
+  gap: 14px;
+  padding: 12px 22px;
+}
+.biblio-table .bt-head {
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+.biblio-table .bt-head .num-h { text-align: right; }
+.biblio-table .bt-head .sort-head {
+  background: transparent; border: 0; padding: 0;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; color: inherit;
+  text-transform: inherit; letter-spacing: inherit;
+  text-align: left;
+  border-radius: var(--r-sm);
+  transition: color .12s;
+  width: 100%;
+}
+.biblio-table .bt-head .sort-head:hover { color: var(--ink-2); }
+.biblio-table .bt-head .sort-head.active { color: var(--ink); }
+.biblio-table .bt-head .sort-head .caret {
+  display: inline-grid; place-items: center;
+  width: 12px; height: 12px;
+  color: var(--ink-faint);
+  opacity: 0;
+  transition: opacity .12s, transform .15s;
+}
+.biblio-table .bt-head .sort-head:hover .caret { opacity: .55; }
+.biblio-table .bt-head .sort-head.active .caret { opacity: 1; color: var(--ink); }
+.biblio-table .bt-head .sort-head .caret.asc { transform: rotate(180deg); }
+
+.biblio-table .bt-row {
+  border-top: 1px solid var(--rule-soft);
+  font-size: 13.5px;
+  color: var(--ink-2);
+  transition: background .12s;
+  cursor: pointer;
+}
+.biblio-table .bt-row:hover { background: var(--paper-2); }
+.biblio-table .cell.muted { color: var(--ink-mute); }
+.biblio-table .cell.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.biblio-table .cell.strong { color: var(--ink); font-weight: 600; }
+.biblio-table .c-addr .addr {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.biblio-table .c-addr .meta {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.biblio-table .used-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: rgba(28,53,89,.10);
+  color: var(--navy);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.biblio-table .used-zero { color: var(--ink-faint); }
+.biblio-table .bt-empty {
+  padding: 60px 22px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* ============================================================
+   MARCHÉS tab
+   ============================================================ */
+.marche-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+.marche-card {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  display: flex; flex-direction: column;
+  gap: 14px;
+}
+.marche-card .mc-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px;
+}
+.marche-card .mc-head h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.marche-card .mc-ytd {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+}
+.marche-card .mc-ytd.pos { background: rgba(74,107,84,.12); color: var(--verdigris); }
+.marche-card .mc-ytd.neg { background: rgba(138,48,48,.10);  color: var(--oxblood); }
+
+.marche-card .mc-median {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.marche-card .mc-median-v {
+  font-family: var(--serif);
+  font-size: 38px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.015em;
+  line-height: 1;
+}
+.marche-card .mc-median-u {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+
+.marche-card .sparkline {
+  width: 100%;
+  height: 44px;
+}
+
+.marche-card .mc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule-soft);
+}
+.marche-card .mc-stats .mc-k {
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.marche-card .mc-stats .mc-v {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ============================================================
+   COÛTS tab
+   ============================================================ */
+.couts-wrap {
+  display: flex; flex-direction: column;
+  gap: 24px;
+}
+.couts-intro {
+  font-size: 13.5px;
+  color: var(--ink-mute);
+  max-width: 64ch;
+  line-height: 1.55;
+  margin: -4px 0 8px;
+}
+
+.couts-group h3 {
+  margin: 0 0 10px;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+
+.couts-table {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.couts-table .ct-head,
+.couts-table .ct-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) 110px 80px 1fr 100px;
+  gap: 14px;
+  padding: 12px 22px;
+  align-items: center;
+}
+.couts-table .ct-head {
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+.couts-table .ct-head .num { text-align: right; }
+.couts-table .ct-row {
+  border-top: 1px solid var(--rule-soft);
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.couts-table .ct-row:hover { background: var(--paper-2); }
+.couts-table .ct-quality { color: var(--ink); font-weight: 500; }
+.couts-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.couts-table .strong { font-weight: 600; color: var(--ink); }
+.couts-table .muted { color: var(--ink-mute); }
+
+/* ============================================================
+   TAUX tab
+   ============================================================ */
+.taux-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.taux-card {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+  display: flex; flex-direction: column;
+  gap: 6px;
+}
+.taux-card .tc-segment {
+  font-family: var(--serif);
+  font-size: 15.5px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+  line-height: 1.25;
+}
+.taux-card .tc-zone {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.taux-card .tc-cap {
+  margin-top: 8px;
+  display: flex; align-items: baseline; gap: 10px;
+}
+.taux-card .tc-cap-v {
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--navy);
+  letter-spacing: -.01em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.taux-card .tc-cap-v .dash { color: var(--ink-faint); margin: 0 3px; }
+.taux-card .tc-cap-u {
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.taux-card .tc-foot {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-soft);
+  display: flex; justify-content: space-between;
+  font-size: 12.5px;
+}
+.taux-card .tc-foot .tc-k { color: var(--ink-mute); }
+.taux-card .tc-foot .tc-v { color: var(--ink); font-weight: 500; }
