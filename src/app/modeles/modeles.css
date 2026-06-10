@@ -1,0 +1,155 @@
+/* ============================================================
+   Éval Immo — Modèles
+   ============================================================ */
+
+.modeles-topbar { padding-bottom: 0; position: static; }
+.modeles-head {
+  padding-bottom: 22px;
+}
+.modeles-head h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: 36px; letter-spacing: -.015em; line-height: 1.1;
+  margin: 0; color: var(--ink);
+}
+.modeles-head .subtitle {
+  margin-top: 8px; font-size: 14px; color: var(--ink-mute);
+  max-width: 64ch;
+  line-height: 1.55;
+}
+
+.modeles-body {
+  padding: 28px 40px 80px;
+  flex: 1;
+}
+
+.modeles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+/* ----- Card ----- */
+.model-card {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 22px 24px 18px;
+  display: grid;
+  gap: 16px;
+  position: relative;
+  transition: border-color .15s, box-shadow .15s;
+}
+.model-card:hover {
+  border-color: var(--rule-strong);
+  box-shadow: 0 2px 4px rgba(31,30,28,.03), 0 12px 28px -16px rgba(31,30,28,.14);
+}
+
+.model-card .mc-head {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.model-card .mc-cat {
+  display: inline-flex; align-items: center;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  color: var(--ink-mute);
+  background: var(--paper-2);
+}
+.model-card .mc-cat.cat-résidentiel { color: var(--navy);     background: var(--navy-tint); }
+.model-card .mc-cat.cat-commercial  { color: var(--verdigris); background: rgba(74,107,84,.10); }
+.model-card .mc-cat.cat-spécialisé  { color: var(--ochre);    background: rgba(184,138,62,.12); }
+.model-card .mc-cat.cat-restreint   { color: var(--ink-mute); background: var(--paper-2); }
+
+.model-card .mc-action {
+  width: 30px; height: 30px;
+  border: 0; background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-faint);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: background .12s, color .12s;
+}
+.model-card .mc-action:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.model-card .mc-action .icon { width: 16px; height: 16px; }
+
+.model-card .mc-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.18;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.model-card .mc-desc {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-mute);
+}
+
+.model-card .mc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 14px 0 12px;
+  border-top: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.model-card .mc-stat {
+  text-align: center;
+}
+.model-card .mc-stat-v {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+  line-height: 1;
+}
+.model-card .mc-stat-k {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  letter-spacing: .02em;
+}
+
+.model-card .mc-foot {
+  display: flex; flex-direction: column;
+  gap: 8px;
+}
+.model-card .mc-norm {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+  color: var(--navy);
+  font-weight: 500;
+}
+.model-card .mc-norm .icon {
+  width: 14px; height: 14px;
+  color: var(--navy);
+  flex-shrink: 0;
+}
+.model-card .mc-meta {
+  display: flex; justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.model-card .mc-meta b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.model-card .mc-meta-d {
+  color: var(--ink-faint);
+}
+
+.model-card .mc-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding-top: 6px;
+}
+.model-card .mc-actions .btn {
+  font-size: 13px;
+  padding: 7px 14px;
+}

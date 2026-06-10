@@ -1,75 +1,74 @@
+/* Modèles — données du design handoff (modeles.jsx), copie verbatim.
+   À remplacer par un endpoint backend (gabarits réels) en phase ultérieure. */
+
+export type ModeleCat = 'résidentiel' | 'commercial' | 'spécialisé' | 'restreint'
+
 export interface ModeleMock {
   id: string
-  categorie: string
-  titre: string
-  description: string
+  title: string
+  cat: ModeleCat
+  desc: string
   sections: number
   pages: number
-  documents: number
-  oeaqConforme: boolean
-  nbDossiers: number
-  modifieLe: string
+  docs: number
+  used: number
+  last: string
+  norm: string
 }
 
 export const MODELES: ModeleMock[] = [
   {
-    id: 'M001',
-    categorie: 'Résidentiel',
-    titre: 'Unifamiliale — Rapport abrégé',
-    description: 'Rapport standard pour propriétés unifamiliales. Comparaison directe, un ou deux approches. Format conforme hypothécaire OEAQ.',
-    sections: 8, pages: 18, documents: 4,
-    oeaqConforme: true,
-    nbDossiers: 142,
-    modifieLe: '2026-04-10',
+    id: 'hypo-res',
+    title: 'Hypothécaire — Résidentiel',
+    cat: 'résidentiel',
+    desc: 'Rapport narratif complet conforme aux exigences des prêteurs hypothécaires. Approches comparative et coût, attestation OEAQ.',
+    sections: 8, pages: 32, docs: 6,
+    used: 28, last: '12 mai 2026',
+    norm: 'OEAQ — Rapport narratif',
   },
   {
-    id: 'M002',
-    categorie: 'Résidentiel',
-    titre: 'Unifamiliale — Rapport complet',
-    description: 'Rapport détaillé avec trois approches et analyse de marché approfondie. Inclut section patrimoine et analyse de risque.',
-    sections: 12, pages: 32, documents: 6,
-    oeaqConforme: true,
-    nbDossiers: 87,
-    modifieLe: '2026-03-22',
+    id: 'pre-vente',
+    title: 'Pré-vente — Résidentiel',
+    cat: 'résidentiel',
+    desc: 'Évaluation orientée vendeur. Étude de marché élargie, fourchette de prix de mise en vente, recommandations stratégiques.',
+    sections: 6, pages: 22, docs: 4,
+    used: 14, last: '28 avril 2026',
+    norm: 'OEAQ — Rapport narratif',
   },
   {
-    id: 'M003',
-    categorie: 'Résidentiel',
-    titre: 'Condo — Rapport abrégé',
-    description: 'Rapport spécialisé pour condominiums. Inclut frais de copropriété, fonds de prévoyance et comparaison par étage.',
-    sections: 9, pages: 20, documents: 5,
-    oeaqConforme: true,
-    nbDossiers: 68,
-    modifieLe: '2026-02-14',
+    id: 'successoral',
+    title: 'Successoral & donation',
+    cat: 'résidentiel',
+    desc: 'Valeur marchande à une date passée précise. Justification de la date de valeur, comparables historiques, attestation notariale.',
+    sections: 7, pages: 26, docs: 5,
+    used: 9, last: '3 mars 2026',
+    norm: 'OEAQ — Rapport narratif',
   },
   {
-    id: 'M004',
-    categorie: 'Multifamilial',
-    titre: 'Plex (2–5 logements)',
-    description: 'Rapport pour duplex, triplex, quadruplex. Approche revenus obligatoire. Tableau de loyers et taux de capitalisation.',
-    sections: 11, pages: 28, documents: 7,
-    oeaqConforme: true,
-    nbDossiers: 54,
-    modifieLe: '2026-01-30',
+    id: 'litige',
+    title: 'Litige & expropriation',
+    cat: 'spécialisé',
+    desc: "Rapport d'expertise judiciaire. Analyse détaillée des trois approches, démonstration méthodologique, annexes substantielles.",
+    sections: 11, pages: 64, docs: 12,
+    used: 5, last: '18 février 2026',
+    norm: "OEAQ — Rapport d'expert",
   },
   {
-    id: 'M005',
-    categorie: 'Commercial',
-    titre: 'Local commercial — Rue principale',
-    description: 'Rapport pour locaux commerciaux de rue. Analyse de rendement, achalandage piétonnier et comparaison avec baux récents.',
-    sections: 13, pages: 35, documents: 8,
-    oeaqConforme: true,
-    nbDossiers: 23,
-    modifieLe: '2025-12-05',
+    id: 'revenus',
+    title: 'Acquisition — Immeuble à revenus',
+    cat: 'commercial',
+    desc: 'Approche par les revenus en méthode dominante. État des revenus et dépenses normalisé, taux de capitalisation justifié.',
+    sections: 9, pages: 42, docs: 8,
+    used: 7, last: '22 avril 2026',
+    norm: 'OEAQ — Rapport narratif',
   },
   {
-    id: 'M006',
-    categorie: 'Spécialisé',
-    titre: 'Succession & liquidation',
-    description: 'Rapport adapté aux contextes successoraux. Inclut la date de valeur historique, attestation conforme et section héritiers.',
-    sections: 10, pages: 24, documents: 5,
-    oeaqConforme: true,
-    nbDossiers: 31,
-    modifieLe: '2025-11-18',
+    id: 'avis',
+    title: 'Avis de valeur restreint',
+    cat: 'restreint',
+    desc: 'Rapport court à portée limitée. Une seule approche, hypothèses explicites. Pour usage interne ou validation rapide.',
+    sections: 4, pages: 8, docs: 2,
+    used: 18, last: '26 mai 2026',
+    norm: 'OEAQ — Avis de valeur',
   },
 ]

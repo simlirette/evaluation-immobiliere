@@ -161,7 +161,11 @@
   display: grid;
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
+  height: 100vh;
 }
+/* body est overflow:hidden (architecture existante) — chaque page
+   défile dans son .main ; la topbar sticky s'y accroche. */
+.app > .main { overflow-y: auto; height: 100vh; }
 
 /* ============================================================
    Sidebar — statique 260px (anatomie handoff)

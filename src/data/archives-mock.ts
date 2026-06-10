@@ -1,49 +1,71 @@
+/* Archives — données du design handoff (archives-data.js), copie verbatim.
+   `yearBuilt` = année de construction (le handoff l'écrasait par l'année
+   d'archivage — bug) ; le regroupement utilise l'année de `completedAt`.
+   À remplacer par un endpoint backend (dossiers archivés réels). */
+
 export interface DossierArchive {
   id: string
-  adresse: string
-  ville: string
+  addr: string
+  city: string
   type: string
-  annee: number
-  superficie: number
-  valeur: number
+  yearBuilt: number
+  area: number
+  value: number
   client: string
-  mandat: string
-  dateCompletion: string
-  evaluateur: string
+  mandate: string
+  completedAt: string
+  reviewer: string
 }
+
+export const TOTAL_ARCHIVES = 142
+
+export const MANDATE_OPTIONS = ['Tous', 'Hypothécaire', 'Pré-vente', 'Successoral', 'Litige', 'Acquisition', 'Donation', 'Refinancement']
 
 export const ARCHIVES: DossierArchive[] = [
-  { id: 'EI-2026-042', adresse: '3420 av. de Vendôme', ville: 'Montréal (CDN)', type: 'Unifamiliale', annee: 1928, superficie: 1650, valeur: 1295000, client: 'Banque Nationale', mandat: 'Hypothécaire', dateCompletion: '2026-03-28', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2026-039', adresse: '5812 av. Glencairn', ville: 'Montréal (CDN)', type: 'Unifamiliale', annee: 1952, superficie: 1480, valeur: 1105000, client: 'Desjardins', mandat: 'Hypothécaire', dateCompletion: '2026-03-15', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2026-031', adresse: '2240 ch. de la Côte-Ste-Catherine', ville: 'Outremont', type: 'Unifamiliale', annee: 1935, superficie: 2100, valeur: 1890000, client: 'Succession Beauchamp', mandat: 'Successoral', dateCompletion: '2026-02-20', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2026-024', adresse: '95 av. Bernard', ville: 'Outremont', type: 'Unifamiliale', annee: 1908, superficie: 1920, valeur: 1725000, client: 'Colliers International', mandat: 'Pré-vente', dateCompletion: '2026-02-08', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2026-017', adresse: '1540 rue de l\'Épée', ville: 'Outremont', type: 'Unifamiliale', annee: 1941, superficie: 1740, valeur: 1450000, client: 'BMO Banque', mandat: 'Hypothécaire', dateCompletion: '2026-01-25', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2026-009', adresse: '680 av. Rockland', ville: 'Mont-Royal', type: 'Unifamiliale', annee: 1948, superficie: 2340, valeur: 2150000, client: 'Tribunal administratif', mandat: 'Litige', dateCompletion: '2026-01-14', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2025-198', adresse: '240 av. Lajoie', ville: 'Outremont', type: 'Duplex', annee: 1929, superficie: 2800, valeur: 1580000, client: 'CMHC', mandat: 'Hypothécaire', dateCompletion: '2025-12-18', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2025-191', adresse: '4125 rue Jean-Brillant', ville: 'Montréal (CDN)', type: 'Condo', annee: 2018, superficie: 920, valeur: 645000, client: 'RBC Banque Royale', mandat: 'Hypothécaire', dateCompletion: '2025-12-05', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2025-185', adresse: '3980 av. Prud\'homme', ville: 'NDG', type: 'Unifamiliale', annee: 1962, superficie: 1320, valeur: 895000, client: 'Famille Lapointe', mandat: 'Pré-vente', dateCompletion: '2025-11-30', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2025-179', adresse: '5432 av. Victoria', ville: 'Montréal (CDN)', type: 'Triplex', annee: 1955, superficie: 3600, valeur: 1340000, client: 'Succession Tran', mandat: 'Successoral', dateCompletion: '2025-11-18', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2025-163', adresse: '1820 av. Dufresnoy', ville: 'Outremont', type: 'Unifamiliale', annee: 1932, superficie: 2240, valeur: 2050000, client: 'TD Canada Trust', mandat: 'Hypothécaire', dateCompletion: '2025-10-22', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2025-154', adresse: '8420 rue de Gaspé', ville: 'Rosemont', type: 'Duplex', annee: 1958, superficie: 2600, valeur: 980000, client: 'Desjardins', mandat: 'Hypothécaire', dateCompletion: '2025-10-08', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2025-142', adresse: '1145 av. du Docteur-Penfield', ville: 'Westmount', type: 'Unifamiliale', annee: 1924, superficie: 3200, valeur: 3250000, client: 'BMO Banque', mandat: 'Hypothécaire', dateCompletion: '2025-09-19', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2025-128', adresse: '3560 av. du Parc', ville: 'Plateau', type: 'Triplex', annee: 1947, superficie: 4100, valeur: 1650000, client: 'CMHC', mandat: 'Hypothécaire', dateCompletion: '2025-09-02', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2025-115', adresse: '5910 ch. Côte-des-Neiges', ville: 'Montréal (CDN)', type: 'Condo', annee: 2015, superficie: 1080, valeur: 742000, client: 'RBC Banque Royale', mandat: 'Hypothécaire', dateCompletion: '2025-08-14', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2025-101', adresse: '740 av. Lajoie', ville: 'Outremont', type: 'Unifamiliale', annee: 1939, superficie: 1890, valeur: 1620000, client: 'Famille Nguyen', mandat: 'Pré-vente', dateCompletion: '2025-07-28', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2024-284', adresse: '2985 av. Maplewood', ville: 'Mont-Royal', type: 'Unifamiliale', annee: 1954, superficie: 2680, valeur: 2380000, client: 'Succession Moreau', mandat: 'Successoral', dateCompletion: '2024-12-15', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2024-271', adresse: '4220 rue Drolet', ville: 'Plateau', type: 'Duplex', annee: 1908, superficie: 2450, valeur: 1125000, client: 'Desjardins', mandat: 'Hypothécaire', dateCompletion: '2024-11-29', evaluateur: 'Maxime Tremblay, É.A.' },
-  { id: 'EI-2024-258', adresse: '1680 rue Sainte-Famille', ville: 'Plateau', type: 'Condo', annee: 2021, superficie: 840, valeur: 598000, client: 'BMO Banque', mandat: 'Hypothécaire', dateCompletion: '2024-11-12', evaluateur: 'Geneviève Roy, É.A.' },
-  { id: 'EI-2024-245', adresse: '6340 av. Somerled', ville: 'NDG', type: 'Unifamiliale', annee: 1965, superficie: 1540, valeur: 1020000, client: 'Tribunal administratif', mandat: 'Expropriation', dateCompletion: '2024-10-24', evaluateur: 'Maxime Tremblay, É.A.' },
+  // 2026
+  { id: '2026-0411', addr: '4218, rue Cartier',                city: 'Plateau-Mont-Royal',   type: 'Duplex',              yearBuilt: 1923, area: 2410, value: 895000,  client: 'Succession Bélanger',              mandate: 'Successoral',   completedAt: '2026-05-18', reviewer: 'M. Tremblay' },
+  { id: '2026-0397', addr: '312, av. Bloomfield',              city: 'Outremont',            type: 'Maison unifamiliale', yearBuilt: 1936, area: 1920, value: 1485000, client: 'Cabinet Lévesque & Tremblay',      mandate: 'Litige',        completedAt: '2026-05-12', reviewer: 'M. Tremblay' },
+  { id: '2026-0384', addr: '8654, rue Christophe-Colomb',      city: 'Villeray',             type: 'Triplex',             yearBuilt: 1962, area: 2840, value: 1245000, client: 'Investissements Bourassa',         mandate: 'Acquisition',   completedAt: '2026-05-08', reviewer: 'M. Tremblay' },
+  { id: '2026-0362', addr: '1455, rue Drummond, app. 2204',    city: 'Centre-ville',         type: 'Condo',               yearBuilt: 2021, area: 980,  value: 685000,  client: 'RBC — refinancement',              mandate: 'Refinancement', completedAt: '2026-04-28', reviewer: 'M. Tremblay' },
+  { id: '2026-0331', addr: '158, av. Lansdowne',               city: 'Westmount',            type: 'Maison unifamiliale', yearBuilt: 1925, area: 2980, value: 1875000, client: 'Famille Charest',                  mandate: 'Pré-vente',     completedAt: '2026-04-22', reviewer: 'É. Lapointe' },
+  { id: '2026-0318', addr: '44, ch. Belvédère',                city: 'Westmount',            type: 'Maison unifamiliale', yearBuilt: 1908, area: 4280, value: 3450000, client: 'Succession Bergeron',              mandate: 'Successoral',   completedAt: '2026-04-04', reviewer: 'M. Tremblay' },
+  { id: '2026-0289', addr: '1180, rue de Bleury, app. 1808',   city: 'Centre-ville',         type: 'Condo',               yearBuilt: 2018, area: 1240, value: 845000,  client: 'Banque Nationale',                 mandate: 'Hypothécaire',  completedAt: '2026-03-26', reviewer: 'M. Tremblay' },
+  { id: '2026-0254', addr: '5621, rue Waverly',                city: 'Mile End',             type: 'Triplex',             yearBuilt: 1905, area: 3340, value: 1340000, client: "Coopérative d'habitation Plateau", mandate: 'Acquisition',   completedAt: '2026-03-12', reviewer: 'É. Lapointe' },
+  { id: '2026-0228', addr: '362, av. Roslyn',                  city: 'Westmount',            type: 'Maison unifamiliale', yearBuilt: 1922, area: 3120, value: 2185000, client: 'Étude Goldberg',                   mandate: 'Litige',        completedAt: '2026-02-28', reviewer: 'M. Tremblay' },
+  { id: '2026-0204', addr: '8124, rue de Lanaudière',          city: 'Villeray',             type: 'Triplex',             yearBuilt: 1958, area: 2640, value: 875000,  client: 'M. & Mme Lafontaine',              mandate: 'Pré-vente',     completedAt: '2026-02-14', reviewer: 'M. Tremblay' },
+  { id: '2026-0182', addr: '78, av. Grosvenor',                city: 'Westmount',            type: 'Maison unifamiliale', yearBuilt: 1931, area: 2840, value: 1985000, client: 'Caisse Desjardins — Outremont',    mandate: 'Hypothécaire',  completedAt: '2026-02-02', reviewer: 'M. Tremblay' },
+  { id: '2026-0156', addr: '2 Square Westmount, app. 802',     city: 'Centre-ville',         type: 'Condo',               yearBuilt: 2019, area: 1480, value: 1085000, client: 'Me Anne Beauchamp, notaire',       mandate: 'Donation',      completedAt: '2026-01-22', reviewer: 'É. Lapointe' },
+
+  // 2025
+  { id: '2025-0418', addr: "5412, av. de l'Esplanade",         city: 'Mile End',             type: 'Duplex',              yearBuilt: 1918, area: 2580, value: 1085000, client: 'Banque Royale',                    mandate: 'Hypothécaire',  completedAt: '2025-12-19', reviewer: 'M. Tremblay' },
+  { id: '2025-0394', addr: '2100, rue Saint-Patrick',          city: 'Pointe-Saint-Charles', type: 'Immeuble à revenus',  yearBuilt: 1985, area: 5400, value: 2480000, client: 'Société de portefeuille Lachine',  mandate: 'Acquisition',   completedAt: '2025-12-04', reviewer: 'M. Tremblay' },
+  { id: '2025-0372', addr: '67, av. Wood',                     city: 'Westmount',            type: 'Maison unifamiliale', yearBuilt: 1912, area: 3240, value: 2685000, client: 'Étude Goldberg',                   mandate: 'Litige',        completedAt: '2025-11-22', reviewer: 'É. Lapointe' },
+  { id: '2025-0341', addr: '4892, av. du Parc',                city: 'Mile End',             type: 'Duplex',              yearBuilt: 1908, area: 2150, value: 945000,  client: 'Caisse Desjardins',                mandate: 'Refinancement', completedAt: '2025-10-30', reviewer: 'M. Tremblay' },
+  { id: '2025-0318', addr: '220, ch. de la Côte-Sainte-Catherine', city: 'Outremont',        type: 'Maison unifamiliale', yearBuilt: 1955, area: 2680, value: 1620000, client: 'Me Anne Beauchamp',                mandate: 'Donation',      completedAt: '2025-10-12', reviewer: 'M. Tremblay' },
+  { id: '2025-0287', addr: '5780, av. Coronation',             city: 'Notre-Dame-de-Grâce',  type: 'Maison unifamiliale', yearBuilt: 1936, area: 1640, value: 810000,  client: 'TD Canada Trust',                  mandate: 'Hypothécaire',  completedAt: '2025-09-26', reviewer: 'É. Lapointe' },
+  { id: '2025-0259', addr: '412, av. Davaar',                  city: 'Outremont',            type: 'Maison unifamiliale', yearBuilt: 1924, area: 1680, value: 1195000, client: 'M. & Mme Fortier',                 mandate: 'Pré-vente',     completedAt: '2025-09-08', reviewer: 'M. Tremblay' },
+  { id: '2025-0233', addr: '1124, rue Marie-Anne E.',          city: 'Plateau-Mont-Royal',   type: 'Triplex',             yearBuilt: 1912, area: 2980, value: 1095000, client: 'Banque Nationale',                 mandate: 'Hypothécaire',  completedAt: '2025-08-20', reviewer: 'M. Tremblay' },
+
+  // 2024
+  { id: '2024-0381', addr: '198, av. Outremont',               city: 'Outremont',            type: 'Maison unifamiliale', yearBuilt: 1936, area: 1720, value: 1180000, client: 'Famille Charbonneau',              mandate: 'Successoral',   completedAt: '2024-12-04', reviewer: 'M. Tremblay' },
+  { id: '2024-0342', addr: '3640, rue Wellington',             city: 'Verdun',               type: 'Triplex',             yearBuilt: 1925, area: 2840, value: 780000,  client: 'Caisse Desjardins',                mandate: 'Hypothécaire',  completedAt: '2024-10-22', reviewer: 'É. Lapointe' },
+  { id: '2024-0298', addr: '6234, boul. Saint-Joseph E.',      city: 'Rosemont',             type: 'Triplex',             yearBuilt: 1955, area: 2520, value: 858000,  client: 'M. Pellerin',                      mandate: 'Pré-vente',     completedAt: '2024-09-14', reviewer: 'M. Tremblay' },
+  { id: '2024-0241', addr: '1840, rue Wellington',             city: 'Pointe-Saint-Charles', type: 'Triplex',             yearBuilt: 1918, area: 2680, value: 720000,  client: 'Investissements Bourassa',         mandate: 'Acquisition',   completedAt: '2024-07-26', reviewer: 'M. Tremblay' },
 ]
 
-export function groupByYear(archives: DossierArchive[]): Record<number, DossierArchive[]> {
-  return archives.reduce((acc, d) => {
-    const year = parseInt(d.dateCompletion.slice(0, 4))
-    if (!acc[year]) acc[year] = []
-    acc[year].push(d)
-    return acc
-  }, {} as Record<number, DossierArchive[]>)
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']
+
+export function archiveYear(a: DossierArchive): string {
+  return a.completedAt.slice(0, 4)
 }
 
-export function getYears(archives: DossierArchive[]): number[] {
-  return [...new Set(archives.map(d => parseInt(d.dateCompletion.slice(0, 4))))].sort((a, b) => b - a)
+export function completedLabel(a: DossierArchive): string {
+  const [y, mo, d] = a.completedAt.split('-').map(Number)
+  return `${d} ${MONTHS[mo - 1]} ${y}`
+}
+
+export function mandateSlug(s: string): string {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
 }

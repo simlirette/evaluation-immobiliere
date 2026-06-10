@@ -1,0 +1,278 @@
+/* ============================================================
+   Éval Immo — Archives
+   ============================================================ */
+
+.arch-topbar { padding-bottom: 0; position: static; }
+.arch-head {
+  padding-bottom: 22px;
+}
+.arch-head h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: 36px; letter-spacing: -.015em; line-height: 1.1;
+  margin: 0; color: var(--ink);
+}
+.arch-head .subtitle {
+  margin-top: 8px; font-size: 14px; color: var(--ink-mute);
+  max-width: 64ch;
+  line-height: 1.55;
+}
+
+.arch-body {
+  padding: 28px 40px 80px;
+  flex: 1;
+  display: flex; flex-direction: column;
+  gap: 22px;
+}
+
+/* ----- Toolbar ----- */
+.arch-toolbar {
+  display: flex; align-items: center; gap: 16px;
+}
+.arch-toolbar .search {
+  flex: 1; min-width: 280px; max-width: 480px;
+}
+
+/* ----- Year strip ----- */
+.year-strip {
+  display: flex; gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.year-pill {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: var(--r-pill);
+  font-family: var(--sans);
+  display: inline-flex; align-items: center; gap: 10px;
+  color: var(--ink-mute);
+  transition: border-color .12s, background .12s, color .12s;
+  white-space: nowrap;
+}
+.year-pill:hover { border-color: var(--rule-strong); color: var(--ink); }
+.year-pill .y-label {
+  font-size: 13.5px; font-weight: 500;
+}
+.year-pill .y-count {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  background: var(--paper-2);
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+}
+.year-pill.active {
+  background: var(--ink); border-color: var(--ink); color: var(--paper-hi);
+}
+.year-pill.active .y-count {
+  background: rgba(255,255,255,.16); color: rgba(255,255,255,.85);
+}
+
+/* ----- Summary ----- */
+.arch-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 16px 4px;
+}
+.arch-summary > div {
+  display: flex; flex-direction: column;
+  gap: 4px;
+  padding: 0 22px;
+  border-right: 1px solid var(--rule-soft);
+}
+.arch-summary > div:last-child { border-right: 0; }
+.arch-summary .k {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+.arch-summary .v {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.arch-summary .suffix {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  margin-top: -2px;
+}
+
+/* ----- Year-grouped list ----- */
+.arch-groups {
+  display: flex; flex-direction: column;
+  gap: 28px;
+}
+.arch-group {
+  display: flex; flex-direction: column;
+  gap: 10px;
+}
+.ag-head {
+  display: flex; align-items: baseline; gap: 16px;
+  padding: 0 4px;
+}
+.ag-year {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.01em;
+  line-height: 1;
+}
+.ag-count {
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+.ag-total {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.ag-list {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+/* ----- Row ----- */
+.arch-row {
+  display: grid;
+  grid-template-columns:
+    64px               /* date stack */
+    minmax(220px, 2fr) /* main: address + meta */
+    140px              /* mandate */
+    minmax(160px, 1.4fr) /* client */
+    120px              /* value */
+    90px               /* id */
+    140px;             /* actions */
+  align-items: center;
+  gap: 18px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--rule-soft);
+  cursor: pointer;
+  transition: background .12s;
+}
+.arch-row:first-child { border-top: 0; }
+.arch-row:hover { background: var(--paper-2); }
+
+.arch-row .ar-date {
+  text-align: center;
+  padding: 4px 0;
+  border-right: 1px solid var(--rule-soft);
+  margin-right: -6px;
+}
+.arch-row .ar-day {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1;
+  letter-spacing: -.005em;
+}
+.arch-row .ar-month {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.arch-row .ar-main { min-width: 0; }
+.arch-row .ar-addr {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.arch-row .ar-meta {
+  margin-top: 3px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.arch-row .ar-meta .dot-sep { color: var(--ink-faint); opacity: .55; }
+
+.arch-row .ar-mandate { display: flex; }
+.arch-row .m-pill {
+  display: inline-flex; align-items: center;
+  font-size: 11.5px; font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--paper-2);
+  color: var(--ink-mute);
+}
+.arch-row .m-pill.mandate-hypothecaire   { color: var(--navy);     background: var(--navy-tint); }
+.arch-row .m-pill.mandate-pre-vente      { color: var(--ochre);    background: rgba(184,138,62,.12); }
+.arch-row .m-pill.mandate-successoral    { color: var(--verdigris); background: rgba(74,107,84,.12); }
+.arch-row .m-pill.mandate-litige         { color: var(--oxblood);  background: rgba(138,48,48,.10); }
+.arch-row .m-pill.mandate-acquisition    { color: var(--navy);     background: var(--navy-tint); }
+.arch-row .m-pill.mandate-donation       { color: var(--verdigris); background: rgba(74,107,84,.12); }
+.arch-row .m-pill.mandate-refinancement  { color: var(--ochre);    background: rgba(184,138,62,.12); }
+
+.arch-row .ar-client {
+  font-size: 13px;
+  color: var(--ink-mute);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.arch-row .ar-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+}
+.arch-row .ar-id {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.arch-row .ar-actions {
+  display: flex; justify-content: flex-end; gap: 4px;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.arch-row:hover .ar-actions { opacity: 1; }
+
+/* ----- Load more & empty ----- */
+.arch-more {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+.arch-more b { color: var(--ink); font-weight: 600; }
+
+.arch-empty {
+  text-align: center;
+  padding: 80px 40px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.arch-empty .empty-seal {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  color: var(--ink-faint);
+  display: grid; place-items: center;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+.arch-empty h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}

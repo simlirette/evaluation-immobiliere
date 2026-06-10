@@ -1,474 +1,34 @@
 'use client'
 
+/* Bibliothèque — port 1:1 du design handoff (bibliotheque.jsx + bibliotheque.css).
+   4 onglets : Ventes / Marchés / Coûts / Taux. */
+
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
+import Dropdown from '@/components/shared/Dropdown'
+import { Icon } from '@/components/shared/Icon'
+import { formatCAD, fmtNum } from '@/lib/format-number'
+import {
+  VENTES, MARCHES, COUTS, TAUX, DISTRICTS, VENTE_TYPES,
+  soldLabel, ppsf,
+  type MarcheMock, type CoutMock,
+} from '@/data/bibliotheque-mock'
 import { createClient } from '@/lib/supabase/client'
-import { VENTES, MARCHES, COUTS, TAUX } from '@/data/bibliotheque-mock'
-import type { VenteMock, MarcheMock, CoutMock, TauxMock } from '@/data/bibliotheque-mock'
+import './bibliotheque.css'
 
-type Tab = 'ventes' | 'marches' | 'couts' | 'taux'
+const TABS = [
+  { id: 'ventes',  label: 'Ventes',  count: VENTES.length },
+  { id: 'marches', label: 'Marchés', count: MARCHES.length },
+  { id: 'couts',   label: 'Coûts',   count: COUTS.length },
+  { id: 'taux',    label: 'Taux',    count: TAUX.length },
+] as const
 
-const TAB_LABELS: Record<Tab, string> = {
-  ventes: 'Ventes',
-  marches: 'Marchés',
-  couts: 'Coûts',
-  taux: 'Taux',
-}
-
-function formatPrix(n: number) {
-  return new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(n)
-}
-
-function formatNum(n: number) {
-  return new Intl.NumberFormat('fr-CA').format(n)
-}
-
-function medianOf(nums: number[]) {
-  if (nums.length === 0) return 0
-  const sorted = [...nums].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
-}
-
-// ─── Ventes ──────────────────────────────────────────────────────────────────
-
-function VentesTab() {
-  const [search, setSearch] = useState('')
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim()
-    if (!q) return VENTES
-    return VENTES.filter(
-      v =>
-        v.adresse.toLowerCase().includes(q) ||
-        v.arrondissement.toLowerCase().includes(q),
-    )
-  }, [search])
-
-  const medianPrix = medianOf(filtered.map(v => v.prix))
-
-  return (
-    <div>
-      {/* Search + stats row */}
-      <div
-        className="flex items-center gap-4 px-10 py-4 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--rule-soft)' }}
-      >
-        <div className="relative flex-1 max-w-[380px]">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            width="14" height="14" viewBox="0 0 14 14" fill="none"
-            aria-hidden="true"
-            style={{ color: 'var(--ink-faint)' }}
-          >
-            <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M9.5 9.5l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-          <input
-            type="search"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Filtrer par adresse ou arrondissement…"
-            className="field w-full pl-9"
-            style={{ borderRadius: 'var(--r-pill)' }}
-          />
-        </div>
-
-        <div
-          className="flex items-center gap-5 text-[13px] ml-auto"
-          style={{ color: 'var(--ink-mute)' }}
-        >
-          <span>
-            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{filtered.length}</span>
-            {' '}vente{filtered.length !== 1 ? 's' : ''}
-          </span>
-          {filtered.length > 0 && (
-            <span>
-              Médiane{' '}
-              <span
-                style={{
-                  color: 'var(--navy)',
-                  fontWeight: 600,
-                  fontVariantNumeric: 'tabular-nums lining-nums',
-                }}
-              >
-                {formatPrix(medianPrix)}
-              </span>
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        {/* Header */}
-        <div
-          className="grid px-10 py-2.5 text-[11px] font-medium uppercase tracking-[.05em]"
-          style={{
-            gridTemplateColumns: '2.5fr 1.4fr 100px 60px 90px 1fr 120px',
-            gap: '1rem',
-            color: 'var(--ink-faint)',
-            borderBottom: '1px solid var(--rule-soft)',
-            background: 'var(--paper)',
-          }}
-        >
-          <span>Adresse</span>
-          <span>Arrondissement</span>
-          <span>Type</span>
-          <span>Année</span>
-          <span>Superficie</span>
-          <span style={{ textAlign: 'right' }}>Prix</span>
-          <span style={{ textAlign: 'right' }}>Date</span>
-        </div>
-
-        {/* Rows */}
-        {filtered.length === 0 ? (
-          <div
-            className="px-10 py-12 text-center text-[14px]"
-            style={{ color: 'var(--ink-faint)' }}
-          >
-            Aucune vente ne correspond à la recherche.
-          </div>
-        ) : (
-          filtered.map(v => <VenteRow key={v.id} vente={v} />)
-        )}
-      </div>
-    </div>
-  )
-}
-
-function VenteRow({ vente: v }: { vente: VenteMock }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      className="grid px-10 py-3 text-[13.5px] transition-colors"
-      style={{
-        gridTemplateColumns: '2.5fr 1.4fr 100px 60px 90px 1fr 120px',
-        gap: '1rem',
-        borderBottom: '1px solid var(--rule-soft)',
-        background: hovered ? 'var(--paper-2)' : 'transparent',
-        cursor: 'default',
-        alignItems: 'center',
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{v.adresse}</span>
-      <span style={{ color: 'var(--ink-mute)' }}>{v.arrondissement}</span>
-      <span style={{ color: 'var(--ink-mute)' }}>{v.type}</span>
-      <span style={{ color: 'var(--ink-faint)' }}>{v.annee}</span>
-      <span style={{ color: 'var(--ink-mute)', fontVariantNumeric: 'tabular-nums lining-nums' }}>
-        {formatNum(v.superficie)} pi²
-      </span>
-      <span
-        style={{
-          color: 'var(--navy)',
-          fontWeight: 600,
-          fontVariantNumeric: 'tabular-nums lining-nums',
-          textAlign: 'right',
-        }}
-      >
-        {formatPrix(v.prix)}
-      </span>
-      <span
-        style={{
-          color: 'var(--ink-faint)',
-          fontVariantNumeric: 'tabular-nums lining-nums',
-          textAlign: 'right',
-        }}
-      >
-        {new Date(v.date).toLocaleDateString('fr-CA', { year: 'numeric', month: 'short', day: 'numeric' })}
-      </span>
-    </div>
-  )
-}
-
-// ─── Marchés ─────────────────────────────────────────────────────────────────
-
-function MarchesTab() {
-  return (
-    <div className="px-10 py-8">
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '1.25rem',
-        }}
-      >
-        {MARCHES.map(m => <MarcheCard key={m.nom} marche={m} />)}
-      </div>
-    </div>
-  )
-}
-
-function MarcheCard({ marche: m }: { marche: MarcheMock }) {
-  const maxVal = Math.max(...m.tendance)
-  const positive = m.variation >= 0
-
-  return (
-    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      <div className="flex items-start justify-between gap-2">
-        <h3
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: '1.05rem',
-            color: 'var(--ink)',
-            margin: 0,
-            fontWeight: 600,
-          }}
-        >
-          {m.nom}
-        </h3>
-        <span
-          style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            padding: '2px 7px',
-            borderRadius: 'var(--r-pill)',
-            background: positive ? 'color-mix(in srgb, var(--navy) 10%, transparent)' : 'color-mix(in srgb, var(--oxblood) 10%, transparent)',
-            color: positive ? 'var(--navy)' : 'var(--oxblood)',
-            fontVariantNumeric: 'tabular-nums lining-nums',
-            flexShrink: 0,
-          }}
-        >
-          {positive ? '+' : ''}{m.variation.toFixed(1)} %
-        </span>
-      </div>
-
-      <div>
-        <div
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: '1.6rem',
-            fontWeight: 700,
-            color: 'var(--navy)',
-            fontVariantNumeric: 'tabular-nums lining-nums',
-            lineHeight: 1.1,
-          }}
-        >
-          {formatPrix(m.prixMedian)}
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--ink-faint)', marginTop: '2px' }}>
-          prix médian
-        </div>
-      </div>
-
-      {/* Sparkline */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          gap: '2px',
-          height: '32px',
-        }}
-      >
-        {m.tendance.map((val, i) => (
-          <div
-            key={i}
-            style={{
-              width: '4px',
-              height: `${Math.round((val / maxVal) * 32)}px`,
-              background: 'var(--navy)',
-              opacity: 0.25 + (i / m.tendance.length) * 0.75,
-              borderRadius: '1px 1px 0 0',
-              flexShrink: 0,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Meta */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '1rem',
-          fontSize: '12px',
-          color: 'var(--ink-mute)',
-          borderTop: '1px solid var(--rule-soft)',
-          paddingTop: '0.625rem',
-        }}
-      >
-        <span><span style={{ color: 'var(--ink)', fontWeight: 500 }}>{m.jrs}</span> j. DOM</span>
-        <span><span style={{ color: 'var(--ink)', fontWeight: 500 }}>{m.volume}</span> ventes</span>
-      </div>
-    </div>
-  )
-}
-
-// ─── Coûts ───────────────────────────────────────────────────────────────────
-
-function CoutsTab() {
-  const groups = useMemo(() => {
-    const map = new Map<string, CoutMock[]>()
-    for (const c of COUTS) {
-      if (!map.has(c.categorie)) map.set(c.categorie, [])
-      map.get(c.categorie)!.push(c)
-    }
-    return [...map.entries()]
-  }, [])
-
-  return (
-    <div className="px-10 py-8" style={{ maxWidth: '680px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {groups.map(([categorie, rows]) => (
-          <div key={categorie}>
-            <div
-              className="eyebrow"
-              style={{ marginBottom: '0.5rem' }}
-            >
-              {categorie}
-            </div>
-            <div
-              style={{
-                border: '1px solid var(--rule)',
-                borderRadius: 'var(--r-md)',
-                overflow: 'hidden',
-                background: 'var(--paper-hi)',
-              }}
-            >
-              {rows.map((row, i) => (
-                <div
-                  key={row.qualite}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.625rem 1rem',
-                    borderTop: i === 0 ? 'none' : '1px solid var(--rule-soft)',
-                  }}
-                >
-                  <span style={{ fontSize: '13.5px', color: 'var(--ink-mute)' }}>
-                    {row.qualite}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '13.5px',
-                      color: 'var(--ink)',
-                      fontWeight: 600,
-                      fontVariantNumeric: 'tabular-nums lining-nums',
-                    }}
-                  >
-                    {row.taux} {row.unite}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Taux ────────────────────────────────────────────────────────────────────
-
-function TauxTab() {
-  const groups = useMemo(() => {
-    const map = new Map<string, TauxMock[]>()
-    for (const t of TAUX) {
-      if (!map.has(t.segment)) map.set(t.segment, [])
-      map.get(t.segment)!.push(t)
-    }
-    return [...map.entries()]
-  }, [])
-
-  return (
-    <div className="px-10 py-8" style={{ maxWidth: '760px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {groups.map(([segment, rows]) => (
-          <div key={segment}>
-            <div className="eyebrow" style={{ marginBottom: '0.5rem' }}>
-              {segment}
-            </div>
-            <div
-              style={{
-                border: '1px solid var(--rule)',
-                borderRadius: 'var(--r-md)',
-                overflow: 'hidden',
-                background: 'var(--paper-hi)',
-              }}
-            >
-              {/* Column header */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
-                  gap: '1rem',
-                  padding: '0.5rem 1rem',
-                  background: 'var(--paper)',
-                  borderBottom: '1px solid var(--rule-soft)',
-                  fontSize: '11px',
-                  fontWeight: 500,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: 'var(--ink-faint)',
-                }}
-              >
-                <span>Zone</span>
-                <span style={{ textAlign: 'right' }}>Taux bas</span>
-                <span style={{ textAlign: 'right' }}>Taux haut</span>
-                <span style={{ textAlign: 'right' }}>Vacance</span>
-              </div>
-
-              {rows.map((row, i) => (
-                <div
-                  key={row.zone}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
-                    gap: '1rem',
-                    padding: '0.625rem 1rem',
-                    alignItems: 'center',
-                    borderTop: i === 0 ? 'none' : '1px solid var(--rule-soft)',
-                    fontSize: '13.5px',
-                  }}
-                >
-                  <span style={{ color: 'var(--ink-mute)' }}>{row.zone}</span>
-                  <span
-                    style={{
-                      color: 'var(--navy)',
-                      fontWeight: 600,
-                      fontVariantNumeric: 'tabular-nums lining-nums',
-                      textAlign: 'right',
-                    }}
-                  >
-                    {row.bas.toFixed(2)} %
-                  </span>
-                  <span
-                    style={{
-                      color: 'var(--navy)',
-                      fontWeight: 600,
-                      fontVariantNumeric: 'tabular-nums lining-nums',
-                      textAlign: 'right',
-                    }}
-                  >
-                    {row.haut.toFixed(2)} %
-                  </span>
-                  <span
-                    style={{
-                      color: 'var(--ink-mute)',
-                      fontVariantNumeric: 'tabular-nums lining-nums',
-                      textAlign: 'right',
-                    }}
-                  >
-                    {row.vacance.toFixed(1)} %
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+type TabId = typeof TABS[number]['id']
 
 export default function BibliothequePage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<Tab>('ventes')
+  const [tab, setTab] = useState<TabId>('ventes')
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -477,57 +37,374 @@ export default function BibliothequePage() {
   }
 
   return (
-    <div
-      className="relative w-full h-screen overflow-hidden flex"
-      style={{ background: 'var(--paper)' }}
-    >
+    <div className="app">
       <Sidebar onSignOut={handleSignOut} />
 
-      <div className="main-content flex flex-col overflow-hidden">
-        {/* Topbar */}
-        <div className="topbar pb-0">
-          <div className="flex items-end justify-between mb-4">
+      <div className="main">
+        <div className="topbar biblio-topbar">
+          <div className="crumbs">
+            <span className="today">Mise à jour : 28 mai 2026</span>
+          </div>
+
+          <div className="pagehead biblio-head">
             <div>
-              <h1 className="page-h1">Bibliothèque</h1>
-              <p
-                style={{
-                  fontSize: '13px',
-                  color: 'var(--ink-faint)',
-                  marginTop: '2px',
-                  fontFamily: 'var(--font-sans)',
-                }}
-              >
-                Ventes · Marchés · Coûts · Taux
-              </p>
+              <h1>Bibliothèque</h1>
+              <div className="subtitle">
+                Données de référence — ventes, marchés, coûts et taux pour appuyer chaque évaluation.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn secondary">Exporter</button>
+              <button className="btn accent"><Icon.Plus/> Importer</button>
             </div>
           </div>
 
-          {/* Tab pills */}
-          <div
-            className="flex gap-1 pb-0"
-            style={{ borderBottom: '1px solid var(--rule-soft)' }}
-          >
-            {(Object.keys(TAB_LABELS) as Tab[]).map(tab => (
+          {/* Top tabs */}
+          <div className="biblio-tabs">
+            {TABS.map(t => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`pill ${activeTab === tab ? 'active' : ''}`}
-                style={{ marginBottom: '-1px', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
-              >
-                {TAB_LABELS[tab]}
+                key={t.id}
+                className={`biblio-tab ${tab === t.id ? 'active' : ''}`}
+                onClick={() => setTab(t.id)}>
+                <span className="label">{t.label}</span>
+                <span className="count numeric">{t.count}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto">
-          {activeTab === 'ventes' && <VentesTab />}
-          {activeTab === 'marches' && <MarchesTab />}
-          {activeTab === 'couts' && <CoutsTab />}
-          {activeTab === 'taux' && <TauxTab />}
+        <div className="biblio-body">
+          {tab === 'ventes'  && <VentesTab/>}
+          {tab === 'marches' && <MarchesTab/>}
+          {tab === 'couts'   && <CoutsTab/>}
+          {tab === 'taux'    && <TauxTab/>}
         </div>
       </div>
     </div>
+  )
+}
+
+/* ============================================================
+   VENTES — table filtrable et triable des ventes comparables
+   ============================================================ */
+type SortKey = 'addr' | 'district' | 'type' | 'year' | 'area' | 'price' | 'ppsf' | 'soldAt'
+
+function VentesTab() {
+  const all = VENTES
+
+  const [query, setQuery] = useState('')
+  const [district, setDistrict] = useState('all')
+  const [type, setType] = useState('all')
+  const [sort, setSort] = useState<SortKey>('soldAt')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const rows = useMemo(() => {
+    let arr = all.slice()
+    if (district !== 'all') arr = arr.filter(v => v.district === district)
+    if (type !== 'all')     arr = arr.filter(v => v.type === type)
+    if (query.trim()) {
+      const q = query.trim().toLowerCase()
+      arr = arr.filter(v =>
+        v.addr.toLowerCase().includes(q) ||
+        v.district.toLowerCase().includes(q) ||
+        v.type.toLowerCase().includes(q) ||
+        v.id.toLowerCase().includes(q)
+      )
+    }
+    const dir = sortDir === 'asc' ? 1 : -1
+    arr.sort((a, b) => {
+      switch (sort) {
+        case 'addr':     return a.addr.localeCompare(b.addr, 'fr-CA') * dir
+        case 'district': return a.district.localeCompare(b.district, 'fr-CA') * dir
+        case 'type':     return a.type.localeCompare(b.type, 'fr-CA') * dir
+        case 'year':     return (a.year - b.year) * dir
+        case 'area':     return (a.area - b.area) * dir
+        case 'price':    return (a.price - b.price) * dir
+        case 'ppsf':     return ((ppsf(a) || 0) - (ppsf(b) || 0)) * dir
+        case 'soldAt':
+        default:         return a.soldAt.localeCompare(b.soldAt) * dir
+      }
+    })
+    return arr
+  }, [all, query, district, type, sort, sortDir])
+
+  function onSort(k: SortKey) {
+    if (sort === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSort(k); setSortDir(['addr', 'district', 'type'].includes(k) ? 'asc' : 'desc') }
+  }
+
+  const stats = useMemo(() => {
+    if (rows.length === 0) return null
+    const prices = rows.map(r => r.price)
+    const ppsfs = rows.map(ppsf).filter((x): x is number => x != null)
+    const medianOf = (arr: number[]) => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)]
+    return {
+      n: rows.length,
+      medPrice: medianOf(prices),
+      medPpsf: ppsfs.length ? medianOf(ppsfs) : null,
+      minP: Math.min(...prices),
+      maxP: Math.max(...prices),
+    }
+  }, [rows])
+
+  return (
+    <>
+      {/* Filter bar */}
+      <div className="biblio-toolbar">
+        <div className="search">
+          <Icon.Glass/>
+          <input
+            type="text"
+            placeholder="Rechercher une adresse, un quartier, un type…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          {query && <span className="kbd" onClick={() => setQuery('')} style={{ cursor: 'pointer' }}>esc</span>}
+        </div>
+        <Dropdown
+          label="Quartier"
+          value={district}
+          onChange={setDistrict}
+          options={[{ value: 'all', label: 'Tous' }, ...DISTRICTS.map(d => ({ value: d, label: d }))]}
+        />
+        <Dropdown
+          label="Type"
+          value={type}
+          onChange={setType}
+          options={[{ value: 'all', label: 'Tous' }, ...VENTE_TYPES.map(t => ({ value: t, label: t }))]}
+        />
+        {(district !== 'all' || type !== 'all' || query) && (
+          <button className="btn ghost" onClick={() => { setQuery(''); setDistrict('all'); setType('all') }}>
+            Réinitialiser
+          </button>
+        )}
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div className="biblio-stats">
+          <div className="stat">
+            <div className="stat-k">Ventes filtrées</div>
+            <div className="stat-v numeric">{stats.n}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-k">Médiane prix</div>
+            <div className="stat-v numeric">{formatCAD(stats.medPrice)}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-k">Médiane $/pi²</div>
+            <div className="stat-v numeric">{stats.medPpsf ? `${Math.round(stats.medPpsf)} $` : '—'}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-k">Étendue prix</div>
+            <div className="stat-v numeric small">
+              {formatCAD(stats.minP)} <span className="dash">–</span> {formatCAD(stats.maxP)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Results table */}
+      <div className="biblio-table-wrap">
+        <div className="biblio-table">
+          <div className="bt-head">
+            <SortHead k="addr"     sort={sort} dir={sortDir} onSort={onSort}>Adresse</SortHead>
+            <SortHead k="district" sort={sort} dir={sortDir} onSort={onSort}>Quartier</SortHead>
+            <SortHead k="type"     sort={sort} dir={sortDir} onSort={onSort}>Type</SortHead>
+            <SortHead k="year"     sort={sort} dir={sortDir} onSort={onSort} align="right">Année</SortHead>
+            <SortHead k="area"     sort={sort} dir={sortDir} onSort={onSort} align="right">Superficie</SortHead>
+            <SortHead k="soldAt"   sort={sort} dir={sortDir} onSort={onSort}>Vendu</SortHead>
+            <SortHead k="price"    sort={sort} dir={sortDir} onSort={onSort} align="right">Prix</SortHead>
+            <SortHead k="ppsf"     sort={sort} dir={sortDir} onSort={onSort} align="right">$/pi²</SortHead>
+            <div className="num-h">Utilisé</div>
+          </div>
+          {rows.map(v => {
+            const p = ppsf(v)
+            return (
+              <div className="bt-row" key={v.id}>
+                <div className="cell c-addr">
+                  <div className="addr">{v.addr}</div>
+                  <div className="meta numeric">{v.id} · {v.source}</div>
+                </div>
+                <div className="cell">{v.district}</div>
+                <div className="cell muted">{v.type}</div>
+                <div className="cell num">{v.year}</div>
+                <div className="cell num">{fmtNum(v.area)} pi²</div>
+                <div className="cell">{soldLabel(v)}</div>
+                <div className="cell num strong">{formatCAD(v.price)}</div>
+                <div className="cell num">{p ? `${Math.round(p)} $` : '—'}</div>
+                <div className="cell num used">
+                  {v.used > 0
+                    ? <span className="used-badge">{v.used}×</span>
+                    : <span className="used-zero">—</span>}
+                </div>
+              </div>
+            )
+          })}
+          {rows.length === 0 && (
+            <div className="bt-empty">Aucune vente ne correspond à ces filtres.</div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function SortHead({ k, sort, dir, onSort, children, align = 'left' }: {
+  k: SortKey
+  sort: SortKey
+  dir: 'asc' | 'desc'
+  onSort: (k: SortKey) => void
+  children: React.ReactNode
+  align?: 'left' | 'right'
+}) {
+  const active = sort === k
+  return (
+    <button
+      type="button"
+      className={`sort-head ${active ? 'active' : ''}`}
+      onClick={() => onSort(k)}
+      style={{ justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
+      <span>{children}</span>
+      <span className={`caret ${active ? (dir === 'asc' ? 'asc' : 'desc') : ''}`}>
+        <svg viewBox="0 0 10 6" width="9" height="6" aria-hidden="true">
+          <path d="M0 1l5 4 5-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+    </button>
+  )
+}
+
+/* ============================================================
+   MARCHÉS — indicateurs de marché par quartier (sparklines)
+   ============================================================ */
+function MarchesTab() {
+  return (
+    <div className="marche-grid">
+      {MARCHES.map((m: MarcheMock) => (
+        <article className="marche-card" key={m.district}>
+          <div className="mc-head">
+            <h3>{m.district}</h3>
+            <span className={`mc-ytd ${m.ytd >= 0 ? 'pos' : 'neg'}`}>
+              {m.ytd > 0 ? '+' : ''}{m.ytd.toFixed(1)} %
+            </span>
+          </div>
+          <div className="mc-median">
+            <span className="mc-median-v numeric">{m.median}</span>
+            <span className="mc-median-u">$ / pi²</span>
+          </div>
+          <Sparkline series={m.trend}/>
+          <div className="mc-stats">
+            <div>
+              <div className="mc-k">Étendue</div>
+              <div className="mc-v numeric">{m.ppsfLow}–{m.ppsfHigh} $</div>
+            </div>
+            <div>
+              <div className="mc-k">DOM médian</div>
+              <div className="mc-v numeric">{m.dom} j</div>
+            </div>
+            <div>
+              <div className="mc-k">Ventes (12m)</div>
+              <div className="mc-v numeric">{m.n}</div>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function Sparkline({ series }: { series: number[] }) {
+  const w = 240, h = 44, pad = 4
+  const min = Math.min(...series), max = Math.max(...series)
+  const range = max - min || 1
+  const pts = series.map((v, i) => {
+    const x = pad + (i / (series.length - 1)) * (w - pad * 2)
+    const y = h - pad - ((v - min) / range) * (h - pad * 2)
+    return [x, y] as const
+  })
+  const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')
+  const area = d + ` L${pts[pts.length - 1][0].toFixed(1)},${h - pad} L${pts[0][0].toFixed(1)},${h - pad} Z`
+  const last = pts[pts.length - 1]
+  return (
+    <svg className="sparkline" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+      <path d={area} fill="rgba(28,53,89,.08)"/>
+      <path d={d} fill="none" stroke="var(--navy)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx={last[0]} cy={last[1]} r="2.4" fill="var(--navy)"/>
+    </svg>
+  )
+}
+
+/* ============================================================
+   COÛTS — table de référence des coûts de construction
+   ============================================================ */
+function CoutsTab() {
+  const groups = COUTS.reduce<Record<string, CoutMock[]>>((acc, c) => {
+    ;(acc[c.category] = acc[c.category] || []).push(c)
+    return acc
+  }, {})
+
+  return (
+    <div className="couts-wrap">
+      <div className="couts-intro">
+        Coûts de remplacement neuf — utilisés pour l&apos;approche par le coût.
+        Toutes les valeurs sont en dollars canadiens.
+      </div>
+      {Object.entries(groups).map(([cat, rows]) => (
+        <section className="couts-group" key={cat}>
+          <h3>{cat}</h3>
+          <div className="couts-table">
+            <div className="ct-head">
+              <div>Qualité</div>
+              <div className="num">Taux</div>
+              <div>Unité</div>
+              <div>Source</div>
+              <div>Mis à jour</div>
+            </div>
+            {rows.map((r, i) => (
+              <div className="ct-row" key={i}>
+                <div className="ct-quality">{r.quality}</div>
+                <div className="num strong">{r.rate} $</div>
+                <div className="muted">{r.unit}</div>
+                <div className="muted">{r.source}</div>
+                <div className="muted numeric">{r.updated}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/* ============================================================
+   TAUX — taux de capitalisation
+   ============================================================ */
+function TauxTab() {
+  return (
+    <>
+      <div className="couts-intro">
+        Taux de capitalisation observés — utilisés pour l&apos;approche par les revenus.
+        Plage typique par segment et secteur.
+      </div>
+      <div className="taux-grid">
+        {TAUX.map((t, i) => (
+          <article className="taux-card" key={i}>
+            <div className="tc-segment">{t.segment}</div>
+            <div className="tc-zone">{t.zone}</div>
+            <div className="tc-cap">
+              <span className="tc-cap-v numeric">
+                {t.capLow.toFixed(1)} <span className="dash">–</span> {t.capHigh.toFixed(1)}
+              </span>
+              <span className="tc-cap-u">% taux global</span>
+            </div>
+            <div className="tc-foot">
+              <span className="tc-k">Vacance type</span>
+              <span className="tc-v numeric">{t.vacancy.toFixed(1)} %</span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </>
   )
 }
