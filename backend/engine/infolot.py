@@ -1,12 +1,15 @@
 """
-infolot.py — Recherche de lots cadastraux par rayon via WFS gouvernemental.
+infolot.py — Recherche de lots cadastraux par rayon via service gouvernemental.
 
-Source : WFS Atlas gouvernemental du Québec
-  URL    : https://servicesvectoriels.atlas.gouv.qc.ca/IDS_CATASTO_STAC_S_RLOT_QC/wfs
-  Layer  : IDS_CATASTO_STAC_S_RLOT_QC:S_RLOT_QC
+Source : ArcGIS REST « Cadastre_allege » (MELCCFP/MRNF, registre Cadastre Québec)
+  URL    : https://geo.environnement.gouv.qc.ca/donnees/rest/services/Reference/Cadastre_allege/MapServer/0/query
+  Layer  : 0 — Lots du cadastre rénové (champ NO_LOT, MAJ aux 2 mois)
   Auth   : aucune (service public)
   Coût   : gratuit
   Cache  : JSON fichier, TTL 30 jours par cellule (lat4, lon4, radius)
+
+Remplace l'ancien WFS Atlas (servicesvectoriels.atlas.gouv.qc.ca/IDS_CATASTO_
+STAC_S_RLOT_QC) retiré par le gouvernement — 404 constaté le 2026-06-10.
 
 Retourne des lots avec no_lot (cadastre rénové Québec) + centroïde + distance.
 Non-bloquant : toute exception retourne [].
@@ -24,11 +27,10 @@ from engine.source_diagnostics import append_source_diagnostic, make_source_diag
 logger = logging.getLogger("infolot")
 
 _WFS_BASE = (
-    "https://servicesvectoriels.atlas.gouv.qc.ca"
-    "/IDS_CATASTO_STAC_S_RLOT_QC/wfs"
+    "https://geo.environnement.gouv.qc.ca"
+    "/donnees/rest/services/Reference/Cadastre_allege/MapServer/0/query"
 )
-_WFS_TYPENAME = "IDS_CATASTO_STAC_S_RLOT_QC:S_RLOT_QC"
-_WFS_NOLOT_FIELD = "NOLOT"   # nom du champ dans les features (à valider au runtime)
+_WFS_NOLOT_FIELD = "NO_LOT"  # format service : "6 259 953" (espaces de groupement)
 _HTTP_TIMEOUT = 15.0
 _CACHE_TTL = 30 * 86_400     # 30 jours
 _MAX_FEATURES = 500
@@ -84,9 +86,15 @@ def _centroid_from_geometry(geom: dict) -> tuple[float | None, float | None]:
 
 
 def _parse_nolot(value: object) -> int | None:
-    """Convertit NOLOT (str ou int) en int. Retourne None si invalide."""
+    """Convertit NO_LOT (str ou int) en int. Retourne None si invalide.
+
+    Le service Cadastre_allege formate les numéros avec des espaces de
+    groupement (ex. "6 259 953") — espaces ordinaires et insécables retirés.
+    """
     if value is None:
         return None
+    if isinstance(value, str):
+        value = value.replace(" ", "").replace(" ", "")
     try:
         return int(value)
     except (ValueError, TypeError):
@@ -173,22 +181,26 @@ def fetch_lots_in_radius(
         return []
 
     minlng, minlat, maxlng, maxlat = _bbox_from_radius(lat, lon, radius_km)
-    bbox_str = f"{minlng},{minlat},{maxlng},{maxlat},EPSG:4326"
 
     params = {
-        "service": "WFS",
-        "version": "2.0.0",
-        "request": "GetFeature",
-        "typeName": _WFS_TYPENAME,
-        "bbox": bbox_str,
-        "outputFormat": "application/json",
-        "count": str(_MAX_FEATURES),
+        "geometry": f"{minlng},{minlat},{maxlng},{maxlat}",
+        "geometryType": "esriGeometryEnvelope",
+        "inSR": "4326",
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": _WFS_NOLOT_FIELD,
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "f": "geojson",
+        "resultRecordCount": str(_MAX_FEATURES),
     }
 
     try:
         r = httpx.get(_WFS_BASE, params=params, timeout=_HTTP_TIMEOUT, follow_redirects=True)
         r.raise_for_status()
         data = r.json()
+        # ArcGIS REST renvoie ses erreurs en HTTP 200 avec un corps {"error": …}
+        if isinstance(data, dict) and "error" in data:
+            raise RuntimeError(f"ArcGIS error: {data['error']}")
     except Exception as exc:
         logger.warning("Infolot WFS error: %s", exc)
         append_source_diagnostic(
