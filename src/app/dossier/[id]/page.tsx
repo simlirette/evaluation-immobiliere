@@ -19,7 +19,7 @@ import MarchePanel from '@/components/panels/MarchePanel'
 import AnalysePanel from '@/components/panels/AnalysePanel'
 import SynthesePanel from '@/components/panels/SynthesePanel'
 import RapportPanel from '@/components/panels/RapportPanel'
-import { fetchAppState, fetchRuntimeEnrichment } from '@/lib/runtime-api'
+import { fetchAppState, fetchRuntimeEnrichment, fetchCheckpointLog, type CheckpointLogEntry } from '@/lib/runtime-api'
 import { createClient } from '@/lib/supabase/client'
 import type { TabId, Document, FactChip } from '@/types'
 import './dossier.css'
@@ -94,6 +94,7 @@ function DossierShellInner() {
   const dismissToast = useCallback(() => setToast(null), [])
   const [showHelp, setShowHelp] = useState(false)
   const [meta, setMeta] = useState<DossierMeta | null>(null)
+  const [activity, setActivity] = useState<CheckpointLogEntry[]>([])
 
   useEffect(() => {
     setActiveDossierId(params.id)
@@ -119,6 +120,7 @@ function DossierShellInner() {
         }
       })
       .catch(() => router.push('/dossiers'))
+    fetchCheckpointLog(params.id).then(setActivity).catch(() => undefined)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
@@ -220,7 +222,6 @@ function DossierShellInner() {
             {/* DossierPanel toujours monté — garde le polling pipeline vivant */}
             <div className={activeTab === 'dossier' ? 'h-full flex flex-col' : 'hidden'}>
               <DossierPanel
-                isNew={false}
                 dossierId={dossierId}
                 onPipelineComplete={() => {
                   setReportReady(true)
@@ -301,10 +302,21 @@ function DossierShellInner() {
               <h3>Activité</h3>
               <div className="side-card-body">
                 <ul className="activity">
-                  <li>
-                    <div className="when">—</div>
-                    <div className="what">Le journal d&apos;activité arrive avec la phase 5b.</div>
-                  </li>
+                  {activity.length === 0 && (
+                    <li>
+                      <div className="when">—</div>
+                      <div className="what">Aucun checkpoint confirmé pour l&apos;instant.</div>
+                    </li>
+                  )}
+                  {activity.slice(-6).reverse().map((a, i) => (
+                    <li key={i}>
+                      <div className="when">{a.confirmed_at?.slice(0, 10) ?? '—'}</div>
+                      <div className="what">
+                        <span className="who">É.A.</span> a confirmé le checkpoint {a.checkpoint}
+                        {a.label ? ` — ${a.label.replace(/_/g, ' ')}` : ''}
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </section>
@@ -339,11 +351,8 @@ function DossierShellInner() {
         </div>
       </div>
 
-      {/* Capsule agent (design) — sur les onglets convertis document-first ;
-          les autres gardent leur ChatInput interne jusqu'à conversion */}
-      {['marche', 'analyse', 'synthese', 'rapport'].includes(activeTab) && (
-        <AgentChatCapsule dossierId={dossierId} stage={activeTab} />
-      )}
+      {/* Capsule agent (design) — composer persistant sur toutes les étapes */}
+      <AgentChatCapsule dossierId={dossierId} stage={activeTab} />
 
       <Toast message={toast} onDismiss={dismissToast} />
       <ShortcutHelp open={showHelp} onClose={() => setShowHelp(false)} />

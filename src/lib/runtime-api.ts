@@ -605,6 +605,21 @@ export interface IntakeFacts {
   ready_to_confirm: boolean
 }
 
+export interface CheckpointLogEntry {
+  checkpoint: number
+  label?: string
+  confirmed_by: string
+  confirmed_at: string
+  snapshot_hash?: string
+}
+
+export async function fetchCheckpointLog(sessionId: string): Promise<CheckpointLogEntry[]> {
+  const data = await runtimeJson<{ entries?: CheckpointLogEntry[] }>(
+    `/app/checkpoint/log?session_id=${encodeURIComponent(sessionId)}`
+  )
+  return data.entries ?? []
+}
+
 export function fetchCheckpointFacts(sessionId: string): Promise<IntakeFacts> {
   return runtimeJson<IntakeFacts>(`/app/facts?session_id=${encodeURIComponent(sessionId)}`)
 }
