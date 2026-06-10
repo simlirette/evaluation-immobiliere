@@ -1,33 +1,24 @@
 # State — eval-immo
 
-_Updated: 2026-06-10 | HEAD: 09cb799 (master)_
+_Updated: 2026-06-10 | HEAD: 9b89cd9 (master, poussé) | PROD: eval-immo.vercel.app = 9b89cd9_
 
 ## Current Goal
 
-Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **P1-P5c faites — workspace complet. Reste P6 (QA pixel + déploiement).**
+**Refonte frontend P1-P6 TERMINÉE et DÉPLOYÉE.** L'app Vercel est le design handoff.
 
-## Fait
+## Refonte (12 commits, 2026-06-10)
 
-- **P1 (8df1602)** shell + primitives (globals.css = app.css, Sidebar handoff, Icon/Dropdown/Stepper, boot thème).
-- **P2 (57fead6, 2af03f3)** modèles/archives/bibliothèque/aide/paramètres/login.
-- **P3 (db74fc7)** Mes-dossiers (cards/rows/toolbar/états ; facts backend manquants → « — »).
-- **P4 (169c242)** wizard /dossier/nouveau 4 étapes câblé createRuntimeDossier ; recherche = index mock.
-- **P5a (49e7a8d)** workspace dossier : topbar design (h1+ID+méta+actions), grid 1fr/340px, aside réelle (fact_chips→fact-rows, client-block+mandate-tag, documents réels avec doc-icons). Panels existants conservés dans la colonne 1fr. Branche isNew morte supprimée.
-- Pattern : `.app` grid, `.main` scroll interne, CSS handoff importé par page. Tests : tsc/vitest 1188/build verts à chaque phase. Lint : 1 erreur PRÉ-EXISTANTE useFetch.ts.
+P1 shell+primitives (8df1602) · P2 6 écrans simples (57fead6, 2af03f3) · P3 Mes-dossiers (db74fc7) · P4 wizard (169c242) · P5a coquille workspace (49e7a8d) · P5b panels+capsule (d9fdbd6) · P5c onglet Dossier+Activité (09cb799) · P6 QA+fixes (9b89cd9).
 
-## P5b ✅ (d9fdbd6)
+QA P6 : backend local 8796 + dossier pilote — tous les écrans vérifiés avec données réelles, zéro erreur console. Déploiement : `npx vercel deploy --prod` → READY, alias eval-immo.vercel.app, target production.
 
-Marché (comp-table+recon+vérifications), Analyse (approach-grid+recon-weighted+grille/édition/analytics conservées), Synthèse (hero+narratif+alertes+signoff SignatureForm), Rapport (rapport-hero+checklist+conditions, éditeur TipTap/versions conservés). AgentChatCapsule (suggestions par étape, streaming réel, tiroir réponses) active sur marché/analyse/synthèse/rapport.
+## À surveiller / suites
 
-## P5c ✅ (09cb799)
-
-DossierPanel document-first (Caractéristiques/Mandat/Visite/Documents, pipeline+CP1-CP4 intacts, NewDossierForm -580 lignes), capsule sur les 5 étapes, Activité aside branchée sur /app/checkpoint/log (fetchCheckpointLog).
-
-## P6 — QA pixel
-
-Browse port 3100 (`NEXT_PUBLIC_SUPABASE_URL="" npx next dev -p 3100`) écran par écran vs HTML handoff ; workspace avec backend local (`python backend/api.py` + dossier démo `/app/demo`) ou en prod via /setup-browser-cookies.
+- **Backend Railway** : master poussé (inclut fix Infolot ArcGIS) — vérifier que Railway a redéployé (sinon redéploiement manuel) ; sans quoi les comparables publics prod restent cassés.
+- origin/main très en retard (mi-mai) — la prod vit sur master + CLI deploy ; envisager d'aligner main ou de changer la branche par défaut.
+- Améliorations différées : endpoint recherche registre (wizard), liste dossiers enrichie (année/superficie/valeur/client), endpoints bibliothèque/modèles/archives réels, rendu markdown dans le tiroir capsule, SSO Microsoft réel, sign-up OEAQ réel.
+- Lint : 1 erreur pré-existante `src/hooks/useFetch.ts:27` (react-hooks/use-memo).
 
 ## Open (hors refonte)
 
-- Liste dossiers backend à enrichir (année/superficie/valeur/client) pour les facts cards P3 ; endpoint recherche registre (P4) ; endpoints bibliothèque/modèles/archives réels.
-- MAMH cache prod · smoke SIRF (payant) · corpus manquants (expropriation, LIR/ARC, CCQ, Loi 141, LPTAA, facteurs-rajustement) · T3.6 vrai dossier · Loi 25 avis · OEAQ §6.5 · Stripe.
+- MAMH cache prod à confirmer · smoke SIRF (payant) · corpus manquants (expropriation, LIR/ARC, CCQ, Loi 141, LPTAA, facteurs-rajustement) + réindex RAG · T3.6 vrai dossier É.A. · avis Loi 25 · OEAQ §6.5 · Stripe.
