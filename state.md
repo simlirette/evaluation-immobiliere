@@ -1,10 +1,10 @@
 # State — eval-immo
 
-_Updated: 2026-06-10 | HEAD: d9fdbd6 (master)_
+_Updated: 2026-06-10 | HEAD: 09cb799 (master)_
 
 ## Current Goal
 
-Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **P1-P5b faites. Reste P5c (onglet Dossier) + P6 (QA pixel).**
+Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **P1-P5c faites — workspace complet. Reste P6 (QA pixel + déploiement).**
 
 ## Fait
 
@@ -19,11 +19,9 @@ Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **P1-
 
 Marché (comp-table+recon+vérifications), Analyse (approach-grid+recon-weighted+grille/édition/analytics conservées), Synthèse (hero+narratif+alertes+signoff SignatureForm), Rapport (rapport-hero+checklist+conditions, éditeur TipTap/versions conservés). AgentChatCapsule (suggestions par étape, streaming réel, tiroir réponses) active sur marché/analyse/synthèse/rapport.
 
-## P5c — restant workspace
+## P5c ✅ (09cb799)
 
-1. **DossierPanel** (onglet Dossier) : convertir en StageDossier design (4 panels KV Identification/Caractéristiques/Mandat/Visite ← fact_chips + inspection) en gardant DropZone/upload, correction de faits, pipeline progress, CP1-CP4 (CheckpointReviewPanel/ComparablePanel comme panels) ; basculer le chat sur la capsule (retirer ChatInput interne) ; supprimer NewDossierForm mort (lignes ~77-160 + branche 876).
-2. Aside : brancher Activité (`/app/checkpoint/log` ou events) + upload direct depuis « Ajouter un document ».
-3. Décision capsule : conversation streaming en tiroir (actuel) vs zone dédiée.
+DossierPanel document-first (Caractéristiques/Mandat/Visite/Documents, pipeline+CP1-CP4 intacts, NewDossierForm -580 lignes), capsule sur les 5 étapes, Activité aside branchée sur /app/checkpoint/log (fetchCheckpointLog).
 
 ## P6 — QA pixel
 
