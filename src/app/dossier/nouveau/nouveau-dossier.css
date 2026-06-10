@@ -1,0 +1,506 @@
+/* ============================================================
+   Éval Immo — Nouveau dossier (wizard)
+   ============================================================ */
+
+/* ----- Topbar / head ----- */
+.nd-topbar { padding-bottom: 0; position: static; }
+.nd-head {
+  padding-bottom: 18px;
+}
+.nd-head h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: 32px; letter-spacing: -.015em; line-height: 1.1;
+  margin: 0; color: var(--ink);
+}
+.nd-head .subtitle {
+  margin-top: 6px; font-size: 14px; color: var(--ink-mute);
+  max-width: 64ch;
+  line-height: 1.55;
+}
+
+.crumbs .nd-close {
+  margin-left: auto;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  color: var(--ink-mute);
+  text-decoration: none;
+  border-radius: var(--r-sm);
+  font-size: 20px;
+  line-height: 1;
+  transition: background .12s, color .12s;
+  cursor: pointer;
+}
+.crumbs .nd-close:hover { background: var(--paper-2); color: var(--ink); }
+
+/* Override stepper: not centered, slightly tighter */
+.nd-stepper {
+  justify-content: flex-start !important;
+  padding: 8px 0 18px !important;
+}
+
+/* ----- Body ----- */
+.nd-body {
+  flex: 1;
+  padding: 32px 40px 120px;
+  display: flex;
+  justify-content: center;
+}
+.nd-step {
+  width: 100%;
+  max-width: 720px;
+}
+.nd-step-mandate { max-width: 880px; }
+.nd-step-confirm { max-width: 760px; }
+
+/* ============================================================
+   STEP 1 — Path cards
+   ============================================================ */
+.nd-paths {
+  display: grid;
+  gap: 12px;
+}
+.path-card {
+  background: var(--paper-hi);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 18px 22px 18px 18px;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 44px 1fr 28px;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+  font-family: var(--sans);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.path-card:hover {
+  border-color: var(--rule-strong);
+  background: var(--paper);
+}
+.path-card.selected {
+  border-color: var(--ink);
+  background: var(--paper-hi);
+  box-shadow: 0 0 0 3px rgba(31,30,28,.04);
+}
+.path-icon {
+  width: 44px; height: 44px;
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  color: var(--ink-2);
+  display: grid; place-items: center;
+}
+.path-card.selected .path-icon {
+  background: var(--ink);
+  color: var(--paper-hi);
+}
+.path-icon .icon { width: 18px; height: 18px; }
+.path-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  display: flex; align-items: center; gap: 10px;
+}
+.path-desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+.path-badge {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+}
+.path-badge.badge-recommandé { background: var(--navy-tint); color: var(--navy); }
+.path-badge.badge-bêta       { background: rgba(184,138,62,.14); color: var(--ochre); }
+
+.path-mark {
+  display: grid; place-items: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  color: var(--ink);
+}
+.path-mark .icon { width: 16px; height: 16px; }
+
+/* ============================================================
+   STEP 2 — Property
+   ============================================================ */
+.nd-form { display: flex; flex-direction: column; gap: 20px; }
+.nd-form-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.nd-form-2col .nd-section.full { grid-column: 1 / -1; }
+
+.nd-field {
+  display: flex; flex-direction: column;
+  gap: 6px;
+}
+.nd-k {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  font-weight: 500;
+}
+.nd-k .req { color: var(--oxblood); }
+.nd-help {
+  font-size: 12px;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
+.nd-search {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--paper-hi);
+  border: 1.5px solid var(--rule);
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  transition: border-color .12s, box-shadow .12s;
+}
+.nd-search:focus-within {
+  border-color: var(--ink-mute);
+  box-shadow: 0 0 0 4px rgba(31,30,28,.04);
+}
+.nd-search input {
+  border: 0; outline: 0; background: transparent;
+  flex: 1;
+  font-family: var(--sans);
+  font-size: 16px;
+  color: var(--ink);
+}
+.nd-search input::placeholder { color: var(--ink-faint); }
+.nd-search .icon { width: 17px; height: 17px; opacity: .55; }
+
+.nd-results {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.nd-result {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--rule-soft);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--sans);
+  transition: background .12s;
+}
+.nd-result:first-child { border-top: 0; }
+.nd-result:hover { background: var(--paper-2); }
+.nd-result .r-addr {
+  font-family: var(--serif);
+  font-size: 15.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.nd-result .r-meta {
+  margin-top: 3px;
+  display: flex; gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.nd-result .r-meta .dot-sep { color: var(--ink-faint); opacity: .55; }
+.nd-result .r-right {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.nd-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-style: italic;
+  font-size: 13.5px;
+}
+
+/* Property preview */
+.nd-preview {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 22px 24px;
+  display: flex; flex-direction: column;
+  gap: 18px;
+}
+.nd-preview .prev-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px;
+}
+.nd-preview .prev-head .eyebrow {
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.nd-preview .prev-head h3 {
+  margin: 4px 0 2px;
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -.005em;
+  color: var(--ink);
+}
+.nd-preview .prev-head .prev-sub {
+  font-size: 13.5px;
+  color: var(--ink-mute);
+}
+.nd-preview .prev-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule-soft);
+}
+.nd-preview .prev-note {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+.nd-preview .prev-note .icon {
+  width: 14px; height: 14px;
+  color: var(--ochre);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* KVP — reusable on confirm step */
+.kvp {
+  display: flex; flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kvp .k {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-weight: 500;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.kvp .v {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ============================================================
+   STEP 3 — Mandate form
+   ============================================================ */
+.nd-section {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 20px 22px;
+}
+.nd-section h3 {
+  margin: 0 0 14px;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.nd-section-body {
+  display: flex; flex-direction: column;
+  gap: 14px;
+}
+.nd-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.nd-field input,
+.nd-field textarea {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+  outline: 0;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+  width: 100%;
+}
+.nd-field input:focus,
+.nd-field textarea:focus {
+  background: var(--paper-hi);
+  border-color: var(--ink-mute);
+  box-shadow: 0 0 0 3px rgba(31,30,28,.04);
+}
+.nd-field input::placeholder,
+.nd-field textarea::placeholder {
+  color: var(--ink-faint);
+}
+.nd-field textarea {
+  resize: vertical;
+  min-height: 64px;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+/* Date input — hide the native picker indicator and overlay our own calendar
+   icon so it matches the page aesthetic. The whole field stays clickable. */
+.nd-field input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236b6760' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='1.5'/%3E%3Cpath d='M5 2v3M11 2v3M2.5 6.5h11'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px 16px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.nd-field input[type="date"]:hover {
+  background-color: var(--paper-hi);
+}
+.nd-field input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0 -4px 0 0;
+}
+.nd-field input[type="date"]::-webkit-datetime-edit {
+  color: var(--ink);
+}
+.nd-field input[type="date"]:invalid::-webkit-datetime-edit,
+.nd-field input[type="date"]:not(:focus):placeholder-shown::-webkit-datetime-edit {
+  color: var(--ink-faint);
+}
+
+/* Make Dropdown trigger fill the form column */
+.nd-field .dropdown { display: flex; }
+.nd-field .dropdown .dd-trigger {
+  width: 100%;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+}
+
+/* ============================================================
+   STEP 4 — Confirmation
+   ============================================================ */
+.confirm-card {
+  background: var(--paper-hi);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: 28px 32px 24px;
+  display: flex; flex-direction: column;
+  gap: 24px;
+}
+.confirm-card .cc-head .eyebrow {
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.confirm-card .cc-head h2 {
+  margin: 6px 0 4px;
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.confirm-card .cc-head .cc-sub {
+  font-size: 14px;
+  color: var(--ink-mute);
+}
+
+.confirm-card .cc-section h4 {
+  margin: 0 0 12px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.confirm-card .cc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 28px;
+}
+.confirm-card .cc-notes {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.confirm-card .cc-foot {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule-soft);
+  font-size: 13px;
+}
+.confirm-card .cc-foot-k { color: var(--ink-faint); }
+.confirm-card .cc-foot-v { color: var(--ink); font-weight: 500; }
+
+.created-banner {
+  margin-top: 18px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  background: rgba(74,107,84,.10);
+  color: var(--verdigris);
+  border-radius: var(--r-md);
+}
+.created-banner .icon { width: 18px; height: 18px; }
+.created-banner b { color: var(--verdigris); }
+
+/* ============================================================
+   Sticky footer
+   ============================================================ */
+.nd-footer {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--paper) 30%, var(--paper) 100%);
+  padding: 18px 40px 22px;
+}
+.nd-footer-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+}
+.nd-footer .btn[disabled] {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.nd-footer-status {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.nd-footer-status b { color: var(--ink); font-weight: 600; }
+
+/* Fix port : .nd-field input (ci-dessus) écrasait .nd-search input —
+   le champ de recherche garde la bordure du wrapper uniquement. */
+.nd-field .nd-search input,
+.nd-field .nd-search input:focus {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  font-size: 16px;
+}
