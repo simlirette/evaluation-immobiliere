@@ -1,28 +1,26 @@
 # State — eval-immo
 
-_Updated: 2026-06-10 | HEAD: 8df1602 (master)_
+_Updated: 2026-06-10 | HEAD: 2af03f3 (master)_
 
 ## Current Goal
 
-Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Phase 1 faite.**
+Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Phases 1 et 2 faites.**
 
-## Phase 1 livrée (8df1602)
+## Fait
 
-- `globals.css` = port 1:1 de `app.css` handoff (sidebar/topbar/toolbar/search/pills/btn/cards/list/badges/états/dropdown/stepper/theme-pill/dark) + section COMPAT pour panels existants (.panel, .side-card, .field, .agent-chat-*, .page-h1).
-- `Sidebar.tsx` réécrit anatomie handoff : statique 260px (toggle supprimé), wordmark, bloc dossier courant (props addr/id/city), nav Travail + counts réels (dossiers runtime, mocks biblio/modèles/archives), épinglés/récents (fetchRuntimeDossiers), firm card popover + theme-pill, profil É.A. réel (fetchEvaluateurProfile).
-- Nouveaux : `shared/Icon.tsx` (set handoff), `shared/Dropdown.tsx`. `Stepper.tsx` markup handoff.
-- `layout.tsx` : boot thème anti-FOUC. Morts supprimés : SidebarNav/Footer/Recent/Toggle/Wordmark, DossierListItem, AgentChat.
-- Vérifié : tsc ✅ vitest 1188 ✅ build ✅ + screenshots light/dark/popover (dev sans auth, port 3100).
+- **P1 (8df1602)** : shell + primitives — globals.css = app.css handoff, Sidebar anatomie handoff (statique 260px, firm menu + theme pill, épinglés/récents réels, profil É.A.), Icon.tsx, Dropdown.tsx, Stepper handoff, boot thème anti-FOUC.
+- **P2a (57fead6)** : modèles, archives, bibliothèque (4 onglets), aide — mocks alignés verbatim design, CSS handoff par page. Fix bug handoff yearBuilt archives.
+- **P2b (2af03f3)** : paramètres (7 sections, profil branché É.A. réel) + login (quotes, SSO visuel, sign-in Supabase câblé, sign-up OEAQ → sent).
+- Pattern pages : `.app` grid 260/1fr, `.main` scroll interne (body overflow:hidden conservé), CSS importé par page (noms scopés par préfixe).
+- Santé : tsc ✅ vitest 1188 ✅ build ✅. Lint : 1 erreur PRÉ-EXISTANTE `src/hooks/useFetch.ts:27` (react-hooks/use-memo, fichier non touché).
 
-## Phases restantes (plan refonte)
+## Phases restantes
 
-2. Écrans simples : login complet (2 col, quotes, SSO, sign-up OEAQ), aide, modèles, archives, bibliothèque, paramètres 7 sections.
-3. Mes-dossiers : toolbar handoff (search 360px, pills avec counts, sort-select italique, view-toggle), grid/rows, 5 états.
-4. Wizard nouveau dossier 4 étapes (+ flux vision 1.2 suggestion agent → confirmation).
-5. Workspace dossier panel-first : panels par étape + aside 340px + chat capsule (préserver streaming/checkpoints).
-6. QA pixel écran par écran vs HTML handoff.
+3. **Mes-dossiers** : toolbar handoff (search 360 + kbd esc, pills counts, sort-select, view-toggle), DossierCard/Row handoff (status-chip, pin hover, facts 3 col, stage-bar), 5 états (skeleton/empty/error/partial/no-results). Classes CSS déjà portées dans globals.css — reste le DOM de la page + composants dossiers/.
+4. **Wizard nouveau dossier** 4 étapes (nouveau-dossier.jsx/css) + flux vision 1.2 (suggestion agent → confirmation É.A.).
+5. **Workspace dossier panel-first** (dossier.jsx + dossier-stages.jsx + dossier.css) : panels par étape + aside 340px (Faits saillants/Mandat/Activité/Documents) + chat capsule — préserver streaming/checkpoints/pipeline existants.
+6. QA pixel par écran vs HTML handoff (browse, port 3100 sans auth : `NEXT_PUBLIC_SUPABASE_URL="" npx next dev -p 3100`).
 
 ## Open (hors refonte)
 
-- MAMH cache prod à confirmer · smoke SIRF (payant) · corpus manquants (expropriation, LIR/ARC, CCQ, Loi 141, LPTAA, facteurs-rajustement) · T3.6 vrai dossier · Loi 25 avis · OEAQ §6.5 · Stripe.
-- `backend/runtime_sessions_acceptance/` non suivi = evidence acceptance locale (garder hors git).
+- MAMH cache prod · smoke SIRF (payant) · corpus manquants (expropriation, LIR/ARC, CCQ, Loi 141, LPTAA, facteurs-rajustement) · T3.6 vrai dossier · Loi 25 avis · OEAQ §6.5 · Stripe.
