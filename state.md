@@ -1,10 +1,10 @@
 # State — eval-immo
 
-_Updated: 2026-06-10 | HEAD: db74fc7 (master)_
+_Updated: 2026-06-10 | HEAD: 169c242 (master)_
 
 ## Current Goal
 
-Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Phases 1, 2 et 3 faites.**
+Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Phases 1 à 4 faites — reste le workspace dossier (P5) + QA finale (P6).**
 
 ## Fait
 
@@ -17,7 +17,7 @@ Refonte frontend pixel-perfect selon `frontend/design_handoff_eval_immo/`. **Pha
 ## Phases restantes
 
 3. ✅ **Mes-dossiers (db74fc7)** : DossierCard/Row + page DOM handoff, pin bouton + context menu conservés, états design. Champs année/superficie/valeur/client absents de la liste backend → « — » muted (endpoint à enrichir plus tard pour les facts réels).
-4. **Wizard nouveau dossier** 4 étapes (nouveau-dossier.jsx/css) + flux vision 1.2 (suggestion agent → confirmation É.A.).
+4. ✅ **Wizard nouveau dossier (169c242)** : route statique /dossier/nouveau, 4 étapes, création câblée (createRuntimeDossier + mapping FR→backend), chemin manuel fonctionnel, fix double bordure nd-search. Recherche = index mock (endpoint registre réel à faire). Le flux vision 1.2 (suggestion agent → confirmation) se branchera quand l'intake backend l'exposera. NOTE : l'ancienne branche isNew/NewDossierForm dans dossier/[id] est morte (route shadowée) — à nettoyer en P5.
 5. **Workspace dossier panel-first** (dossier.jsx + dossier-stages.jsx + dossier.css) : panels par étape + aside 340px (Faits saillants/Mandat/Activité/Documents) + chat capsule — préserver streaming/checkpoints/pipeline existants.
 6. QA pixel par écran vs HTML handoff (browse, port 3100 sans auth : `NEXT_PUBLIC_SUPABASE_URL="" npx next dev -p 3100`).
 
