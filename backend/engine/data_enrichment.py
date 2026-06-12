@@ -2328,11 +2328,20 @@ def download_role_mtl(cache_dir: Path, force: bool = False) -> Path:
         return csv_path
     cache_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Téléchargement rôle Montréal CSV (~72 MB)…")
-    with httpx.stream("GET", _ROLE_MTL_CSV_URL, timeout=300, follow_redirects=True) as r:
-        r.raise_for_status()
-        with csv_path.open("wb") as fh:
-            for chunk in r.iter_bytes(chunk_size=256 * 1024):
-                fh.write(chunk)
+    # Téléchargement atomique : .tmp puis rename — un échec (réseau, disque
+    # plein) ne doit jamais laisser un CSV tronqué que les runs suivantes
+    # prendraient pour un cache valide.
+    tmp_path = csv_path.with_suffix(".csv.tmp")
+    try:
+        with httpx.stream("GET", _ROLE_MTL_CSV_URL, timeout=300, follow_redirects=True) as r:
+            r.raise_for_status()
+            with tmp_path.open("wb") as fh:
+                for chunk in r.iter_bytes(chunk_size=256 * 1024):
+                    fh.write(chunk)
+        tmp_path.replace(csv_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
     logger.info("Rôle Montréal téléchargé : %s", csv_path)
     return csv_path
 
@@ -2467,11 +2476,20 @@ def download_role_xml(city_code: str, cache_dir: Path, force: bool = False) -> P
         return xml_path
     cache_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Téléchargement rôle %s XML…", city_name)
-    with httpx.stream("GET", url, timeout=600, follow_redirects=True) as r:
-        r.raise_for_status()
-        with xml_path.open("wb") as fh:
-            for chunk in r.iter_bytes(chunk_size=256 * 1024):
-                fh.write(chunk)
+    # Téléchargement atomique : .tmp puis rename — un échec (réseau, disque
+    # plein) ne doit jamais laisser un XML tronqué/vide pris pour un cache
+    # valide par les runs suivantes (ParseError observé en prod 2026-06-12).
+    tmp_path = xml_path.with_suffix(".xml.tmp")
+    try:
+        with httpx.stream("GET", url, timeout=600, follow_redirects=True) as r:
+            r.raise_for_status()
+            with tmp_path.open("wb") as fh:
+                for chunk in r.iter_bytes(chunk_size=256 * 1024):
+                    fh.write(chunk)
+        tmp_path.replace(xml_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
     logger.info("Rôle %s téléchargé : %s", city_name, xml_path)
     return xml_path
 
