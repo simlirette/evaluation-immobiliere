@@ -13,7 +13,8 @@ _Updated: 2026-06-12 | HEAD: 692948e (master, poussé) | PROD front: eval-immo.v
 - Readiness prod : 2 warnings — **MAMH_CACHE vide** et **SIRF creds absents**.
 - **Nouveau (692948e, poussé)** : endpoint `POST/GET /ops/mamh/provision` (runtime_write/read, thread background, idempotent, statut détaillé) + 4 tests ; suite 1041 ✅. Railway redéploie ; monitor armé → ensuite POST provisioning, suivre jusqu'à ok, re-checker readiness.
 - DEPLOYMENT.md mis à jour (provisioning à distance) — commit local, push différé pour ne pas retrigger le build en cours.
-- Restant user : creds SIRF en prod (payant), suppression du service Railway doublon.
+- Provisioning exécuté en prod : **partial** — gatineau OK ; laval/longueuil/quebec/sherbrooke = « No space left on device » (**volume Railway 500 MB trop petit**, besoin ~2-5 GB) ; Montréal CSV = 429 rate-limit portail (retry après).
+- **Actions user** : (1) Dashboard Railway → volume blissful-reverence → **Grow** (5 GB) ; ensuite re-POST /ops/mamh/provision (je peux le faire). (2) Creds SIRF en prod. (3) Supprimer le service Railway doublon `evaluation-immobiliere` (deploy failed à chaque push).
 
 ## Refonte (12 commits, 2026-06-10)
 
