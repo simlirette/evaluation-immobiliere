@@ -13,8 +13,11 @@ _Updated: 2026-06-12 | HEAD: 692948e (master, poussé) | PROD front: eval-immo.v
 - Readiness prod : 2 warnings — **MAMH_CACHE vide** et **SIRF creds absents**.
 - **Nouveau (692948e, poussé)** : endpoint `POST/GET /ops/mamh/provision` (runtime_write/read, thread background, idempotent, statut détaillé) + 4 tests ; suite 1041 ✅. Railway redéploie ; monitor armé → ensuite POST provisioning, suivre jusqu'à ok, re-checker readiness.
 - DEPLOYMENT.md mis à jour (provisioning à distance) — commit local, push différé pour ne pas retrigger le build en cours.
-- Provisioning exécuté en prod : **partial** — gatineau OK ; laval/longueuil/quebec/sherbrooke = « No space left on device » (**volume Railway 500 MB trop petit**, besoin ~2-5 GB) ; Montréal CSV = 429 rate-limit portail (retry après).
-- **Actions user** : (1) Dashboard Railway → volume blissful-reverence → **Grow** (5 GB) ; ensuite re-POST /ops/mamh/provision (je peux le faire). (2) Creds SIRF en prod. (3) Supprimer le service Railway doublon `evaluation-immobiliere` (deploy failed à chaque push).
+- Provisioning prod, 3 runs : run 1 partial (volume 500 MB plein → fichiers tronqués laissés) ; run 2 partial (ParseError sur les résidus tronqués) ; run 3 force = encore « No space left » — **le grow 5 GB du user n'était pas appliqué** (railway volume list affichait toujours 500 MB ; grow exige un redeploy).
+- **Fix durable (5cc7ada, poussé)** : téléchargements rôles atomiques (.tmp + os.replace, cleanup sur exception) — plus jamais de cache tronqué pris pour valide. 9 tests verts.
+- Le push 5cc7ada redéploie → monitor en vol : redeploy détecté → vérif volume 5 GB → relance provisioning force → rapport run 4. Si volume encore 500 MB : revérifier le Grow dashboard (service blissful-reverence → Volume → Settings).
+- User a fait : volume ajusté (à confirmer effectif), service doublon `evaluation-immobiliere` **supprimé** ✓. SIRF expliqué (compte registrefoncier.gouv.qc.ca, code utilisateur + mdp dans les variables Railway) — en attente du compte user.
+- Montréal CSV : 429 rate-limit portail donnees.montreal.ca — à retenter (inclus dans run 4).
 
 ## Refonte (12 commits, 2026-06-10)
 
