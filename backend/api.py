@@ -85,6 +85,84 @@ ROLE_PERMISSIONS = {
 _SESSION_LOCKS_GUARD = threading.Lock()
 _SESSION_LOCKS: dict[str, threading.RLock] = {}
 
+# ── Provisioning MAMH en arrière-plan (rôles publics → DATA_CACHE_DIR) ────────
+_MAMH_PROVISION_GUARD = threading.Lock()
+_MAMH_PROVISION_STATE: dict[str, object] = {"status": "idle"}
+
+
+def _mamh_provision_worker(cache_dir: Path, force: bool) -> None:
+    from scripts.provision_mamh_cache import (
+        provision_mamh_cache,
+        supported_xml_cities,
+        _summarize,
+    )
+
+    try:
+        results = provision_mamh_cache(
+            cache_dir,
+            include_montreal=True,
+            xml_cities=list(supported_xml_cities()),
+            force=force,
+        )
+        summary = _summarize(cache_dir, results)
+        status = "ok" if not summary["failed_count"] and not summary["missing_count"] else "partial"
+        with _MAMH_PROVISION_GUARD:
+            _MAMH_PROVISION_STATE.clear()
+            _MAMH_PROVISION_STATE.update(
+                {
+                    "status": status,
+                    "finished_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                    "summary": summary,
+                }
+            )
+    except Exception as exc:  # noqa: BLE001 — l'état du job doit refléter toute panne
+        with _MAMH_PROVISION_GUARD:
+            _MAMH_PROVISION_STATE.clear()
+            _MAMH_PROVISION_STATE.update(
+                {
+                    "status": "failed",
+                    "finished_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+
+
+def ops_mamh_provision_start(body: dict) -> dict:
+    """POST /ops/mamh/provision — lance le provisioning MAMH (Montréal + villes XML).
+
+    Idempotent : si un provisioning tourne déjà, retourne son état sans en
+    relancer un. Les téléchargements (rôles municipaux publics) durent
+    plusieurs minutes ; le statut se suit via GET /ops/mamh/provision.
+    """
+    force = bool(body.get("force"))
+    cache_dir = _resolve_data_cache_dir()
+    with _MAMH_PROVISION_GUARD:
+        if _MAMH_PROVISION_STATE.get("status") == "running":
+            return dict(_MAMH_PROVISION_STATE)
+        _MAMH_PROVISION_STATE.clear()
+        _MAMH_PROVISION_STATE.update(
+            {
+                "status": "running",
+                "started_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                "cache_dir": str(cache_dir),
+                "force": force,
+            }
+        )
+        state = dict(_MAMH_PROVISION_STATE)
+    threading.Thread(
+        target=_mamh_provision_worker,
+        args=(cache_dir, force),
+        name="mamh-provision",
+        daemon=True,
+    ).start()
+    return state
+
+
+def ops_mamh_provision_status() -> dict:
+    """GET /ops/mamh/provision — état du dernier provisioning MAMH."""
+    with _MAMH_PROVISION_GUARD:
+        return dict(_MAMH_PROVISION_STATE)
+
 
 def _lock_key_for_path(path: Path) -> str:
     try:
@@ -6369,6 +6447,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, ops_observability_snapshot())
             return
+        if parsed.path == "/ops/mamh/provision":
+            if not self._require_permission("runtime_read"):
+                return
+            self._send_json(200, ops_mamh_provision_status())
+            return
         if parsed.path.startswith("/ops/"):
             if not self._require_permission("ops_read"):
                 return
@@ -6457,6 +6540,11 @@ class RuntimeApiHandler(BaseHTTPRequestHandler):
                 if not self._require_body_session_access(body):
                     return
                 self._send_json(200, app_generate_lettre_mandat(body))
+                return
+            if self.path == "/ops/mamh/provision":
+                if not self._require_permission("runtime_write"):
+                    return
+                self._send_json(202, ops_mamh_provision_start(body))
                 return
             if self.path == "/app/checkpoint/confirm":
                 if not self._require_permission("runtime_write"):
