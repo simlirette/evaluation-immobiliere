@@ -54,7 +54,9 @@ Railway → service → **Volumes** → Add Volume :
 
 Ajouter aussi un stockage persistant pour les sources publiques :
 - Mount path : `/data/data_cache` si volume separe, ou monter `/data` et utiliser `/data/data_cache`.
-- Prechauffer le cache MAMH avant usage reel : `python scripts/provision_mamh_cache.py --cache-dir /data/data_cache --all`.
+- Prechauffer le cache MAMH avant usage reel — deux options :
+  - A distance (recommande) : `POST /ops/mamh/provision` avec le Bearer token runtime, puis suivre via `GET /ops/mamh/provision` (statuts running/ok/partial/failed).
+  - Dans le conteneur : `python scripts/provision_mamh_cache.py --cache-dir /data/data_cache --all`.
 
 ### 1.4 Vérifier le healthcheck
 

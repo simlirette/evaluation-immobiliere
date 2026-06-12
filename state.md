@@ -1,10 +1,19 @@
 # State — eval-immo
 
-_Updated: 2026-06-10 | HEAD: 9b89cd9 (master, poussé) | PROD: eval-immo.vercel.app = 9b89cd9_
+_Updated: 2026-06-12 | HEAD: 692948e (master, poussé) | PROD front: eval-immo.vercel.app = 9b89cd9 | PROD back: blissful-reverence (Railway)_
 
 ## Current Goal
 
-**Refonte frontend P1-P6 TERMINÉE et DÉPLOYÉE.** L'app Vercel est le design handoff.
+**Refonte frontend P1-P6 TERMINÉE et DÉPLOYÉE.** Suite P6 : opérationnalisation prod backend.
+
+## Session 2026-06-12 (en cours)
+
+- Vérifs prod : BFF Vercel 401 propre ; backend Railway = service **blissful-reverence** (URL blissful-reverence-production-ef1d.up.railway.app, volume /data) — image du 06-10 incluait déjà le fix Infolot ✓, fail-closed ✓.
+- **Découverte** : service Railway `evaluation-immobiliere` = frontend Next REDONDANT (Vercel fait ce travail) avec « Deploy failed » sur chaque push — à supprimer/désactiver (décision user).
+- Readiness prod : 2 warnings — **MAMH_CACHE vide** et **SIRF creds absents**.
+- **Nouveau (692948e, poussé)** : endpoint `POST/GET /ops/mamh/provision` (runtime_write/read, thread background, idempotent, statut détaillé) + 4 tests ; suite 1041 ✅. Railway redéploie ; monitor armé → ensuite POST provisioning, suivre jusqu'à ok, re-checker readiness.
+- DEPLOYMENT.md mis à jour (provisioning à distance) — commit local, push différé pour ne pas retrigger le build en cours.
+- Restant user : creds SIRF en prod (payant), suppression du service Railway doublon.
 
 ## Refonte (12 commits, 2026-06-10)
 
